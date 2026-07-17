@@ -123,23 +123,42 @@ export default function BuyerOrders() {
                 </div>
 
                 <div className="flex flex-wrap gap-2">
-                  <button className="flex items-center gap-1.5 btn-secondary px-3 py-2 text-xs rounded-xl">
+                  <button
+                    onClick={() => alert('Invoice download will be available once the order is processed.')}
+                    className="flex items-center gap-1.5 btn-secondary px-3 py-2 text-xs rounded-xl"
+                  >
                     <Icon name="DocumentArrowDownIcon" size={14} />
                     Download Invoice
                   </button>
                   {order?.status === 'delivered' && (
-                    <button className="flex items-center gap-1.5 bg-muted border border-border px-3 py-2 text-xs rounded-xl font-600 hover:border-primary transition-colors">
+                    <button
+                      onClick={() => {
+                        const msg = 'Exchange Policy: Exchanges are only accepted for damaged goods. You must provide an unboxing video as proof of damage. No returns are accepted. Please open a Dispute in the Disputes & Messages tab with your unboxing video to request an exchange.';
+                        alert(msg);
+                      }}
+                      className="flex items-center gap-1.5 bg-amber-50 border border-amber-200 text-amber-700 px-3 py-2 text-xs rounded-xl font-600 hover:bg-amber-100 transition-colors"
+                    >
                       <Icon name="ArrowPathIcon" size={14} />
-                      Request Exchange
+                      Request Exchange (Damage Only)
                     </button>
                   )}
                   {order?.canCancel && (
-                    <button className="flex items-center gap-1.5 bg-error/10 border border-error/20 text-error px-3 py-2 text-xs rounded-xl font-600">
+                    <button
+                      onClick={() => {
+                        if (confirm('Are you sure you want to cancel this order?')) {
+                          alert('Cancellation request submitted. You will be notified once confirmed.');
+                        }
+                      }}
+                      className="flex items-center gap-1.5 bg-error/10 border border-error/20 text-error px-3 py-2 text-xs rounded-xl font-600 hover:bg-error/20 transition-colors"
+                    >
                       <Icon name="XMarkIcon" size={14} />
                       Cancel Order
                     </button>
                   )}
-                  <button className="flex items-center gap-1.5 bg-muted border border-border px-3 py-2 text-xs rounded-xl font-600 hover:border-primary transition-colors">
+                  <button
+                    onClick={() => alert('Please use the Disputes & Messages tab to contact support directly.')}
+                    className="flex items-center gap-1.5 bg-muted border border-border px-3 py-2 text-xs rounded-xl font-600 hover:border-primary transition-colors"
+                  >
                     <Icon name="ChatBubbleLeftIcon" size={14} />
                     Contact Support
                   </button>

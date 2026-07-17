@@ -59,9 +59,14 @@ export default function Footer() {
           <p className="text-sm text-muted-foreground">
             © 2026 FabricTrad. All rights reserved.
           </p>
-          <p className="text-xs text-muted-foreground text-center sm:text-right max-w-sm">
-            Platform is a service provider only. Not responsible for seller taxes, courier RTO, or packing charges.
-          </p>
+          <div className="flex flex-col items-center sm:items-end gap-1">
+            <p className="text-xs text-muted-foreground text-center sm:text-right max-w-sm">
+              Platform is a service provider only. Not responsible for seller taxes, courier RTO, or packing charges.
+            </p>
+            <p className="text-xs font-600 text-warning text-center sm:text-right">
+              No Cash on Delivery · No Returns · Exchanges only for damage with unboxing video proof
+            </p>
+          </div>
         </div>
       </div>
     </footer>
