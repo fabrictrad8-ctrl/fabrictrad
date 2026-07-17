@@ -37,8 +37,8 @@ export default function SellerCTA() {
               </p>
 
               <div className="flex flex-col sm:flex-row gap-3">
-                <Link href="/seller-dashboard" className="btn-primary px-6 py-3 text-sm rounded-xl text-center">
-                  Start Selling Today
+                <Link href="/seller-registration" className="btn-primary px-6 py-3 text-sm rounded-xl text-center">
+                  Register as Seller
                 </Link>
                 <Link href="/seller-dashboard" className="bg-white/10 hover:bg-white/20 border border-white/20 text-white px-6 py-3 rounded-xl text-sm font-600 transition-colors text-center">
                   View Seller Portal

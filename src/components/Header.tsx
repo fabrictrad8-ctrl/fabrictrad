@@ -60,8 +60,14 @@ export default function Header() {
         {/* Desktop Actions */}
         <div className="hidden md:flex items-center gap-2">
           <Link
-            href="/seller-dashboard"
+            href="/seller-registration"
             className="px-3 py-2 text-sm font-600 text-secondary hover:text-primary transition-colors"
+          >
+            Sell on FabricTrad
+          </Link>
+          <Link
+            href="/seller-dashboard"
+            className="px-3 py-2 text-sm font-500 text-muted-foreground hover:text-foreground transition-colors"
           >
             Seller Portal
           </Link>
@@ -108,15 +114,22 @@ export default function Header() {
             ))}
             <div className="pt-4 space-y-2 border-t border-border mt-4">
               <Link
-                href="/buyer-registration"
+                href="/seller-registration"
                 className="btn-primary w-full px-4 py-3 text-sm rounded-lg text-center block"
+                onClick={() => setMobileOpen(false)}
+              >
+                Sell on FabricTrad
+              </Link>
+              <Link
+                href="/buyer-registration"
+                className="btn-navy w-full px-4 py-3 text-sm rounded-lg text-center block"
                 onClick={() => setMobileOpen(false)}
               >
                 Register as Buyer
               </Link>
               <Link
                 href="/seller-dashboard"
-                className="btn-navy w-full px-4 py-3 text-sm rounded-lg text-center block"
+                className="btn-secondary w-full px-4 py-3 text-sm rounded-lg text-center block"
                 onClick={() => setMobileOpen(false)}
               >
                 Seller Portal

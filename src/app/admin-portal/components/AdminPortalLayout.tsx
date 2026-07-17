@@ -11,8 +11,9 @@ import AdminActivityFeed from '@/app/admin-portal/components/AdminActivityFeed';
 import AdminListings from '@/app/admin-portal/components/AdminListings';
 import AdminPayments from '@/app/admin-portal/components/AdminPayments';
 import AdminSettings from '@/app/admin-portal/components/AdminSettings';
+import AdminReconciliation from '@/app/admin-portal/components/AdminReconciliation';
 
-type AdminTab = 'dashboard' | 'sellers' | 'listings' | 'orders' | 'payments' | 'discounts' | 'activity' | 'settings';
+type AdminTab = 'dashboard' | 'sellers' | 'listings' | 'orders' | 'payments' | 'reconciliation' | 'discounts' | 'activity' | 'settings';
 
 const navItems: { key: AdminTab; label: string; icon: string; badge?: number }[] = [
   { key: 'dashboard', label: 'Dashboard', icon: 'ChartPieIcon' },
@@ -20,6 +21,7 @@ const navItems: { key: AdminTab; label: string; icon: string; badge?: number }[]
   { key: 'listings', label: 'Listings', icon: 'TagIcon', badge: 12 },
   { key: 'orders', label: 'Orders', icon: 'ShoppingBagIcon' },
   { key: 'payments', label: 'Payments', icon: 'CreditCardIcon' },
+  { key: 'reconciliation', label: 'Reconciliation', icon: 'ScaleIcon', badge: 4 },
   { key: 'discounts', label: 'Discounts', icon: 'ReceiptPercentIcon' },
   { key: 'activity', label: 'Activity Feed', icon: 'BoltIcon' },
   { key: 'settings', label: 'Settings', icon: 'CogIcon' },
@@ -102,6 +104,7 @@ export default function AdminPortalLayout() {
           {activeTab === 'listings' && <AdminListings />}
           {activeTab === 'orders' && <AdminOrders />}
           {activeTab === 'payments' && <AdminPayments />}
+          {activeTab === 'reconciliation' && <AdminReconciliation />}
           {activeTab === 'discounts' && <AdminDiscounts />}
           {activeTab === 'activity' && <AdminActivityFeed />}
           {activeTab === 'settings' && <AdminSettings />}
