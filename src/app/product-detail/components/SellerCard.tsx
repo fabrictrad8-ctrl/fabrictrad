@@ -11,7 +11,7 @@ export default function SellerCard() {
       <div className="flex items-start gap-3 mb-4">
         <div className="w-12 h-12 rounded-xl overflow-hidden bg-muted shrink-0">
           <AppImage
-            src="https://img.rocket.new/generatedImages/rocket_gen_img_14df8d316-1784314860425.png"
+            src="https://img.rocket.new/generatedImages/rocket_gen_img_129d1989a-1784317809699.png"
             alt="Surat Textile Mills office building exterior, modern commercial building"
             width={48}
             height={48}

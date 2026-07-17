@@ -53,7 +53,7 @@ export default function SellerDashboardLayout() {
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-full overflow-hidden bg-muted">
               <AppImage
-                src="https://img.rocket.new/generatedImages/rocket_gen_img_1ef3eb025-1772795623419.png"
+                src="https://img.rocket.new/generatedImages/rocket_gen_img_1de5f045a-1772147165837.png"
                 alt="Seller Arjun Sharma profile photo"
                 width={32} height={32} className="object-cover" />
               

@@ -6,7 +6,7 @@ const testimonials = [
 {
   name: 'Rajesh Mehta',
   company: 'Mehta Garments, Mumbai',
-  avatar: "https://img.rocket.new/generatedImages/rocket_gen_img_11142d9f7-1784314859003.png",
+  avatar: "https://img.rocket.new/generatedImages/rocket_gen_img_1835be2ee-1766282159699.png",
   text: 'FabricTrad ne hamara sourcing time 60% reduce kar diya. Verified sellers, GST invoices, aur real-time tracking — sab kuch ek jagah.',
   rating: 5,
   orders: '142 orders'

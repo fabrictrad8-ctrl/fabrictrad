@@ -115,7 +115,7 @@ export default function BuyerDashboardLayout() {
               <div className="bg-card rounded-2xl border border-border p-6 space-y-4">
                 <div className="flex items-center gap-4 pb-4 border-b border-border">
                   <div className="w-16 h-16 rounded-2xl overflow-hidden bg-muted">
-                    <AppImage src="https://img.rocket.new/generatedImages/rocket_gen_img_1cbee50a4-1763296279384.png" alt="Rajesh Mehta buyer profile photo" width={64} height={64} className="object-cover" />
+                    <AppImage src="https://img.rocket.new/generatedImages/rocket_gen_img_15ebdb31b-1763300068284.png" alt="Rajesh Mehta buyer profile photo" width={64} height={64} className="object-cover" />
                   </div>
                   <div>
                     <p className="font-800 text-foreground">Rajesh Mehta</p>

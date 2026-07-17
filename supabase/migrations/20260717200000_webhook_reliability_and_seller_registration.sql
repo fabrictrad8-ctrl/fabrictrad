@@ -88,23 +88,31 @@ CREATE TABLE IF NOT EXISTS public.seller_registration_documents (
   UNIQUE (registration_id, document_type)
 );
 
--- ─── payment_ledger (ensure exists with reconciliation columns) ───────────────
-CREATE TABLE IF NOT EXISTS public.payment_ledger (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  razorpay_payment_id TEXT,
-  razorpay_order_id TEXT,
-  razorpay_refund_id TEXT,
-  razorpay_transfer_id TEXT,
-  amount NUMERIC(12, 2) NOT NULL,
-  event_type TEXT NOT NULL,
-  status TEXT NOT NULL,
-  reconciliation_status TEXT NOT NULL DEFAULT 'pending' CHECK (reconciliation_status IN ('pending', 'matched', 'mismatch', 'flagged')),
-  discrepancy_amount NUMERIC(12, 2) DEFAULT 0,
-  flag_reason TEXT,
-  settlement_delay_hours INTEGER DEFAULT 0,
-  recorded_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
+-- ─── payment_ledger: add reconciliation columns to existing table ──────────────
+-- The payment_ledger table already exists from the previous migration.
+-- We add the reconciliation columns if they don't exist yet.
+ALTER TABLE public.payment_ledger
+  ADD COLUMN IF NOT EXISTS razorpay_payment_id TEXT,
+  ADD COLUMN IF NOT EXISTS razorpay_order_id TEXT,
+  ADD COLUMN IF NOT EXISTS razorpay_refund_id TEXT,
+  ADD COLUMN IF NOT EXISTS razorpay_transfer_id TEXT,
+  ADD COLUMN IF NOT EXISTS reconciliation_status TEXT NOT NULL DEFAULT 'pending',
+  ADD COLUMN IF NOT EXISTS discrepancy_amount NUMERIC(12, 2) DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS flag_reason TEXT,
+  ADD COLUMN IF NOT EXISTS settlement_delay_hours INTEGER DEFAULT 0;
+
+-- Add CHECK constraint for reconciliation_status if not already present
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'payment_ledger_reconciliation_status_check'
+      AND conrelid = 'public.payment_ledger'::regclass
+  ) THEN
+    ALTER TABLE public.payment_ledger
+      ADD CONSTRAINT payment_ledger_reconciliation_status_check
+      CHECK (reconciliation_status IN ('pending', 'matched', 'mismatch', 'flagged'));
+  END IF;
+END $$;
 
 CREATE INDEX IF NOT EXISTS idx_payment_ledger_rzp_payment ON public.payment_ledger (razorpay_payment_id);
 CREATE INDEX IF NOT EXISTS idx_payment_ledger_reconciliation ON public.payment_ledger (reconciliation_status);
@@ -144,8 +152,7 @@ DO $$ BEGIN
   END IF;
 END $$;
 
--- payment_ledger: admin + service role
-ALTER TABLE public.payment_ledger ENABLE ROW LEVEL SECURITY;
+-- payment_ledger admin/service policy for reconciliation columns (already has RLS from prior migration)
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'payment_ledger' AND policyname = 'admin_or_service_ledger') THEN
     CREATE POLICY admin_or_service_ledger ON public.payment_ledger
