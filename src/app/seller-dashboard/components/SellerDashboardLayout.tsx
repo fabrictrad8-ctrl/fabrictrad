@@ -11,8 +11,9 @@ import SellerAnalytics from '@/app/seller-dashboard/components/SellerAnalytics';
 import SellerWhatsAppUpload from '@/app/seller-dashboard/components/SellerWhatsAppUpload';
 import SellerEarnings from '@/app/seller-dashboard/components/SellerEarnings';
 import SellerDisputes from '@/app/seller-dashboard/components/SellerDisputes';
+import NotificationPreferences from '@/app/components/NotificationPreferences';
 
-type SellerTab = 'overview' | 'orders' | 'inventory' | 'analytics' | 'upload' | 'profile' | 'earnings' | 'disputes';
+type SellerTab = 'overview' | 'orders' | 'inventory' | 'analytics' | 'upload' | 'profile' | 'earnings' | 'disputes' | 'notifications';
 
 const navItems: {key: SellerTab;label: string;icon: string;badge?: number;}[] = [
 { key: 'overview', label: 'Dashboard', icon: 'HomeIcon' },
@@ -21,6 +22,7 @@ const navItems: {key: SellerTab;label: string;icon: string;badge?: number;}[] = 
 { key: 'analytics', label: 'Analytics', icon: 'ChartBarIcon' },
 { key: 'earnings', label: 'Earnings & Payouts', icon: 'BanknotesIcon' },
 { key: 'disputes', label: 'Disputes & Messages', icon: 'ChatBubbleLeftRightIcon', badge: 2 },
+{ key: 'notifications', label: 'Notifications', icon: 'BellIcon' },
 { key: 'upload', label: 'Upload Catalog', icon: 'ArrowUpTrayIcon' },
 { key: 'profile', label: 'Business Profile', icon: 'BuildingOfficeIcon' }];
 
@@ -118,6 +120,7 @@ export default function SellerDashboardLayout() {
           {activeTab === 'analytics' && <SellerAnalytics />}
           {activeTab === 'earnings' && <SellerEarnings />}
           {activeTab === 'disputes' && <SellerDisputes />}
+          {activeTab === 'notifications' && <NotificationPreferences mode="seller" />}
           {activeTab === 'upload' && <SellerWhatsAppUpload />}
           {activeTab === 'profile' &&
           <div className="max-w-2xl">

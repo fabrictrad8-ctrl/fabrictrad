@@ -1,8 +1,9 @@
 'use client';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import AppImage from '@/components/ui/AppImage';
 import Icon from '@/components/ui/AppIcon';
+import { trackFunnelStep } from '@/lib/analytics';
 
 const allProducts = [
 {
@@ -117,6 +118,10 @@ export default function MarketplaceGrid() {
   const [selected, setSelected] = useState<string[]>([]);
   const [sort, setSort] = useState('relevance');
   const [view, setView] = useState<'grid' | 'list'>('grid');
+
+  useEffect(() => {
+    trackFunnelStep('marketplace_view', { page: 'marketplace' });
+  }, []);
 
   const toggleSelect = (id: string) => {
     setSelected((prev) =>

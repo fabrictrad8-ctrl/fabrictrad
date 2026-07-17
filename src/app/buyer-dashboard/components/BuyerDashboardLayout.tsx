@@ -9,8 +9,9 @@ import BuyerOrders from '@/app/buyer-dashboard/components/BuyerOrders';
 import BuyerTracking from '@/app/buyer-dashboard/components/BuyerTracking';
 import BuyerWishlist from '@/app/buyer-dashboard/components/BuyerWishlist';
 import DisputeMessaging from '@/app/buyer-dashboard/components/DisputeMessaging';
+import NotificationPreferences from '@/app/components/NotificationPreferences';
 
-type DashTab = 'overview' | 'orders' | 'tracking' | 'wishlist' | 'disputes' | 'account';
+type DashTab = 'overview' | 'orders' | 'tracking' | 'wishlist' | 'disputes' | 'notifications' | 'account';
 
 const navItems: {key: DashTab;label: string;icon: string;badge?: number;}[] = [
 { key: 'overview', label: 'Overview', icon: 'HomeIcon' },
@@ -18,6 +19,7 @@ const navItems: {key: DashTab;label: string;icon: string;badge?: number;}[] = [
 { key: 'tracking', label: 'Track Shipments', icon: 'TruckIcon', badge: 2 },
 { key: 'wishlist', label: 'Wishlist', icon: 'HeartIcon' },
 { key: 'disputes', label: 'Disputes & Messages', icon: 'ChatBubbleLeftRightIcon', badge: 2 },
+{ key: 'notifications', label: 'Notifications', icon: 'BellIcon' },
 { key: 'account', label: 'Account', icon: 'UserCircleIcon' }];
 
 
@@ -112,6 +114,7 @@ export default function BuyerDashboardLayout() {
           {activeTab === 'tracking' && <BuyerTracking />}
           {activeTab === 'wishlist' && <BuyerWishlist />}
           {activeTab === 'disputes' && <DisputeMessaging mode="buyer" />}
+          {activeTab === 'notifications' && <NotificationPreferences mode="buyer" />}
           {activeTab === 'account' &&
           <div className="max-w-lg">
               <h2 className="text-xl font-800 text-foreground mb-6">Account Settings</h2>

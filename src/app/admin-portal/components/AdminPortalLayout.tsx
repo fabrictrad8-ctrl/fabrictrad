@@ -12,18 +12,22 @@ import AdminListings from '@/app/admin-portal/components/AdminListings';
 import AdminPayments from '@/app/admin-portal/components/AdminPayments';
 import AdminSettings from '@/app/admin-portal/components/AdminSettings';
 import AdminReconciliation from '@/app/admin-portal/components/AdminReconciliation';
+import AdminTopSellers from '@/app/admin-portal/components/AdminTopSellers';
+import AdminErrorMonitor from '@/app/admin-portal/components/AdminErrorMonitor';
 
-type AdminTab = 'dashboard' | 'sellers' | 'listings' | 'orders' | 'payments' | 'reconciliation' | 'discounts' | 'activity' | 'settings';
+type AdminTab = 'dashboard' | 'sellers' | 'top-sellers' | 'listings' | 'orders' | 'payments' | 'reconciliation' | 'discounts' | 'activity' | 'errors' | 'settings';
 
 const navItems: { key: AdminTab; label: string; icon: string; badge?: number }[] = [
   { key: 'dashboard', label: 'Dashboard', icon: 'ChartPieIcon' },
   { key: 'sellers', label: 'Sellers', icon: 'BuildingStorefrontIcon', badge: 4 },
+  { key: 'top-sellers', label: 'Top Sellers', icon: 'TrophyIcon' },
   { key: 'listings', label: 'Listings', icon: 'TagIcon', badge: 12 },
   { key: 'orders', label: 'Orders', icon: 'ShoppingBagIcon' },
   { key: 'payments', label: 'Payments', icon: 'CreditCardIcon' },
   { key: 'reconciliation', label: 'Reconciliation', icon: 'ScaleIcon', badge: 4 },
   { key: 'discounts', label: 'Discounts', icon: 'ReceiptPercentIcon' },
   { key: 'activity', label: 'Activity Feed', icon: 'BoltIcon' },
+  { key: 'errors', label: 'Error Monitor', icon: 'ExclamationTriangleIcon', badge: 3 },
   { key: 'settings', label: 'Settings', icon: 'CogIcon' },
 ];
 
@@ -107,6 +111,8 @@ export default function AdminPortalLayout() {
           {activeTab === 'reconciliation' && <AdminReconciliation />}
           {activeTab === 'discounts' && <AdminDiscounts />}
           {activeTab === 'activity' && <AdminActivityFeed />}
+          {activeTab === 'top-sellers' && <AdminTopSellers />}
+          {activeTab === 'errors' && <AdminErrorMonitor />}
           {activeTab === 'settings' && <AdminSettings />}
         </main>
       </div>
