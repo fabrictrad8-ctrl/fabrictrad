@@ -138,30 +138,42 @@ ALTER TABLE public.platform_policies ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "buyers_own_disputes" ON public.disputes;
 CREATE POLICY "buyers_own_disputes" ON public.disputes
   FOR ALL USING (
-    buyer_id IN (SELECT id FROM public.buyer_profiles WHERE user_id = auth.uid())
+    disputes.buyer_id IN (
+      SELECT bp.id FROM public.buyer_profiles bp WHERE bp.user_id = auth.uid()
+    )
   );
 
 DROP POLICY IF EXISTS "sellers_related_disputes" ON public.disputes;
 CREATE POLICY "sellers_related_disputes" ON public.disputes
   FOR ALL USING (
-    seller_id IN (SELECT id FROM public.seller_profiles WHERE user_id = auth.uid())
+    disputes.seller_id IN (
+      SELECT sp.id FROM public.seller_profiles sp WHERE sp.user_id = auth.uid()
+    )
   );
 
 DROP POLICY IF EXISTS "admins_all_disputes" ON public.disputes;
 CREATE POLICY "admins_all_disputes" ON public.disputes
   FOR ALL USING (
-    EXISTS (SELECT 1 FROM public.user_profiles WHERE user_id = auth.uid() AND role IN ('admin', 'super_admin'))
+    EXISTS (
+      SELECT 1 FROM public.user_profiles up
+      WHERE up.id = auth.uid()
+      AND up.role IN ('admin'::public.user_role, 'super_admin'::public.user_role)
+    )
   );
 
 -- Dispute messages: visible to dispute participants
 DROP POLICY IF EXISTS "dispute_message_access" ON public.dispute_messages;
 CREATE POLICY "dispute_message_access" ON public.dispute_messages
   FOR ALL USING (
-    dispute_id IN (
-      SELECT id FROM public.disputes WHERE
-        buyer_id IN (SELECT id FROM public.buyer_profiles WHERE user_id = auth.uid())
-        OR seller_id IN (SELECT id FROM public.seller_profiles WHERE user_id = auth.uid())
-        OR EXISTS (SELECT 1 FROM public.user_profiles WHERE user_id = auth.uid() AND role IN ('admin', 'super_admin'))
+    dispute_messages.dispute_id IN (
+      SELECT d.id FROM public.disputes d WHERE
+        d.buyer_id IN (SELECT bp.id FROM public.buyer_profiles bp WHERE bp.user_id = auth.uid())
+        OR d.seller_id IN (SELECT sp.id FROM public.seller_profiles sp WHERE sp.user_id = auth.uid())
+        OR EXISTS (
+          SELECT 1 FROM public.user_profiles up
+          WHERE up.id = auth.uid()
+          AND up.role IN ('admin'::public.user_role, 'super_admin'::public.user_role)
+        )
     )
   );
 
@@ -169,7 +181,9 @@ CREATE POLICY "dispute_message_access" ON public.dispute_messages
 DROP POLICY IF EXISTS "buyers_own_drape_usage" ON public.drape_usage;
 CREATE POLICY "buyers_own_drape_usage" ON public.drape_usage
   FOR ALL USING (
-    buyer_id IN (SELECT id FROM public.buyer_profiles WHERE user_id = auth.uid())
+    drape_usage.buyer_id IN (
+      SELECT bp.id FROM public.buyer_profiles bp WHERE bp.user_id = auth.uid()
+    )
   );
 
 -- Platform policies: public read, admin write
@@ -180,5 +194,9 @@ CREATE POLICY "platform_policies_public_read" ON public.platform_policies
 DROP POLICY IF EXISTS "platform_policies_admin_write" ON public.platform_policies;
 CREATE POLICY "platform_policies_admin_write" ON public.platform_policies
   FOR ALL USING (
-    EXISTS (SELECT 1 FROM public.user_profiles WHERE user_id = auth.uid() AND role IN ('admin', 'super_admin'))
+    EXISTS (
+      SELECT 1 FROM public.user_profiles up
+      WHERE up.id = auth.uid()
+      AND up.role IN ('admin'::public.user_role, 'super_admin'::public.user_role)
+    )
   );

@@ -15,7 +15,7 @@ const vendors = [
   products: 48,
   verified: true,
   gstin: true,
-  image: "https://img.rocket.new/generatedImages/rocket_gen_img_1d7522c56-1763296916843.png",
+  image: "https://img.rocket.new/generatedImages/rocket_gen_img_18c66c46c-1763301780768.png",
   alt: 'Surat Textile Mills seller profile photo',
   badge: 'Top Seller'
 },
@@ -30,7 +30,7 @@ const vendors = [
   products: 32,
   verified: true,
   gstin: true,
-  image: "https://img.rocket.new/generatedImages/rocket_gen_img_11f81a505-1773030174078.png",
+  image: "https://img.rocket.new/generatedImages/rocket_gen_img_140561897-1774719752264.png",
   alt: 'Bhiwandi Weave House fabric warehouse',
   badge: null
 },

@@ -15,6 +15,13 @@ interface RazorpayCheckoutProps {
   disabled?: boolean;
 }
 
+interface RazorpayConstructor {
+  new (opts: unknown): {
+    on: (event: string, cb: (res: Record<string, unknown>) => void) => void;
+    open: () => void;
+  };
+}
+
 export function RazorpayCheckout({
   amount,
   orderId,
