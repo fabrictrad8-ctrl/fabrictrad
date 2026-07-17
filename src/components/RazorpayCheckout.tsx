@@ -91,7 +91,7 @@ export function RazorpayCheckout({
         },
       };
 
-      const razorpay = new (window as unknown as { Razorpay: new (opts: unknown) => { on: (event: string, cb: (res: Record<string, unknown>) => void) => void; open: () => void } }).Razorpay(options);
+      const razorpay = new (window as unknown as { Razorpay: RazorpayConstructor }).Razorpay(options);
       razorpay.on('payment.failed', (res: Record<string, unknown>) => {
         const errDesc = (res?.error as Record<string, string>)?.description || 'Payment failed';
         onError?.(new Error(errDesc));

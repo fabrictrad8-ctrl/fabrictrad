@@ -157,7 +157,7 @@ CREATE POLICY "admins_all_disputes" ON public.disputes
     EXISTS (
       SELECT 1 FROM public.user_profiles up
       WHERE up.id = auth.uid()
-      AND up.role IN ('admin'::public.user_role, 'super_admin'::public.user_role)
+      AND up.role IN ('admin_staff'::public.user_role, 'super_admin'::public.user_role)
     )
   );
 
@@ -172,7 +172,7 @@ CREATE POLICY "dispute_message_access" ON public.dispute_messages
         OR EXISTS (
           SELECT 1 FROM public.user_profiles up
           WHERE up.id = auth.uid()
-          AND up.role IN ('admin'::public.user_role, 'super_admin'::public.user_role)
+          AND up.role IN ('admin_staff'::public.user_role, 'super_admin'::public.user_role)
         )
     )
   );
@@ -197,6 +197,6 @@ CREATE POLICY "platform_policies_admin_write" ON public.platform_policies
     EXISTS (
       SELECT 1 FROM public.user_profiles up
       WHERE up.id = auth.uid()
-      AND up.role IN ('admin'::public.user_role, 'super_admin'::public.user_role)
+      AND up.role IN ('admin_staff'::public.user_role, 'super_admin'::public.user_role)
     )
   );

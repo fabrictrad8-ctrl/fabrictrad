@@ -45,7 +45,7 @@ const vendors = [
   products: 56,
   verified: true,
   gstin: true,
-  image: "https://images.unsplash.com/photo-1726296219893-b0194a022410",
+  image: "https://images.unsplash.com/photo-1593803572349-239cb116819c",
   alt: 'Jaipur Crafts Emporium embroidered fabric display',
   badge: 'Best Rated'
 },
