@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import Icon from '@/components/ui/AppIcon';
+import { exportToCSV, exportToExcel } from '@/lib/exportUtils';
 
 const last30Days = [
   { date: 'Jun 18', orders: 4, gmv: 320000 },
@@ -60,16 +61,74 @@ const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?:
 
 export default function SellerAnalytics() {
   const [chartType, setChartType] = useState<'orders' | 'gmv'>('orders');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [showExportMenu, setShowExportMenu] = useState(false);
 
   const totalOrders = last30Days.reduce((s, d) => s + d.orders, 0);
   const totalGMV = last30Days.reduce((s, d) => s + d.gmv, 0);
   const avgOrderValue = Math.round(totalGMV / totalOrders);
 
+  const getExportData = () =>
+    last30Days.map((d) => ({
+      Date: d.date,
+      Orders: d.orders,
+      'GMV (₹)': d.gmv,
+      'Avg Order Value (₹)': Math.round(d.gmv / (d.orders || 1)),
+    }));
+
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <h1 className="text-xl font-800 text-foreground">Sales Analytics</h1>
-        <span className="text-xs text-muted-foreground bg-muted border border-border rounded-xl px-3 py-1.5">Last 30 Days</span>
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Date Range */}
+          <div className="flex items-center gap-1.5 bg-card border border-border rounded-xl px-3 py-2">
+            <Icon name="CalendarIcon" size={14} className="text-muted-foreground" />
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              className="bg-transparent text-xs text-foreground outline-none w-28"
+            />
+            <span className="text-xs text-muted-foreground">–</span>
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              className="bg-transparent text-xs text-foreground outline-none w-28"
+            />
+          </div>
+          {/* Export */}
+          <div className="relative">
+            <button
+              onClick={() => setShowExportMenu(!showExportMenu)}
+              className="flex items-center gap-1.5 btn-secondary px-3 py-2 text-xs rounded-xl"
+            >
+              <Icon name="ArrowDownTrayIcon" size={14} />
+              Export
+              <Icon name="ChevronDownIcon" size={12} />
+            </button>
+            {showExportMenu && (
+              <div className="absolute right-0 top-full mt-1 bg-card border border-border rounded-xl shadow-lg z-10 min-w-[140px]">
+                <button
+                  onClick={() => { exportToCSV(getExportData(), 'seller_analytics'); setShowExportMenu(false); }}
+                  className="w-full flex items-center gap-2 px-3 py-2.5 text-xs font-600 text-foreground hover:bg-muted transition-colors rounded-t-xl"
+                >
+                  <Icon name="DocumentTextIcon" size={14} className="text-success" />
+                  Export CSV
+                </button>
+                <button
+                  onClick={() => { exportToExcel(getExportData(), 'seller_analytics'); setShowExportMenu(false); }}
+                  className="w-full flex items-center gap-2 px-3 py-2.5 text-xs font-600 text-foreground hover:bg-muted transition-colors rounded-b-xl border-t border-border"
+                >
+                  <Icon name="TableCellsIcon" size={14} className="text-primary" />
+                  Export Excel
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* KPI Cards */}
@@ -112,37 +171,16 @@ export default function SellerAnalytics() {
           {chartType === 'orders' ? (
             <BarChart data={last30Days} barSize={8}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-              <XAxis
-                dataKey="date"
-                tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }}
-                tickLine={false}
-                axisLine={false}
-                interval={4}
-              />
-              <YAxis
-                tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }}
-                tickLine={false}
-                axisLine={false}
-              />
+              <XAxis dataKey="date" tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} tickLine={false} axisLine={false} interval={4} />
+              <YAxis tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} tickLine={false} axisLine={false} />
               <Tooltip content={<CustomTooltip />} />
               <Bar dataKey="orders" fill="var(--primary)" radius={[4, 4, 0, 0]} name="orders" />
             </BarChart>
           ) : (
             <LineChart data={last30Days}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-              <XAxis
-                dataKey="date"
-                tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }}
-                tickLine={false}
-                axisLine={false}
-                interval={4}
-              />
-              <YAxis
-                tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }}
-                tickLine={false}
-                axisLine={false}
-                tickFormatter={formatINR}
-              />
+              <XAxis dataKey="date" tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} tickLine={false} axisLine={false} interval={4} />
+              <YAxis tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} tickLine={false} axisLine={false} tickFormatter={formatINR} />
               <Tooltip content={<CustomTooltip />} />
               <Line dataKey="gmv" stroke="var(--primary)" strokeWidth={2} dot={false} name="gmv" />
             </LineChart>

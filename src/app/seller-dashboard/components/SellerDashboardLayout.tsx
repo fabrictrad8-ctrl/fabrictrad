@@ -11,15 +11,17 @@ import SellerAnalytics from '@/app/seller-dashboard/components/SellerAnalytics';
 import SellerWhatsAppUpload from '@/app/seller-dashboard/components/SellerWhatsAppUpload';
 import SellerEarnings from '@/app/seller-dashboard/components/SellerEarnings';
 import SellerDisputes from '@/app/seller-dashboard/components/SellerDisputes';
+import SellerFulfillment from '@/app/seller-dashboard/components/SellerFulfillment';
 import NotificationPreferences from '@/app/components/NotificationPreferences';
 
-type SellerTab = 'overview' | 'orders' | 'inventory' | 'analytics' | 'upload' | 'profile' | 'earnings' | 'disputes' | 'notifications';
+type SellerTab = 'overview' | 'orders' | 'inventory' | 'analytics' | 'upload' | 'profile' | 'earnings' | 'disputes' | 'notifications' | 'fulfillment';
 
 const navItems: {key: SellerTab;label: string;icon: string;badge?: number;}[] = [
 { key: 'overview', label: 'Dashboard', icon: 'HomeIcon' },
 { key: 'orders', label: 'Order Queue', icon: 'ClipboardDocumentListIcon', badge: 5 },
 { key: 'inventory', label: 'Inventory', icon: 'ArchiveBoxIcon' },
 { key: 'analytics', label: 'Analytics', icon: 'ChartBarIcon' },
+{ key: 'fulfillment', label: 'Fulfillment', icon: 'TruckIcon' },
 { key: 'earnings', label: 'Earnings & Payouts', icon: 'BanknotesIcon' },
 { key: 'disputes', label: 'Disputes & Messages', icon: 'ChatBubbleLeftRightIcon', badge: 2 },
 { key: 'notifications', label: 'Notifications', icon: 'BellIcon' },
@@ -120,6 +122,7 @@ export default function SellerDashboardLayout() {
           {activeTab === 'analytics' && <SellerAnalytics />}
           {activeTab === 'earnings' && <SellerEarnings />}
           {activeTab === 'disputes' && <SellerDisputes />}
+          {activeTab === 'fulfillment' && <SellerFulfillment />}
           {activeTab === 'notifications' && <NotificationPreferences mode="seller" />}
           {activeTab === 'upload' && <SellerWhatsAppUpload />}
           {activeTab === 'profile' &&

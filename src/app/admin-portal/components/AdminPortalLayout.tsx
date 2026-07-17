@@ -14,17 +14,21 @@ import AdminSettings from '@/app/admin-portal/components/AdminSettings';
 import AdminReconciliation from '@/app/admin-portal/components/AdminReconciliation';
 import AdminTopSellers from '@/app/admin-portal/components/AdminTopSellers';
 import AdminErrorMonitor from '@/app/admin-portal/components/AdminErrorMonitor';
+import AdminFulfillmentAnalytics from '@/app/admin-portal/components/AdminFulfillmentAnalytics';
+import AdminSellerMetrics from '@/app/admin-portal/components/AdminSellerMetrics';
 
-type AdminTab = 'dashboard' | 'sellers' | 'top-sellers' | 'listings' | 'orders' | 'payments' | 'reconciliation' | 'discounts' | 'activity' | 'errors' | 'settings';
+type AdminTab = 'dashboard' | 'sellers' | 'top-sellers' | 'seller-metrics' | 'listings' | 'orders' | 'payments' | 'reconciliation' | 'fulfillment' | 'discounts' | 'activity' | 'errors' | 'settings';
 
 const navItems: { key: AdminTab; label: string; icon: string; badge?: number }[] = [
   { key: 'dashboard', label: 'Dashboard', icon: 'ChartPieIcon' },
   { key: 'sellers', label: 'Sellers', icon: 'BuildingStorefrontIcon', badge: 4 },
   { key: 'top-sellers', label: 'Top Sellers', icon: 'TrophyIcon' },
+  { key: 'seller-metrics', label: 'Seller Metrics', icon: 'ChartBarIcon' },
   { key: 'listings', label: 'Listings', icon: 'TagIcon', badge: 12 },
   { key: 'orders', label: 'Orders', icon: 'ShoppingBagIcon' },
   { key: 'payments', label: 'Payments', icon: 'CreditCardIcon' },
   { key: 'reconciliation', label: 'Reconciliation', icon: 'ScaleIcon', badge: 4 },
+  { key: 'fulfillment', label: 'Fulfillment', icon: 'TruckIcon' },
   { key: 'discounts', label: 'Discounts', icon: 'ReceiptPercentIcon' },
   { key: 'activity', label: 'Activity Feed', icon: 'BoltIcon' },
   { key: 'errors', label: 'Error Monitor', icon: 'ExclamationTriangleIcon', badge: 3 },
@@ -112,6 +116,8 @@ export default function AdminPortalLayout() {
           {activeTab === 'discounts' && <AdminDiscounts />}
           {activeTab === 'activity' && <AdminActivityFeed />}
           {activeTab === 'top-sellers' && <AdminTopSellers />}
+          {activeTab === 'seller-metrics' && <AdminSellerMetrics />}
+          {activeTab === 'fulfillment' && <AdminFulfillmentAnalytics />}
           {activeTab === 'errors' && <AdminErrorMonitor />}
           {activeTab === 'settings' && <AdminSettings />}
         </main>

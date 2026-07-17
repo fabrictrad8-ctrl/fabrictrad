@@ -3,6 +3,10 @@ import Link from 'next/link';
 import AppImage from '@/components/ui/AppImage';
 import Icon from '@/components/ui/AppIcon';
 
+// Aggregate rating data — in production this comes from seller_reviews table
+const SELLER_RATING = 4.8;
+const SELLER_REVIEW_COUNT = 127;
+
 export default function SellerCard() {
   return (
     <div className="bg-card rounded-2xl border border-border p-5">
@@ -16,7 +20,6 @@ export default function SellerCard() {
             width={48}
             height={48}
             className="object-cover" />
-          
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 flex-wrap">
@@ -24,6 +27,22 @@ export default function SellerCard() {
             <span className="badge-verified">Verified</span>
           </div>
           <p className="text-xs text-muted-foreground mt-0.5">Surat, Gujarat · Manufacturer</p>
+          {/* Aggregate Rating */}
+          <div className="flex items-center gap-1.5 mt-1.5">
+            <div className="flex items-center gap-0.5">
+              {[1,2,3,4,5].map((s) => (
+                <Icon
+                  key={s}
+                  name="StarIcon"
+                  size={11}
+                  className={s <= Math.floor(SELLER_RATING) ? 'text-amber-400' : 'text-amber-200'}
+                  variant="solid"
+                />
+              ))}
+            </div>
+            <span className="text-xs font-800 text-foreground">{SELLER_RATING}</span>
+            <span className="text-xs text-muted-foreground">({SELLER_REVIEW_COUNT} reviews)</span>
+          </div>
         </div>
       </div>
 
@@ -32,7 +51,7 @@ export default function SellerCard() {
         {[
         { label: 'Response', value: '< 2 hrs', icon: 'ClockIcon' },
         { label: 'Acceptance', value: '94%', icon: 'CheckCircleIcon' },
-        { label: 'Rating', value: '4.9 ★', icon: 'StarIcon' }].
+        { label: 'Rating', value: `${SELLER_RATING} ★`, icon: 'StarIcon' }].
         map((stat) =>
         <div key={stat.label} className="bg-muted rounded-xl p-2 text-center">
             <Icon name={stat.icon as 'ClockIcon'} size={14} className="text-primary mx-auto mb-1" />
@@ -54,10 +73,8 @@ export default function SellerCard() {
       <Link
         href="/marketplace"
         className="btn-secondary w-full py-2.5 text-xs rounded-xl flex items-center justify-center gap-2">
-        
         <Icon name="BuildingStorefrontIcon" size={14} />
         View Seller Store
       </Link>
     </div>);
-
 }

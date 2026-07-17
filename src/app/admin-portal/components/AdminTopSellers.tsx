@@ -236,6 +236,7 @@ export default function AdminTopSellers() {
                       {getRatingStars(seller.rating)}
                     </div>
                     <p className="text-xs font-700 text-foreground mt-0.5">{seller.rating}</p>
+                    <p className="text-xs text-muted-foreground">({seller.totalReviews} reviews)</p>
                   </td>
                   <td className="px-4 py-3 text-center">
                     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-600 border ${statusConfig[seller.status].class}`}>

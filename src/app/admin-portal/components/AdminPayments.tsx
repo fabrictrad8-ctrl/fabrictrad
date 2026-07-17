@@ -1,13 +1,15 @@
 'use client';
 import React, { useState } from 'react';
 import Icon from '@/components/ui/AppIcon';
+import { exportToCSV, exportToExcel } from '@/lib/exportUtils';
 
 const payments = [
-  { id: 'FT-PAY-009821', orderId: 'FT-ORD-005892', buyer: 'Mehta Garments', seller: 'Surat Textile Mills', amount: 264600, commission: 26460, sellerNet: 238140, rzpId: 'pay_QX8K2mN4pL9', status: 'Captured', transferStatus: 'Transferred', date: '17 Jul 2026, 14:32' },
-  { id: 'FT-PAY-009820', orderId: 'FT-ORD-005891', buyer: 'Patel Textiles', seller: 'Bharat Fabrics', amount: 102900, commission: 10290, sellerNet: 92610, rzpId: 'pay_QX7J1kM3oK8', status: 'Captured', transferStatus: 'Pending', date: '17 Jul 2026, 12:18' },
-  { id: 'FT-PAY-009819', orderId: 'FT-ORD-005890', buyer: 'Sharma Creations', seller: 'Laxmi Textiles', amount: 78750, commission: 7875, sellerNet: 70875, rzpId: 'pay_QX6I0jL2nJ7', status: 'Failed', transferStatus: 'N/A', date: '17 Jul 2026, 10:05' },
-  { id: 'FT-PAY-009818', orderId: 'FT-ORD-005889', buyer: 'Gupta Garments', seller: 'Surat Textile Mills', amount: 315000, commission: 31500, sellerNet: 283500, rzpId: 'pay_QW9L4nP5qM2', status: 'Captured', transferStatus: 'On Hold', date: '16 Jul 2026, 18:44' },
-  { id: 'FT-PAY-009817', orderId: 'FT-ORD-005888', buyer: 'Jain Fabrics', seller: 'Mehta Fabrics', amount: 183750, commission: 18375, sellerNet: 165375, rzpId: 'pay_QW8K3mN4pL1', status: 'Refunded', transferStatus: 'Reversed', date: '16 Jul 2026, 15:22' },
+  { id: 'FT-PAY-009821', orderId: 'FT-ORD-005892', buyer: 'Mehta Garments', seller: 'Surat Textile Mills', amount: 264600, commission: 26460, sellerNet: 238140, rzpId: 'pay_QX8K2mN4pL9', status: 'Captured', transferStatus: 'Transferred', date: '2026-07-17' },
+  { id: 'FT-PAY-009820', orderId: 'FT-ORD-005891', buyer: 'Patel Textiles', seller: 'Bharat Fabrics', amount: 102900, commission: 10290, sellerNet: 92610, rzpId: 'pay_QX7J1kM3oK8', status: 'Captured', transferStatus: 'Pending', date: '2026-07-17' },
+  { id: 'FT-PAY-009819', orderId: 'FT-ORD-005890', buyer: 'Sharma Creations', seller: 'Laxmi Textiles', amount: 78750, commission: 7875, sellerNet: 70875, rzpId: 'pay_QX6I0jL2nJ7', status: 'Failed', transferStatus: 'N/A', date: '2026-07-17' },
+  { id: 'FT-PAY-009818', orderId: 'FT-ORD-005889', buyer: 'Gupta Garments', seller: 'Surat Textile Mills', amount: 315000, commission: 31500, sellerNet: 283500, rzpId: 'pay_QW9L4nP5qM2', status: 'Captured', transferStatus: 'On Hold', date: '2026-07-16' },
+  { id: 'FT-PAY-009817', orderId: 'FT-ORD-005888', buyer: 'Jain Fabrics', seller: 'Mehta Fabrics', amount: 183750, commission: 18375, sellerNet: 165375, rzpId: 'pay_QW8K3mN4pL1', status: 'Refunded', transferStatus: 'Reversed', date: '2026-07-16' },
+  { id: 'FT-PAY-009810', orderId: 'FT-ORD-005880', buyer: 'Kapoor Exports', seller: 'Varanasi Silk', amount: 245000, commission: 24500, sellerNet: 220500, rzpId: 'pay_QV7J2lM3oK0', status: 'Captured', transferStatus: 'Transferred', date: '2026-07-10' },
 ];
 
 const statusColors: Record<string, string> = {
@@ -27,9 +29,44 @@ const transferColors: Record<string, string> = {
 
 export default function AdminPayments() {
   const [filter, setFilter] = useState('All');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [showExportMenu, setShowExportMenu] = useState(false);
 
   const filters = ['All', 'Captured', 'Failed', 'Refunded'];
-  const filtered = filter === 'All' ? payments : payments.filter((p) => p.status === filter);
+
+  const filtered = payments.filter((p) => {
+    const matchStatus = filter === 'All' || p.status === filter;
+    const d = new Date(p.date);
+    const matchFrom = dateFrom ? d >= new Date(dateFrom) : true;
+    const matchTo = dateTo ? d <= new Date(dateTo) : true;
+    return matchStatus && matchFrom && matchTo;
+  });
+
+  const getExportData = () =>
+    filtered.map((p) => ({
+      'Payment ID': p.id,
+      'Order ID': p.orderId,
+      Buyer: p.buyer,
+      Seller: p.seller,
+      'Amount (₹)': p.amount,
+      'Commission (₹)': p.commission,
+      'Seller Net (₹)': p.sellerNet,
+      'Razorpay ID': p.rzpId,
+      'Payment Status': p.status,
+      'Transfer Status': p.transferStatus,
+      Date: p.date,
+    }));
+
+  const handleExportCSV = () => {
+    exportToCSV(getExportData(), `payments_${dateFrom || 'all'}_to_${dateTo || 'all'}`);
+    setShowExportMenu(false);
+  };
+
+  const handleExportExcel = () => {
+    exportToExcel(getExportData(), `payments_${dateFrom || 'all'}_to_${dateTo || 'all'}`);
+    setShowExportMenu(false);
+  };
 
   return (
     <div>
@@ -38,10 +75,54 @@ export default function AdminPayments() {
           <h1 className="text-xl font-800 text-foreground">Payment Ledger</h1>
           <p className="text-sm text-muted-foreground">Razorpay · All transactions</p>
         </div>
-        <button className="btn-secondary px-3 py-2 text-xs rounded-xl flex items-center gap-1.5 self-start">
-          <Icon name="ArrowDownTrayIcon" size={14} />
-          Export Ledger
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Date Range */}
+          <div className="flex items-center gap-1.5 bg-card border border-border rounded-xl px-3 py-2">
+            <Icon name="CalendarIcon" size={14} className="text-muted-foreground" />
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              className="bg-transparent text-xs text-foreground outline-none w-28"
+            />
+            <span className="text-xs text-muted-foreground">–</span>
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              className="bg-transparent text-xs text-foreground outline-none w-28"
+            />
+          </div>
+          {/* Export Dropdown */}
+          <div className="relative">
+            <button
+              onClick={() => setShowExportMenu(!showExportMenu)}
+              className="btn-secondary px-3 py-2 text-xs rounded-xl flex items-center gap-1.5"
+            >
+              <Icon name="ArrowDownTrayIcon" size={14} />
+              Export Ledger
+              <Icon name="ChevronDownIcon" size={12} />
+            </button>
+            {showExportMenu && (
+              <div className="absolute right-0 top-full mt-1 bg-card border border-border rounded-xl shadow-lg z-10 min-w-[140px]">
+                <button
+                  onClick={handleExportCSV}
+                  className="w-full flex items-center gap-2 px-3 py-2.5 text-xs font-600 text-foreground hover:bg-muted transition-colors rounded-t-xl"
+                >
+                  <Icon name="DocumentTextIcon" size={14} className="text-success" />
+                  Export CSV
+                </button>
+                <button
+                  onClick={handleExportExcel}
+                  className="w-full flex items-center gap-2 px-3 py-2.5 text-xs font-600 text-foreground hover:bg-muted transition-colors rounded-b-xl border-t border-border"
+                >
+                  <Icon name="TableCellsIcon" size={14} className="text-primary" />
+                  Export Excel
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Summary Cards */}
@@ -71,7 +152,17 @@ export default function AdminPayments() {
             {f}
           </button>
         ))}
+        {(dateFrom || dateTo) && (
+          <button
+            onClick={() => { setDateFrom(''); setDateTo(''); }}
+            className="shrink-0 px-3 py-1.5 rounded-xl text-xs font-600 bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20 transition-all"
+          >
+            Clear dates ×
+          </button>
+        )}
       </div>
+
+      <p className="text-xs text-muted-foreground mb-3">Showing {filtered.length} of {payments.length} transactions</p>
 
       {/* Payments Table */}
       <div className="bg-card rounded-2xl border border-border overflow-hidden">
@@ -131,6 +222,13 @@ export default function AdminPayments() {
                   </td>
                 </tr>
               ))}
+              {filtered.length === 0 && (
+                <tr>
+                  <td colSpan={8} className="px-4 py-8 text-center text-sm text-muted-foreground">
+                    No payments found for the selected filters.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
