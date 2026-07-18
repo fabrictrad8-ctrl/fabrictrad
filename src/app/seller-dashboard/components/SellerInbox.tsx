@@ -34,7 +34,7 @@ const MOCK_THREADS: InboxThread[] = [
   id: 'THR-002',
   buyerId: 'FT-BYR-007832',
   buyerName: 'Priya Sharma',
-  buyerAvatar: "https://img.rocket.new/generatedImages/rocket_gen_img_194b902a5-1772695463897.png",
+  buyerAvatar: "https://images.unsplash.com/photo-1631737860377-2d332ca3e3f5",
   subject: 'Requirement: Georgette Fabric in Pastel Shades',
   lastMessage: 'We have georgette in mint and blush. Minimum 50m per colour.',
   lastAt: '1 hour ago',

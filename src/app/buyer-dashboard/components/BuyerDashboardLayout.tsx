@@ -115,8 +115,8 @@ export default function BuyerDashboardLayout() {
           {activeTab === 'tracking' && <BuyerTracking />}
           {activeTab === 'wishlist' && <BuyerWishlist />}
           {activeTab === 'disputes' && <DisputeMessaging mode="buyer" />}
-          {activeTab === 'requirements' && (
-            <div className="space-y-4">
+          {activeTab === 'requirements' &&
+          <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="text-xl font-800 text-foreground">Requirements Board</h2>
@@ -129,18 +129,18 @@ export default function BuyerDashboardLayout() {
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 {[
-                  { icon: 'MegaphoneIcon', title: 'Post Requirements', desc: 'Tell sellers exactly what fabric you need — quantity, budget, deadline', color: 'text-primary bg-primary/10' },
-                  { icon: 'ChatBubbleLeftRightIcon', title: 'Sellers Connect', desc: 'Interested sellers reach out via secure in-website chat only', color: 'text-secondary bg-secondary/10' },
-                  { icon: 'ShieldCheckIcon', title: 'Privacy Protected', desc: 'No phone numbers or emails shared — all communication on FabricTrad', color: 'text-success bg-success/10' },
-                ].map((item) => (
-                  <div key={item.title} className="bg-card border border-border rounded-2xl p-4">
+              { icon: 'MegaphoneIcon', title: 'Post Requirements', desc: 'Tell sellers exactly what fabric you need — quantity, budget, deadline', color: 'text-primary bg-primary/10' },
+              { icon: 'ChatBubbleLeftRightIcon', title: 'Sellers Connect', desc: 'Interested sellers reach out via secure in-website chat only', color: 'text-secondary bg-secondary/10' },
+              { icon: 'ShieldCheckIcon', title: 'Privacy Protected', desc: 'No phone numbers or emails shared — all communication on FabricTrad', color: 'text-success bg-success/10' }].
+              map((item) =>
+              <div key={item.title} className="bg-card border border-border rounded-2xl p-4">
                     <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-3 ${item.color}`}>
                       <Icon name={item.icon as 'MegaphoneIcon'} size={20} className={item.color.split(' ')[0]} />
                     </div>
                     <p className="font-700 text-foreground text-sm mb-1">{item.title}</p>
                     <p className="text-xs text-muted-foreground leading-relaxed">{item.desc}</p>
                   </div>
-                ))}
+              )}
               </div>
               <div className="bg-card border border-border rounded-2xl p-5 text-center">
                 <Icon name="MegaphoneIcon" size={32} className="text-primary mx-auto mb-3 opacity-60" />
@@ -152,7 +152,7 @@ export default function BuyerDashboardLayout() {
                 </Link>
               </div>
             </div>
-          )}
+          }
           {activeTab === 'notifications' && <NotificationPreferences mode="buyer" />}
           {activeTab === 'account' &&
           <div className="max-w-lg">
@@ -160,7 +160,7 @@ export default function BuyerDashboardLayout() {
               <div className="bg-card rounded-2xl border border-border p-6 space-y-4">
                 <div className="flex items-center gap-4 pb-4 border-b border-border">
                   <div className="w-16 h-16 rounded-2xl overflow-hidden bg-muted">
-                    <AppImage src="https://img.rocket.new/generatedImages/rocket_gen_img_1cbee50a4-1763296279384.png" alt="Rajesh Mehta buyer profile photo" width={64} height={64} className="object-cover" />
+                    <AppImage src="https://img.rocket.new/generatedImages/rocket_gen_img_15ebdb31b-1763300068284.png" alt="Rajesh Mehta buyer profile photo" width={64} height={64} className="object-cover" />
                   </div>
                   <div>
                     <p className="font-800 text-foreground">Rajesh Mehta</p>

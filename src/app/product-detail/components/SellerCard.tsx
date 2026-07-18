@@ -77,8 +77,8 @@ export default function SellerCard() {
         {/* Chat with Seller */}
         <button
           onClick={() => setShowChat(true)}
-          className="btn-primary w-full py-2.5 text-xs rounded-xl flex items-center justify-center gap-2 mb-2"
-        >
+          className="btn-primary w-full py-2.5 text-xs rounded-xl flex items-center justify-center gap-2 mb-2">
+          
           <Icon name="ChatBubbleLeftRightIcon" size={14} />
           Chat with Seller
         </button>
@@ -97,16 +97,16 @@ export default function SellerCard() {
       </div>
 
       {/* In-Website Chat */}
-      {showChat && (
-        <InWebsiteChat
-          contextId="product-detail-surat-textile"
-          contextTitle="Pure Dyeable Soft Nett Fabric"
-          otherPartyName="Surat Textile Mills"
-          otherPartyAvatar="https://img.rocket.new/generatedImages/rocket_gen_img_14df8d316-1784314860425.png"
-          currentUserRole="buyer"
-          onClose={() => setShowChat(false)}
-        />
-      )}
-    </>
-  );
+      {showChat &&
+      <InWebsiteChat
+        contextId="product-detail-surat-textile"
+        contextTitle="Pure Dyeable Soft Nett Fabric"
+        otherPartyName="Surat Textile Mills"
+        otherPartyAvatar="https://img.rocket.new/generatedImages/rocket_gen_img_14df8d316-1784314860425.png"
+        currentUserRole="buyer"
+        onClose={() => setShowChat(false)} />
+
+      }
+    </>);
+
 }

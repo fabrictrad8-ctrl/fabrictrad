@@ -4,7 +4,7 @@
 -- Buyer Requirements table
 CREATE TABLE IF NOT EXISTS public.buyer_requirements (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  buyer_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  buyer_id UUID NOT NULL REFERENCES public.user_profiles(id) ON DELETE CASCADE,
   title TEXT NOT NULL,
   description TEXT NOT NULL,
   category TEXT NOT NULL,
@@ -24,8 +24,8 @@ CREATE TABLE IF NOT EXISTS public.chat_threads (
   context_type TEXT NOT NULL CHECK (context_type IN ('product_inquiry', 'requirement_response', 'post_purchase')),
   context_id TEXT NOT NULL,
   context_title TEXT NOT NULL,
-  buyer_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-  seller_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  buyer_id UUID NOT NULL REFERENCES public.user_profiles(id) ON DELETE CASCADE,
+  seller_id UUID NOT NULL REFERENCES public.user_profiles(id) ON DELETE CASCADE,
   last_message TEXT,
   last_message_at TIMESTAMPTZ DEFAULT NOW(),
   buyer_unread INTEGER DEFAULT 0,
@@ -37,7 +37,7 @@ CREATE TABLE IF NOT EXISTS public.chat_threads (
 CREATE TABLE IF NOT EXISTS public.chat_messages (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   thread_id UUID NOT NULL REFERENCES public.chat_threads(id) ON DELETE CASCADE,
-  sender_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  sender_id UUID NOT NULL REFERENCES public.user_profiles(id) ON DELETE CASCADE,
   sender_role TEXT NOT NULL CHECK (sender_role IN ('buyer', 'seller', 'system')),
   message_text TEXT,
   file_url TEXT,

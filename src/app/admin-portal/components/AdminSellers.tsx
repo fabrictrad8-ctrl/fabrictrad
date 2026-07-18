@@ -10,7 +10,7 @@ interface Seller {
 }
 
 const initialSellers: Seller[] = [
-{ id: 'FT-SLR-001234', name: 'Surat Textile Mills Pvt Ltd', contact: 'Arjun Sharma', city: 'Surat, Gujarat', type: 'Manufacturer', gstin: '24AAAPL1234Z1Z5', status: 'verified', products: 48, orders: 310, gmv: '₹42L', joinDate: '12 Jan 2026', avatar: "https://img.rocket.new/generatedImages/rocket_gen_img_18d48d780-1767603781679.png" },
+{ id: 'FT-SLR-001234', name: 'Surat Textile Mills Pvt Ltd', contact: 'Arjun Sharma', city: 'Surat, Gujarat', type: 'Manufacturer', gstin: '24AAAPL1234Z1Z5', status: 'verified', products: 48, orders: 310, gmv: '₹42L', joinDate: '12 Jan 2026', avatar: "https://img.rocket.new/generatedImages/rocket_gen_img_1d7d81378-1780409713056.png" },
 { id: 'FT-SLR-001890', name: 'Jaipur Crafts Emporium', contact: 'Priya Nair', city: 'Jaipur, Rajasthan', type: 'Wholesaler', gstin: '08BBBPN5678Y2Z6', status: 'verified', products: 32, orders: 189, gmv: '₹28L', joinDate: '03 Feb 2026', avatar: 'https://images.unsplash.com/photo-1494790108755-2616b612b786?w=40&h=40&fit=crop&crop=face' },
 { id: 'FT-SLR-002341', name: 'Varanasi Silk Traders', contact: 'Deepak Mishra', city: 'Varanasi, UP', type: 'Manufacturer', gstin: '09CCCVS9012W3Z7', status: 'pending_review', products: 0, orders: 0, gmv: '₹0', joinDate: '15 Jul 2026', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=40&h=40&fit=crop&crop=face' },
 { id: 'FT-SLR-002398', name: 'Mumbai Fabric Zone', contact: 'Sunita Kapoor', city: 'Mumbai, Maharashtra', type: 'Distributor', gstin: '27DDDMF3456X4Z8', status: 'pending_review', products: 0, orders: 0, gmv: '₹0', joinDate: '16 Jul 2026', avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=40&h=40&fit=crop&crop=face' },

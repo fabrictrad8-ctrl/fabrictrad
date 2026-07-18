@@ -46,7 +46,7 @@ const alternatives = [
   reviews: 42,
   dispatch: '4-6 days',
   acceptance: '82%',
-  image: "https://img.rocket.new/generatedImages/rocket_gen_img_15b1c4966-1784377998330.png",
+  image: "https://img.rocket.new/generatedImages/rocket_gen_img_124650fa6-1784378867682.png",
   alt: 'Premium net fabric sample in natural light',
   isCurrent: false
 }];
