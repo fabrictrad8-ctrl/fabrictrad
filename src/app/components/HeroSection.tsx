@@ -164,8 +164,8 @@ export default function HeroSection() {
               <Link href="/buyer-registration" className="bg-primary hover:bg-saffron-light text-white px-4 py-2 rounded-xl text-sm font-600 transition-colors">
                 Start Buying
               </Link>
-              <Link href="/seller-dashboard" className="bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-xl text-sm font-600 transition-colors border border-white/20">
-                Sell on FabricTrad
+              <Link href="/login" className="bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-xl text-sm font-600 transition-colors border border-white/20">
+                Sign In
               </Link>
             </div>
           </div>

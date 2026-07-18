@@ -5,7 +5,6 @@ import HeroSection from '@/app/components/HeroSection';
 import CategorySection from '@/app/components/CategorySection';
 import FeaturedProducts from '@/app/components/FeaturedProducts';
 import HowItWorks from '@/app/components/HowItWorks';
-import SellerCTA from '@/app/components/SellerCTA';
 import TrustSection from '@/app/components/TrustSection';
 import HomepageTracker from '@/app/components/HomepageTracker';
 
@@ -19,7 +18,6 @@ export default function HomePage() {
       <FeaturedProducts />
       <HowItWorks />
       <TrustSection />
-      <SellerCTA />
       <Footer />
     </main>
   );

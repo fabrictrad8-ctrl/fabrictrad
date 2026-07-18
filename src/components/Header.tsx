@@ -1,20 +1,43 @@
 'use client';
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import AppLogo from '@/components/ui/AppLogo';
 import Icon from '@/components/ui/AppIcon';
+import { useAuth } from '@/contexts/AuthContext';
 
-const navLinks = [
+const publicNavLinks = [
+  { label: 'Marketplace', href: '/marketplace' },
+  { label: 'Categories', href: '/categories' },
+  { label: 'Vendors', href: '/vendors' },
+  { label: 'How It Works', href: '/#how-it-works' },
+];
+
+const buyerNavLinks = [
   { label: 'Marketplace', href: '/marketplace' },
   { label: 'Categories', href: '/categories' },
   { label: 'Vendors', href: '/vendors' },
   { label: 'Requirements Board', href: '/buyer-requirements' },
-  { label: 'How It Works', href: '/#how-it-works' },
+];
+
+const sellerNavLinks = [
+  { label: 'Dashboard', href: '/seller-dashboard' },
+  { label: 'Marketplace', href: '/marketplace' },
 ];
 
 export default function Header() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const { user, profile, loading, signOut } = useAuth();
+  const router = useRouter();
+
+  const isSeller = profile?.role === 'seller';
+  const isBuyer = profile?.role === 'buyer';
+  const isLoggedIn = !!user && !!profile;
+
+  const navLinks = isLoggedIn
+    ? isSeller ? sellerNavLinks : buyerNavLinks
+    : publicNavLinks;
 
   useEffect(() => {
     const handleScroll = () => {
@@ -25,7 +48,6 @@ export default function Header() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, [mobileOpen]);
 
-  // Prevent body scroll when mobile menu is open
   useEffect(() => {
     if (mobileOpen) {
       document.body.style.overflow = 'hidden';
@@ -36,6 +58,16 @@ export default function Header() {
   }, [mobileOpen]);
 
   const closeMobile = () => setMobileOpen(false);
+
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      router?.push('/');
+    } catch {
+      // ignore
+    }
+    closeMobile();
+  };
 
   return (
     <>
@@ -68,33 +100,57 @@ export default function Header() {
 
           {/* Desktop Actions */}
           <div className="hidden md:flex items-center gap-2">
-            <Link
-              href="/seller-registration"
-              className="px-3 py-2 text-sm font-600 text-secondary hover:text-primary transition-colors"
-            >
-              Sell on FabricTrad
-            </Link>
-            <Link
-              href="/seller-dashboard"
-              className="px-3 py-2 text-sm font-500 text-muted-foreground hover:text-foreground transition-colors"
-            >
-              Seller Portal
-            </Link>
-            <Link
-              href="/buyer-registration"
-              className="btn-primary px-4 py-2 text-sm rounded-lg"
-            >
-              Register as Buyer
-            </Link>
-            <Link
-              href="/buyer-dashboard"
-              className="btn-secondary px-3 py-2 text-sm rounded-lg"
-            >
-              Login
-            </Link>
+            {loading ? (
+              <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+            ) : isLoggedIn ? (
+              <>
+                {/* Role badge */}
+                <span className={`text-xs font-700 px-2.5 py-1 rounded-full border ${
+                  isSeller
+                    ? 'bg-secondary/10 text-secondary border-secondary/20' :'bg-primary/10 text-primary border-primary/20'
+                }`}>
+                  {isSeller ? 'Seller' : 'Buyer'}
+                </span>
+                {/* Dashboard link */}
+                <Link
+                  href={isSeller ? '/seller-dashboard' : '/buyer-dashboard'}
+                  className="px-3 py-2 text-sm font-600 text-foreground hover:bg-muted rounded-lg transition-colors"
+                >
+                  My Dashboard
+                </Link>
+                {/* Sign out */}
+                <button
+                  onClick={handleSignOut}
+                  className="btn-secondary px-3 py-2 text-sm rounded-lg"
+                >
+                  Sign Out
+                </button>
+              </>
+            ) : (
+              <>
+                <Link
+                  href="/login"
+                  className="px-3 py-2 text-sm font-500 text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  Sign In
+                </Link>
+                <Link
+                  href="/buyer-registration"
+                  className="btn-primary px-4 py-2 text-sm rounded-lg"
+                >
+                  Register as Buyer
+                </Link>
+                <Link
+                  href="/seller-registration"
+                  className="px-3 py-2 text-sm font-600 text-secondary hover:text-primary transition-colors"
+                >
+                  Sell on FabricTrad
+                </Link>
+              </>
+            )}
           </div>
 
-          {/* Mobile Hamburger — only visible on mobile */}
+          {/* Mobile Hamburger */}
           <button
             className="md:hidden p-2 rounded-lg hover:bg-muted transition-colors"
             onClick={() => setMobileOpen((prev) => !prev)}
@@ -109,21 +165,28 @@ export default function Header() {
           </button>
         </div>
       </header>
-      {/* Mobile Menu — rendered outside header to avoid double-render */}
+
+      {/* Mobile Menu */}
       {mobileOpen && (
         <>
-          {/* Backdrop */}
           <div
             className="fixed inset-0 z-40 bg-black/40 md:hidden"
             onClick={closeMobile}
             aria-hidden="true"
           />
-          {/* Drawer */}
           <div className="fixed top-16 left-0 right-0 bottom-0 z-40 bg-background overflow-y-auto md:hidden border-t border-border">
             <div className="p-4 space-y-1">
               <div className="flex items-center gap-2 mb-4 p-3 bg-muted rounded-xl">
                 <AppLogo size={32} />
                 <span className="font-700 text-base text-secondary">FabricTrad</span>
+                {isLoggedIn && (
+                  <span className={`ml-auto text-xs font-700 px-2 py-0.5 rounded-full border ${
+                    isSeller
+                      ? 'bg-secondary/10 text-secondary border-secondary/20' :'bg-primary/10 text-primary border-primary/20'
+                  }`}>
+                    {isSeller ? 'Seller' : 'Buyer'}
+                  </span>
+                )}
               </div>
               {navLinks?.map((link) => (
                 <Link
@@ -136,34 +199,47 @@ export default function Header() {
                 </Link>
               ))}
               <div className="pt-4 space-y-2 border-t border-border mt-4">
-                <Link
-                  href="/seller-registration"
-                  className="btn-primary w-full px-4 py-3 text-sm rounded-lg text-center block"
-                  onClick={closeMobile}
-                >
-                  Sell on FabricTrad
-                </Link>
-                <Link
-                  href="/buyer-registration"
-                  className="btn-navy w-full px-4 py-3 text-sm rounded-lg text-center block"
-                  onClick={closeMobile}
-                >
-                  Register as Buyer
-                </Link>
-                <Link
-                  href="/seller-dashboard"
-                  className="btn-secondary w-full px-4 py-3 text-sm rounded-lg text-center block"
-                  onClick={closeMobile}
-                >
-                  Seller Portal
-                </Link>
-                <Link
-                  href="/buyer-dashboard"
-                  className="btn-secondary w-full px-4 py-3 text-sm rounded-lg text-center block"
-                  onClick={closeMobile}
-                >
-                  Login
-                </Link>
+                {isLoggedIn ? (
+                  <>
+                    <Link
+                      href={isSeller ? '/seller-dashboard' : '/buyer-dashboard'}
+                      className="btn-primary w-full px-4 py-3 text-sm rounded-lg text-center block"
+                      onClick={closeMobile}
+                    >
+                      My Dashboard
+                    </Link>
+                    <button
+                      onClick={handleSignOut}
+                      className="btn-secondary w-full px-4 py-3 text-sm rounded-lg text-center block"
+                    >
+                      Sign Out
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <Link
+                      href="/buyer-registration"
+                      className="btn-primary w-full px-4 py-3 text-sm rounded-lg text-center block"
+                      onClick={closeMobile}
+                    >
+                      Register as Buyer
+                    </Link>
+                    <Link
+                      href="/login"
+                      className="btn-secondary w-full px-4 py-3 text-sm rounded-lg text-center block"
+                      onClick={closeMobile}
+                    >
+                      Sign In
+                    </Link>
+                    <Link
+                      href="/seller-registration"
+                      className="btn-navy w-full px-4 py-3 text-sm rounded-lg text-center block"
+                      onClick={closeMobile}
+                    >
+                      Sell on FabricTrad
+                    </Link>
+                  </>
+                )}
               </div>
             </div>
           </div>
