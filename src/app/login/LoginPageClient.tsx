@@ -12,7 +12,16 @@ type LoginRole = 'buyer' | 'seller';
 export default function LoginPageClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { signIn, signInWithGoogle, sendEmailOtp, verifyEmailOtp, user, profile, loading } = useAuth();
+  const {
+    signIn,
+    signInWithGoogle,
+    googleAuthEnabled,
+    sendEmailOtp,
+    verifyEmailOtp,
+    user,
+    profile,
+    loading,
+  } = useAuth();
 
   const [mode, setMode] = useState<AuthMode>('choose');
   const [role, setRole] = useState<LoginRole>('buyer');
@@ -30,12 +39,17 @@ export default function LoginPageClient() {
     if (r === 'seller') setRole('seller');
     const err = searchParams?.get('error');
     if (err === 'auth_failed') setError('Authentication failed. Please try again.');
+    else if (err === 'profile_setup_failed')
+      setError('Google sign-in worked, but your profile could not be created. Please try again.');
+    else if (err) setError(err.replace(/_/g, ' '));
   }, [searchParams]);
 
   useEffect(() => {
     if (!loading && user && profile) {
       if (profile.role === 'super_admin' || profile.role === 'admin_staff') {
         router.replace('/admin-portal');
+      } else if (!profile.phone) {
+        router.replace(`/auth/phone?role=${profile.role}`);
       } else if (profile.role === 'seller') {
         router.replace('/seller-dashboard');
       } else {
@@ -48,7 +62,10 @@ export default function LoginPageClient() {
     setOtpCooldown(60);
     const interval = setInterval(() => {
       setOtpCooldown((prev) => {
-        if (prev <= 1) { clearInterval(interval); return 0; }
+        if (prev <= 1) {
+          clearInterval(interval);
+          return 0;
+        }
         return prev - 1;
       });
     }, 1000);
@@ -79,7 +96,10 @@ export default function LoginPageClient() {
 
   const handleSendOtp = async (e?: React.FormEvent) => {
     e?.preventDefault();
-    if (!email.trim()) { setError('Please enter your email'); return; }
+    if (!email.trim()) {
+      setError('Please enter your email');
+      return;
+    }
     setError('');
     setSubmitting(true);
     try {
@@ -112,7 +132,10 @@ export default function LoginPageClient() {
 
   const handleVerifyOtp = async () => {
     const token = otp.join('');
-    if (token.length !== 6) { setError('Please enter the complete 6-digit OTP'); return; }
+    if (token.length !== 6) {
+      setError('Please enter the complete 6-digit OTP');
+      return;
+    }
     setError('');
     setSubmitting(true);
     try {
@@ -143,7 +166,9 @@ export default function LoginPageClient() {
             {mode === 'otp-verify' ? 'Enter OTP' : 'Welcome back'}
           </h1>
           <p className="text-sm text-muted-foreground">
-            {mode === 'otp-verify' ? 'Check your email for the 6-digit code' : 'Sign in to your account'}
+            {mode === 'otp-verify'
+              ? 'Check your email for the 6-digit code'
+              : 'Sign in to your account'}
           </p>
         </div>
 
@@ -154,7 +179,9 @@ export default function LoginPageClient() {
               <button
                 onClick={() => setRole('buyer')}
                 className={`flex-1 py-2.5 text-sm font-600 transition-colors ${
-                  role === 'buyer' ? 'bg-primary text-white' : 'text-muted-foreground hover:bg-muted'
+                  role === 'buyer'
+                    ? 'bg-primary text-white'
+                    : 'text-muted-foreground hover:bg-muted'
                 }`}
               >
                 Buyer Login
@@ -162,7 +189,9 @@ export default function LoginPageClient() {
               <button
                 onClick={() => setRole('seller')}
                 className={`flex-1 py-2.5 text-sm font-600 transition-colors ${
-                  role === 'seller' ? 'bg-secondary text-white' : 'text-muted-foreground hover:bg-muted'
+                  role === 'seller'
+                    ? 'bg-secondary text-white'
+                    : 'text-muted-foreground hover:bg-muted'
                 }`}
               >
                 Seller Login
@@ -172,7 +201,11 @@ export default function LoginPageClient() {
 
           {error && (
             <div className="flex items-start gap-2 p-3 bg-error/10 border border-error/20 rounded-xl mb-4">
-              <Icon name="ExclamationTriangleIcon" size={14} className="text-error shrink-0 mt-0.5" />
+              <Icon
+                name="ExclamationTriangleIcon"
+                size={14}
+                className="text-error shrink-0 mt-0.5"
+              />
               <p className="text-xs text-error">{error}</p>
             </div>
           )}
@@ -215,13 +248,20 @@ export default function LoginPageClient() {
                 {otpCooldown > 0 ? (
                   <p className="text-xs text-muted-foreground">Resend in {otpCooldown}s</p>
                 ) : (
-                  <button onClick={() => handleSendOtp()} className="text-xs text-primary font-600 hover:underline">
+                  <button
+                    onClick={() => handleSendOtp()}
+                    className="text-xs text-primary font-600 hover:underline"
+                  >
                     Resend OTP
                   </button>
                 )}
               </div>
               <button
-                onClick={() => { setMode('email-otp'); setOtp(['', '', '', '', '', '']); setInfo(''); }}
+                onClick={() => {
+                  setMode('email-otp');
+                  setOtp(['', '', '', '', '', '']);
+                  setInfo('');
+                }}
                 className="mt-4 text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 mx-auto"
               >
                 <Icon name="ArrowLeftIcon" size={12} />
@@ -233,25 +273,49 @@ export default function LoginPageClient() {
           {/* Choose Mode */}
           {mode === 'choose' && (
             <div className="space-y-3">
-              <button
-                onClick={handleGoogleLogin}
-                disabled={submitting}
-                className="w-full flex items-center justify-center gap-3 border border-border rounded-xl py-3 text-sm font-600 text-foreground hover:bg-muted transition-colors disabled:opacity-50"
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24">
-                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-                </svg>
-                Continue with Google
-              </button>
+              {googleAuthEnabled && role === 'buyer' && (
+                <>
+                  <button
+                    onClick={handleGoogleLogin}
+                    disabled={submitting}
+                    className="w-full flex items-center justify-center gap-3 border border-border rounded-xl py-3 text-sm font-600 text-foreground hover:bg-muted transition-colors disabled:opacity-50"
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24">
+                      <path
+                        fill="#4285F4"
+                        d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                      />
+                      <path
+                        fill="#34A853"
+                        d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                      />
+                      <path
+                        fill="#FBBC05"
+                        d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+                      />
+                      <path
+                        fill="#EA4335"
+                        d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+                      />
+                    </svg>
+                    Continue with Google
+                  </button>
 
-              <div className="flex items-center gap-3 my-2">
-                <div className="flex-1 h-px bg-border" />
-                <span className="text-xs text-muted-foreground">or</span>
-                <div className="flex-1 h-px bg-border" />
-              </div>
+                  <div className="flex items-center gap-3 my-2">
+                    <div className="flex-1 h-px bg-border" />
+                    <span className="text-xs text-muted-foreground">or</span>
+                    <div className="flex-1 h-px bg-border" />
+                  </div>
+                </>
+              )}
+              {role === 'seller' && (
+                <div className="rounded-xl border border-secondary/20 bg-secondary/5 p-3">
+                  <p className="text-xs font-700 leading-5 text-secondary">
+                    Seller accounts require GSTIN, store, bank, and document verification. New
+                    sellers should create an account first; verified sellers can sign in below.
+                  </p>
+                </div>
+              )}
 
               <button
                 onClick={() => setMode('email-password')}
@@ -327,7 +391,9 @@ export default function LoginPageClient() {
           {mode === 'email-otp' && (
             <form onSubmit={handleSendOtp} className="space-y-4">
               <div>
-                <label className="block text-sm font-700 text-foreground mb-1.5">Email Address</label>
+                <label className="block text-sm font-700 text-foreground mb-1.5">
+                  Email Address
+                </label>
                 <input
                   type="email"
                   value={email}
@@ -338,8 +404,14 @@ export default function LoginPageClient() {
                 />
               </div>
               <div className="flex items-start gap-2 p-3 bg-primary/5 border border-primary/20 rounded-xl">
-                <Icon name="InformationCircleIcon" size={14} className="text-primary shrink-0 mt-0.5" />
-                <p className="text-xs text-primary">We will send a 6-digit OTP to your email. No password needed.</p>
+                <Icon
+                  name="InformationCircleIcon"
+                  size={14}
+                  className="text-primary shrink-0 mt-0.5"
+                />
+                <p className="text-xs text-primary">
+                  We will send a 6-digit OTP to your email. No password needed.
+                </p>
               </div>
               <button
                 type="submit"
@@ -362,15 +434,9 @@ export default function LoginPageClient() {
           {mode !== 'otp-verify' && (
             <div className="mt-6 pt-5 border-t border-border text-center space-y-2">
               <p className="text-xs text-muted-foreground">
-                New buyer?{' '}
-                <Link href="/buyer-registration" className="text-primary font-600 hover:underline">
-                  Register as Buyer
-                </Link>
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Want to sell?{' '}
-                <Link href="/seller-registration" className="text-secondary font-600 hover:underline">
-                  Register as Seller
+                New to FabricTrad?{' '}
+                <Link href="/register" className="text-primary font-600 hover:underline">
+                  Create account
                 </Link>
               </p>
             </div>

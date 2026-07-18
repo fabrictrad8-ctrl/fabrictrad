@@ -2,6 +2,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import Icon from '@/components/ui/AppIcon';
 import AppImage from '@/components/ui/AppImage';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface ChatMessage {
   id: string;
@@ -39,7 +40,7 @@ const INITIAL_MESSAGES: ChatMessage[] = [
     senderId: 'system',
     senderName: 'FabricTrad',
     senderRole: 'seller',
-    text: '🔒 This is a secure in-website chat. For everyone\'s safety, phone numbers, email addresses, and external contact details are not allowed. All communication stays on FabricTrad.',
+    text: "🔒 This is a secure in-website chat. For everyone's safety, phone numbers, email addresses, and external contact details are not allowed. All communication stays on FabricTrad.",
     timestamp: 'Now',
     isRead: true,
   },
@@ -53,11 +54,16 @@ export default function InWebsiteChat({
   currentUserRole,
   onClose,
 }: InWebsiteChatProps) {
+  const { user, profile } = useAuth();
   const [messages, setMessages] = useState<ChatMessage[]>(INITIAL_MESSAGES);
   const [inputText, setInputText] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [blockedWarning, setBlockedWarning] = useState(false);
-  const [attachedFile, setAttachedFile] = useState<{ name: string; type: 'image' | 'document' | 'pdf'; preview?: string } | null>(null);
+  const [attachedFile, setAttachedFile] = useState<{
+    name: string;
+    type: 'image' | 'document' | 'pdf';
+    preview?: string;
+  } | null>(null);
   const [isMinimized, setIsMinimized] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -93,8 +99,9 @@ export default function InWebsiteChat({
 
     const msg: ChatMessage = {
       id: `msg-${Date.now()}`,
-      senderId: currentUserRole === 'buyer' ? 'FT-BYR-004521' : 'FT-SLR-001234',
-      senderName: currentUserRole === 'buyer' ? 'Rajesh Mehta' : 'Surat Textile Mills',
+      senderId: user?.id || 'current-user',
+      senderName:
+        profile?.full_name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'You',
       senderRole: currentUserRole,
       text: inputText,
       timestamp: now,
@@ -109,22 +116,6 @@ export default function InWebsiteChat({
       setInputText('');
       setAttachedFile(null);
       setIsSending(false);
-
-      // Simulate reply after 1.5s
-      if (inputText.trim()) {
-        setTimeout(() => {
-          const reply: ChatMessage = {
-            id: `msg-reply-${Date.now()}`,
-            senderId: currentUserRole === 'buyer' ? 'FT-SLR-001234' : 'FT-BYR-004521',
-            senderName: otherPartyName,
-            senderRole: currentUserRole === 'buyer' ? 'seller' : 'buyer',
-            text: currentUserRole === 'seller' ?'Thank you for reaching out! I can fulfil this requirement. Let me share our catalogue and pricing details.' :'Thanks for your interest! We have the fabric you need. Can you share more details about the colour and finish you prefer?',
-            timestamp: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
-            isRead: false,
-          };
-          setMessages((prev) => [...prev, reply]);
-        }, 1500);
-      }
     }, 400);
   };
 
@@ -136,12 +127,26 @@ export default function InWebsiteChat({
   };
 
   return (
-    <div className="fixed bottom-4 right-4 z-50 flex flex-col shadow-2xl rounded-2xl overflow-hidden border border-border bg-card"
-      style={{ width: 360, maxHeight: isMinimized ? 56 : 520 }}>
+    <div
+      className="fixed bottom-4 right-4 z-50 flex flex-col shadow-2xl rounded-2xl overflow-hidden border border-border bg-card"
+      style={{ width: 360, maxHeight: isMinimized ? 56 : 520 }}
+    >
       {/* Chat Header */}
       <div className="flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-secondary to-primary text-white shrink-0">
-        <div className="w-8 h-8 rounded-full overflow-hidden bg-white/20 shrink-0">
-          <AppImage src={otherPartyAvatar} alt={`${otherPartyName} profile photo`} width={32} height={32} className="object-cover" />
+        <div className="w-8 h-8 rounded-full overflow-hidden bg-white/20 shrink-0 flex items-center justify-center">
+          {otherPartyAvatar ? (
+            <AppImage
+              src={otherPartyAvatar}
+              alt={`${otherPartyName} profile photo`}
+              width={32}
+              height={32}
+              className="object-cover"
+            />
+          ) : (
+            <span className="text-xs font-800 text-white">
+              {otherPartyName[0]?.toUpperCase() || 'U'}
+            </span>
+          )}
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-xs font-700 truncate">{otherPartyName}</p>
@@ -152,7 +157,11 @@ export default function InWebsiteChat({
             onClick={() => setIsMinimized((m) => !m)}
             className="p-1 hover:bg-white/20 rounded-lg transition-colors"
           >
-            <Icon name={isMinimized ? 'ChevronUpIcon' : 'ChevronDownIcon'} size={14} className="text-white" />
+            <Icon
+              name={isMinimized ? 'ChevronUpIcon' : 'ChevronDownIcon'}
+              size={14}
+              className="text-white"
+            />
           </button>
           <button onClick={onClose} className="p-1 hover:bg-white/20 rounded-lg transition-colors">
             <Icon name="XMarkIcon" size={14} className="text-white" />
@@ -169,7 +178,10 @@ export default function InWebsiteChat({
           </div>
 
           {/* Messages */}
-          <div className="flex-1 overflow-y-auto p-3 space-y-3 bg-muted/20" style={{ minHeight: 0 }}>
+          <div
+            className="flex-1 overflow-y-auto p-3 space-y-3 bg-muted/20"
+            style={{ minHeight: 0 }}
+          >
             {messages.map((msg) => {
               const isSystem = msg.senderId === 'system';
               const isMe = msg.senderRole === currentUserRole && !isSystem;
@@ -185,29 +197,43 @@ export default function InWebsiteChat({
               }
 
               return (
-                <div key={msg.id} className={`flex gap-2 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
-                  <div className={`flex flex-col gap-1 max-w-[75%] ${isMe ? 'items-end' : 'items-start'}`}>
+                <div
+                  key={msg.id}
+                  className={`flex gap-2 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}
+                >
+                  <div
+                    className={`flex flex-col gap-1 max-w-[75%] ${isMe ? 'items-end' : 'items-start'}`}
+                  >
                     {!isMe && (
                       <p className="text-xs text-muted-foreground px-1">{msg.senderName}</p>
                     )}
                     <div
                       className={`rounded-2xl px-3 py-2 text-sm ${
                         isMe
-                          ? 'bg-primary text-white rounded-tr-sm' :'bg-card border border-border text-foreground rounded-tl-sm'
+                          ? 'bg-primary text-white rounded-tr-sm'
+                          : 'bg-card border border-border text-foreground rounded-tl-sm'
                       }`}
                     >
                       {msg.text && <p className="leading-relaxed">{msg.text}</p>}
                       {msg.fileName && (
-                        <div className={`flex items-center gap-2 mt-1 p-2 rounded-lg ${isMe ? 'bg-white/20' : 'bg-muted'}`}>
+                        <div
+                          className={`flex items-center gap-2 mt-1 p-2 rounded-lg ${isMe ? 'bg-white/20' : 'bg-muted'}`}
+                        >
                           <Icon
                             name={msg.fileType === 'image' ? 'PhotoIcon' : 'DocumentIcon'}
                             size={14}
                             className={isMe ? 'text-white' : 'text-muted-foreground'}
                           />
-                          <span className={`text-xs truncate max-w-[140px] ${isMe ? 'text-white' : 'text-foreground'}`}>
+                          <span
+                            className={`text-xs truncate max-w-[140px] ${isMe ? 'text-white' : 'text-foreground'}`}
+                          >
                             {msg.fileName}
                           </span>
-                          <Icon name="ArrowDownTrayIcon" size={12} className={isMe ? 'text-white/70' : 'text-muted-foreground'} />
+                          <Icon
+                            name="ArrowDownTrayIcon"
+                            size={12}
+                            className={isMe ? 'text-white/70' : 'text-muted-foreground'}
+                          />
                         </div>
                       )}
                     </div>
@@ -233,13 +259,19 @@ export default function InWebsiteChat({
           {attachedFile && (
             <div className="mx-3 mb-1 flex items-center gap-2 p-2 bg-primary/10 border border-primary/20 rounded-xl">
               {attachedFile.preview ? (
-                <img src={attachedFile.preview} alt="Attached file preview" className="w-8 h-8 rounded-lg object-cover shrink-0" />
+                <img
+                  src={attachedFile.preview}
+                  alt="Attached file preview"
+                  className="w-8 h-8 rounded-lg object-cover shrink-0"
+                />
               ) : (
                 <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center shrink-0">
                   <Icon name="DocumentIcon" size={14} className="text-primary" />
                 </div>
               )}
-              <span className="text-xs text-primary font-600 flex-1 truncate">{attachedFile.name}</span>
+              <span className="text-xs text-primary font-600 flex-1 truncate">
+                {attachedFile.name}
+              </span>
               <button onClick={() => setAttachedFile(null)} className="p-0.5">
                 <Icon name="XMarkIcon" size={13} className="text-muted-foreground" />
               </button>

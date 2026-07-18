@@ -2,8 +2,18 @@ import React from 'react';
 import Icon from '@/components/ui/AppIcon';
 
 const categories = [
-  'All Fabrics', 'Silk', 'Cotton', 'Net & Netting', 'Georgette',
-  'Polyester', 'Handloom', 'Velvet', 'Organza', 'Linen', 'Denim', 'Wool',
+  'All Fabrics',
+  'Silk',
+  'Cotton',
+  'Net & Netting',
+  'Georgette',
+  'Polyester',
+  'Handloom',
+  'Velvet',
+  'Organza',
+  'Linen',
+  'Denim',
+  'Wool',
 ];
 
 export default function MarketplaceBanner() {
@@ -17,7 +27,8 @@ export default function MarketplaceBanner() {
               key={cat}
               className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-600 transition-all whitespace-nowrap ${
                 i === 0
-                  ? 'bg-primary text-white' :'text-white/70 hover:text-white hover:bg-white/10'
+                  ? 'bg-primary text-white'
+                  : 'text-white/70 hover:text-white hover:bg-white/10'
               }`}
             >
               {cat}
@@ -29,9 +40,7 @@ export default function MarketplaceBanner() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-xl font-800 text-white mb-1">
-              FabricTrad Marketplace
-            </h1>
+            <h1 className="text-xl font-800 text-white mb-1">FabricTrad Marketplace</h1>
             <p className="text-white/60 text-sm">
               14,200+ verified textile products from 12,400+ GST-verified sellers
             </p>

@@ -1,6 +1,12 @@
 'use client';
 import React, { useState } from 'react';
 import Icon from '@/components/ui/AppIcon';
+import {
+  firstOrderItem,
+  formatMoney,
+  formatOrderDate,
+  useSellerBulkOrders,
+} from '@/lib/hooks/useAccountOrders';
 
 type OrderStatus = 'pending' | 'accepted' | 'paid' | 'shipped' | 'delivered' | 'rejected';
 
@@ -20,39 +26,6 @@ interface Order {
   stock: number;
 }
 
-const initialOrders: Order[] = [
-  {
-    id: 'FT-ORD-005892', buyer: 'Mehta Garments, Mumbai', buyerType: 'Wholesaler',
-    product: 'Pure Dyeable Soft Nett Fabric', qty: 300, unit: 'mtrs', price: 840,
-    amount: '₹2,52,000', status: 'pending', expiresIn: '08:45', date: '17 Jul 2026 10:00 AM',
-    city: 'Mumbai, Maharashtra', stock: 2400,
-  },
-  {
-    id: 'FT-ORD-005901', buyer: 'Patel Textiles, Ahmedabad', buyerType: 'Retailer',
-    product: 'Organza Sequence Fabric', qty: 100, unit: 'mtrs', price: 980,
-    amount: '₹98,000', status: 'pending', expiresIn: '03:12', date: '17 Jul 2026 11:30 AM',
-    city: 'Ahmedabad, Gujarat', stock: 450,
-  },
-  {
-    id: 'FT-ORD-005855', buyer: 'Sharma Brothers, Delhi', buyerType: 'Distributor',
-    product: 'Georgette Embroidered Fabric', qty: 75, unit: 'mtrs', price: 1250,
-    amount: '₹93,750', status: 'accepted', expiresIn: null, date: '16 Jul 2026 02:00 PM',
-    city: 'New Delhi', stock: 800,
-  },
-  {
-    id: 'FT-ORD-005802', buyer: 'Verma Fashions, Jaipur', buyerType: 'Manufacturer',
-    product: 'Pure Dyeable Soft Nett Fabric', qty: 150, unit: 'mtrs', price: 790,
-    amount: '₹1,18,500', status: 'paid', expiresIn: null, date: '15 Jul 2026 09:00 AM',
-    city: 'Jaipur, Rajasthan', stock: 2400,
-  },
-  {
-    id: 'FT-ORD-005721', buyer: 'Kapoor Export House', buyerType: 'Exporter',
-    product: 'Organza Sequence Fabric', qty: 200, unit: 'mtrs', price: 960,
-    amount: '₹1,92,000', status: 'shipped', expiresIn: null, date: '12 Jul 2026 03:00 PM',
-    city: 'Surat, Gujarat', stock: 450,
-  },
-];
-
 const statusMap: Record<OrderStatus, { label: string; class: string }> = {
   pending: { label: 'Awaiting Response', class: 'order-status-pending' },
   accepted: { label: 'Accepted', class: 'order-status-confirmed' },
@@ -63,7 +36,8 @@ const statusMap: Record<OrderStatus, { label: string; class: string }> = {
 };
 
 export default function SellerOrders() {
-  const [orders, setOrders] = useState<Order[]>(initialOrders);
+  const { orders: accountOrders, loading } = useSellerBulkOrders();
+  const [localStatuses, setLocalStatuses] = useState<Record<string, OrderStatus>>({});
   const [activeFilter, setActiveFilter] = useState('All');
   const [showCounterModal, setShowCounterModal] = useState<string | null>(null);
   const [counterQty, setCounterQty] = useState('');
@@ -74,12 +48,48 @@ export default function SellerOrders() {
   const [successMsg, setSuccessMsg] = useState('');
 
   const filters = ['All', 'Pending', 'Accepted', 'Paid', 'Shipped'];
-  const filtered = activeFilter === 'All' ? orders : orders.filter((o) => o.status === activeFilter.toLowerCase());
+  const orders: Order[] = accountOrders.map((order) => {
+    const displayId = `FT-BULK-${order.id.slice(0, 8).toUpperCase()}`;
+    const item = firstOrderItem(order);
+    const remoteStatus = (order.status || 'pending') as string;
+    const status: OrderStatus =
+      localStatuses[displayId] ||
+      (remoteStatus === 'quote_sent'
+        ? 'pending'
+        : remoteStatus === 'confirmed'
+          ? 'accepted'
+          : remoteStatus === 'cancelled'
+            ? 'rejected'
+            : (remoteStatus as OrderStatus));
+
+    return {
+      id: displayId,
+      buyer: order.buyer_company || order.buyer_name || 'Buyer account',
+      buyerType: 'Buyer',
+      product: item?.product_name || 'Bulk fabric order',
+      qty: item?.quantity_mtrs || 0,
+      unit: 'mtrs',
+      price: item?.price_per_mtr || 0,
+      amount: formatMoney(order.net_total),
+      status,
+      expiresIn: status === 'pending' ? 'Respond now' : null,
+      date: formatOrderDate(order.created_at),
+      city: order.buyer_email || 'Private buyer details',
+      stock: 0,
+    };
+  });
+  const filtered =
+    activeFilter === 'All' ? orders : orders.filter((o) => o.status === activeFilter.toLowerCase());
 
   const rejectionReasons = [
-    'Insufficient stock', 'Sold offline', 'Production delay',
-    'Incorrect inventory', 'Quality issue', 'Delivery location not serviceable',
-    'Temporarily unavailable', 'Other',
+    'Insufficient stock',
+    'Sold offline',
+    'Production delay',
+    'Incorrect inventory',
+    'Quality issue',
+    'Delivery location not serviceable',
+    'Temporarily unavailable',
+    'Other',
   ];
 
   const showSuccess = (msg: string) => {
@@ -88,13 +98,16 @@ export default function SellerOrders() {
   };
 
   const handleAccept = (orderId: string) => {
-    setOrders((prev) => prev.map((o) => o.id === orderId ? { ...o, status: 'accepted' as OrderStatus, expiresIn: null } : o));
+    setLocalStatuses((prev) => ({ ...prev, [orderId]: 'accepted' }));
     showSuccess(`Order ${orderId} accepted successfully! Buyer will be notified.`);
   };
 
   const handleCounter = () => {
     if (!counterQty || !showCounterModal) return;
-    setOrders((prev) => prev.map((o) => o.id === showCounterModal ? { ...o, status: 'accepted' as OrderStatus, qty: parseInt(counterQty), expiresIn: null } : o));
+    setLocalStatuses((prev) => ({
+      ...prev,
+      [showCounterModal]: 'accepted',
+    }));
     showSuccess(`Counter offer sent for ${showCounterModal}. Buyer will review and confirm.`);
     setShowCounterModal(null);
     setCounterQty('');
@@ -103,7 +116,10 @@ export default function SellerOrders() {
 
   const handleReject = () => {
     if (!rejectReason || !showRejectModal) return;
-    setOrders((prev) => prev.map((o) => o.id === showRejectModal ? { ...o, status: 'rejected' as OrderStatus, expiresIn: null } : o));
+    setLocalStatuses((prev) => ({
+      ...prev,
+      [showRejectModal]: 'rejected',
+    }));
     showSuccess(`Order ${showRejectModal} rejected. Buyer will be notified with reason.`);
     setShowRejectModal(null);
     setRejectReason('');
@@ -111,7 +127,7 @@ export default function SellerOrders() {
   };
 
   const handleMarkReady = (orderId: string) => {
-    setOrders((prev) => prev.map((o) => o.id === orderId ? { ...o, status: 'shipped' as OrderStatus } : o));
+    setLocalStatuses((prev) => ({ ...prev, [orderId]: 'shipped' }));
     showSuccess(`Order ${orderId} marked ready for pickup. Shiprocket pickup scheduled.`);
   };
 
@@ -141,7 +157,9 @@ export default function SellerOrders() {
             type="button"
             onClick={() => setActiveFilter(f)}
             className={`shrink-0 px-3 py-1.5 rounded-xl text-xs font-600 transition-all ${
-              activeFilter === f ? 'bg-secondary text-white' : 'bg-card border border-border text-muted-foreground hover:border-secondary'
+              activeFilter === f
+                ? 'bg-secondary text-white'
+                : 'bg-card border border-border text-muted-foreground hover:border-secondary'
             }`}
           >
             {f}
@@ -151,14 +169,37 @@ export default function SellerOrders() {
 
       {/* Orders */}
       <div className="space-y-4">
+        {loading && (
+          <div className="bg-card rounded-2xl border border-border px-5 py-12 text-center">
+            <div className="w-7 h-7 border-2 border-secondary border-t-transparent rounded-full animate-spin mx-auto" />
+          </div>
+        )}
+        {!loading && filtered.length === 0 && (
+          <div className="bg-card rounded-2xl border border-border px-5 py-12 text-center">
+            <Icon
+              name="ClipboardDocumentListIcon"
+              size={34}
+              className="mx-auto mb-3 text-muted-foreground"
+            />
+            <p className="text-sm font-800 text-foreground">No order requests for this seller</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              This queue will show only orders assigned to the signed-in seller account.
+            </p>
+          </div>
+        )}
         {filtered.map((order) => (
-          <div key={order.id} className={`bg-card rounded-2xl border overflow-hidden ${order.status === 'pending' ? 'border-primary/30' : 'border-border'}`}>
+          <div
+            key={order.id}
+            className={`bg-card rounded-2xl border overflow-hidden ${order.status === 'pending' ? 'border-primary/30' : 'border-border'}`}
+          >
             {/* Header */}
             <div className="px-5 py-4 border-b border-border bg-muted/20">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
                   <span className="mono-id">{order.id}</span>
-                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-600 ${statusMap[order.status]?.class}`}>
+                  <span
+                    className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-600 ${statusMap[order.status]?.class}`}
+                  >
                     {statusMap[order.status]?.label}
                   </span>
                   {order.expiresIn && (
@@ -178,22 +219,30 @@ export default function SellerOrders() {
                 <div>
                   <p className="text-xs text-muted-foreground mb-0.5">Buyer</p>
                   <p className="text-sm font-700 text-foreground">{order.buyer}</p>
-                  <p className="text-xs text-muted-foreground">{order.buyerType} · {order.city}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {order.buyerType} · {order.city}
+                  </p>
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground mb-0.5">Product</p>
                   <p className="text-sm font-700 text-foreground">{order.product}</p>
-                  <p className="text-xs text-muted-foreground">Requested: {order.qty} {order.unit}</p>
+                  <p className="text-xs text-muted-foreground">
+                    Requested: {order.qty} {order.unit}
+                  </p>
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground mb-0.5">Your Stock</p>
-                  <p className="text-sm font-700 text-foreground">{order.stock.toLocaleString('en-IN')} {order.unit}</p>
+                  <p className="text-sm font-700 text-foreground">
+                    {order.stock.toLocaleString('en-IN')} {order.unit}
+                  </p>
                   <p className="text-xs text-success">Sufficient stock available</p>
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground mb-0.5">Order Value</p>
                   <p className="text-base font-800 text-primary">{order.amount}</p>
-                  <p className="text-xs text-muted-foreground">₹{order.price}/mtr × {order.qty}</p>
+                  <p className="text-xs text-muted-foreground">
+                    ₹{order.price}/mtr × {order.qty}
+                  </p>
                 </div>
               </div>
 
@@ -210,7 +259,11 @@ export default function SellerOrders() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => { setShowCounterModal(order.id); setCounterQty(''); setCounterNote(''); }}
+                    onClick={() => {
+                      setShowCounterModal(order.id);
+                      setCounterQty('');
+                      setCounterNote('');
+                    }}
                     className="flex items-center gap-1.5 bg-amber-500 text-white text-xs font-700 px-4 py-2 rounded-xl hover:bg-amber-600 transition-colors"
                   >
                     <Icon name="ArrowsRightLeftIcon" size={14} />
@@ -218,7 +271,11 @@ export default function SellerOrders() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => { setShowRejectModal(order.id); setRejectReason(''); setRejectStock(''); }}
+                    onClick={() => {
+                      setShowRejectModal(order.id);
+                      setRejectReason('');
+                      setRejectStock('');
+                    }}
                     className="flex items-center gap-1.5 bg-error/10 border border-error/30 text-error text-xs font-700 px-4 py-2 rounded-xl hover:bg-error hover:text-white transition-all"
                   >
                     <Icon name="XMarkIcon" size={14} />
@@ -240,7 +297,9 @@ export default function SellerOrders() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => alert('Shipping label will be generated once Shiprocket pickup is scheduled.')}
+                    onClick={() =>
+                      alert('Shipping label will be generated once Shiprocket pickup is scheduled.')
+                    }
                     className="flex items-center gap-1.5 btn-secondary px-4 py-2 text-xs rounded-xl"
                   >
                     <Icon name="DocumentArrowDownIcon" size={14} />
@@ -253,7 +312,9 @@ export default function SellerOrders() {
               {order.status === 'accepted' && (
                 <div className="flex items-center gap-2 pt-4 border-t border-border">
                   <Icon name="ClockIcon" size={14} className="text-amber-500" />
-                  <p className="text-xs text-amber-700 font-600">Awaiting buyer payment (100% prepaid — No COD)</p>
+                  <p className="text-xs text-amber-700 font-600">
+                    Awaiting buyer payment (100% prepaid — No COD)
+                  </p>
                 </div>
               )}
             </div>
@@ -267,13 +328,19 @@ export default function SellerOrders() {
           <div className="bg-card rounded-2xl border border-border p-6 w-full max-w-md">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-800 text-foreground">Counter Offer</h3>
-              <button type="button" onClick={() => setShowCounterModal(null)} className="p-1.5 hover:bg-muted rounded-lg">
+              <button
+                type="button"
+                onClick={() => setShowCounterModal(null)}
+                className="p-1.5 hover:bg-muted rounded-lg"
+              >
                 <Icon name="XMarkIcon" size={16} className="text-muted-foreground" />
               </button>
             </div>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-700 text-foreground mb-1.5">Available Quantity (mtrs) *</label>
+                <label className="block text-sm font-700 text-foreground mb-1.5">
+                  Available Quantity (mtrs) *
+                </label>
                 <input
                   type="number"
                   value={counterQty}
@@ -283,7 +350,9 @@ export default function SellerOrders() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-700 text-foreground mb-1.5">Explanation (optional)</label>
+                <label className="block text-sm font-700 text-foreground mb-1.5">
+                  Explanation (optional)
+                </label>
                 <textarea
                   rows={3}
                   value={counterNote}
@@ -294,7 +363,13 @@ export default function SellerOrders() {
               </div>
             </div>
             <div className="flex gap-2 mt-5">
-              <button type="button" onClick={() => setShowCounterModal(null)} className="btn-secondary flex-1 py-2.5 text-sm rounded-xl">Cancel</button>
+              <button
+                type="button"
+                onClick={() => setShowCounterModal(null)}
+                className="btn-secondary flex-1 py-2.5 text-sm rounded-xl"
+              >
+                Cancel
+              </button>
               <button
                 type="button"
                 onClick={handleCounter}
@@ -314,13 +389,19 @@ export default function SellerOrders() {
           <div className="bg-card rounded-2xl border border-border p-6 w-full max-w-md">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-800 text-foreground">Reject Order Request</h3>
-              <button type="button" onClick={() => setShowRejectModal(null)} className="p-1.5 hover:bg-muted rounded-lg">
+              <button
+                type="button"
+                onClick={() => setShowRejectModal(null)}
+                className="p-1.5 hover:bg-muted rounded-lg"
+              >
                 <Icon name="XMarkIcon" size={16} className="text-muted-foreground" />
               </button>
             </div>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-700 text-foreground mb-2">Rejection Reason *</label>
+                <label className="block text-sm font-700 text-foreground mb-2">
+                  Rejection Reason *
+                </label>
                 <div className="space-y-2">
                   {rejectionReasons.map((reason) => (
                     <button
@@ -328,7 +409,9 @@ export default function SellerOrders() {
                       type="button"
                       onClick={() => setRejectReason(reason)}
                       className={`w-full text-left px-3 py-2 rounded-xl text-sm transition-all ${
-                        rejectReason === reason ? 'bg-error/10 border border-error/30 text-error font-600' : 'bg-muted hover:bg-muted/80 text-foreground'
+                        rejectReason === reason
+                          ? 'bg-error/10 border border-error/30 text-error font-600'
+                          : 'bg-muted hover:bg-muted/80 text-foreground'
                       }`}
                     >
                       {reason}
@@ -337,7 +420,9 @@ export default function SellerOrders() {
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-700 text-foreground mb-1.5">Actual Available Stock (mtrs)</label>
+                <label className="block text-sm font-700 text-foreground mb-1.5">
+                  Actual Available Stock (mtrs)
+                </label>
                 <input
                   type="number"
                   value={rejectStock}
@@ -348,7 +433,13 @@ export default function SellerOrders() {
               </div>
             </div>
             <div className="flex gap-2 mt-5">
-              <button type="button" onClick={() => setShowRejectModal(null)} className="btn-secondary flex-1 py-2.5 text-sm rounded-xl">Cancel</button>
+              <button
+                type="button"
+                onClick={() => setShowRejectModal(null)}
+                className="btn-secondary flex-1 py-2.5 text-sm rounded-xl"
+              >
+                Cancel
+              </button>
               <button
                 type="button"
                 onClick={handleReject}

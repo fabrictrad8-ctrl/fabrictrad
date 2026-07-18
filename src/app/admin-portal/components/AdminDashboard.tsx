@@ -4,25 +4,73 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import Icon from '@/components/ui/AppIcon';
 
 const todayMetrics = [
-  { label: "Today\'s Orders", value: '124', change: '+18%', icon: 'ShoppingBagIcon', color: 'text-primary', bg: 'bg-primary/10' },
-  { label: 'GMV Today', value: '₹84.2L', change: '+22%', icon: 'CurrencyRupeeIcon', color: 'text-success', bg: 'bg-success/10' },
-  { label: 'Platform Commission', value: '₹4.2L', change: '+19%', icon: 'ReceiptPercentIcon', color: 'text-secondary', bg: 'bg-secondary/10' },
-  { label: 'New Registrations', value: '38', change: '+5', icon: 'UserPlusIcon', color: 'text-amber-600', bg: 'bg-amber-50' },
-  { label: 'Seller Applications', value: '6', change: '4 pending', icon: 'BuildingStorefrontIcon', color: 'text-purple-600', bg: 'bg-purple-50' },
-  { label: 'Listings Submitted', value: '28', change: '12 pending', icon: 'TagIcon', color: 'text-blue-600', bg: 'bg-blue-50' },
-  { label: 'Failed Payments', value: '3', change: '-2 vs yesterday', icon: 'ExclamationCircleIcon', color: 'text-error', bg: 'bg-error/10' },
-  { label: 'Active Disputes', value: '2', change: 'Needs attention', icon: 'FlagIcon', color: 'text-warning', bg: 'bg-amber-50' },
+  {
+    label: "Today's Orders",
+    value: '0',
+    change: 'Live orders',
+    icon: 'ShoppingBagIcon',
+    color: 'text-primary',
+    bg: 'bg-primary/10',
+  },
+  {
+    label: 'GMV Today',
+    value: '₹0',
+    change: 'Live payments',
+    icon: 'CurrencyRupeeIcon',
+    color: 'text-success',
+    bg: 'bg-success/10',
+  },
+  {
+    label: 'Platform Commission',
+    value: '₹0',
+    change: '10% of captured GMV',
+    icon: 'ReceiptPercentIcon',
+    color: 'text-secondary',
+    bg: 'bg-secondary/10',
+  },
+  {
+    label: 'New Registrations',
+    value: '0',
+    change: 'Live profiles',
+    icon: 'UserPlusIcon',
+    color: 'text-amber-600',
+    bg: 'bg-amber-50',
+  },
+  {
+    label: 'Seller Applications',
+    value: '0',
+    change: 'Live seller profiles',
+    icon: 'BuildingStorefrontIcon',
+    color: 'text-purple-600',
+    bg: 'bg-purple-50',
+  },
+  {
+    label: 'Listings Submitted',
+    value: '0',
+    change: 'Live listings',
+    icon: 'TagIcon',
+    color: 'text-blue-600',
+    bg: 'bg-blue-50',
+  },
+  {
+    label: 'Failed Payments',
+    value: '0',
+    change: 'Live failures',
+    icon: 'ExclamationCircleIcon',
+    color: 'text-error',
+    bg: 'bg-error/10',
+  },
+  {
+    label: 'Active Disputes',
+    value: '0',
+    change: 'Live disputes',
+    icon: 'FlagIcon',
+    color: 'text-warning',
+    bg: 'bg-amber-50',
+  },
 ];
 
-const weeklyGMV = [
-  { day: 'Mon', gmv: 6200000, commission: 310000 },
-  { day: 'Tue', gmv: 5400000, commission: 270000 },
-  { day: 'Wed', gmv: 7800000, commission: 390000 },
-  { day: 'Thu', gmv: 6900000, commission: 345000 },
-  { day: 'Fri', gmv: 9200000, commission: 460000 },
-  { day: 'Sat', gmv: 8400000, commission: 420000 },
-  { day: 'Sun', gmv: 7100000, commission: 355000 },
-];
+const weeklyGMV: { day: string; gmv: number; commission: number }[] = [];
 
 const formatCr = (val: number) => {
   if (val >= 10000000) return `₹${(val / 10000000).toFixed(1)}Cr`;
@@ -40,7 +88,9 @@ export default function AdminDashboard() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
           <h1 className="text-xl font-800 text-foreground">Admin Dashboard</h1>
-          <p className="text-sm text-muted-foreground">Platform overview · 17 Jul 2026</p>
+          <p className="text-sm text-muted-foreground">
+            Platform overview · {new Date().toLocaleDateString('en-IN')}
+          </p>
         </div>
         <div className="flex items-center gap-1 overflow-x-auto scrollbar-thin">
           {filterOptions.map((f) => (
@@ -48,7 +98,9 @@ export default function AdminDashboard() {
               key={f}
               onClick={() => setDateFilter(f)}
               className={`shrink-0 px-3 py-1.5 rounded-xl text-xs font-600 transition-all ${
-                dateFilter === f ? 'bg-secondary text-white' : 'bg-card border border-border text-muted-foreground hover:border-secondary'
+                dateFilter === f
+                  ? 'bg-secondary text-white'
+                  : 'bg-card border border-border text-muted-foreground hover:border-secondary'
               }`}
             >
               {f}
@@ -61,7 +113,9 @@ export default function AdminDashboard() {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
         {todayMetrics.map((metric) => (
           <div key={metric.label} className="bg-card rounded-2xl border border-border p-4">
-            <div className={`w-9 h-9 rounded-xl ${metric.bg} flex items-center justify-center mb-3`}>
+            <div
+              className={`w-9 h-9 rounded-xl ${metric.bg} flex items-center justify-center mb-3`}
+            >
               <Icon name={metric.icon as 'ShoppingBagIcon'} size={18} className={metric.color} />
             </div>
             <p className={`text-xl font-800 ${metric.color}`}>{metric.value}</p>
@@ -79,16 +133,54 @@ export default function AdminDashboard() {
           <ResponsiveContainer width="100%" height={200}>
             <BarChart data={weeklyGMV} barGap={4}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-              <XAxis dataKey="day" tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} tickLine={false} axisLine={false} />
-              <YAxis tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} tickLine={false} axisLine={false} tickFormatter={formatCr} />
-              <Tooltip
-                formatter={(val: number, name: string) => [formatCr(val), name === 'gmv' ? 'GMV' : 'Commission']}
-                contentStyle={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '12px', fontSize: '12px' }}
+              <XAxis
+                dataKey="day"
+                tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }}
+                tickLine={false}
+                axisLine={false}
               />
-              <Bar dataKey="gmv" fill="var(--secondary)" radius={[4, 4, 0, 0]} barSize={14} name="GMV" />
-              <Bar dataKey="commission" fill="var(--primary)" radius={[4, 4, 0, 0]} barSize={14} name="Commission" />
+              <YAxis
+                tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }}
+                tickLine={false}
+                axisLine={false}
+                tickFormatter={formatCr}
+              />
+              <Tooltip
+                formatter={(val: number, name: string) => [
+                  formatCr(val),
+                  name === 'gmv' ? 'GMV' : 'Commission',
+                ]}
+                contentStyle={{
+                  background: 'var(--card)',
+                  border: '1px solid var(--border)',
+                  borderRadius: '12px',
+                  fontSize: '12px',
+                }}
+              />
+              <Bar
+                dataKey="gmv"
+                fill="var(--secondary)"
+                radius={[4, 4, 0, 0]}
+                barSize={14}
+                name="GMV"
+              />
+              <Bar
+                dataKey="commission"
+                fill="var(--primary)"
+                radius={[4, 4, 0, 0]}
+                barSize={14}
+                name="Commission"
+              />
             </BarChart>
           </ResponsiveContainer>
+          {weeklyGMV.length === 0 && (
+            <div className="mt-3 rounded-xl border border-dashed border-border bg-muted/30 p-4 text-center">
+              <p className="text-sm font-700 text-foreground">No GMV trend yet</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Captured payment totals will populate this chart.
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Order Status Distribution */}
@@ -110,7 +202,10 @@ export default function AdminDashboard() {
                     <span className="text-xs font-800 text-foreground">{item.count}</span>
                   </div>
                   <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-                    <div className={`h-full ${item.color} rounded-full`} style={{ width: `${(item.count / item.total) * 100}%` }} />
+                    <div
+                      className={`h-full ${item.color} rounded-full`}
+                      style={{ width: `${(item.count / item.total) * 100}%` }}
+                    />
                   </div>
                 </div>
               </div>
@@ -124,12 +219,39 @@ export default function AdminDashboard() {
         <h2 className="font-800 text-foreground text-sm mb-4">Quick Actions</h2>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[
-            { label: 'Review Seller Applications', count: '4 pending', icon: 'BuildingStorefrontIcon', color: 'text-purple-600', bg: 'bg-purple-50 border-purple-200' },
-            { label: 'Approve Product Listings', count: '12 pending', icon: 'TagIcon', color: 'text-blue-600', bg: 'bg-blue-50 border-blue-200' },
-            { label: 'Process Refund Requests', count: '2 pending', icon: 'ArrowUturnLeftIcon', color: 'text-error', bg: 'bg-error/10 border-error/20' },
-            { label: 'Review Disputes', count: '2 active', icon: 'FlagIcon', color: 'text-warning', bg: 'bg-amber-50 border-amber-200' },
+            {
+              label: 'Review Seller Applications',
+              count: '4 pending',
+              icon: 'BuildingStorefrontIcon',
+              color: 'text-purple-600',
+              bg: 'bg-purple-50 border-purple-200',
+            },
+            {
+              label: 'Approve Product Listings',
+              count: '12 pending',
+              icon: 'TagIcon',
+              color: 'text-blue-600',
+              bg: 'bg-blue-50 border-blue-200',
+            },
+            {
+              label: 'Process Refund Requests',
+              count: '2 pending',
+              icon: 'ArrowUturnLeftIcon',
+              color: 'text-error',
+              bg: 'bg-error/10 border-error/20',
+            },
+            {
+              label: 'Review Disputes',
+              count: '2 active',
+              icon: 'FlagIcon',
+              color: 'text-warning',
+              bg: 'bg-amber-50 border-amber-200',
+            },
           ].map((action) => (
-            <button key={action.label} className={`p-4 rounded-xl border ${action.bg} text-left hover:shadow-sm transition-all`}>
+            <button
+              key={action.label}
+              className={`p-4 rounded-xl border ${action.bg} text-left hover:shadow-sm transition-all`}
+            >
               <Icon name={action.icon as 'TagIcon'} size={20} className={`${action.color} mb-2`} />
               <p className="text-xs font-700 text-foreground leading-snug mb-1">{action.label}</p>
               <p className={`text-xs font-700 ${action.color}`}>{action.count}</p>

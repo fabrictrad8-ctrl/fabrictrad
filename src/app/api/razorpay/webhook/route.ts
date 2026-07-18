@@ -3,7 +3,8 @@ import crypto from 'crypto';
 
 // ─── Supabase REST helper (no SDK dependency) ───────────────────────────────
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+const SUPABASE_SERVICE_KEY =
+  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
 async function supabaseQuery(path: string, method: string, body?: unknown) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
@@ -24,11 +25,7 @@ async function supabaseQuery(path: string, method: string, body?: unknown) {
 }
 
 // ─── Exponential backoff retry ───────────────────────────────────────────────
-async function withRetry<T>(
-  fn: () => Promise<T>,
-  maxAttempts = 4,
-  baseDelayMs = 200
-): Promise<T> {
+async function withRetry<T>(fn: () => Promise<T>, maxAttempts = 4, baseDelayMs = 200): Promise<T> {
   let lastError: unknown;
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     try {
@@ -164,15 +161,11 @@ async function handleTransferProcessed(transferEntity: Record<string, unknown>) 
   const amount = (transferEntity?.amount as number) / 100;
 
   await withRetry(() =>
-    supabaseQuery(
-      `seller_profiles?razorpay_linked_account_id=eq.${linkedAccountId}`,
-      'PATCH',
-      {
-        last_transfer_id: transferId,
-        last_transfer_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      }
-    )
+    supabaseQuery(`seller_profiles?razorpay_linked_account_id=eq.${linkedAccountId}`, 'PATCH', {
+      last_transfer_id: transferId,
+      last_transfer_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
   );
 
   await withRetry(() =>
@@ -196,10 +189,7 @@ export async function POST(request: NextRequest) {
 
   // 1. Verify signature
   if (webhookSecret) {
-    const expectedSig = crypto
-      .createHmac('sha256', webhookSecret)
-      .update(body)
-      .digest('hex');
+    const expectedSig = crypto.createHmac('sha256', webhookSecret).update(body).digest('hex');
     try {
       if (!crypto.timingSafeEqual(Buffer.from(expectedSig), Buffer.from(signature))) {
         return NextResponse.json({ error: 'Invalid signature' }, { status: 400 });
@@ -217,12 +207,22 @@ export async function POST(request: NextRequest) {
   }
 
   const eventType = event.event as string;
-  const paymentEntity = (event?.payload as Record<string, unknown>)?.payment as Record<string, unknown>;
-  const refundEntity = (event?.payload as Record<string, unknown>)?.refund as Record<string, unknown>;
-  const transferEntity = (event?.payload as Record<string, unknown>)?.transfer as Record<string, unknown>;
+  const paymentEntity = (event?.payload as Record<string, unknown>)?.payment as Record<
+    string,
+    unknown
+  >;
+  const refundEntity = (event?.payload as Record<string, unknown>)?.refund as Record<
+    string,
+    unknown
+  >;
+  const transferEntity = (event?.payload as Record<string, unknown>)?.transfer as Record<
+    string,
+    unknown
+  >;
 
   // 2. Build idempotency key from event ID or content hash
-  const eventId = (event.id as string) || crypto.createHash('sha256').update(body).digest('hex').slice(0, 32);
+  const eventId =
+    (event.id as string) || crypto.createHash('sha256').update(body).digest('hex').slice(0, 32);
   const idempotencyKey = `rzp_${eventId}`;
 
   // 3. Idempotency check — skip if already processed
@@ -236,16 +236,32 @@ export async function POST(request: NextRequest) {
   try {
     switch (eventType) {
       case 'payment.captured':
-        await withRetry(() => handlePaymentCaptured(paymentEntity?.entity as Record<string, unknown> || paymentEntity || {}));
+        await withRetry(() =>
+          handlePaymentCaptured(
+            (paymentEntity?.entity as Record<string, unknown>) || paymentEntity || {}
+          )
+        );
         break;
       case 'payment.failed':
-        await withRetry(() => handlePaymentFailed(paymentEntity?.entity as Record<string, unknown> || paymentEntity || {}));
+        await withRetry(() =>
+          handlePaymentFailed(
+            (paymentEntity?.entity as Record<string, unknown>) || paymentEntity || {}
+          )
+        );
         break;
       case 'refund.processed':
-        await withRetry(() => handleRefundProcessed(refundEntity?.entity as Record<string, unknown> || refundEntity || {}));
+        await withRetry(() =>
+          handleRefundProcessed(
+            (refundEntity?.entity as Record<string, unknown>) || refundEntity || {}
+          )
+        );
         break;
       case 'transfer.processed':
-        await withRetry(() => handleTransferProcessed(transferEntity?.entity as Record<string, unknown> || transferEntity || {}));
+        await withRetry(() =>
+          handleTransferProcessed(
+            (transferEntity?.entity as Record<string, unknown>) || transferEntity || {}
+          )
+        );
         break;
       default:
         console.log(`[Razorpay Webhook] ℹ Unhandled event: ${eventType}`);

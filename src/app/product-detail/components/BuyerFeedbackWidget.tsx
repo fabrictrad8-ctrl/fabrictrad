@@ -54,10 +54,26 @@ const RECENT_5STAR = [
 ];
 
 const IMPROVEMENTS = [
-  { icon: '⚡', text: 'Respond to buyer queries within 2 hours to boost rating by ~0.3 stars', impact: 'High' },
-  { icon: '🎨', text: 'Add more accurate color swatches to reduce shade variation complaints', impact: 'Medium' },
-  { icon: '📦', text: 'Use double-layer packaging for embroidered fabrics to reduce damage claims', impact: 'Medium' },
-  { icon: '🧾', text: 'Share GST invoice proactively at dispatch — buyers rate this highly', impact: 'Low' },
+  {
+    icon: '⚡',
+    text: 'Respond to buyer queries within 2 hours to boost rating by ~0.3 stars',
+    impact: 'High',
+  },
+  {
+    icon: '🎨',
+    text: 'Add more accurate color swatches to reduce shade variation complaints',
+    impact: 'Medium',
+  },
+  {
+    icon: '📦',
+    text: 'Use double-layer packaging for embroidered fabrics to reduce damage claims',
+    impact: 'Medium',
+  },
+  {
+    icon: '🧾',
+    text: 'Share GST invoice proactively at dispatch — buyers rate this highly',
+    impact: 'Low',
+  },
 ];
 
 const RESPONSE_RATE_DATA = [
@@ -69,7 +85,9 @@ const RESPONSE_RATE_DATA = [
 ];
 
 export default function BuyerFeedbackWidget() {
-  const [activeTab, setActiveTab] = useState<'overview' | 'themes' | 'response' | 'suggestions'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'themes' | 'response' | 'suggestions'>(
+    'overview'
+  );
 
   const tabs = [
     { key: 'overview' as const, label: 'Recent Reviews', icon: 'StarIcon' },
@@ -96,8 +114,14 @@ export default function BuyerFeedbackWidget() {
             <span className="text-2xl font-800 text-foreground">4.8</span>
             <div>
               <div className="flex items-center gap-0.5">
-                {[1,2,3,4,5].map((s) => (
-                  <Icon key={s} name="StarIcon" size={12} className={s <= 4 ? 'text-amber-400' : 'text-amber-200'} variant="solid" />
+                {[1, 2, 3, 4, 5].map((s) => (
+                  <Icon
+                    key={s}
+                    name="StarIcon"
+                    size={12}
+                    className={s <= 4 ? 'text-amber-400' : 'text-amber-200'}
+                    variant="solid"
+                  />
                 ))}
               </div>
               <p className="text-xs text-muted-foreground">124 reviews</p>
@@ -114,7 +138,8 @@ export default function BuyerFeedbackWidget() {
             onClick={() => setActiveTab(tab.key)}
             className={`flex items-center gap-1.5 px-3 py-2.5 text-xs font-600 whitespace-nowrap border-b-2 transition-colors ${
               activeTab === tab.key
-                ? 'border-primary text-primary' :'border-transparent text-muted-foreground hover:text-foreground'
+                ? 'border-primary text-primary'
+                : 'border-transparent text-muted-foreground hover:text-foreground'
             }`}
           >
             <Icon name={tab.icon as 'StarIcon'} size={13} />
@@ -127,9 +152,14 @@ export default function BuyerFeedbackWidget() {
         {/* Recent 5-Star Reviews */}
         {activeTab === 'overview' && (
           <div className="space-y-3">
-            <p className="text-xs font-700 text-muted-foreground uppercase tracking-wide mb-3">Recent 5-Star Reviews</p>
+            <p className="text-xs font-700 text-muted-foreground uppercase tracking-wide mb-3">
+              Recent 5-Star Reviews
+            </p>
             {RECENT_5STAR.map((review) => (
-              <div key={review.id} className="p-3 bg-amber-50/50 border border-amber-100 rounded-xl">
+              <div
+                key={review.id}
+                className="p-3 bg-amber-50/50 border border-amber-100 rounded-xl"
+              >
                 <div className="flex items-start justify-between gap-2 mb-1.5">
                   <div className="flex items-center gap-2">
                     <div className="w-7 h-7 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
@@ -137,12 +167,20 @@ export default function BuyerFeedbackWidget() {
                     </div>
                     <div>
                       <p className="text-xs font-700 text-foreground">{review.buyer}</p>
-                      <p className="text-xs text-muted-foreground">{review.city} · {review.date}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {review.city} · {review.date}
+                      </p>
                     </div>
                   </div>
                   <div className="flex items-center gap-0.5 shrink-0">
-                    {[1,2,3,4,5].map((s) => (
-                      <Icon key={s} name="StarIcon" size={11} className="text-amber-400" variant="solid" />
+                    {[1, 2, 3, 4, 5].map((s) => (
+                      <Icon
+                        key={s}
+                        name="StarIcon"
+                        size={11}
+                        className="text-amber-400"
+                        variant="solid"
+                      />
                     ))}
                   </div>
                 </div>
@@ -157,7 +195,9 @@ export default function BuyerFeedbackWidget() {
         {activeTab === 'themes' && (
           <div className="space-y-4">
             <div>
-              <p className="text-xs font-700 text-success uppercase tracking-wide mb-2">Common Praise</p>
+              <p className="text-xs font-700 text-success uppercase tracking-wide mb-2">
+                Common Praise
+              </p>
               <div className="space-y-2">
                 {PRAISE_THEMES.map((theme) => (
                   <div key={theme.label} className="flex items-center gap-2">
@@ -170,14 +210,18 @@ export default function BuyerFeedbackWidget() {
                           style={{ width: `${(theme.count / 87) * 100}%` }}
                         />
                       </div>
-                      <span className="text-xs text-muted-foreground w-8 text-right">{theme.count}</span>
+                      <span className="text-xs text-muted-foreground w-8 text-right">
+                        {theme.count}
+                      </span>
                     </div>
                   </div>
                 ))}
               </div>
             </div>
             <div className="pt-3 border-t border-border">
-              <p className="text-xs font-700 text-warning uppercase tracking-wide mb-2">Common Concerns</p>
+              <p className="text-xs font-700 text-warning uppercase tracking-wide mb-2">
+                Common Concerns
+              </p>
               <div className="space-y-2">
                 {CONCERN_THEMES.map((theme) => (
                   <div key={theme.label} className="flex items-center gap-2">
@@ -190,7 +234,9 @@ export default function BuyerFeedbackWidget() {
                           style={{ width: `${(theme.count / 18) * 100}%` }}
                         />
                       </div>
-                      <span className="text-xs text-muted-foreground w-8 text-right">{theme.count}</span>
+                      <span className="text-xs text-muted-foreground w-8 text-right">
+                        {theme.count}
+                      </span>
                     </div>
                   </div>
                 ))}
@@ -203,7 +249,8 @@ export default function BuyerFeedbackWidget() {
         {activeTab === 'response' && (
           <div>
             <p className="text-xs text-muted-foreground mb-4">
-              Faster response time directly correlates with higher buyer ratings. Your current avg: <strong className="text-foreground">3.2 hrs</strong>
+              Faster response time directly correlates with higher buyer ratings. Your current avg:{' '}
+              <strong className="text-foreground">3.2 hrs</strong>
             </p>
             <div className="space-y-2.5">
               {RESPONSE_RATE_DATA.map((row) => (
@@ -230,17 +277,27 @@ export default function BuyerFeedbackWidget() {
         {/* Improvement Suggestions */}
         {activeTab === 'suggestions' && (
           <div className="space-y-3">
-            <p className="text-xs text-muted-foreground mb-3">AI-generated suggestions based on your review patterns:</p>
+            <p className="text-xs text-muted-foreground mb-3">
+              AI-generated suggestions based on your review patterns:
+            </p>
             {IMPROVEMENTS.map((item, i) => (
-              <div key={i} className="flex items-start gap-3 p-3 bg-muted/30 rounded-xl border border-border">
+              <div
+                key={i}
+                className="flex items-start gap-3 p-3 bg-muted/30 rounded-xl border border-border"
+              >
                 <span className="text-lg shrink-0">{item.icon}</span>
                 <div className="flex-1 min-w-0">
                   <p className="text-xs text-foreground leading-relaxed">{item.text}</p>
                 </div>
-                <span className={`text-xs font-700 px-2 py-0.5 rounded-full shrink-0 ${
-                  item.impact === 'High' ? 'bg-error/10 text-error' :
-                  item.impact === 'Medium'? 'bg-warning/10 text-warning' : 'bg-success/10 text-success'
-                }`}>
+                <span
+                  className={`text-xs font-700 px-2 py-0.5 rounded-full shrink-0 ${
+                    item.impact === 'High'
+                      ? 'bg-error/10 text-error'
+                      : item.impact === 'Medium'
+                        ? 'bg-warning/10 text-warning'
+                        : 'bg-success/10 text-success'
+                  }`}
+                >
                   {item.impact}
                 </span>
               </div>

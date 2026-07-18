@@ -24,11 +24,7 @@ async function supabaseQuery(path: string, method: string, body?: unknown) {
 }
 
 // ─── Exponential backoff retry ───────────────────────────────────────────────
-async function withRetry<T>(
-  fn: () => Promise<T>,
-  maxAttempts = 4,
-  baseDelayMs = 200
-): Promise<T> {
+async function withRetry<T>(fn: () => Promise<T>, maxAttempts = 4, baseDelayMs = 200): Promise<T> {
   let lastError: unknown;
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     try {

@@ -1,55 +1,87 @@
 'use client';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Icon from '@/components/ui/AppIcon';
 import { exportToCSV, exportToExcel } from '@/lib/exportUtils';
+import { createClient } from '@/lib/supabase/client';
 
-const orders = [
-  {
-    id: 'FT-ORD-005892', buyer: 'Mehta Garments', seller: 'Surat Textile Mills',
-    product: 'Pure Dyeable Soft Nett', qty: '300 mtrs', amount: '₹2,52,000',
-    commission: '₹12,600', status: 'confirmed', payment: 'paid', shipment: 'awaiting',
-    date: '2026-07-17', city: 'Mumbai',
-  },
-  {
-    id: 'FT-ORD-005855', buyer: 'Sharma Brothers', seller: 'Jaipur Crafts',
-    product: 'Georgette Embroidered', qty: '75 mtrs', amount: '₹93,750',
-    commission: '₹4,688', status: 'shipped', payment: 'paid', shipment: 'in_transit',
-    date: '2026-07-16', city: 'Delhi',
-  },
-  {
-    id: 'FT-ORD-005801', buyer: 'Patel Textiles', seller: 'Mumbai Fabric Zone',
-    product: 'Polyester Crepe', qty: '500 mtrs', amount: '₹1,60,000',
-    commission: '₹8,000', status: 'pending', payment: 'pending', shipment: 'none',
-    date: '2026-07-15', city: 'Ahmedabad',
-  },
-  {
-    id: 'FT-ORD-005720', buyer: 'Kapoor Exports', seller: 'Varanasi Silk Traders',
-    product: 'Banarasi Silk Brocade', qty: '20 mtrs', amount: '₹64,000',
-    commission: '₹3,200', status: 'delivered', payment: 'settled', shipment: 'delivered',
-    date: '2026-07-10', city: 'Surat',
-  },
-  {
-    id: 'FT-ORD-005680', buyer: 'Gupta Fashions', seller: 'Kolkata Silk House',
-    product: 'Banarasi Silk', qty: '50 mtrs', amount: '₹1,25,000',
-    commission: '₹6,250', status: 'delivered', payment: 'settled', shipment: 'delivered',
-    date: '2026-07-05', city: 'Kolkata',
-  },
-];
+type AdminOrderRow = {
+  id: string;
+  buyer: string;
+  seller: string;
+  product: string;
+  qty: string;
+  amount: string;
+  commission: string;
+  status: string;
+  payment: string;
+  shipment: string;
+  date: string;
+  city: string;
+};
 
 const statusBadge = (status: string) => {
   const map: Record<string, string> = {
-    pending: 'order-status-pending', confirmed: 'order-status-confirmed',
-    shipped: 'order-status-shipped', delivered: 'order-status-delivered',
+    pending: 'order-status-pending',
+    confirmed: 'order-status-confirmed',
+    shipped: 'order-status-shipped',
+    delivered: 'order-status-delivered',
     cancelled: 'order-status-cancelled',
   };
   return map[status] || 'order-status-pending';
 };
 
 export default function AdminOrders() {
+  const [orders, setOrders] = useState<AdminOrderRow[]>([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [showExportMenu, setShowExportMenu] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    async function loadOrders() {
+      setLoading(true);
+      const supabase = createClient();
+      const { data } = await supabase
+        .from('orders')
+        .select('id,order_ref,buyer_id,seller_id,status,total_amount,created_at,shipping_address')
+        .order('created_at', { ascending: false })
+        .limit(200);
+
+      if (!mounted) return;
+      setOrders(
+        (data || []).map((order) => {
+          const amount = Number(order.total_amount || 0);
+          return {
+            id: order.order_ref || `FT-ORD-${String(order.id).slice(0, 8).toUpperCase()}`,
+            buyer: order.buyer_id ? `Buyer ${String(order.buyer_id).slice(0, 8)}` : 'Buyer',
+            seller: order.seller_id ? `Seller ${String(order.seller_id).slice(0, 8)}` : 'Seller',
+            product: 'Order items',
+            qty: 'See order details',
+            amount: `₹${amount.toLocaleString('en-IN')}`,
+            commission: `₹${Math.round(amount * 0.1).toLocaleString('en-IN')}`,
+            status: order.status || 'pending',
+            payment: 'See payments tab',
+            shipment: 'See fulfillment tab',
+            date: order.created_at?.slice(0, 10) || '',
+            city:
+              typeof order.shipping_address === 'object' &&
+              order.shipping_address &&
+              'city' in order.shipping_address
+                ? String(order.shipping_address.city || '')
+                : '',
+          };
+        })
+      );
+      setLoading(false);
+    }
+
+    loadOrders();
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const filtered = orders.filter((o) => {
     const matchSearch =
@@ -154,10 +186,13 @@ export default function AdminOrders() {
 
       {/* Result count */}
       <p className="text-xs text-muted-foreground mb-3">
-        Showing {filtered.length} of {orders.length} orders
+        {loading ? 'Loading orders...' : `Showing ${filtered.length} of ${orders.length} orders`}
         {(dateFrom || dateTo) && (
           <button
-            onClick={() => { setDateFrom(''); setDateTo(''); }}
+            onClick={() => {
+              setDateFrom('');
+              setDateTo('');
+            }}
             className="ml-2 text-primary hover:underline"
           >
             Clear filter
@@ -170,13 +205,27 @@ export default function AdminOrders() {
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-muted border-b border-border">
-                <th className="text-left px-4 py-3 text-xs font-700 text-muted-foreground">Order ID</th>
-                <th className="text-left px-4 py-3 text-xs font-700 text-muted-foreground hidden sm:table-cell">Buyer / Seller</th>
-                <th className="text-left px-4 py-3 text-xs font-700 text-muted-foreground hidden md:table-cell">Product</th>
-                <th className="text-right px-4 py-3 text-xs font-700 text-muted-foreground">Amount</th>
-                <th className="text-right px-4 py-3 text-xs font-700 text-muted-foreground hidden lg:table-cell">Commission</th>
-                <th className="text-center px-4 py-3 text-xs font-700 text-muted-foreground">Status</th>
-                <th className="text-center px-4 py-3 text-xs font-700 text-muted-foreground">Actions</th>
+                <th className="text-left px-4 py-3 text-xs font-700 text-muted-foreground">
+                  Order ID
+                </th>
+                <th className="text-left px-4 py-3 text-xs font-700 text-muted-foreground hidden sm:table-cell">
+                  Buyer / Seller
+                </th>
+                <th className="text-left px-4 py-3 text-xs font-700 text-muted-foreground hidden md:table-cell">
+                  Product
+                </th>
+                <th className="text-right px-4 py-3 text-xs font-700 text-muted-foreground">
+                  Amount
+                </th>
+                <th className="text-right px-4 py-3 text-xs font-700 text-muted-foreground hidden lg:table-cell">
+                  Commission
+                </th>
+                <th className="text-center px-4 py-3 text-xs font-700 text-muted-foreground">
+                  Status
+                </th>
+                <th className="text-center px-4 py-3 text-xs font-700 text-muted-foreground">
+                  Actions
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -201,7 +250,9 @@ export default function AdminOrders() {
                     <p className="text-sm font-700 text-primary">{order.commission}</p>
                   </td>
                   <td className="px-4 py-3 text-center">
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-600 ${statusBadge(order.status)}`}>
+                    <span
+                      className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-600 ${statusBadge(order.status)}`}
+                    >
                       {order.status}
                     </span>
                   </td>
@@ -220,7 +271,7 @@ export default function AdminOrders() {
               {filtered.length === 0 && (
                 <tr>
                   <td colSpan={7} className="px-4 py-8 text-center text-sm text-muted-foreground">
-                    No orders found for the selected date range.
+                    {loading ? 'Loading order records...' : 'No live orders found.'}
                   </td>
                 </tr>
               )}

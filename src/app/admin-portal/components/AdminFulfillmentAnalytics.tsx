@@ -111,9 +111,11 @@ export default function AdminFulfillmentAnalytics() {
       : sellerFulfillmentData.filter((s) => s.seller === sellerFilter);
 
   const platformAvgDelivery =
-    Math.round((displayData.reduce((s, d) => s + d.avgDeliveryDays, 0) / displayData.length) * 10) / 10;
+    Math.round((displayData.reduce((s, d) => s + d.avgDeliveryDays, 0) / displayData.length) * 10) /
+    10;
   const platformFulfillment =
-    Math.round((displayData.reduce((s, d) => s + d.fulfillmentRate, 0) / displayData.length) * 10) / 10;
+    Math.round((displayData.reduce((s, d) => s + d.fulfillmentRate, 0) / displayData.length) * 10) /
+    10;
   const totalRefunds = displayData.reduce((s, d) => s + d.refunded, 0);
   const totalDisputes = displayData.reduce((s, d) => s + d.disputed, 0);
 
@@ -161,7 +163,9 @@ export default function AdminFulfillmentAnalytics() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
           <h1 className="text-xl font-800 text-foreground">Fulfillment Analytics</h1>
-          <p className="text-sm text-muted-foreground">Delivery performance, success rates & dispute tracking</p>
+          <p className="text-sm text-muted-foreground">
+            Delivery performance, success rates & dispute tracking
+          </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {/* Date Range Selector */}
@@ -178,9 +182,19 @@ export default function AdminFulfillmentAnalytics() {
           </div>
           {dateRange === 'Custom' && (
             <div className="flex items-center gap-1.5 bg-card border border-border rounded-xl px-3 py-2">
-              <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="bg-transparent text-xs text-foreground outline-none w-28" />
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+                className="bg-transparent text-xs text-foreground outline-none w-28"
+              />
               <span className="text-xs text-muted-foreground">–</span>
-              <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="bg-transparent text-xs text-foreground outline-none w-28" />
+              <input
+                type="date"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+                className="bg-transparent text-xs text-foreground outline-none w-28"
+              />
             </div>
           )}
           {/* Export */}
@@ -196,14 +210,20 @@ export default function AdminFulfillmentAnalytics() {
             {showExportMenu && (
               <div className="absolute right-0 top-full mt-1 bg-card border border-border rounded-xl shadow-lg z-10 min-w-[140px]">
                 <button
-                  onClick={() => { exportToCSV(getExportData(), `fulfillment_${dateRange.replace(/ /g, '_')}`); setShowExportMenu(false); }}
+                  onClick={() => {
+                    exportToCSV(getExportData(), `fulfillment_${dateRange.replace(/ /g, '_')}`);
+                    setShowExportMenu(false);
+                  }}
                   className="w-full flex items-center gap-2 px-3 py-2.5 text-xs font-600 text-foreground hover:bg-muted transition-colors rounded-t-xl"
                 >
                   <Icon name="DocumentTextIcon" size={14} className="text-success" />
                   Export CSV
                 </button>
                 <button
-                  onClick={() => { exportToExcel(getExportData(), `fulfillment_${dateRange.replace(/ /g, '_')}`); setShowExportMenu(false); }}
+                  onClick={() => {
+                    exportToExcel(getExportData(), `fulfillment_${dateRange.replace(/ /g, '_')}`);
+                    setShowExportMenu(false);
+                  }}
                   className="w-full flex items-center gap-2 px-3 py-2.5 text-xs font-600 text-foreground hover:bg-muted transition-colors rounded-b-xl border-t border-border"
                 >
                   <Icon name="TableCellsIcon" size={14} className="text-primary" />
@@ -218,15 +238,41 @@ export default function AdminFulfillmentAnalytics() {
       {/* Platform KPIs */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
         {[
-          { label: 'Avg Delivery Time', value: `${platformAvgDelivery} days`, icon: 'TruckIcon', color: 'text-primary', bg: 'bg-primary/10 border-primary/20' },
-          { label: 'Fulfillment Rate', value: `${platformFulfillment}%`, icon: 'CheckCircleIcon', color: 'text-success', bg: 'bg-success/10 border-success/20' },
-          { label: 'Total Refunds', value: totalRefunds.toString(), icon: 'ArrowUturnLeftIcon', color: 'text-amber-600', bg: 'bg-amber-50 border-amber-200' },
-          { label: 'Total Disputes', value: totalDisputes.toString(), icon: 'ExclamationTriangleIcon', color: 'text-error', bg: 'bg-error/10 border-error/20' },
+          {
+            label: 'Avg Delivery Time',
+            value: `${platformAvgDelivery} days`,
+            icon: 'TruckIcon',
+            color: 'text-primary',
+            bg: 'bg-primary/10 border-primary/20',
+          },
+          {
+            label: 'Fulfillment Rate',
+            value: `${platformFulfillment}%`,
+            icon: 'CheckCircleIcon',
+            color: 'text-success',
+            bg: 'bg-success/10 border-success/20',
+          },
+          {
+            label: 'Total Refunds',
+            value: totalRefunds.toString(),
+            icon: 'ArrowUturnLeftIcon',
+            color: 'text-amber-600',
+            bg: 'bg-amber-50 border-amber-200',
+          },
+          {
+            label: 'Total Disputes',
+            value: totalDisputes.toString(),
+            icon: 'ExclamationTriangleIcon',
+            color: 'text-error',
+            bg: 'bg-error/10 border-error/20',
+          },
         ].map((kpi) => (
           <div key={kpi.label} className={`stat-card border ${kpi.bg}`}>
             <Icon name={kpi.icon as 'TruckIcon'} size={20} className={`${kpi.color} mb-2`} />
             <p className={`text-2xl font-800 ${kpi.color}`}>{kpi.value}</p>
-            <p className="text-xs text-muted-foreground font-500 leading-tight mt-0.5">{kpi.label}</p>
+            <p className="text-xs text-muted-foreground font-500 leading-tight mt-0.5">
+              {kpi.label}
+            </p>
           </div>
         ))}
       </div>
@@ -247,19 +293,35 @@ export default function AdminFulfillmentAnalytics() {
       {/* Seller Breakdown Table */}
       <div className="bg-card rounded-2xl border border-border overflow-hidden mb-6">
         <div className="px-5 py-4 border-b border-border">
-          <h2 className="font-800 text-foreground text-sm">Seller Fulfillment Breakdown — {dateRange}</h2>
+          <h2 className="font-800 text-foreground text-sm">
+            Seller Fulfillment Breakdown — {dateRange}
+          </h2>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm min-w-[700px]">
             <thead>
               <tr className="bg-muted border-b border-border">
-                <th className="text-left px-4 py-3 text-xs font-700 text-muted-foreground">Seller</th>
-                <th className="text-center px-4 py-3 text-xs font-700 text-muted-foreground">Orders</th>
-                <th className="text-center px-4 py-3 text-xs font-700 text-muted-foreground">Avg Delivery</th>
-                <th className="text-center px-4 py-3 text-xs font-700 text-muted-foreground">Fulfillment %</th>
-                <th className="text-center px-4 py-3 text-xs font-700 text-muted-foreground">Refund %</th>
-                <th className="text-center px-4 py-3 text-xs font-700 text-muted-foreground">Dispute %</th>
-                <th className="text-center px-4 py-3 text-xs font-700 text-muted-foreground">Details</th>
+                <th className="text-left px-4 py-3 text-xs font-700 text-muted-foreground">
+                  Seller
+                </th>
+                <th className="text-center px-4 py-3 text-xs font-700 text-muted-foreground">
+                  Orders
+                </th>
+                <th className="text-center px-4 py-3 text-xs font-700 text-muted-foreground">
+                  Avg Delivery
+                </th>
+                <th className="text-center px-4 py-3 text-xs font-700 text-muted-foreground">
+                  Fulfillment %
+                </th>
+                <th className="text-center px-4 py-3 text-xs font-700 text-muted-foreground">
+                  Refund %
+                </th>
+                <th className="text-center px-4 py-3 text-xs font-700 text-muted-foreground">
+                  Dispute %
+                </th>
+                <th className="text-center px-4 py-3 text-xs font-700 text-muted-foreground">
+                  Details
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -275,13 +337,17 @@ export default function AdminFulfillmentAnalytics() {
                       <p className="text-xs text-muted-foreground">{seller.delivered} delivered</p>
                     </td>
                     <td className="px-4 py-3 text-center">
-                      <p className={`text-sm font-800 ${seller.avgDeliveryDays <= 4 ? 'text-success' : seller.avgDeliveryDays <= 5 ? 'text-amber-600' : 'text-error'}`}>
+                      <p
+                        className={`text-sm font-800 ${seller.avgDeliveryDays <= 4 ? 'text-success' : seller.avgDeliveryDays <= 5 ? 'text-amber-600' : 'text-error'}`}
+                      >
                         {seller.avgDeliveryDays}d
                       </p>
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex flex-col items-center gap-1">
-                        <p className={`text-sm font-800 ${getRateColor(seller.fulfillmentRate, 'fulfillment')}`}>
+                        <p
+                          className={`text-sm font-800 ${getRateColor(seller.fulfillmentRate, 'fulfillment')}`}
+                        >
                           {seller.fulfillmentRate}%
                         </p>
                         <div className="w-16 h-1.5 bg-muted rounded-full overflow-hidden">
@@ -293,31 +359,42 @@ export default function AdminFulfillmentAnalytics() {
                       </div>
                     </td>
                     <td className="px-4 py-3 text-center">
-                      <p className={`text-sm font-800 ${getRateColor(seller.refundRate, 'refund')}`}>
+                      <p
+                        className={`text-sm font-800 ${getRateColor(seller.refundRate, 'refund')}`}
+                      >
                         {seller.refundRate}%
                       </p>
                       <p className="text-xs text-muted-foreground">{seller.refunded} orders</p>
                     </td>
                     <td className="px-4 py-3 text-center">
-                      <p className={`text-sm font-800 ${getRateColor(seller.disputeRate, 'dispute')}`}>
+                      <p
+                        className={`text-sm font-800 ${getRateColor(seller.disputeRate, 'dispute')}`}
+                      >
                         {seller.disputeRate}%
                       </p>
                       <p className="text-xs text-muted-foreground">{seller.disputed} cases</p>
                     </td>
                     <td className="px-4 py-3 text-center">
                       <button
-                        onClick={() => setExpandedSeller(expandedSeller === seller.id ? null : seller.id)}
+                        onClick={() =>
+                          setExpandedSeller(expandedSeller === seller.id ? null : seller.id)
+                        }
                         className="flex items-center gap-1 text-xs font-600 text-primary hover:underline mx-auto"
                       >
                         Failure Reasons
-                        <Icon name={expandedSeller === seller.id ? 'ChevronUpIcon' : 'ChevronDownIcon'} size={12} />
+                        <Icon
+                          name={expandedSeller === seller.id ? 'ChevronUpIcon' : 'ChevronDownIcon'}
+                          size={12}
+                        />
                       </button>
                     </td>
                   </tr>
                   {expandedSeller === seller.id && (
                     <tr className="bg-muted/20">
                       <td colSpan={7} className="px-6 py-4">
-                        <p className="text-xs font-700 text-foreground mb-3">Failure Reasons — {seller.seller}</p>
+                        <p className="text-xs font-700 text-foreground mb-3">
+                          Failure Reasons — {seller.seller}
+                        </p>
                         <div className="flex flex-wrap gap-2">
                           {seller.failureReasons.map((fr) => (
                             <div
@@ -343,7 +420,9 @@ export default function AdminFulfillmentAnalytics() {
 
       {/* Performance Legend */}
       <div className="bg-card rounded-2xl border border-border p-4">
-        <p className="text-xs font-700 text-muted-foreground mb-3 uppercase tracking-wider">Performance Thresholds</p>
+        <p className="text-xs font-700 text-muted-foreground mb-3 uppercase tracking-wider">
+          Performance Thresholds
+        </p>
         <div className="flex flex-wrap gap-4">
           {[
             { color: 'bg-success', label: 'Fulfillment ≥ 93% · Refund/Dispute ≤ 2%' },

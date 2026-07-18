@@ -5,11 +5,66 @@ import { exportToCSV, exportToExcel } from '@/lib/exportUtils';
 
 // Seller fulfillment data
 const fulfillmentData = [
-  { date: 'Jun 2026', totalOrders: 52, delivered: 49, refunded: 2, disputed: 1, cancelled: 0, avgDeliveryDays: 3.1, fulfillmentRate: 94.2, refundRate: 3.8, disputeRate: 1.9 },
-  { date: 'May 2026', totalOrders: 48, delivered: 44, refunded: 3, disputed: 1, cancelled: 0, avgDeliveryDays: 3.4, fulfillmentRate: 91.7, refundRate: 6.3, disputeRate: 2.1 },
-  { date: 'Apr 2026', totalOrders: 41, delivered: 39, refunded: 1, disputed: 0, cancelled: 1, avgDeliveryDays: 3.0, fulfillmentRate: 95.1, refundRate: 2.4, disputeRate: 0.0 },
-  { date: 'Mar 2026', totalOrders: 55, delivered: 51, refunded: 2, disputed: 2, cancelled: 0, avgDeliveryDays: 3.6, fulfillmentRate: 92.7, refundRate: 3.6, disputeRate: 3.6 },
-  { date: 'Feb 2026', totalOrders: 38, delivered: 36, refunded: 1, disputed: 1, cancelled: 0, avgDeliveryDays: 3.2, fulfillmentRate: 94.7, refundRate: 2.6, disputeRate: 2.6 },
+  {
+    date: 'Jun 2026',
+    totalOrders: 52,
+    delivered: 49,
+    refunded: 2,
+    disputed: 1,
+    cancelled: 0,
+    avgDeliveryDays: 3.1,
+    fulfillmentRate: 94.2,
+    refundRate: 3.8,
+    disputeRate: 1.9,
+  },
+  {
+    date: 'May 2026',
+    totalOrders: 48,
+    delivered: 44,
+    refunded: 3,
+    disputed: 1,
+    cancelled: 0,
+    avgDeliveryDays: 3.4,
+    fulfillmentRate: 91.7,
+    refundRate: 6.3,
+    disputeRate: 2.1,
+  },
+  {
+    date: 'Apr 2026',
+    totalOrders: 41,
+    delivered: 39,
+    refunded: 1,
+    disputed: 0,
+    cancelled: 1,
+    avgDeliveryDays: 3.0,
+    fulfillmentRate: 95.1,
+    refundRate: 2.4,
+    disputeRate: 0.0,
+  },
+  {
+    date: 'Mar 2026',
+    totalOrders: 55,
+    delivered: 51,
+    refunded: 2,
+    disputed: 2,
+    cancelled: 0,
+    avgDeliveryDays: 3.6,
+    fulfillmentRate: 92.7,
+    refundRate: 3.6,
+    disputeRate: 3.6,
+  },
+  {
+    date: 'Feb 2026',
+    totalOrders: 38,
+    delivered: 36,
+    refunded: 1,
+    disputed: 1,
+    cancelled: 0,
+    avgDeliveryDays: 3.2,
+    fulfillmentRate: 94.7,
+    refundRate: 2.6,
+    disputeRate: 2.6,
+  },
 ];
 
 const failureReasons = [
@@ -24,8 +79,14 @@ export default function SellerFulfillment() {
   const [dateRange, setDateRange] = useState('Last 6 Months');
   const [showExportMenu, setShowExportMenu] = useState(false);
 
-  const avgDelivery = Math.round((fulfillmentData.reduce((s, d) => s + d.avgDeliveryDays, 0) / fulfillmentData.length) * 10) / 10;
-  const avgFulfillment = Math.round((fulfillmentData.reduce((s, d) => s + d.fulfillmentRate, 0) / fulfillmentData.length) * 10) / 10;
+  const avgDelivery =
+    Math.round(
+      (fulfillmentData.reduce((s, d) => s + d.avgDeliveryDays, 0) / fulfillmentData.length) * 10
+    ) / 10;
+  const avgFulfillment =
+    Math.round(
+      (fulfillmentData.reduce((s, d) => s + d.fulfillmentRate, 0) / fulfillmentData.length) * 10
+    ) / 10;
   const totalRefunds = fulfillmentData.reduce((s, d) => s + d.refunded, 0);
   const totalDisputes = fulfillmentData.reduce((s, d) => s + d.disputed, 0);
 
@@ -48,7 +109,9 @@ export default function SellerFulfillment() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
           <h1 className="text-xl font-800 text-foreground">Fulfillment Analytics</h1>
-          <p className="text-sm text-muted-foreground">Your delivery performance & dispute tracking</p>
+          <p className="text-sm text-muted-foreground">
+            Your delivery performance & dispute tracking
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <div className="flex gap-1">
@@ -74,14 +137,20 @@ export default function SellerFulfillment() {
             {showExportMenu && (
               <div className="absolute right-0 top-full mt-1 bg-card border border-border rounded-xl shadow-lg z-10 min-w-[140px]">
                 <button
-                  onClick={() => { exportToCSV(getExportData(), 'my_fulfillment'); setShowExportMenu(false); }}
+                  onClick={() => {
+                    exportToCSV(getExportData(), 'my_fulfillment');
+                    setShowExportMenu(false);
+                  }}
                   className="w-full flex items-center gap-2 px-3 py-2.5 text-xs font-600 text-foreground hover:bg-muted transition-colors rounded-t-xl"
                 >
                   <Icon name="DocumentTextIcon" size={14} className="text-success" />
                   Export CSV
                 </button>
                 <button
-                  onClick={() => { exportToExcel(getExportData(), 'my_fulfillment'); setShowExportMenu(false); }}
+                  onClick={() => {
+                    exportToExcel(getExportData(), 'my_fulfillment');
+                    setShowExportMenu(false);
+                  }}
                   className="w-full flex items-center gap-2 px-3 py-2.5 text-xs font-600 text-foreground hover:bg-muted transition-colors rounded-b-xl border-t border-border"
                 >
                   <Icon name="TableCellsIcon" size={14} className="text-primary" />
@@ -96,15 +165,48 @@ export default function SellerFulfillment() {
       {/* KPI Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
         {[
-          { label: 'Avg Delivery Time', value: `${avgDelivery} days`, icon: 'TruckIcon', color: avgDelivery <= 4 ? 'text-success' : 'text-amber-600', bg: avgDelivery <= 4 ? 'bg-success/10 border-success/20' : 'bg-amber-50 border-amber-200' },
-          { label: 'Fulfillment Rate', value: `${avgFulfillment}%`, icon: 'CheckCircleIcon', color: avgFulfillment >= 93 ? 'text-success' : 'text-amber-600', bg: avgFulfillment >= 93 ? 'bg-success/10 border-success/20' : 'bg-amber-50 border-amber-200' },
-          { label: 'Total Refunds', value: totalRefunds.toString(), icon: 'ArrowUturnLeftIcon', color: 'text-amber-600', bg: 'bg-amber-50 border-amber-200' },
-          { label: 'Total Disputes', value: totalDisputes.toString(), icon: 'ExclamationTriangleIcon', color: totalDisputes <= 3 ? 'text-success' : 'text-error', bg: totalDisputes <= 3 ? 'bg-success/10 border-success/20' : 'bg-error/10 border-error/20' },
+          {
+            label: 'Avg Delivery Time',
+            value: `${avgDelivery} days`,
+            icon: 'TruckIcon',
+            color: avgDelivery <= 4 ? 'text-success' : 'text-amber-600',
+            bg:
+              avgDelivery <= 4 ? 'bg-success/10 border-success/20' : 'bg-amber-50 border-amber-200',
+          },
+          {
+            label: 'Fulfillment Rate',
+            value: `${avgFulfillment}%`,
+            icon: 'CheckCircleIcon',
+            color: avgFulfillment >= 93 ? 'text-success' : 'text-amber-600',
+            bg:
+              avgFulfillment >= 93
+                ? 'bg-success/10 border-success/20'
+                : 'bg-amber-50 border-amber-200',
+          },
+          {
+            label: 'Total Refunds',
+            value: totalRefunds.toString(),
+            icon: 'ArrowUturnLeftIcon',
+            color: 'text-amber-600',
+            bg: 'bg-amber-50 border-amber-200',
+          },
+          {
+            label: 'Total Disputes',
+            value: totalDisputes.toString(),
+            icon: 'ExclamationTriangleIcon',
+            color: totalDisputes <= 3 ? 'text-success' : 'text-error',
+            bg:
+              totalDisputes <= 3
+                ? 'bg-success/10 border-success/20'
+                : 'bg-error/10 border-error/20',
+          },
         ].map((kpi) => (
           <div key={kpi.label} className={`stat-card border ${kpi.bg}`}>
             <Icon name={kpi.icon as 'TruckIcon'} size={20} className={`${kpi.color} mb-2`} />
             <p className={`text-2xl font-800 ${kpi.color}`}>{kpi.value}</p>
-            <p className="text-xs text-muted-foreground font-500 leading-tight mt-0.5">{kpi.label}</p>
+            <p className="text-xs text-muted-foreground font-500 leading-tight mt-0.5">
+              {kpi.label}
+            </p>
           </div>
         ))}
       </div>
@@ -118,29 +220,51 @@ export default function SellerFulfillment() {
           <table className="w-full text-sm min-w-[600px]">
             <thead>
               <tr className="bg-muted border-b border-border">
-                <th className="text-left px-4 py-3 text-xs font-700 text-muted-foreground">Period</th>
-                <th className="text-center px-4 py-3 text-xs font-700 text-muted-foreground">Orders</th>
-                <th className="text-center px-4 py-3 text-xs font-700 text-muted-foreground">Delivered</th>
-                <th className="text-center px-4 py-3 text-xs font-700 text-muted-foreground">Avg Delivery</th>
-                <th className="text-center px-4 py-3 text-xs font-700 text-muted-foreground">Fulfillment %</th>
-                <th className="text-center px-4 py-3 text-xs font-700 text-muted-foreground">Refunds</th>
-                <th className="text-center px-4 py-3 text-xs font-700 text-muted-foreground">Disputes</th>
+                <th className="text-left px-4 py-3 text-xs font-700 text-muted-foreground">
+                  Period
+                </th>
+                <th className="text-center px-4 py-3 text-xs font-700 text-muted-foreground">
+                  Orders
+                </th>
+                <th className="text-center px-4 py-3 text-xs font-700 text-muted-foreground">
+                  Delivered
+                </th>
+                <th className="text-center px-4 py-3 text-xs font-700 text-muted-foreground">
+                  Avg Delivery
+                </th>
+                <th className="text-center px-4 py-3 text-xs font-700 text-muted-foreground">
+                  Fulfillment %
+                </th>
+                <th className="text-center px-4 py-3 text-xs font-700 text-muted-foreground">
+                  Refunds
+                </th>
+                <th className="text-center px-4 py-3 text-xs font-700 text-muted-foreground">
+                  Disputes
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
               {fulfillmentData.map((row) => (
                 <tr key={row.date} className="hover:bg-muted/30 transition-colors">
                   <td className="px-4 py-3 text-sm font-700 text-foreground">{row.date}</td>
-                  <td className="px-4 py-3 text-center text-sm font-700 text-foreground">{row.totalOrders}</td>
-                  <td className="px-4 py-3 text-center text-sm font-700 text-success">{row.delivered}</td>
+                  <td className="px-4 py-3 text-center text-sm font-700 text-foreground">
+                    {row.totalOrders}
+                  </td>
+                  <td className="px-4 py-3 text-center text-sm font-700 text-success">
+                    {row.delivered}
+                  </td>
                   <td className="px-4 py-3 text-center">
-                    <span className={`text-sm font-800 ${row.avgDeliveryDays <= 3.5 ? 'text-success' : row.avgDeliveryDays <= 4.5 ? 'text-amber-600' : 'text-error'}`}>
+                    <span
+                      className={`text-sm font-800 ${row.avgDeliveryDays <= 3.5 ? 'text-success' : row.avgDeliveryDays <= 4.5 ? 'text-amber-600' : 'text-error'}`}
+                    >
                       {row.avgDeliveryDays}d
                     </span>
                   </td>
                   <td className="px-4 py-3 text-center">
                     <div className="flex flex-col items-center gap-1">
-                      <span className={`text-sm font-800 ${row.fulfillmentRate >= 93 ? 'text-success' : row.fulfillmentRate >= 88 ? 'text-amber-600' : 'text-error'}`}>
+                      <span
+                        className={`text-sm font-800 ${row.fulfillmentRate >= 93 ? 'text-success' : row.fulfillmentRate >= 88 ? 'text-amber-600' : 'text-error'}`}
+                      >
                         {row.fulfillmentRate}%
                       </span>
                       <div className="w-14 h-1.5 bg-muted rounded-full overflow-hidden">
@@ -152,12 +276,16 @@ export default function SellerFulfillment() {
                     </div>
                   </td>
                   <td className="px-4 py-3 text-center">
-                    <span className={`text-sm font-700 ${row.refunded === 0 ? 'text-success' : row.refunded <= 2 ? 'text-amber-600' : 'text-error'}`}>
+                    <span
+                      className={`text-sm font-700 ${row.refunded === 0 ? 'text-success' : row.refunded <= 2 ? 'text-amber-600' : 'text-error'}`}
+                    >
                       {row.refunded}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-center">
-                    <span className={`text-sm font-700 ${row.disputed === 0 ? 'text-success' : row.disputed <= 1 ? 'text-amber-600' : 'text-error'}`}>
+                    <span
+                      className={`text-sm font-700 ${row.disputed === 0 ? 'text-success' : row.disputed <= 1 ? 'text-amber-600' : 'text-error'}`}
+                    >
                       {row.disputed}
                     </span>
                   </td>
@@ -183,7 +311,10 @@ export default function SellerFulfillment() {
                   <p className="text-xs font-800 text-muted-foreground">{fr.pct}%</p>
                 </div>
                 <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-                  <div className="h-full bg-error/60 rounded-full" style={{ width: `${fr.pct}%` }} />
+                  <div
+                    className="h-full bg-error/60 rounded-full"
+                    style={{ width: `${fr.pct}%` }}
+                  />
                 </div>
               </div>
             </div>

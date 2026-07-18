@@ -1,5 +1,5 @@
 'use client';
-import React, { useEffect, useState } from 'react';
+import React, { Suspense, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import AdminPortalLayout from '@/app/admin-portal/components/AdminPortalLayout';
@@ -16,7 +16,12 @@ export default function AdminPortalPage() {
         router?.replace('/admin-login');
         return;
       }
-      supabase?.from('user_profiles')?.select('role')?.eq('id', session?.user?.id)?.maybeSingle()?.then(({ data }) => {
+      supabase
+        ?.from('user_profiles')
+        ?.select('role')
+        ?.eq('id', session?.user?.id)
+        ?.maybeSingle()
+        ?.then(({ data }) => {
           if (data?.role === 'super_admin' || data?.role === 'admin_staff') {
             setAuthorized(true);
           } else {
@@ -29,7 +34,10 @@ export default function AdminPortalPage() {
 
   if (checking) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--foreground)' }}>
+      <div
+        className="min-h-screen flex items-center justify-center"
+        style={{ background: 'var(--foreground)' }}
+      >
         <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
       </div>
     );
@@ -37,5 +45,18 @@ export default function AdminPortalPage() {
 
   if (!authorized) return null;
 
-  return <AdminPortalLayout />;
+  return (
+    <Suspense
+      fallback={
+        <div
+          className="min-h-screen flex items-center justify-center"
+          style={{ background: 'var(--foreground)' }}
+        >
+          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+        </div>
+      }
+    >
+      <AdminPortalLayout />
+    </Suspense>
+  );
 }

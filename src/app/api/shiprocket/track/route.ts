@@ -22,7 +22,10 @@ export async function GET(request: NextRequest) {
     const shipmentId = searchParams.get('shipment_id');
 
     if (!awb && !shipmentId) {
-      return NextResponse.json({ success: false, error: 'AWB or shipment_id required' }, { status: 400 });
+      return NextResponse.json(
+        { success: false, error: 'AWB or shipment_id required' },
+        { status: 400 }
+      );
     }
 
     if (!SHIPROCKET_EMAIL || !SHIPROCKET_PASSWORD) {
@@ -36,9 +39,24 @@ export async function GET(request: NextRequest) {
           location: 'Mumbai Hub',
           estimatedDelivery: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(),
           events: [
-            { time: new Date().toISOString(), status: 'In Transit', location: 'Mumbai Hub', description: 'Shipment in transit' },
-            { time: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(), status: 'Picked Up', location: 'Surat', description: 'Shipment picked up from seller' },
-            { time: new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString(), status: 'Order Created', location: 'Surat', description: 'Shiprocket order created' },
+            {
+              time: new Date().toISOString(),
+              status: 'In Transit',
+              location: 'Mumbai Hub',
+              description: 'Shipment in transit',
+            },
+            {
+              time: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+              status: 'Picked Up',
+              location: 'Surat',
+              description: 'Shipment picked up from seller',
+            },
+            {
+              time: new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString(),
+              status: 'Order Created',
+              location: 'Surat',
+              description: 'Shiprocket order created',
+            },
           ],
         },
       });

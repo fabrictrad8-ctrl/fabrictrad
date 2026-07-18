@@ -30,10 +30,7 @@ export function exportToExcel(data: Record<string, unknown>[], filename: string)
   // Build a simple HTML table that Excel can open
   const tableRows = [
     `<tr>${headers.map((h) => `<th>${h}</th>`).join('')}</tr>`,
-    ...data.map(
-      (row) =>
-        `<tr>${headers.map((h) => `<td>${row[h] ?? ''}</td>`).join('')}</tr>`
-    ),
+    ...data.map((row) => `<tr>${headers.map((h) => `<td>${row[h] ?? ''}</td>`).join('')}</tr>`),
   ];
   const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"/></head><body><table>${tableRows.join('')}</table></body></html>`;
   const blob = new Blob([html], { type: 'application/vnd.ms-excel;charset=utf-8;' });

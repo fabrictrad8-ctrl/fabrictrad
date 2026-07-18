@@ -1,16 +1,22 @@
 'use client';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Icon from '@/components/ui/AppIcon';
 import { exportToCSV, exportToExcel } from '@/lib/exportUtils';
+import { createClient } from '@/lib/supabase/client';
 
-const payments = [
-  { id: 'FT-PAY-009821', orderId: 'FT-ORD-005892', buyer: 'Mehta Garments', seller: 'Surat Textile Mills', amount: 264600, commission: 26460, sellerNet: 238140, rzpId: 'pay_QX8K2mN4pL9', status: 'Captured', transferStatus: 'Transferred', date: '2026-07-17' },
-  { id: 'FT-PAY-009820', orderId: 'FT-ORD-005891', buyer: 'Patel Textiles', seller: 'Bharat Fabrics', amount: 102900, commission: 10290, sellerNet: 92610, rzpId: 'pay_QX7J1kM3oK8', status: 'Captured', transferStatus: 'Pending', date: '2026-07-17' },
-  { id: 'FT-PAY-009819', orderId: 'FT-ORD-005890', buyer: 'Sharma Creations', seller: 'Laxmi Textiles', amount: 78750, commission: 7875, sellerNet: 70875, rzpId: 'pay_QX6I0jL2nJ7', status: 'Failed', transferStatus: 'N/A', date: '2026-07-17' },
-  { id: 'FT-PAY-009818', orderId: 'FT-ORD-005889', buyer: 'Gupta Garments', seller: 'Surat Textile Mills', amount: 315000, commission: 31500, sellerNet: 283500, rzpId: 'pay_QW9L4nP5qM2', status: 'Captured', transferStatus: 'On Hold', date: '2026-07-16' },
-  { id: 'FT-PAY-009817', orderId: 'FT-ORD-005888', buyer: 'Jain Fabrics', seller: 'Mehta Fabrics', amount: 183750, commission: 18375, sellerNet: 165375, rzpId: 'pay_QW8K3mN4pL1', status: 'Refunded', transferStatus: 'Reversed', date: '2026-07-16' },
-  { id: 'FT-PAY-009810', orderId: 'FT-ORD-005880', buyer: 'Kapoor Exports', seller: 'Varanasi Silk', amount: 245000, commission: 24500, sellerNet: 220500, rzpId: 'pay_QV7J2lM3oK0', status: 'Captured', transferStatus: 'Transferred', date: '2026-07-10' },
-];
+type AdminPayment = {
+  id: string;
+  orderId: string;
+  buyer: string;
+  seller: string;
+  amount: number;
+  commission: number;
+  sellerNet: number;
+  rzpId: string;
+  status: string;
+  transferStatus: string;
+  date: string;
+};
 
 const statusColors: Record<string, string> = {
   Captured: 'bg-success/10 text-success border-success/20',
@@ -28,12 +34,64 @@ const transferColors: Record<string, string> = {
 };
 
 export default function AdminPayments() {
+  const [payments, setPayments] = useState<AdminPayment[]>([]);
+  const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('All');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [showExportMenu, setShowExportMenu] = useState(false);
 
   const filters = ['All', 'Captured', 'Failed', 'Refunded'];
+
+  useEffect(() => {
+    let mounted = true;
+    async function loadPayments() {
+      setLoading(true);
+      const supabase = createClient();
+      const { data } = await supabase
+        .from('payments')
+        .select('id,order_id,razorpay_payment_id,amount,status,created_at')
+        .order('created_at', { ascending: false })
+        .limit(200);
+
+      if (!mounted) return;
+      setPayments(
+        (data || []).map((payment) => {
+          const amount = Number(payment.amount || 0);
+          const status =
+            payment.status === 'succeeded' || payment.status === 'captured'
+              ? 'Captured'
+              : payment.status === 'failed'
+                ? 'Failed'
+                : payment.status === 'refunded'
+                  ? 'Refunded'
+                  : 'Pending';
+
+          return {
+            id: `FT-PAY-${String(payment.id).slice(0, 8).toUpperCase()}`,
+            orderId: payment.order_id
+              ? `FT-ORD-${String(payment.order_id).slice(0, 8).toUpperCase()}`
+              : 'Not linked',
+            buyer: 'Order buyer',
+            seller: 'Order seller',
+            amount,
+            commission: Math.round(amount * 0.1),
+            sellerNet: Math.round(amount * 0.9),
+            rzpId: payment.razorpay_payment_id || 'Pending',
+            status,
+            transferStatus: status === 'Captured' ? 'Pending' : 'N/A',
+            date: payment.created_at?.slice(0, 10) || new Date().toISOString().slice(0, 10),
+          };
+        })
+      );
+      setLoading(false);
+    }
+
+    loadPayments();
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const filtered = payments.filter((p) => {
     const matchStatus = filter === 'All' || p.status === filter;
@@ -42,6 +100,10 @@ export default function AdminPayments() {
     const matchTo = dateTo ? d <= new Date(dateTo) : true;
     return matchStatus && matchFrom && matchTo;
   });
+  const totalCollected = filtered.reduce((sum, payment) => sum + payment.amount, 0);
+  const totalCommission = filtered.reduce((sum, payment) => sum + payment.commission, 0);
+  const sellerNet = filtered.reduce((sum, payment) => sum + payment.sellerNet, 0);
+  const failedCount = filtered.filter((payment) => payment.status === 'Failed').length;
 
   const getExportData = () =>
     filtered.map((p) => ({
@@ -128,15 +190,45 @@ export default function AdminPayments() {
       {/* Summary Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
         {[
-          { label: 'Total Collected', value: '₹84.2L', icon: 'CurrencyRupeeIcon', color: 'text-success', bg: 'bg-success/10 border-success/20' },
-          { label: 'Commission Earned', value: '₹8.42L', icon: 'ReceiptPercentIcon', color: 'text-secondary', bg: 'bg-secondary/10 border-secondary/20' },
-          { label: 'Transferred to Sellers', value: '₹71.4L', icon: 'BanknotesIcon', color: 'text-primary', bg: 'bg-primary/10 border-primary/20' },
-          { label: 'Failed Payments', value: '3', icon: 'ExclamationCircleIcon', color: 'text-error', bg: 'bg-error/10 border-error/20' },
+          {
+            label: 'Total Collected',
+            value: `₹${totalCollected.toLocaleString('en-IN')}`,
+            icon: 'CurrencyRupeeIcon',
+            color: 'text-success',
+            bg: 'bg-success/10 border-success/20',
+          },
+          {
+            label: 'Commission Earned',
+            value: `₹${totalCommission.toLocaleString('en-IN')}`,
+            icon: 'ReceiptPercentIcon',
+            color: 'text-secondary',
+            bg: 'bg-secondary/10 border-secondary/20',
+          },
+          {
+            label: 'Transferred to Sellers',
+            value: `₹${sellerNet.toLocaleString('en-IN')}`,
+            icon: 'BanknotesIcon',
+            color: 'text-primary',
+            bg: 'bg-primary/10 border-primary/20',
+          },
+          {
+            label: 'Failed Payments',
+            value: String(failedCount),
+            icon: 'ExclamationCircleIcon',
+            color: 'text-error',
+            bg: 'bg-error/10 border-error/20',
+          },
         ].map((card) => (
           <div key={card.label} className={`stat-card border ${card.bg}`}>
-            <Icon name={card.icon as 'CurrencyRupeeIcon'} size={20} className={`${card.color} mb-2`} />
+            <Icon
+              name={card.icon as 'CurrencyRupeeIcon'}
+              size={20}
+              className={`${card.color} mb-2`}
+            />
             <p className={`text-2xl font-800 ${card.color}`}>{card.value}</p>
-            <p className="text-xs text-muted-foreground font-500 leading-tight mt-0.5">{card.label}</p>
+            <p className="text-xs text-muted-foreground font-500 leading-tight mt-0.5">
+              {card.label}
+            </p>
           </div>
         ))}
       </div>
@@ -154,7 +246,10 @@ export default function AdminPayments() {
         ))}
         {(dateFrom || dateTo) && (
           <button
-            onClick={() => { setDateFrom(''); setDateTo(''); }}
+            onClick={() => {
+              setDateFrom('');
+              setDateTo('');
+            }}
             className="shrink-0 px-3 py-1.5 rounded-xl text-xs font-600 bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20 transition-all"
           >
             Clear dates ×
@@ -162,7 +257,11 @@ export default function AdminPayments() {
         )}
       </div>
 
-      <p className="text-xs text-muted-foreground mb-3">Showing {filtered.length} of {payments.length} transactions</p>
+      <p className="text-xs text-muted-foreground mb-3">
+        {loading
+          ? 'Loading transactions...'
+          : `Showing ${filtered.length} of ${payments.length} transactions`}
+      </p>
 
       {/* Payments Table */}
       <div className="bg-card rounded-2xl border border-border overflow-hidden">
@@ -170,17 +269,49 @@ export default function AdminPayments() {
           <table className="w-full min-w-[800px]">
             <thead>
               <tr className="bg-muted border-b border-border">
-                <th className="px-4 py-3 text-left text-xs font-700 text-muted-foreground">Payment ID</th>
-                <th className="px-4 py-3 text-left text-xs font-700 text-muted-foreground">Order / Parties</th>
-                <th className="px-4 py-3 text-right text-xs font-700 text-muted-foreground">Amount</th>
-                <th className="px-4 py-3 text-right text-xs font-700 text-muted-foreground">Commission</th>
-                <th className="px-4 py-3 text-right text-xs font-700 text-muted-foreground">Seller Net</th>
-                <th className="px-4 py-3 text-center text-xs font-700 text-muted-foreground">Payment</th>
-                <th className="px-4 py-3 text-center text-xs font-700 text-muted-foreground">Transfer</th>
-                <th className="px-4 py-3 text-center text-xs font-700 text-muted-foreground">Actions</th>
+                <th className="px-4 py-3 text-left text-xs font-700 text-muted-foreground">
+                  Payment ID
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-700 text-muted-foreground">
+                  Order / Parties
+                </th>
+                <th className="px-4 py-3 text-right text-xs font-700 text-muted-foreground">
+                  Amount
+                </th>
+                <th className="px-4 py-3 text-right text-xs font-700 text-muted-foreground">
+                  Commission
+                </th>
+                <th className="px-4 py-3 text-right text-xs font-700 text-muted-foreground">
+                  Seller Net
+                </th>
+                <th className="px-4 py-3 text-center text-xs font-700 text-muted-foreground">
+                  Payment
+                </th>
+                <th className="px-4 py-3 text-center text-xs font-700 text-muted-foreground">
+                  Transfer
+                </th>
+                <th className="px-4 py-3 text-center text-xs font-700 text-muted-foreground">
+                  Actions
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
+              {!loading && filtered.length === 0 && (
+                <tr>
+                  <td colSpan={8} className="px-4 py-12 text-center">
+                    <Icon
+                      name="CreditCardIcon"
+                      size={34}
+                      className="mx-auto mb-3 text-muted-foreground"
+                    />
+                    <p className="text-sm font-800 text-foreground">No payment records yet</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Razorpay captures, failures, refunds, and transfers will appear here from the
+                      live payment table.
+                    </p>
+                  </td>
+                </tr>
+              )}
               {filtered.map((payment) => (
                 <tr key={payment.id} className="hover:bg-muted/30 transition-colors">
                   <td className="px-4 py-3">
@@ -194,38 +325,59 @@ export default function AdminPayments() {
                     <p className="text-xs text-muted-foreground">→ {payment.seller}</p>
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <p className="text-sm font-800 text-foreground">₹{payment.amount.toLocaleString('en-IN')}</p>
+                    <p className="text-sm font-800 text-foreground">
+                      ₹{payment.amount.toLocaleString('en-IN')}
+                    </p>
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <p className="text-sm font-700 text-error">₹{payment.commission.toLocaleString('en-IN')}</p>
+                    <p className="text-sm font-700 text-error">
+                      ₹{payment.commission.toLocaleString('en-IN')}
+                    </p>
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <p className="text-sm font-700 text-success">₹{payment.sellerNet.toLocaleString('en-IN')}</p>
+                    <p className="text-sm font-700 text-success">
+                      ₹{payment.sellerNet.toLocaleString('en-IN')}
+                    </p>
                   </td>
                   <td className="px-4 py-3 text-center">
-                    <span className={`text-xs font-600 border rounded-full px-2 py-0.5 ${statusColors[payment.status] || 'bg-muted text-muted-foreground border-border'}`}>{payment.status}</span>
+                    <span
+                      className={`text-xs font-600 border rounded-full px-2 py-0.5 ${statusColors[payment.status] || 'bg-muted text-muted-foreground border-border'}`}
+                    >
+                      {payment.status}
+                    </span>
                   </td>
                   <td className="px-4 py-3 text-center">
-                    <span className={`text-xs font-600 border rounded-full px-2 py-0.5 ${transferColors[payment.transferStatus] || 'bg-muted text-muted-foreground border-border'}`}>{payment.transferStatus}</span>
+                    <span
+                      className={`text-xs font-600 border rounded-full px-2 py-0.5 ${transferColors[payment.transferStatus] || 'bg-muted text-muted-foreground border-border'}`}
+                    >
+                      {payment.transferStatus}
+                    </span>
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-center gap-1">
-                      <button className="p-1.5 hover:bg-muted rounded-lg transition-colors" title="View Details">
+                      <button
+                        className="p-1.5 hover:bg-muted rounded-lg transition-colors"
+                        title="View Details"
+                      >
                         <Icon name="EyeIcon" size={14} className="text-muted-foreground" />
                       </button>
-                      {payment.status === 'Captured' && payment.transferStatus !== 'Transferred' && (
-                        <button className="p-1.5 hover:bg-success/10 rounded-lg transition-colors" title="Initiate Transfer">
-                          <Icon name="ArrowRightCircleIcon" size={14} className="text-success" />
-                        </button>
-                      )}
+                      {payment.status === 'Captured' &&
+                        payment.transferStatus !== 'Transferred' && (
+                          <button
+                            className="p-1.5 hover:bg-success/10 rounded-lg transition-colors"
+                            title="Initiate Transfer"
+                          >
+                            <Icon name="ArrowRightCircleIcon" size={14} className="text-success" />
+                          </button>
+                        )}
                     </div>
                   </td>
                 </tr>
               ))}
-              {filtered.length === 0 && (
+              {loading && filtered.length === 0 && (
                 <tr>
                   <td colSpan={8} className="px-4 py-8 text-center text-sm text-muted-foreground">
-                    No payments found for the selected filters.
+                    Loading payment records...
                   </td>
                 </tr>
               )}

@@ -1,6 +1,16 @@
 'use client';
 import React, { useState } from 'react';
-import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import {
+  BarChart,
+  Bar,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from 'recharts';
 import Icon from '@/components/ui/AppIcon';
 import { exportToCSV, exportToExcel } from '@/lib/exportUtils';
 
@@ -43,7 +53,15 @@ const formatINR = (val: number) => {
   return `₹${val}`;
 };
 
-const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?: { value: number; name: string; color: string }[]; label?: string }) => {
+const CustomTooltip = ({
+  active,
+  payload,
+  label,
+}: {
+  active?: boolean;
+  payload?: { value: number; name: string; color: string }[];
+  label?: string;
+}) => {
   if (active && payload && payload.length) {
     return (
       <div className="bg-card border border-border rounded-xl p-3 shadow-card text-xs">
@@ -112,14 +130,20 @@ export default function SellerAnalytics() {
             {showExportMenu && (
               <div className="absolute right-0 top-full mt-1 bg-card border border-border rounded-xl shadow-lg z-10 min-w-[140px]">
                 <button
-                  onClick={() => { exportToCSV(getExportData(), 'seller_analytics'); setShowExportMenu(false); }}
+                  onClick={() => {
+                    exportToCSV(getExportData(), 'seller_analytics');
+                    setShowExportMenu(false);
+                  }}
                   className="w-full flex items-center gap-2 px-3 py-2.5 text-xs font-600 text-foreground hover:bg-muted transition-colors rounded-t-xl"
                 >
                   <Icon name="DocumentTextIcon" size={14} className="text-success" />
                   Export CSV
                 </button>
                 <button
-                  onClick={() => { exportToExcel(getExportData(), 'seller_analytics'); setShowExportMenu(false); }}
+                  onClick={() => {
+                    exportToExcel(getExportData(), 'seller_analytics');
+                    setShowExportMenu(false);
+                  }}
                   className="w-full flex items-center gap-2 px-3 py-2.5 text-xs font-600 text-foreground hover:bg-muted transition-colors rounded-b-xl border-t border-border"
                 >
                   <Icon name="TableCellsIcon" size={14} className="text-primary" />
@@ -134,10 +158,30 @@ export default function SellerAnalytics() {
       {/* KPI Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
         {[
-          { label: 'Total Orders', value: totalOrders.toString(), icon: 'ShoppingBagIcon', color: 'text-primary' },
-          { label: 'Total GMV', value: formatINR(totalGMV), icon: 'CurrencyRupeeIcon', color: 'text-success' },
-          { label: 'Avg Order Value', value: formatINR(avgOrderValue), icon: 'ChartBarIcon', color: 'text-secondary' },
-          { label: 'Acceptance Rate', value: '94%', icon: 'CheckCircleIcon', color: 'text-amber-600' },
+          {
+            label: 'Total Orders',
+            value: totalOrders.toString(),
+            icon: 'ShoppingBagIcon',
+            color: 'text-primary',
+          },
+          {
+            label: 'Total GMV',
+            value: formatINR(totalGMV),
+            icon: 'CurrencyRupeeIcon',
+            color: 'text-success',
+          },
+          {
+            label: 'Avg Order Value',
+            value: formatINR(avgOrderValue),
+            icon: 'ChartBarIcon',
+            color: 'text-secondary',
+          },
+          {
+            label: 'Acceptance Rate',
+            value: '94%',
+            icon: 'CheckCircleIcon',
+            color: 'text-amber-600',
+          },
         ].map((kpi) => (
           <div key={kpi.label} className="bg-card rounded-2xl border border-border p-4">
             <Icon name={kpi.icon as 'ShoppingBagIcon'} size={20} className={`${kpi.color} mb-2`} />
@@ -208,9 +252,14 @@ export default function SellerAnalytics() {
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
-                    <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${product.share}%` }} />
+                    <div
+                      className="h-full bg-primary rounded-full transition-all"
+                      style={{ width: `${product.share}%` }}
+                    />
                   </div>
-                  <span className="text-xs text-muted-foreground shrink-0">{product.orders} orders</span>
+                  <span className="text-xs text-muted-foreground shrink-0">
+                    {product.orders} orders
+                  </span>
                 </div>
               </div>
             </div>

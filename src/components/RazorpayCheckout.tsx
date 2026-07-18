@@ -91,7 +91,9 @@ export function RazorpayCheckout({
         },
       };
 
-      const razorpay = new (window as unknown as { Razorpay: RazorpayConstructor }).Razorpay(options);
+      const razorpay = new (window as unknown as { Razorpay: RazorpayConstructor }).Razorpay(
+        options
+      );
       razorpay.on('payment.failed', (res: Record<string, unknown>) => {
         const errDesc = (res?.error as Record<string, string>)?.description || 'Payment failed';
         onError?.(new Error(errDesc));
@@ -113,7 +115,10 @@ export function RazorpayCheckout({
       <button
         onClick={handlePayment}
         disabled={loading || !scriptLoaded || disabled}
-        className={className || 'btn-primary w-full py-3 text-sm rounded-xl flex items-center justify-center gap-2 disabled:opacity-60'}
+        className={
+          className ||
+          'btn-primary w-full py-3 text-sm rounded-xl flex items-center justify-center gap-2 disabled:opacity-60'
+        }
       >
         {loading ? (
           <>

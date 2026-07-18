@@ -16,62 +16,112 @@ interface ErrorLog {
 
 const mockErrors: ErrorLog[] = [
   {
-    id: 'ERR-001', type: 'razorpay', severity: 'critical',
+    id: 'ERR-001',
+    type: 'razorpay',
+    severity: 'critical',
     message: 'Payment capture failed — order FT-ORD-009821',
-    details: 'Razorpay API returned 502 Bad Gateway. Payment ID: pay_NxK8mL2pQ4rT. Amount: ₹18,400. Retry count: 3/3.',
-    timestamp: '2026-07-17 19:42:11', resolved: false, count: 3,
-    affectedEntity: 'FT-ORD-009821'
+    details:
+      'Razorpay API returned 502 Bad Gateway. Payment ID: pay_NxK8mL2pQ4rT. Amount: ₹18,400. Retry count: 3/3.',
+    timestamp: '2026-07-17 19:42:11',
+    resolved: false,
+    count: 3,
+    affectedEntity: 'FT-ORD-009821',
   },
   {
-    id: 'ERR-002', type: 'shiprocket', severity: 'high',
+    id: 'ERR-002',
+    type: 'shiprocket',
+    severity: 'high',
     message: 'Shiprocket API timeout — shipment creation delayed',
-    details: 'POST /v1/external/orders/create timed out after 30s. Order FT-ORD-009815 shipment not created. Seller: Surat Textile Mills.',
-    timestamp: '2026-07-17 18:55:03', resolved: false, count: 1,
-    affectedEntity: 'FT-ORD-009815'
+    details:
+      'POST /v1/external/orders/create timed out after 30s. Order FT-ORD-009815 shipment not created. Seller: Surat Textile Mills.',
+    timestamp: '2026-07-17 18:55:03',
+    resolved: false,
+    count: 1,
+    affectedEntity: 'FT-ORD-009815',
   },
   {
-    id: 'ERR-003', type: 'rls', severity: 'high',
+    id: 'ERR-003',
+    type: 'rls',
+    severity: 'high',
     message: 'RLS policy violation — unauthorized data access attempt',
-    details: 'User FT-BYR-004521 attempted to access seller_profiles table without proper role. Query blocked by RLS. IP: 103.21.xx.xx.',
-    timestamp: '2026-07-17 17:30:45', resolved: true, count: 1,
-    affectedEntity: 'FT-BYR-004521'
+    details:
+      'User FT-BYR-004521 attempted to access seller_profiles table without proper role. Query blocked by RLS. IP: 103.21.xx.xx.',
+    timestamp: '2026-07-17 17:30:45',
+    resolved: true,
+    count: 1,
+    affectedEntity: 'FT-BYR-004521',
   },
   {
-    id: 'ERR-004', type: 'webhook', severity: 'critical',
+    id: 'ERR-004',
+    type: 'webhook',
+    severity: 'critical',
     message: 'Razorpay webhook signature mismatch',
-    details: 'Webhook event payment.captured received but HMAC signature validation failed. Event ID: evt_NxK9pR3mT5. Possible replay attack or key rotation needed.',
-    timestamp: '2026-07-17 16:12:30', resolved: false, count: 7,
-    affectedEntity: 'Webhook Handler'
+    details:
+      'Webhook event payment.captured received but HMAC signature validation failed. Event ID: evt_NxK9pR3mT5. Possible replay attack or key rotation needed.',
+    timestamp: '2026-07-17 16:12:30',
+    resolved: false,
+    count: 7,
+    affectedEntity: 'Webhook Handler',
   },
   {
-    id: 'ERR-005', type: 'shiprocket', severity: 'medium',
+    id: 'ERR-005',
+    type: 'shiprocket',
+    severity: 'medium',
     message: 'Tracking update fetch failed — 3 shipments',
-    details: 'GET /v1/external/courier/track/awbs returned 429 Too Many Requests. AWBs: 1234567890, 1234567891, 1234567892. Rate limit exceeded.',
-    timestamp: '2026-07-17 15:08:22', resolved: true, count: 12,
-    affectedEntity: '3 Shipments'
+    details:
+      'GET /v1/external/courier/track/awbs returned 429 Too Many Requests. AWBs: 1234567890, 1234567891, 1234567892. Rate limit exceeded.',
+    timestamp: '2026-07-17 15:08:22',
+    resolved: true,
+    count: 12,
+    affectedEntity: '3 Shipments',
   },
   {
-    id: 'ERR-006', type: 'razorpay', severity: 'medium',
+    id: 'ERR-006',
+    type: 'razorpay',
+    severity: 'medium',
     message: 'Payment verification failed — duplicate order ID',
-    details: 'Order ID FT-ORD-009800 already exists in Razorpay. Possible duplicate checkout submission. Buyer: FT-BYR-004488.',
-    timestamp: '2026-07-17 14:22:10', resolved: true, count: 2,
-    affectedEntity: 'FT-ORD-009800'
+    details:
+      'Order ID FT-ORD-009800 already exists in Razorpay. Possible duplicate checkout submission. Buyer: FT-BYR-004488.',
+    timestamp: '2026-07-17 14:22:10',
+    resolved: true,
+    count: 2,
+    affectedEntity: 'FT-ORD-009800',
   },
   {
-    id: 'ERR-007', type: 'general', severity: 'low',
+    id: 'ERR-007',
+    type: 'general',
+    severity: 'low',
     message: 'Supabase connection pool exhausted — brief latency spike',
-    details: 'Connection pool hit max limit (100 connections) for 45 seconds. Queries queued. Auto-resolved after pool recycled.',
-    timestamp: '2026-07-17 12:45:00', resolved: true, count: 1,
-    affectedEntity: 'Database'
+    details:
+      'Connection pool hit max limit (100 connections) for 45 seconds. Queries queued. Auto-resolved after pool recycled.',
+    timestamp: '2026-07-17 12:45:00',
+    resolved: true,
+    count: 1,
+    affectedEntity: 'Database',
   },
 ];
 
 const typeConfig = {
   razorpay: { label: 'Razorpay', icon: 'CreditCardIcon', color: 'text-blue-600', bg: 'bg-blue-50' },
-  shiprocket: { label: 'Shiprocket', icon: 'TruckIcon', color: 'text-purple-600', bg: 'bg-purple-50' },
-  rls: { label: 'RLS Violation', icon: 'ShieldExclamationIcon', color: 'text-error', bg: 'bg-error/10' },
+  shiprocket: {
+    label: 'Shiprocket',
+    icon: 'TruckIcon',
+    color: 'text-purple-600',
+    bg: 'bg-purple-50',
+  },
+  rls: {
+    label: 'RLS Violation',
+    icon: 'ShieldExclamationIcon',
+    color: 'text-error',
+    bg: 'bg-error/10',
+  },
   webhook: { label: 'Webhook', icon: 'BoltIcon', color: 'text-warning', bg: 'bg-amber-50' },
-  general: { label: 'General', icon: 'ExclamationCircleIcon', color: 'text-muted-foreground', bg: 'bg-muted' },
+  general: {
+    label: 'General',
+    icon: 'ExclamationCircleIcon',
+    color: 'text-muted-foreground',
+    bg: 'bg-muted',
+  },
 };
 
 const severityConfig = {
@@ -97,24 +147,48 @@ export default function AdminErrorMonitor() {
   }, []);
 
   const handleResolve = (id: string) => {
-    setErrors(prev => prev.map(e => e.id === id ? { ...e, resolved: true } : e));
+    setErrors((prev) => prev.map((e) => (e.id === id ? { ...e, resolved: true } : e)));
   };
 
-  const filtered = errors.filter(e => {
+  const filtered = errors.filter((e) => {
     if (filter === 'unresolved' && e.resolved) return false;
     if (filter === 'critical' && e.severity !== 'critical') return false;
     if (typeFilter !== 'all' && e.type !== typeFilter) return false;
     return true;
   });
 
-  const unresolvedCount = errors.filter(e => !e.resolved).length;
-  const criticalCount = errors.filter(e => e.severity === 'critical' && !e.resolved).length;
+  const unresolvedCount = errors.filter((e) => !e.resolved).length;
+  const criticalCount = errors.filter((e) => e.severity === 'critical' && !e.resolved).length;
 
   const stats = [
-    { label: 'Total Errors (24h)', value: errors.length.toString(), icon: 'ExclamationCircleIcon', color: 'text-foreground', bg: 'bg-muted' },
-    { label: 'Unresolved', value: unresolvedCount.toString(), icon: 'ExclamationTriangleIcon', color: 'text-error', bg: 'bg-error/10' },
-    { label: 'Critical Alerts', value: criticalCount.toString(), icon: 'BellAlertIcon', color: 'text-error', bg: 'bg-error/10' },
-    { label: 'Resolved Today', value: errors.filter(e => e.resolved).length.toString(), icon: 'CheckCircleIcon', color: 'text-success', bg: 'bg-success/10' },
+    {
+      label: 'Total Errors (24h)',
+      value: errors.length.toString(),
+      icon: 'ExclamationCircleIcon',
+      color: 'text-foreground',
+      bg: 'bg-muted',
+    },
+    {
+      label: 'Unresolved',
+      value: unresolvedCount.toString(),
+      icon: 'ExclamationTriangleIcon',
+      color: 'text-error',
+      bg: 'bg-error/10',
+    },
+    {
+      label: 'Critical Alerts',
+      value: criticalCount.toString(),
+      icon: 'BellAlertIcon',
+      color: 'text-error',
+      bg: 'bg-error/10',
+    },
+    {
+      label: 'Resolved Today',
+      value: errors.filter((e) => e.resolved).length.toString(),
+      icon: 'CheckCircleIcon',
+      color: 'text-success',
+      bg: 'bg-success/10',
+    },
   ];
 
   const formatTime = (ts: string) => {
@@ -128,7 +202,8 @@ export default function AdminErrorMonitor() {
         <div>
           <h1 className="text-xl font-800 text-foreground">Error Monitor</h1>
           <p className="text-sm text-muted-foreground">
-            Production error tracking · Last refresh: {lastRefresh.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+            Production error tracking · Last refresh:{' '}
+            {lastRefresh.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -138,7 +213,9 @@ export default function AdminErrorMonitor() {
               onClick={() => setAlertsEnabled(!alertsEnabled)}
               className={`w-9 h-5 rounded-full transition-colors relative ${alertsEnabled ? 'bg-success' : 'bg-muted border border-border'}`}
             >
-              <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${alertsEnabled ? 'translate-x-4' : 'translate-x-0.5'}`} />
+              <span
+                className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${alertsEnabled ? 'translate-x-4' : 'translate-x-0.5'}`}
+              />
             </button>
           </div>
           <button
@@ -171,9 +248,15 @@ export default function AdminErrorMonitor() {
             <Icon name="BellAlertIcon" size={16} className="text-error" />
           </div>
           <div>
-            <p className="text-sm font-800 text-error">{criticalCount} Critical Error{criticalCount > 1 ? 's' : ''} Require Immediate Attention</p>
+            <p className="text-sm font-800 text-error">
+              {criticalCount} Critical Error{criticalCount > 1 ? 's' : ''} Require Immediate
+              Attention
+            </p>
             <p className="text-xs text-error/80 mt-0.5">
-              {errors.filter(e => e.severity === 'critical' && !e.resolved).map(e => e.message).join(' · ')}
+              {errors
+                .filter((e) => e.severity === 'critical' && !e.resolved)
+                .map((e) => e.message)
+                .join(' · ')}
             </p>
           </div>
         </div>
@@ -187,10 +270,16 @@ export default function AdminErrorMonitor() {
               key={f}
               onClick={() => setFilter(f)}
               className={`px-3 py-1.5 rounded-xl text-xs font-600 transition-all capitalize ${
-                filter === f ? 'bg-secondary text-white' : 'bg-card border border-border text-muted-foreground hover:border-secondary'
+                filter === f
+                  ? 'bg-secondary text-white'
+                  : 'bg-card border border-border text-muted-foreground hover:border-secondary'
               }`}
             >
-              {f === 'all' ? 'All Errors' : f === 'unresolved' ? `Unresolved (${unresolvedCount})` : `Critical (${criticalCount})`}
+              {f === 'all'
+                ? 'All Errors'
+                : f === 'unresolved'
+                  ? `Unresolved (${unresolvedCount})`
+                  : `Critical (${criticalCount})`}
             </button>
           ))}
         </div>
@@ -202,7 +291,9 @@ export default function AdminErrorMonitor() {
           >
             <option value="all">All Types</option>
             {Object.entries(typeConfig).map(([k, v]) => (
-              <option key={k} value={k}>{v.label}</option>
+              <option key={k} value={k}>
+                {v.label}
+              </option>
             ))}
           </select>
         </div>
@@ -218,32 +309,51 @@ export default function AdminErrorMonitor() {
           </div>
         )}
         {filtered.map((error) => (
-          <div key={error.id} className={`bg-card rounded-2xl border transition-all ${error.resolved ? 'border-border opacity-70' : 'border-border hover:border-primary/30'}`}>
+          <div
+            key={error.id}
+            className={`bg-card rounded-2xl border transition-all ${error.resolved ? 'border-border opacity-70' : 'border-border hover:border-primary/30'}`}
+          >
             <div
               className="p-4 cursor-pointer"
               onClick={() => setExpandedId(expandedId === error.id ? null : error.id)}
             >
               <div className="flex items-start gap-3">
-                <div className={`w-9 h-9 rounded-xl ${typeConfig[error.type].bg} flex items-center justify-center shrink-0 mt-0.5`}>
-                  <Icon name={typeConfig[error.type].icon as 'CreditCardIcon'} size={16} className={typeConfig[error.type].color} />
+                <div
+                  className={`w-9 h-9 rounded-xl ${typeConfig[error.type].bg} flex items-center justify-center shrink-0 mt-0.5`}
+                >
+                  <Icon
+                    name={typeConfig[error.type].icon as 'CreditCardIcon'}
+                    size={16}
+                    className={typeConfig[error.type].color}
+                  />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap mb-1">
-                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-700 ${severityConfig[error.severity].class}`}>
+                    <span
+                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-700 ${severityConfig[error.severity].class}`}
+                    >
                       <span className="w-1.5 h-1.5 rounded-full bg-white/60" />
                       {severityConfig[error.severity].label}
                     </span>
-                    <span className="text-xs font-600 text-muted-foreground">{typeConfig[error.type].label}</span>
+                    <span className="text-xs font-600 text-muted-foreground">
+                      {typeConfig[error.type].label}
+                    </span>
                     {error.count > 1 && (
-                      <span className="text-xs bg-muted text-muted-foreground px-1.5 py-0.5 rounded-lg font-600">×{error.count}</span>
+                      <span className="text-xs bg-muted text-muted-foreground px-1.5 py-0.5 rounded-lg font-600">
+                        ×{error.count}
+                      </span>
                     )}
                     {error.resolved && (
-                      <span className="text-xs bg-success/10 text-success px-1.5 py-0.5 rounded-lg font-600">Resolved</span>
+                      <span className="text-xs bg-success/10 text-success px-1.5 py-0.5 rounded-lg font-600">
+                        Resolved
+                      </span>
                     )}
                   </div>
                   <p className="text-sm font-700 text-foreground leading-snug">{error.message}</p>
                   <div className="flex items-center gap-3 mt-1">
-                    <span className="text-xs text-muted-foreground">{formatTime(error.timestamp)} · {error.timestamp.split(' ')[0]}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {formatTime(error.timestamp)} · {error.timestamp.split(' ')[0]}
+                    </span>
                     {error.affectedEntity && (
                       <span className="mono-id text-xs">{error.affectedEntity}</span>
                     )}
@@ -252,13 +362,20 @@ export default function AdminErrorMonitor() {
                 <div className="flex items-center gap-2 shrink-0">
                   {!error.resolved && (
                     <button
-                      onClick={(e) => { e.stopPropagation(); handleResolve(error.id); }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleResolve(error.id);
+                      }}
                       className="bg-success/10 text-success text-xs px-2.5 py-1 rounded-lg font-600 hover:bg-success hover:text-white transition-all"
                     >
                       Resolve
                     </button>
                   )}
-                  <Icon name={expandedId === error.id ? 'ChevronUpIcon' : 'ChevronDownIcon'} size={16} className="text-muted-foreground" />
+                  <Icon
+                    name={expandedId === error.id ? 'ChevronUpIcon' : 'ChevronDownIcon'}
+                    size={16}
+                    className="text-muted-foreground"
+                  />
                 </div>
               </div>
             </div>
@@ -269,8 +386,12 @@ export default function AdminErrorMonitor() {
                   {error.details}
                 </div>
                 <div className="flex items-center gap-2 mt-3">
-                  <span className="text-xs text-muted-foreground">Error ID: <span className="font-mono font-600">{error.id}</span></span>
-                  <button className="ml-auto text-xs text-primary font-600 hover:underline">Copy Details</button>
+                  <span className="text-xs text-muted-foreground">
+                    Error ID: <span className="font-mono font-600">{error.id}</span>
+                  </span>
+                  <button className="ml-auto text-xs text-primary font-600 hover:underline">
+                    Copy Details
+                  </button>
                 </div>
               </div>
             )}

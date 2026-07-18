@@ -85,7 +85,11 @@ export default function SellerRatings() {
         buyer: 'You (Verified Buyer)',
         city: 'Your City',
         rating: newRating,
-        date: new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }),
+        date: new Date().toLocaleDateString('en-IN', {
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric',
+        }),
         title: newTitle.trim(),
         body: newBody.trim(),
         verified: true,
@@ -156,7 +160,9 @@ export default function SellerRatings() {
           </div>
           {/* Title */}
           <div className="mb-3">
-            <label className="text-xs font-600 text-muted-foreground block mb-1.5">Review Title *</label>
+            <label className="text-xs font-600 text-muted-foreground block mb-1.5">
+              Review Title *
+            </label>
             <input
               type="text"
               value={newTitle}
@@ -168,7 +174,9 @@ export default function SellerRatings() {
           </div>
           {/* Body */}
           <div className="mb-4">
-            <label className="text-xs font-600 text-muted-foreground block mb-1.5">Detailed Review *</label>
+            <label className="text-xs font-600 text-muted-foreground block mb-1.5">
+              Detailed Review *
+            </label>
             <textarea
               value={newBody}
               onChange={(e) => setNewBody(e.target.value)}
@@ -198,7 +206,12 @@ export default function SellerRatings() {
               )}
             </button>
             <button
-              onClick={() => { setShowReviewForm(false); setNewRating(0); setNewTitle(''); setNewBody(''); }}
+              onClick={() => {
+                setShowReviewForm(false);
+                setNewRating(0);
+                setNewTitle('');
+                setNewBody('');
+              }}
               className="btn-secondary px-4 py-2 text-xs rounded-xl"
             >
               Cancel
@@ -212,8 +225,14 @@ export default function SellerRatings() {
         <div className="flex flex-col items-center justify-center shrink-0">
           <span className="text-5xl font-800 text-foreground">{aggregateRating}</span>
           <div className="flex items-center gap-0.5 my-1.5">
-            {[1,2,3,4,5].map((s) => (
-              <Icon key={s} name="StarIcon" size={16} className={s <= 4 ? 'text-amber-400' : 'text-amber-200'} variant="solid" />
+            {[1, 2, 3, 4, 5].map((s) => (
+              <Icon
+                key={s}
+                name="StarIcon"
+                size={16}
+                className={s <= 4 ? 'text-amber-400' : 'text-amber-200'}
+                variant="solid"
+              />
             ))}
           </div>
           <span className="text-xs text-muted-foreground">{totalReviews} verified reviews</span>
@@ -251,19 +270,29 @@ export default function SellerRatings() {
                       </span>
                     )}
                   </div>
-                  <p className="text-xs text-muted-foreground">{review.city} · {review.date}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {review.city} · {review.date}
+                  </p>
                 </div>
               </div>
               <div className="flex items-center gap-0.5 shrink-0">
-                {[1,2,3,4,5].map((s) => (
-                  <Icon key={s} name="StarIcon" size={12} className={s <= review.rating ? 'text-amber-400' : 'text-amber-200'} variant="solid" />
+                {[1, 2, 3, 4, 5].map((s) => (
+                  <Icon
+                    key={s}
+                    name="StarIcon"
+                    size={12}
+                    className={s <= review.rating ? 'text-amber-400' : 'text-amber-200'}
+                    variant="solid"
+                  />
                 ))}
               </div>
             </div>
             <p className="text-sm font-700 text-foreground mb-1">{review.title}</p>
             <p className="text-sm text-muted-foreground leading-relaxed mb-2">{review.body}</p>
             <div className="flex items-center gap-3">
-              <span className="text-xs text-muted-foreground">Order: <span className="mono-id">{review.orderId}</span></span>
+              <span className="text-xs text-muted-foreground">
+                Order: <span className="mono-id">{review.orderId}</span>
+              </span>
               <button
                 onClick={() => setHelpful((h) => ({ ...h, [review.id]: !h[review.id] }))}
                 className={`flex items-center gap-1 text-xs font-600 transition-colors ${helpful[review.id] ? 'text-primary' : 'text-muted-foreground hover:text-primary'}`}

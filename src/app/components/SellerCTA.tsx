@@ -25,23 +25,33 @@ export default function SellerCTA() {
             <div>
               <div className="inline-flex items-center gap-2 bg-white/10 border border-white/20 rounded-full px-3 py-1 mb-5">
                 <Icon name="BuildingStorefrontIcon" size={14} className="text-gold" />
-                <span className="text-xs font-600 text-white">For Textile Sellers & Manufacturers</span>
+                <span className="text-xs font-600 text-white">
+                  For Textile Sellers & Manufacturers
+                </span>
               </div>
 
               <h2 className="text-hero-lg text-white mb-4">
-                Sell on FabricTrad.<br />
+                Sell on FabricTrad.
+                <br />
                 <span className="text-gold">Reach India's B2B Buyers.</span>
               </h2>
               <p className="text-white/70 text-sm mb-6 max-w-md leading-relaxed">
-                Join 12,400+ verified sellers. Upload your catalog via WhatsApp, get GST-compliant orders, and receive automated settlements — all on autopilot.
+                Join 12,400+ verified sellers. Upload your catalog via WhatsApp, get GST-compliant
+                orders, and receive automated settlements — all on autopilot.
               </p>
 
               <div className="flex flex-col sm:flex-row gap-3">
-                <Link href="/seller-registration" className="btn-primary px-6 py-3 text-sm rounded-xl text-center">
-                  Register as Seller
+                <Link
+                  href="/register"
+                  className="btn-primary px-6 py-3 text-sm rounded-xl text-center"
+                >
+                  Create Account
                 </Link>
-                <Link href="/seller-dashboard" className="bg-white/10 hover:bg-white/20 border border-white/20 text-white px-6 py-3 rounded-xl text-sm font-600 transition-colors text-center">
-                  View Seller Portal
+                <Link
+                  href="/login"
+                  className="bg-white/10 hover:bg-white/20 border border-white/20 text-white px-6 py-3 rounded-xl text-sm font-600 transition-colors text-center"
+                >
+                  Sign In
                 </Link>
               </div>
             </div>
@@ -49,7 +59,10 @@ export default function SellerCTA() {
             {/* Right */}
             <div className="space-y-3">
               {sellerBenefits?.map((benefit) => (
-                <div key={benefit} className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-xl px-4 py-3">
+                <div
+                  key={benefit}
+                  className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-xl px-4 py-3"
+                >
                   <div className="w-5 h-5 rounded-full bg-success/20 flex items-center justify-center shrink-0">
                     <Icon name="CheckIcon" size={12} className="text-success" />
                   </div>

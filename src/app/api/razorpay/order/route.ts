@@ -15,7 +15,6 @@ export async function POST(request: NextRequest) {
       orderId,
       sellerLinkedAccountId,
       sellerAmount,
-      platformCommission,
     } = await request.json();
 
     if (!amount || amount <= 0) {
@@ -23,20 +22,21 @@ export async function POST(request: NextRequest) {
     }
 
     // Build transfers for Razorpay Route if seller linked account exists
-    const transfers = sellerLinkedAccountId && sellerAmount
-      ? [
-          {
-            account: sellerLinkedAccountId,
-            amount: Math.round(sellerAmount * 100), // in paisa
-            currency: 'INR',
-            notes: {
-              order_id: orderId || receipt || '',
-              description: 'Seller payout after commission deduction',
+    const transfers =
+      sellerLinkedAccountId && sellerAmount
+        ? [
+            {
+              account: sellerLinkedAccountId,
+              amount: Math.round(sellerAmount * 100), // in paisa
+              currency: 'INR',
+              notes: {
+                order_id: orderId || receipt || '',
+                description: 'Seller payout after commission deduction',
+              },
+              on_hold: 0,
             },
-            on_hold: 0,
-          },
-        ]
-      : undefined;
+          ]
+        : undefined;
 
     const orderPayload: Record<string, unknown> = {
       amount: Math.round(amount * 100), // in paisa
@@ -48,7 +48,9 @@ export async function POST(request: NextRequest) {
       orderPayload.transfers = transfers;
     }
 
-    const order = await razorpay.orders.create(orderPayload as Parameters<typeof razorpay.orders.create>[0]);
+    const order = await razorpay.orders.create(
+      orderPayload as unknown as Parameters<typeof razorpay.orders.create>[0]
+    );
 
     return NextResponse.json({
       success: true,

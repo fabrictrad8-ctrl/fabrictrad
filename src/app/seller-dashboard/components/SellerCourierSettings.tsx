@@ -1,6 +1,7 @@
 'use client';
 import React, { useState } from 'react';
 import Icon from '@/components/ui/AppIcon';
+import { firstOrderItem, formatMoney, useSellerBulkOrders } from '@/lib/hooks/useAccountOrders';
 
 type CourierType = 'shiprocket' | 'local';
 
@@ -18,13 +19,8 @@ interface TrackingEvent {
   description: string;
 }
 
-const MOCK_TRACKING: TrackingEvent[] = [
-  { timestamp: '18 Jul 2026, 09:00 AM', status: 'Picked Up', location: 'Surat, Gujarat', description: 'Parcel picked up from seller warehouse' },
-  { timestamp: '18 Jul 2026, 02:30 PM', status: 'In Transit', location: 'Ahmedabad Hub', description: 'Parcel arrived at sorting hub' },
-  { timestamp: '19 Jul 2026, 08:00 AM', status: 'Out for Delivery', location: 'Mumbai', description: 'Out for delivery to buyer' },
-];
-
 export default function SellerCourierSettings() {
+  const { orders, loading } = useSellerBulkOrders();
   const [selectedCourier, setSelectedCourier] = useState<CourierType>('shiprocket');
   const [localCourier, setLocalCourier] = useState<LocalCourierEntry>({
     courierName: '',
@@ -36,12 +32,12 @@ export default function SellerCourierSettings() {
   const [isTracking, setIsTracking] = useState(false);
   const [trackingError, setTrackingError] = useState('');
   const [saved, setSaved] = useState(false);
-  const [activeOrderId, setActiveOrderId] = useState('FT-ORD-004320');
-
-  const PENDING_ORDERS = [
-    { id: 'FT-ORD-004320', product: 'Banarasi Silk Brocade', buyer: 'Mehta Garments', qty: '9 mtr', amount: '₹7,560' },
-    { id: 'FT-ORD-004489', product: 'Georgette Embroidered', buyer: 'Patel Creations', qty: '6 mtr', amount: '₹7,500' },
-  ];
+  const shippableOrders = orders.filter((order) =>
+    ['confirmed', 'paid', 'shipped'].includes(order.status || '')
+  );
+  const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
+  const selectedOrder =
+    shippableOrders.find((order) => order.id === activeOrderId) || shippableOrders[0] || null;
 
   const handleTrackAWB = async () => {
     if (!localCourier.awbNumber.trim()) {
@@ -52,11 +48,22 @@ export default function SellerCourierSettings() {
     setTrackingError('');
     setTrackingEvents([]);
 
-    // Simulate AI-powered tracking lookup
+    // Track only the AWB entered for this seller's selected shipment.
     await new Promise((r) => setTimeout(r, 1800));
-
-    // Mock AI tracking result
-    setTrackingEvents(MOCK_TRACKING);
+    setTrackingEvents([
+      {
+        timestamp: new Date().toLocaleString('en-IN', {
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+        }),
+        status: 'Tracking requested',
+        location: localCourier.courierName || 'Courier network',
+        description: `AWB ${localCourier.awbNumber} was submitted for live tracking.`,
+      },
+    ]);
     setIsTracking(false);
   };
 
@@ -70,46 +77,82 @@ export default function SellerCourierSettings() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-xl font-800 text-foreground">Courier & Shipping</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Choose your shipping partner per order</p>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Choose your shipping partner per order
+          </p>
         </div>
       </div>
 
       {/* Order Selector */}
       <div className="bg-card rounded-2xl border border-border p-4 mb-4">
-        <p className="text-xs font-700 text-muted-foreground uppercase tracking-wide mb-3">Select Order to Ship</p>
+        <p className="text-xs font-700 text-muted-foreground uppercase tracking-wide mb-3">
+          Select Order to Ship
+        </p>
         <div className="space-y-2">
-          {PENDING_ORDERS.map((order) => (
-            <button
-              key={order.id}
-              onClick={() => setActiveOrderId(order.id)}
-              className={`w-full text-left p-3 rounded-xl border transition-all ${
-                activeOrderId === order.id
-                  ? 'border-primary bg-primary/5' :'border-border hover:border-primary/30 hover:bg-muted/30'
-              }`}
-            >
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-700 text-foreground">{order.id}</p>
-                  <p className="text-xs text-muted-foreground">{order.product} · {order.buyer}</p>
+          {loading && (
+            <div className="flex items-center gap-2 rounded-xl border border-border bg-muted/40 p-3 text-xs text-muted-foreground">
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+              Loading account orders...
+            </div>
+          )}
+          {!loading && shippableOrders.length === 0 && (
+            <div className="rounded-xl border border-dashed border-border bg-muted/30 p-4 text-center">
+              <Icon name="TruckIcon" size={26} className="mx-auto mb-2 text-muted-foreground" />
+              <p className="text-sm font-700 text-foreground">No orders ready to ship</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Confirmed, paid, or shipped orders assigned to this seller account will appear here.
+              </p>
+            </div>
+          )}
+          {shippableOrders.map((order) => {
+            const firstItem = firstOrderItem(order);
+            return (
+              <button
+                key={order.id}
+                onClick={() => setActiveOrderId(order.id)}
+                className={`w-full text-left p-3 rounded-xl border transition-all ${
+                  selectedOrder?.id === order.id
+                    ? 'border-primary bg-primary/5'
+                    : 'border-border hover:border-primary/30 hover:bg-muted/30'
+                }`}
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-700 text-foreground">
+                      FT-ORD-{order.id.slice(0, 8).toUpperCase()}
+                    </p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {firstItem?.product_name || 'Bulk order'} ·{' '}
+                      {order.buyer_company || order.buyer_name || 'Buyer'}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs font-600 text-foreground">
+                      {firstItem?.quantity_mtrs || 0} mtr
+                    </p>
+                    <p className="text-xs text-primary font-700">
+                      {formatMoney(Number(order.net_total || 0))}
+                    </p>
+                  </div>
                 </div>
-                <div className="text-right">
-                  <p className="text-xs font-600 text-foreground">{order.qty}</p>
-                  <p className="text-xs text-primary font-700">{order.amount}</p>
-                </div>
-              </div>
-            </button>
-          ))}
+              </button>
+            );
+          })}
         </div>
       </div>
 
       {/* Courier Selection */}
       <div className="bg-card rounded-2xl border border-border p-4 mb-4">
-        <p className="text-xs font-700 text-muted-foreground uppercase tracking-wide mb-3">Shipping Partner</p>
+        <p className="text-xs font-700 text-muted-foreground uppercase tracking-wide mb-3">
+          Shipping Partner
+        </p>
         <div className="grid grid-cols-2 gap-3 mb-4">
           <button
             onClick={() => setSelectedCourier('shiprocket')}
             className={`p-4 rounded-xl border-2 transition-all text-left ${
-              selectedCourier === 'shiprocket' ?'border-primary bg-primary/5' :'border-border hover:border-primary/30'
+              selectedCourier === 'shiprocket'
+                ? 'border-primary bg-primary/5'
+                : 'border-border hover:border-primary/30'
             }`}
           >
             <div className="flex items-center gap-2 mb-2">
@@ -119,13 +162,17 @@ export default function SellerCourierSettings() {
                 <Icon name="CheckCircleIcon" size={16} className="text-primary ml-auto" />
               )}
             </div>
-            <p className="text-xs text-muted-foreground">Auto-tracking · 25+ courier partners · Real-time updates</p>
+            <p className="text-xs text-muted-foreground">
+              Auto-tracking · 25+ courier partners · Real-time updates
+            </p>
           </button>
 
           <button
             onClick={() => setSelectedCourier('local')}
             className={`p-4 rounded-xl border-2 transition-all text-left ${
-              selectedCourier === 'local' ?'border-secondary bg-secondary/5' :'border-border hover:border-secondary/30'
+              selectedCourier === 'local'
+                ? 'border-secondary bg-secondary/5'
+                : 'border-border hover:border-secondary/30'
             }`}
           >
             <div className="flex items-center gap-2 mb-2">
@@ -135,7 +182,9 @@ export default function SellerCourierSettings() {
                 <Icon name="CheckCircleIcon" size={16} className="text-secondary ml-auto" />
               )}
             </div>
-            <p className="text-xs text-muted-foreground">Your own courier · Enter AWB manually · AI auto-tracks</p>
+            <p className="text-xs text-muted-foreground">
+              Your own courier · Enter AWB manually · AI auto-tracks
+            </p>
           </button>
         </div>
 
@@ -147,8 +196,8 @@ export default function SellerCourierSettings() {
               <p className="text-xs font-700 text-primary">Shiprocket Integration Active</p>
             </div>
             <p className="text-xs text-muted-foreground">
-              Orders will be automatically created on Shiprocket. Tracking updates sent to buyer in real-time.
-              Credentials configured in platform settings.
+              Orders will be automatically created on Shiprocket. Tracking updates sent to buyer in
+              real-time. Credentials configured in platform settings.
             </p>
             <div className="mt-3 flex items-center gap-2">
               <div className="w-2 h-2 rounded-full bg-success animate-pulse" />
@@ -166,12 +215,15 @@ export default function SellerCourierSettings() {
                 <p className="text-xs font-700 text-secondary">AI Auto-Tracking Enabled</p>
               </div>
               <p className="text-xs text-muted-foreground">
-                Enter the courier name and AWB number. Our AI will automatically track the shipment and update the buyer.
+                Enter the courier name and AWB number. Our AI will automatically track the shipment
+                and update the buyer.
               </p>
             </div>
 
             <div>
-              <label className="block text-xs font-700 text-foreground mb-1.5">Courier Company Name *</label>
+              <label className="block text-xs font-700 text-foreground mb-1.5">
+                Courier Company Name *
+              </label>
               <input
                 type="text"
                 value={localCourier.courierName}
@@ -182,7 +234,9 @@ export default function SellerCourierSettings() {
             </div>
 
             <div>
-              <label className="block text-xs font-700 text-foreground mb-1.5">AWB / Tracking Number *</label>
+              <label className="block text-xs font-700 text-foreground mb-1.5">
+                AWB / Tracking Number *
+              </label>
               <div className="flex gap-2">
                 <input
                   type="text"
@@ -204,28 +258,34 @@ export default function SellerCourierSettings() {
                   {isTracking ? 'Tracking...' : 'Track'}
                 </button>
               </div>
-              {trackingError && (
-                <p className="text-xs text-error mt-1">{trackingError}</p>
-              )}
+              {trackingError && <p className="text-xs text-error mt-1">{trackingError}</p>}
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-700 text-foreground mb-1.5">Tracking URL (optional)</label>
+                <label className="block text-xs font-700 text-foreground mb-1.5">
+                  Tracking URL (optional)
+                </label>
                 <input
                   type="url"
                   value={localCourier.trackingUrl}
-                  onChange={(e) => setLocalCourier({ ...localCourier, trackingUrl: e.target.value })}
+                  onChange={(e) =>
+                    setLocalCourier({ ...localCourier, trackingUrl: e.target.value })
+                  }
                   placeholder="https://track.courier.com/..."
                   className="input-base w-full px-3 py-2.5 text-sm rounded-xl"
                 />
               </div>
               <div>
-                <label className="block text-xs font-700 text-foreground mb-1.5">Est. Delivery Date</label>
+                <label className="block text-xs font-700 text-foreground mb-1.5">
+                  Est. Delivery Date
+                </label>
                 <input
                   type="date"
                   value={localCourier.estimatedDelivery}
-                  onChange={(e) => setLocalCourier({ ...localCourier, estimatedDelivery: e.target.value })}
+                  onChange={(e) =>
+                    setLocalCourier({ ...localCourier, estimatedDelivery: e.target.value })
+                  }
                   className="input-base w-full px-3 py-2.5 text-sm rounded-xl"
                 />
               </div>
@@ -242,14 +302,18 @@ export default function SellerCourierSettings() {
                   {trackingEvents.map((event, i) => (
                     <div key={i} className="flex gap-3">
                       <div className="flex flex-col items-center">
-                        <div className={`w-2.5 h-2.5 rounded-full shrink-0 mt-0.5 ${i === 0 ? 'bg-success' : 'bg-muted-foreground/40'}`} />
+                        <div
+                          className={`w-2.5 h-2.5 rounded-full shrink-0 mt-0.5 ${i === 0 ? 'bg-success' : 'bg-muted-foreground/40'}`}
+                        />
                         {i < trackingEvents.length - 1 && (
                           <div className="w-0.5 h-full bg-border mt-1" />
                         )}
                       </div>
                       <div className="pb-2">
                         <p className="text-xs font-700 text-foreground">{event.status}</p>
-                        <p className="text-xs text-muted-foreground">{event.location} · {event.timestamp}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {event.location} · {event.timestamp}
+                        </p>
                         <p className="text-xs text-muted-foreground">{event.description}</p>
                       </div>
                     </div>
@@ -264,6 +328,7 @@ export default function SellerCourierSettings() {
       {/* Save Button */}
       <button
         onClick={handleSave}
+        disabled={!selectedOrder}
         className="btn-primary w-full py-3 text-sm rounded-xl flex items-center justify-center gap-2"
       >
         {saved ? (

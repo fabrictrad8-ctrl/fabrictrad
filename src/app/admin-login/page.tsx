@@ -38,7 +38,10 @@ export default function AdminLoginPage() {
     setError('');
     setSubmitting(true);
     try {
-      const { data, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+      const { data, error: signInError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
       if (signInError) throw signInError;
 
       if (data.user) {
@@ -65,7 +68,10 @@ export default function AdminLoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center px-4 py-10" style={{ background: 'var(--foreground)' }}>
+    <div
+      className="min-h-screen flex flex-col items-center justify-center px-4 py-10"
+      style={{ background: 'var(--foreground)' }}
+    >
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
           <Link href="/" className="inline-flex items-center gap-2 mb-6">
@@ -82,7 +88,10 @@ export default function AdminLoginPage() {
         <div className="bg-white/5 border border-white/10 rounded-2xl p-6 backdrop-blur-sm">
           <div className="flex items-center gap-2 p-3 bg-error/10 border border-error/20 rounded-xl mb-5">
             <Icon name="ExclamationTriangleIcon" size={14} className="text-red-300 shrink-0" />
-            <p className="text-xs text-red-300">This area is restricted to FabricTrad administrators. Unauthorized access attempts are logged.</p>
+            <p className="text-xs text-red-300">
+              This area is restricted to FabricTrad administrators. Unauthorized access attempts are
+              logged.
+            </p>
           </div>
 
           {error && (
@@ -134,7 +143,9 @@ export default function AdminLoginPage() {
                   <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                   Authenticating...
                 </span>
-              ) : 'Access Admin Portal'}
+              ) : (
+                'Access Admin Portal'
+              )}
             </button>
           </form>
 

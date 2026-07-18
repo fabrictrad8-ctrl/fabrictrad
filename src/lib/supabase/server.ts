@@ -1,6 +1,11 @@
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 
+const cookieOptions = {
+  sameSite: 'lax' as const,
+  secure: process.env.NODE_ENV === 'production',
+};
+
 export async function createClient() {
   const cookieStore = await cookies();
 
@@ -17,8 +22,7 @@ export async function createClient() {
             cookiesToSet.forEach(({ name, value, options }) =>
               cookieStore.set(name, value, {
                 ...options,
-                sameSite: 'none',
-                secure: true,
+                ...cookieOptions,
               })
             );
           } catch {

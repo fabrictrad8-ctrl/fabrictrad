@@ -1,7 +1,7 @@
 'use client';
 import React, { useState, useRef, useEffect } from 'react';
 import Icon from '@/components/ui/AppIcon';
-
+import { useAuth } from '@/contexts/AuthContext';
 
 interface Message {
   id: string;
@@ -27,86 +27,7 @@ interface Dispute {
   hasUnboxingVideo: boolean;
 }
 
-const MOCK_DISPUTES: Dispute[] = [
-  {
-    id: 'DSP-001',
-    orderId: 'FT-ORD-004320',
-    product: 'Banarasi Silk Brocade',
-    status: 'open',
-    type: 'exchange_request',
-    createdAt: '10 Jul 2026',
-    unreadCount: 2,
-    hasUnboxingVideo: true,
-    messages: [
-      {
-        id: 'm1',
-        sender: 'buyer',
-        senderName: 'Rajesh Mehta',
-        text: 'Hello, I received the Banarasi Silk Brocade but there is a visible damage on 3 metres of the fabric. I have attached the unboxing video as proof.',
-        timestamp: '10 Jul 2026, 2:30 PM',
-        isRead: true,
-      },
-      {
-        id: 'm2',
-        sender: 'buyer',
-        senderName: 'Rajesh Mehta',
-        text: 'Unboxing video showing the damage',
-        timestamp: '10 Jul 2026, 2:31 PM',
-        fileUrl: '#',
-        fileName: 'unboxing_video.mp4',
-        fileType: 'video',
-        isRead: true,
-      },
-      {
-        id: 'm3',
-        sender: 'seller',
-        senderName: 'Varanasi Silk Traders',
-        text: 'Thank you for reaching out. We have reviewed your unboxing video. We acknowledge the damage and will arrange an exchange for the affected 3 metres. Please confirm your shipping address.',
-        timestamp: '11 Jul 2026, 10:00 AM',
-        isRead: false,
-      },
-      {
-        id: 'm4',
-        sender: 'seller',
-        senderName: 'Varanasi Silk Traders',
-        text: 'Exchange approval document',
-        timestamp: '11 Jul 2026, 10:05 AM',
-        fileUrl: '#',
-        fileName: 'exchange_approval.pdf',
-        fileType: 'document',
-        isRead: false,
-      },
-    ],
-  },
-  {
-    id: 'DSP-002',
-    orderId: 'FT-ORD-004489',
-    product: 'Georgette Embroidered Fabric',
-    status: 'under_review',
-    type: 'general_query',
-    createdAt: '15 Jul 2026',
-    unreadCount: 0,
-    hasUnboxingVideo: false,
-    messages: [
-      {
-        id: 'm5',
-        sender: 'buyer',
-        senderName: 'Rajesh Mehta',
-        text: 'Can you provide the exact dispatch date and AWB number for order FT-ORD-004489?',
-        timestamp: '15 Jul 2026, 9:00 AM',
-        isRead: true,
-      },
-      {
-        id: 'm6',
-        sender: 'seller',
-        senderName: 'Jaipur Crafts Emporium',
-        text: 'Your order was dispatched on 16 Jul 2026. AWB: 1234567890. Expected delivery: 19 Jul 2026.',
-        timestamp: '15 Jul 2026, 11:30 AM',
-        isRead: true,
-      },
-    ],
-  },
-];
+const MOCK_DISPUTES: Dispute[] = [];
 
 const statusConfig: Record<string, { label: string; color: string }> = {
   open: { label: 'Open', color: 'bg-primary/10 text-primary border-primary/20' },
@@ -127,6 +48,9 @@ interface DisputeMessagingProps {
 }
 
 export default function DisputeMessaging({ mode = 'buyer' }: DisputeMessagingProps) {
+  const { user, profile } = useAuth();
+  const accountName =
+    profile?.full_name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'You';
   const [disputes, setDisputes] = useState<Dispute[]>(MOCK_DISPUTES);
   const [activeDisputeId, setActiveDisputeId] = useState<string | null>(null);
   const [newMessage, setNewMessage] = useState('');
@@ -136,7 +60,10 @@ export default function DisputeMessaging({ mode = 'buyer' }: DisputeMessagingPro
   const [newDisputeDesc, setNewDisputeDesc] = useState('');
   const [hasUnboxingVideo, setHasUnboxingVideo] = useState(false);
   const [isSending, setIsSending] = useState(false);
-  const [uploadedFile, setUploadedFile] = useState<{ name: string; type: 'image' | 'document' | 'video' } | null>(null);
+  const [uploadedFile, setUploadedFile] = useState<{
+    name: string;
+    type: 'image' | 'document' | 'video';
+  } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
@@ -158,9 +85,15 @@ export default function DisputeMessaging({ mode = 'buyer' }: DisputeMessagingPro
       const msg: Message = {
         id: `m-${Date.now()}`,
         sender: mode,
-        senderName: mode === 'buyer' ? 'Rajesh Mehta' : 'Varanasi Silk Traders',
+        senderName: accountName,
         text: newMessage,
-        timestamp: new Date().toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+        timestamp: new Date().toLocaleString('en-IN', {
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+        }),
         fileUrl: uploadedFile ? '#' : undefined,
         fileName: uploadedFile?.name,
         fileType: uploadedFile?.type,
@@ -168,11 +101,7 @@ export default function DisputeMessaging({ mode = 'buyer' }: DisputeMessagingPro
       };
 
       setDisputes((prev) =>
-        prev.map((d) =>
-          d.id === activeDisputeId
-            ? { ...d, messages: [...d.messages, msg] }
-            : d
-        )
+        prev.map((d) => (d.id === activeDisputeId ? { ...d, messages: [...d.messages, msg] } : d))
       );
       setNewMessage('');
       setUploadedFile(null);
@@ -183,8 +112,13 @@ export default function DisputeMessaging({ mode = 'buyer' }: DisputeMessagingPro
   const handleCreateDispute = () => {
     if (!newDisputeOrderId || !newDisputeDesc) return;
 
-    if ((newDisputeType === 'exchange_request' || newDisputeType === 'damage_claim') && !hasUnboxingVideo) {
-      alert('An unboxing video is required for exchange requests and damage claims. Please upload your unboxing video to proceed.');
+    if (
+      (newDisputeType === 'exchange_request' || newDisputeType === 'damage_claim') &&
+      !hasUnboxingVideo
+    ) {
+      alert(
+        'An unboxing video is required for exchange requests and damage claims. Please upload your unboxing video to proceed.'
+      );
       return;
     }
 
@@ -194,16 +128,26 @@ export default function DisputeMessaging({ mode = 'buyer' }: DisputeMessagingPro
       product: 'Order ' + newDisputeOrderId,
       status: 'open',
       type: newDisputeType,
-      createdAt: new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }),
+      createdAt: new Date().toLocaleDateString('en-IN', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+      }),
       unreadCount: 0,
       hasUnboxingVideo,
       messages: [
         {
           id: `m-init-${Date.now()}`,
-          sender: 'buyer',
-          senderName: 'Rajesh Mehta',
+          sender: mode,
+          senderName: accountName,
           text: newDisputeDesc,
-          timestamp: new Date().toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+          timestamp: new Date().toLocaleString('en-IN', {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+          }),
           isRead: false,
         },
       ],
@@ -219,7 +163,10 @@ export default function DisputeMessaging({ mode = 'buyer' }: DisputeMessagingPro
   };
 
   return (
-    <div className="bg-card rounded-2xl border border-border overflow-hidden" style={{ minHeight: 520 }}>
+    <div
+      className="bg-card rounded-2xl border border-border overflow-hidden"
+      style={{ minHeight: 520 }}
+    >
       {/* Header */}
       <div className="p-4 border-b border-border bg-gradient-to-r from-secondary/5 to-primary/5 flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -233,7 +180,10 @@ export default function DisputeMessaging({ mode = 'buyer' }: DisputeMessagingPro
         </div>
         <button
           type="button"
-          onClick={() => { setShowNewDisputeForm(true); setActiveDisputeId(null); }}
+          onClick={() => {
+            setShowNewDisputeForm(true);
+            setActiveDisputeId(null);
+          }}
           className="btn-primary px-3 py-1.5 text-xs rounded-xl flex items-center gap-1.5"
         >
           <Icon name="PlusIcon" size={13} />
@@ -244,11 +194,25 @@ export default function DisputeMessaging({ mode = 'buyer' }: DisputeMessagingPro
       <div className="flex" style={{ height: 480 }}>
         {/* Left: Dispute List */}
         <div className="w-56 shrink-0 border-r border-border overflow-y-auto">
+          {disputes.length === 0 && (
+            <div className="p-4 text-center">
+              <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-muted">
+                <Icon name="ChatBubbleLeftRightIcon" size={20} className="text-muted-foreground" />
+              </div>
+              <p className="text-xs font-800 text-foreground">No conversations</p>
+              <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                Messages and disputes will appear only for this account's orders.
+              </p>
+            </div>
+          )}
           {disputes.map((dispute) => (
             <button
               key={dispute.id}
               type="button"
-              onClick={() => { setActiveDisputeId(dispute.id); setShowNewDisputeForm(false); }}
+              onClick={() => {
+                setActiveDisputeId(dispute.id);
+                setShowNewDisputeForm(false);
+              }}
               className={`w-full text-left p-3 border-b border-border hover:bg-muted/50 transition-colors ${
                 activeDisputeId === dispute.id ? 'bg-primary/5 border-l-2 border-l-primary' : ''
               }`}
@@ -265,7 +229,9 @@ export default function DisputeMessaging({ mode = 'buyer' }: DisputeMessagingPro
               {/* Row 2: Product name */}
               <p className="text-xs text-muted-foreground truncate mb-1.5">{dispute.product}</p>
               {/* Row 3: Status badge only */}
-              <span className={`inline-block text-xs px-1.5 py-0.5 rounded-full border font-600 ${statusConfig[dispute.status].color}`}>
+              <span
+                className={`inline-block text-xs px-1.5 py-0.5 rounded-full border font-600 ${statusConfig[dispute.status].color}`}
+              >
                 {statusConfig[dispute.status].label}
               </span>
               {/* Row 4: Video icon (separate row, no text overlap) */}
@@ -290,12 +256,17 @@ export default function DisputeMessaging({ mode = 'buyer' }: DisputeMessagingPro
               {/* Policy Notice */}
               <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-xl">
                 <div className="flex items-start gap-2">
-                  <Icon name="ExclamationTriangleIcon" size={14} className="text-warning shrink-0 mt-0.5" />
+                  <Icon
+                    name="ExclamationTriangleIcon"
+                    size={14}
+                    className="text-warning shrink-0 mt-0.5"
+                  />
                   <div>
                     <p className="text-xs font-700 text-warning mb-1">Platform Policy</p>
                     <p className="text-xs text-amber-700">
-                      <strong>No Returns.</strong> Exchanges only for damaged goods with unboxing video proof.
-                      Exchange window: <strong>12 hours after parcel receipt</strong>. No COD — all orders prepaid.
+                      <strong>No Returns.</strong> Exchanges only for damaged goods with unboxing
+                      video proof. Exchange window: <strong>12 hours after parcel receipt</strong>.
+                      No COD — all orders prepaid.
                     </p>
                   </div>
                 </div>
@@ -303,37 +274,46 @@ export default function DisputeMessaging({ mode = 'buyer' }: DisputeMessagingPro
 
               <div className="space-y-3">
                 <div>
-                  <label className="block text-xs font-700 text-foreground mb-1.5">Order ID *</label>
+                  <label className="block text-xs font-700 text-foreground mb-1.5">
+                    Order ID *
+                  </label>
                   <input
                     type="text"
                     value={newDisputeOrderId}
                     onChange={(e) => setNewDisputeOrderId(e.target.value)}
-                    placeholder="e.g. FT-ORD-004521"
+                    placeholder="Your order ID"
                     className="input-base w-full px-3 py-2.5 text-sm rounded-xl"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-700 text-foreground mb-1.5">Query Type *</label>
+                  <label className="block text-xs font-700 text-foreground mb-1.5">
+                    Query Type *
+                  </label>
                   <div className="grid grid-cols-2 gap-2">
-                    {(Object.entries(typeLabels) as [Dispute['type'], string][]).map(([key, label]) => (
-                      <button
-                        key={key}
-                        type="button"
-                        onClick={() => setNewDisputeType(key)}
-                        className={`px-3 py-2 rounded-xl text-xs font-600 border transition-all text-left ${
-                          newDisputeType === key
-                            ? 'bg-primary/10 border-primary text-primary' :'bg-muted border-border text-muted-foreground hover:border-primary/50'
-                        }`}
-                      >
-                        {label}
-                      </button>
-                    ))}
+                    {(Object.entries(typeLabels) as [Dispute['type'], string][]).map(
+                      ([key, label]) => (
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={() => setNewDisputeType(key)}
+                          className={`px-3 py-2 rounded-xl text-xs font-600 border transition-all text-left ${
+                            newDisputeType === key
+                              ? 'bg-primary/10 border-primary text-primary'
+                              : 'bg-muted border-border text-muted-foreground hover:border-primary/50'
+                          }`}
+                        >
+                          {label}
+                        </button>
+                      )
+                    )}
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-700 text-foreground mb-1.5">Description *</label>
+                  <label className="block text-xs font-700 text-foreground mb-1.5">
+                    Description *
+                  </label>
                   <textarea
                     rows={3}
                     value={newDisputeDesc}
@@ -344,10 +324,16 @@ export default function DisputeMessaging({ mode = 'buyer' }: DisputeMessagingPro
                 </div>
 
                 {(newDisputeType === 'exchange_request' || newDisputeType === 'damage_claim') && (
-                  <div className={`p-3 rounded-xl border ${hasUnboxingVideo ? 'bg-success/5 border-success/20' : 'bg-error/5 border-error/20'}`}>
+                  <div
+                    className={`p-3 rounded-xl border ${hasUnboxingVideo ? 'bg-success/5 border-success/20' : 'bg-error/5 border-error/20'}`}
+                  >
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-2">
-                        <Icon name="VideoCameraIcon" size={14} className={hasUnboxingVideo ? 'text-success' : 'text-error'} />
+                        <Icon
+                          name="VideoCameraIcon"
+                          size={14}
+                          className={hasUnboxingVideo ? 'text-success' : 'text-error'}
+                        />
                         <p className="text-xs font-700 text-foreground">Unboxing Video Required</p>
                       </div>
                       {hasUnboxingVideo && (
@@ -355,17 +341,21 @@ export default function DisputeMessaging({ mode = 'buyer' }: DisputeMessagingPro
                       )}
                     </div>
                     <p className="text-xs text-muted-foreground mb-2">
-                      Exchange/damage claims require an unboxing video. Must be raised within <strong>12 hours</strong> of parcel receipt.
+                      Exchange/damage claims require an unboxing video. Must be raised within{' '}
+                      <strong>12 hours</strong> of parcel receipt.
                     </p>
                     <button
                       type="button"
                       onClick={() => videoInputRef.current?.click()}
                       className={`w-full py-2 text-xs rounded-xl font-600 border transition-all ${
                         hasUnboxingVideo
-                          ? 'bg-success/10 border-success/30 text-success' :'bg-error/10 border-error/30 text-error hover:bg-error hover:text-white'
+                          ? 'bg-success/10 border-success/30 text-success'
+                          : 'bg-error/10 border-error/30 text-error hover:bg-error hover:text-white'
                       }`}
                     >
-                      {hasUnboxingVideo ? '✓ Video Attached — Click to Replace' : 'Upload Unboxing Video *'}
+                      {hasUnboxingVideo
+                        ? '✓ Video Attached — Click to Replace'
+                        : 'Upload Unboxing Video *'}
                     </button>
                     <input
                       ref={videoInputRef}
@@ -402,11 +392,17 @@ export default function DisputeMessaging({ mode = 'buyer' }: DisputeMessagingPro
               <div className="p-3 border-b border-border bg-muted/30 flex items-center justify-between gap-2">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-xs font-700 text-foreground">{activeDispute.orderId}</span>
-                    <span className={`text-xs px-2 py-0.5 rounded-full border font-600 ${statusConfig[activeDispute.status].color}`}>
+                    <span className="text-xs font-700 text-foreground">
+                      {activeDispute.orderId}
+                    </span>
+                    <span
+                      className={`text-xs px-2 py-0.5 rounded-full border font-600 ${statusConfig[activeDispute.status].color}`}
+                    >
                       {statusConfig[activeDispute.status].label}
                     </span>
-                    <span className="text-xs text-muted-foreground">{typeLabels[activeDispute.type]}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {typeLabels[activeDispute.type]}
+                    </span>
                   </div>
                   <p className="text-xs text-muted-foreground truncate">{activeDispute.product}</p>
                 </div>
@@ -423,19 +419,32 @@ export default function DisputeMessaging({ mode = 'buyer' }: DisputeMessagingPro
                 {activeDispute.messages.map((msg) => {
                   const isMe = msg.sender === mode;
                   return (
-                    <div key={msg.id} className={`flex gap-2 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
-                      <div className={`w-7 h-7 rounded-full shrink-0 flex items-center justify-center text-xs font-700 ${
-                        msg.sender === 'buyer' ? 'bg-primary/20 text-primary' :
-                        msg.sender === 'seller' ? 'bg-secondary/20 text-secondary' : 'bg-muted text-muted-foreground'
-                      }`}>
+                    <div
+                      key={msg.id}
+                      className={`flex gap-2 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}
+                    >
+                      <div
+                        className={`w-7 h-7 rounded-full shrink-0 flex items-center justify-center text-xs font-700 ${
+                          msg.sender === 'buyer'
+                            ? 'bg-primary/20 text-primary'
+                            : msg.sender === 'seller'
+                              ? 'bg-secondary/20 text-secondary'
+                              : 'bg-muted text-muted-foreground'
+                        }`}
+                      >
                         {msg.senderName[0]}
                       </div>
-                      <div className={`max-w-[75%] ${isMe ? 'items-end' : 'items-start'} flex flex-col gap-0.5`}>
+                      <div
+                        className={`max-w-[75%] ${isMe ? 'items-end' : 'items-start'} flex flex-col gap-0.5`}
+                      >
                         <span className="text-xs text-muted-foreground px-1">{msg.senderName}</span>
-                        <div className={`rounded-2xl px-3 py-2 text-sm ${
-                          isMe
-                            ? 'bg-primary text-white rounded-tr-sm' :'bg-muted text-foreground rounded-tl-sm'
-                        }`}>
+                        <div
+                          className={`rounded-2xl px-3 py-2 text-sm ${
+                            isMe
+                              ? 'bg-primary text-white rounded-tr-sm'
+                              : 'bg-muted text-foreground rounded-tl-sm'
+                          }`}
+                        >
                           {msg.text && <p>{msg.text}</p>}
                           {msg.fileUrl && (
                             <a
@@ -443,7 +452,13 @@ export default function DisputeMessaging({ mode = 'buyer' }: DisputeMessagingPro
                               className={`flex items-center gap-2 mt-1 text-xs underline ${isMe ? 'text-white/80' : 'text-primary'}`}
                             >
                               <Icon
-                                name={msg.fileType === 'video' ? 'VideoCameraIcon' : msg.fileType === 'image' ? 'PhotoIcon' : 'DocumentIcon'}
+                                name={
+                                  msg.fileType === 'video'
+                                    ? 'VideoCameraIcon'
+                                    : msg.fileType === 'image'
+                                      ? 'PhotoIcon'
+                                      : 'DocumentIcon'
+                                }
                                 size={13}
                               />
                               {msg.fileName}
@@ -462,12 +477,24 @@ export default function DisputeMessaging({ mode = 'buyer' }: DisputeMessagingPro
               {uploadedFile && (
                 <div className="px-3 py-2 border-t border-border bg-muted/30 flex items-center gap-2">
                   <Icon
-                    name={uploadedFile.type === 'video' ? 'VideoCameraIcon' : uploadedFile.type === 'image' ? 'PhotoIcon' : 'DocumentIcon'}
+                    name={
+                      uploadedFile.type === 'video'
+                        ? 'VideoCameraIcon'
+                        : uploadedFile.type === 'image'
+                          ? 'PhotoIcon'
+                          : 'DocumentIcon'
+                    }
                     size={14}
                     className="text-primary"
                   />
-                  <span className="text-xs text-foreground flex-1 truncate">{uploadedFile.name}</span>
-                  <button type="button" onClick={() => setUploadedFile(null)} className="text-muted-foreground hover:text-error">
+                  <span className="text-xs text-foreground flex-1 truncate">
+                    {uploadedFile.name}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setUploadedFile(null)}
+                    className="text-muted-foreground hover:text-error"
+                  >
                     <Icon name="XMarkIcon" size={14} />
                   </button>
                 </div>

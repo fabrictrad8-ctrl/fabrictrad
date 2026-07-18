@@ -28,7 +28,10 @@ export async function POST(request: NextRequest) {
 
     if (!provider || !model || !messages?.length) {
       return NextResponse.json(
-        { error: 'Missing required fields: provider, model, messages', details: 'Request validation failed' },
+        {
+          error: 'Missing required fields: provider, model, messages',
+          details: 'Request validation failed',
+        },
         { status: 400 }
       );
     }
@@ -36,7 +39,10 @@ export async function POST(request: NextRequest) {
     const apiKey = API_KEYS[provider];
     if (!apiKey) {
       return NextResponse.json(
-        { error: `${provider.toUpperCase()} API key is not configured`, details: 'The API key for this provider is missing in environment variables' },
+        {
+          error: `${provider.toUpperCase()} API key is not configured`,
+          details: 'The API key for this provider is missing in environment variables',
+        },
         { status: 400 }
       );
     }
@@ -57,15 +63,24 @@ export async function POST(request: NextRequest) {
             controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'start' })}\n\n`));
 
             for await (const chunk of response as unknown as AsyncIterable<unknown>) {
-              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'chunk', chunk })}\n\n`));
+              controller.enqueue(
+                encoder.encode(`data: ${JSON.stringify({ type: 'chunk', chunk })}\n\n`)
+              );
             }
 
             controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'done' })}\n\n`));
             controller.close();
           } catch (error) {
             const formatted = formatErrorResponse(error, provider);
-            console.error('API Route Error:', { error: formatted.error, details: formatted.details });
-            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'error', error: formatted.error, details: formatted.details })}\n\n`));
+            console.error('API Route Error:', {
+              error: formatted.error,
+              details: formatted.details,
+            });
+            controller.enqueue(
+              encoder.encode(
+                `data: ${JSON.stringify({ type: 'error', error: formatted.error, details: formatted.details })}\n\n`
+              )
+            );
             controller.close();
           }
         },

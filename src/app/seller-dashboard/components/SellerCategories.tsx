@@ -87,11 +87,7 @@ export default function SellerCategories() {
       productCount: 0,
     };
     setCategories((prev) =>
-      prev.map((c) =>
-        c.id === catId
-          ? { ...c, subcategories: [...c.subcategories, newSub] }
-          : c
-      )
+      prev.map((c) => (c.id === catId ? { ...c, subcategories: [...c.subcategories, newSub] } : c))
     );
     setNewSubcatName('');
     setAddingSubcatFor(null);
@@ -100,9 +96,7 @@ export default function SellerCategories() {
   const handleDeleteSubcategory = (catId: string, subId: string) => {
     setCategories((prev) =>
       prev.map((c) =>
-        c.id === catId
-          ? { ...c, subcategories: c.subcategories.filter((s) => s.id !== subId) }
-          : c
+        c.id === catId ? { ...c, subcategories: c.subcategories.filter((s) => s.id !== subId) } : c
       )
     );
   };
@@ -153,7 +147,8 @@ export default function SellerCategories() {
                     onClick={() => setNewCategoryIcon(icon)}
                     className={`w-8 h-8 rounded-lg text-lg flex items-center justify-center border transition-all ${
                       newCategoryIcon === icon
-                        ? 'border-primary bg-primary/10' :'border-border bg-muted hover:border-primary/50'
+                        ? 'border-primary bg-primary/10'
+                        : 'border-border bg-muted hover:border-primary/50'
                     }`}
                   >
                     {icon}
@@ -171,10 +166,16 @@ export default function SellerCategories() {
               className="input-base flex-1 px-3 py-2.5 text-sm rounded-xl"
               onKeyDown={(e) => e.key === 'Enter' && handleAddCategory()}
             />
-            <button onClick={handleAddCategory} className="btn-primary px-4 py-2.5 text-sm rounded-xl">
+            <button
+              onClick={handleAddCategory}
+              className="btn-primary px-4 py-2.5 text-sm rounded-xl"
+            >
               Add
             </button>
-            <button onClick={() => setShowAddCategory(false)} className="btn-secondary px-4 py-2.5 text-sm rounded-xl">
+            <button
+              onClick={() => setShowAddCategory(false)}
+              className="btn-secondary px-4 py-2.5 text-sm rounded-xl"
+            >
               Cancel
             </button>
           </div>
@@ -239,7 +240,10 @@ export default function SellerCategories() {
                 ) : (
                   <>
                     <button
-                      onClick={() => { setEditingCatId(cat.id); setEditingCatName(cat.name); }}
+                      onClick={() => {
+                        setEditingCatId(cat.id);
+                        setEditingCatName(cat.name);
+                      }}
                       className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground"
                     >
                       <Icon name="PencilSquareIcon" size={14} />
@@ -265,7 +269,9 @@ export default function SellerCategories() {
                   >
                     <div className="w-1.5 h-1.5 rounded-full bg-muted-foreground/40 ml-6 shrink-0" />
                     <span className="text-sm text-foreground flex-1">{sub.name}</span>
-                    <span className="text-xs text-muted-foreground">{sub.productCount} products</span>
+                    <span className="text-xs text-muted-foreground">
+                      {sub.productCount} products
+                    </span>
                     <button
                       onClick={() => handleDeleteSubcategory(cat.id, sub.id)}
                       className="p-1 rounded-lg hover:bg-error/10 transition-colors text-muted-foreground hover:text-error"
@@ -306,7 +312,10 @@ export default function SellerCategories() {
                   </div>
                 ) : (
                   <button
-                    onClick={() => { setAddingSubcatFor(cat.id); setNewSubcatName(''); }}
+                    onClick={() => {
+                      setAddingSubcatFor(cat.id);
+                      setNewSubcatName('');
+                    }}
                     className="flex items-center gap-2 px-4 py-2.5 w-full text-left hover:bg-muted/30 transition-colors text-xs text-primary font-600"
                   >
                     <Icon name="PlusIcon" size={13} />
@@ -325,8 +334,13 @@ export default function SellerCategories() {
             <Icon name="TagIcon" size={24} className="text-muted-foreground" />
           </div>
           <p className="text-sm font-700 text-foreground mb-1">No categories yet</p>
-          <p className="text-xs text-muted-foreground mb-4">Create your first product category to organise your inventory</p>
-          <button onClick={() => setShowAddCategory(true)} className="btn-primary px-4 py-2 text-sm rounded-xl">
+          <p className="text-xs text-muted-foreground mb-4">
+            Create your first product category to organise your inventory
+          </p>
+          <button
+            onClick={() => setShowAddCategory(true)}
+            className="btn-primary px-4 py-2 text-sm rounded-xl"
+          >
             Add First Category
           </button>
         </div>

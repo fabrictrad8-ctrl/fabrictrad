@@ -26,8 +26,24 @@ const MOQ_TIERS: MOQTier[] = [
 ];
 
 const INITIAL_ITEMS: CartItem[] = [
-  { id: 'item-1', productName: 'Pure Dyeable Soft Nett Fabric', sku: 'STM-NET-001', pricePerMtr: 840, quantity: 9, moqTier: 9, gstRate: 5 },
-  { id: 'item-2', productName: 'Georgette Embroidered', sku: 'STM-GEO-001', pricePerMtr: 1250, quantity: 6, moqTier: 6, gstRate: 5 },
+  {
+    id: 'item-1',
+    productName: 'Pure Dyeable Soft Nett Fabric',
+    sku: 'STM-NET-001',
+    pricePerMtr: 840,
+    quantity: 9,
+    moqTier: 9,
+    gstRate: 5,
+  },
+  {
+    id: 'item-2',
+    productName: 'Georgette Embroidered',
+    sku: 'STM-GEO-001',
+    pricePerMtr: 1250,
+    quantity: 6,
+    moqTier: 6,
+    gstRate: 5,
+  },
 ];
 
 function getMOQTier(qty: number): 3 | 6 | 9 | 12 {
@@ -41,7 +57,12 @@ function getDiscount(tier: 3 | 6 | 9 | 12): number {
   return MOQ_TIERS.find((t) => t.metres === tier)?.discount ?? 0;
 }
 
-function calcItemTotal(item: CartItem): { base: number; discount: number; gst: number; total: number } {
+function calcItemTotal(item: CartItem): {
+  base: number;
+  discount: number;
+  gst: number;
+  total: number;
+} {
   const base = item.pricePerMtr * item.quantity;
   const discountAmt = (base * getDiscount(item.moqTier)) / 100;
   const afterDiscount = base - discountAmt;
@@ -52,7 +73,12 @@ function calcItemTotal(item: CartItem): { base: number; discount: number; gst: n
 export default function BulkOrderCart() {
   const [items, setItems] = useState<CartItem[]>(INITIAL_ITEMS);
   const [showAddItem, setShowAddItem] = useState(false);
-  const [newItem, setNewItem] = useState({ productName: '', sku: '', pricePerMtr: '', quantity: '3' });
+  const [newItem, setNewItem] = useState({
+    productName: '',
+    sku: '',
+    pricePerMtr: '',
+    quantity: '3',
+  });
   const [quoteGenerated, setQuoteGenerated] = useState(false);
   const [generatingQuote, setGeneratingQuote] = useState(false);
   const [buyerDetails, setBuyerDetails] = useState({ name: '', company: '', gstin: '', email: '' });
@@ -120,16 +146,18 @@ Company: ${buyerDetails.company}
 GSTIN: ${buyerDetails.gstin || 'N/A'}
 
 LINE ITEMS:
-${items.map((item, i) => {
-  const t = calcItemTotal(item);
-  return `${i + 1}. ${item.productName} (${item.sku})
+${items
+  .map((item, i) => {
+    const t = calcItemTotal(item);
+    return `${i + 1}. ${item.productName} (${item.sku})
    Qty: ${item.quantity} mtr × ₹${item.pricePerMtr}/mtr
    MOQ Tier: ${item.moqTier} mtr (${getDiscount(item.moqTier)}% discount)
    Subtotal: ₹${t.base.toLocaleString('en-IN')}
    Discount: -₹${t.discount.toLocaleString('en-IN')}
    GST @${item.gstRate}%: ₹${t.gst.toLocaleString('en-IN')}
    Line Total: ₹${t.total.toLocaleString('en-IN')}`;
-}).join('\n\n')}
+  })
+  .join('\n\n')}
 
 SUMMARY:
 Gross Total: ₹${totals.base.toLocaleString('en-IN')}
@@ -225,7 +253,8 @@ Valid for 7 days. Payment 100% advance. No COD.
                   onClick={() => setNewItem({ ...newItem, quantity: qty.toString() })}
                   className={`px-2.5 py-1 text-xs rounded-lg font-600 border transition-all ${
                     newItem.quantity === qty.toString()
-                      ? 'bg-primary text-white border-primary' :'bg-muted border-border text-muted-foreground hover:border-primary/50'
+                      ? 'bg-primary text-white border-primary'
+                      : 'bg-muted border-border text-muted-foreground hover:border-primary/50'
                   }`}
                 >
                   {qty}m
@@ -241,8 +270,15 @@ Valid for 7 days. Payment 100% advance. No COD.
             </div>
           </div>
           <div className="flex gap-2">
-            <button onClick={handleAddItem} className="btn-primary px-4 py-2 text-xs rounded-xl">Add to Cart</button>
-            <button onClick={() => setShowAddItem(false)} className="btn-secondary px-4 py-2 text-xs rounded-xl">Cancel</button>
+            <button onClick={handleAddItem} className="btn-primary px-4 py-2 text-xs rounded-xl">
+              Add to Cart
+            </button>
+            <button
+              onClick={() => setShowAddItem(false)}
+              className="btn-secondary px-4 py-2 text-xs rounded-xl"
+            >
+              Cancel
+            </button>
           </div>
         </div>
       )}
@@ -310,12 +346,20 @@ Valid for 7 days. Payment 100% advance. No COD.
 
                 {/* Price */}
                 <div className="ml-auto text-right">
-                  <p className="text-xs text-muted-foreground">₹{item.pricePerMtr}/mtr × {item.quantity}m</p>
+                  <p className="text-xs text-muted-foreground">
+                    ₹{item.pricePerMtr}/mtr × {item.quantity}m
+                  </p>
                   {discount > 0 && (
-                    <p className="text-xs text-success">-₹{t.discount.toLocaleString('en-IN')} discount</p>
+                    <p className="text-xs text-success">
+                      -₹{t.discount.toLocaleString('en-IN')} discount
+                    </p>
                   )}
-                  <p className="text-xs text-muted-foreground">+₹{t.gst.toLocaleString('en-IN')} GST</p>
-                  <p className="text-sm font-800 text-foreground">₹{t.total.toLocaleString('en-IN')}</p>
+                  <p className="text-xs text-muted-foreground">
+                    +₹{t.gst.toLocaleString('en-IN')} GST
+                  </p>
+                  <p className="text-sm font-800 text-foreground">
+                    ₹{t.total.toLocaleString('en-IN')}
+                  </p>
                 </div>
               </div>
             </div>
@@ -329,15 +373,21 @@ Valid for 7 days. Payment 100% advance. No COD.
           <div className="space-y-1.5 mb-4">
             <div className="flex justify-between text-xs">
               <span className="text-muted-foreground">Gross Total</span>
-              <span className="font-600 text-foreground">₹{totals.base.toLocaleString('en-IN')}</span>
+              <span className="font-600 text-foreground">
+                ₹{totals.base.toLocaleString('en-IN')}
+              </span>
             </div>
             <div className="flex justify-between text-xs">
               <span className="text-success">MOQ Discount</span>
-              <span className="font-600 text-success">-₹{totals.discount.toLocaleString('en-IN')}</span>
+              <span className="font-600 text-success">
+                -₹{totals.discount.toLocaleString('en-IN')}
+              </span>
             </div>
             <div className="flex justify-between text-xs">
               <span className="text-muted-foreground">GST (split at transaction)</span>
-              <span className="font-600 text-foreground">₹{totals.gst.toLocaleString('en-IN')}</span>
+              <span className="font-600 text-foreground">
+                ₹{totals.gst.toLocaleString('en-IN')}
+              </span>
             </div>
             <div className="flex justify-between text-sm font-800 pt-2 border-t border-border">
               <span className="text-foreground">Net Payable</span>
@@ -421,8 +471,13 @@ Valid for 7 days. Payment 100% advance. No COD.
         <div className="p-8 text-center">
           <Icon name="ShoppingCartIcon" size={32} className="text-muted-foreground mx-auto mb-3" />
           <p className="text-sm font-700 text-foreground mb-1">Cart is empty</p>
-          <p className="text-xs text-muted-foreground mb-3">Add fabric items to create a bulk order quote</p>
-          <button onClick={() => setShowAddItem(true)} className="btn-primary px-4 py-2 text-sm rounded-xl">
+          <p className="text-xs text-muted-foreground mb-3">
+            Add fabric items to create a bulk order quote
+          </p>
+          <button
+            onClick={() => setShowAddItem(true)}
+            className="btn-primary px-4 py-2 text-sm rounded-xl"
+          >
             Add First Item
           </button>
         </div>
