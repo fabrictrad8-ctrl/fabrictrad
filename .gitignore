@@ -5,6 +5,7 @@ package-lock.json
 # Next.js build output
 .next/
 .next.*/
+.open-next/
 out/
 
 # Production build
