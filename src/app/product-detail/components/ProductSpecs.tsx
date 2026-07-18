@@ -36,23 +36,24 @@ export default function ProductSpecs() {
         <Icon name="ClipboardDocumentListIcon" size={18} className="text-primary" />
         Product Specifications
       </h2>
-      {/* WhatsApp Source Reference */}
-      <div className="mb-5 bg-green-50 border border-green-200 rounded-xl p-4">
+      {/* Buyer Verification Reference */}
+      <div className="mb-5 rounded-xl border border-success/20 bg-success/10 p-4">
         <div className="flex items-start gap-3">
-          <div className="w-8 h-8 rounded-lg bg-green-500 flex items-center justify-center shrink-0">
-            <Icon name="ChatBubbleLeftRightIcon" size={16} className="text-white" />
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-success">
+            <Icon name="ShieldCheckIcon" size={16} className="text-white" />
           </div>
           <div>
-            <p className="text-xs font-700 text-green-800 mb-1">AI-Processed WhatsApp Catalog Upload</p>
-            <div className="bg-white rounded-lg p-2 border border-green-100 text-xs font-mono text-green-900 space-y-0.5">
-              <p>Fabric = pure dyeable soft nett</p>
-              <p>Width = 44</p>
-              <p>Work = handwork all over</p>
-              <p>Rate = 840 per mtr</p>
+            <p className="mb-1 text-xs font-700 text-success">Buyer Specification Check</p>
+            <div className="space-y-1 rounded-lg border border-success/15 bg-white p-2 text-xs text-foreground">
+              <p>Verified seller GST and KYC before order confirmation.</p>
+              <p>
+                Fabric width, GSM, work type, MOQ, and dispatch window are shown before payment.
+              </p>
+              <p>Use sample ordering and AI drape preview before placing a bulk order.</p>
             </div>
-            <p className="text-xs text-green-700 mt-1.5 flex items-center gap-1">
+            <p className="mt-1.5 flex items-center gap-1 text-xs text-success">
               <Icon name="CheckCircleIcon" size={12} />
-              Automatically structured & uploaded by FabricTrad AI
+              Product details are visible to buyers; seller upload workflow stays in seller tools.
             </p>
           </div>
         </div>
@@ -60,8 +61,13 @@ export default function ProductSpecs() {
       {/* Specs Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-0 rounded-xl overflow-hidden border border-border mb-5">
         {specs?.map((spec, i) => (
-          <div key={spec?.label} className={`flex gap-3 px-4 py-3 ${i % 2 === 0 ? 'bg-muted/50' : 'bg-card'} border-b border-border last:border-b-0`}>
-            <span className="text-xs text-muted-foreground w-36 shrink-0 font-500">{spec?.label}</span>
+          <div
+            key={spec?.label}
+            className={`flex gap-3 px-4 py-3 ${i % 2 === 0 ? 'bg-muted/50' : 'bg-card'} border-b border-border last:border-b-0`}
+          >
+            <span className="text-xs text-muted-foreground w-36 shrink-0 font-500">
+              {spec?.label}
+            </span>
             <span className="text-xs font-700 text-foreground">{spec?.value}</span>
           </div>
         ))}
@@ -74,7 +80,10 @@ export default function ProductSpecs() {
         </p>
         <div className="flex flex-wrap gap-2">
           {careInstructions?.map((c) => (
-            <span key={c} className="text-xs bg-muted border border-border rounded-full px-3 py-1 text-muted-foreground">
+            <span
+              key={c}
+              className="text-xs bg-muted border border-border rounded-full px-3 py-1 text-muted-foreground"
+            >
               {c}
             </span>
           ))}

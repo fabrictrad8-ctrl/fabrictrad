@@ -6,7 +6,17 @@ const filterGroups = [
   {
     label: 'Fabric Type',
     key: 'fabricType',
-    options: ['Silk', 'Cotton', 'Polyester', 'Net', 'Georgette', 'Organza', 'Velvet', 'Khadi', 'Linen'],
+    options: [
+      'Silk',
+      'Cotton',
+      'Polyester',
+      'Net',
+      'Georgette',
+      'Organza',
+      'Velvet',
+      'Khadi',
+      'Linen',
+    ],
   },
   {
     label: 'GSM Range',
@@ -21,7 +31,15 @@ const filterGroups = [
   {
     label: 'Work Type',
     key: 'work',
-    options: ['Plain', 'Embroidered', 'Zari Work', 'Block Print', 'Digital Print', 'Handloom', 'Sequence'],
+    options: [
+      'Plain',
+      'Embroidered',
+      'Zari Work',
+      'Block Print',
+      'Digital Print',
+      'Handloom',
+      'Sequence',
+    ],
   },
   {
     label: 'Seller Type',
@@ -53,9 +71,7 @@ export default function MarketplaceFilters() {
   };
 
   const toggleExpand = (key: string) => {
-    setExpanded((prev) =>
-      prev.includes(key) ? prev.filter((x) => x !== key) : [...prev, key]
-    );
+    setExpanded((prev) => (prev.includes(key) ? prev.filter((x) => x !== key) : [...prev, key]));
   };
 
   const totalActive = Object.values(selected).flat().length;
@@ -68,7 +84,9 @@ export default function MarketplaceFilters() {
           <Icon name="FunnelIcon" size={16} className="text-foreground" />
           <span className="font-700 text-sm text-foreground">Filters</span>
           {totalActive > 0 && (
-            <span className="bg-primary text-white text-xs font-700 px-1.5 py-0.5 rounded-full">{totalActive}</span>
+            <span className="bg-primary text-white text-xs font-700 px-1.5 py-0.5 rounded-full">
+              {totalActive}
+            </span>
           )}
         </div>
         {totalActive > 0 && (
@@ -151,12 +169,15 @@ export default function MarketplaceFilters() {
                     onClick={() => toggleOption(group.key, opt)}
                     className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm transition-all ${
                       isSelected
-                        ? 'bg-primary/10 text-primary font-600' :'text-foreground hover:bg-muted'
+                        ? 'bg-primary/10 text-primary font-600'
+                        : 'text-foreground hover:bg-muted'
                     }`}
                   >
-                    <div className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 ${
-                      isSelected ? 'bg-primary border-primary' : 'border-border'
-                    }`}>
+                    <div
+                      className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 ${
+                        isSelected ? 'bg-primary border-primary' : 'border-border'
+                      }`}
+                    >
                       {isSelected && <Icon name="CheckIcon" size={10} className="text-white" />}
                     </div>
                     {opt}
@@ -185,7 +206,10 @@ export default function MarketplaceFilters() {
 
       {/* Mobile Overlay */}
       {mobileOpen && (
-        <div className="fixed inset-0 z-50 bg-black/50 lg:hidden" onClick={() => setMobileOpen(false)}>
+        <div
+          className="fixed inset-0 z-50 bg-black/50 lg:hidden"
+          onClick={() => setMobileOpen(false)}
+        >
           <div
             className="absolute left-0 top-0 bottom-0 w-72 bg-background p-5 overflow-y-auto"
             onClick={(e) => e.stopPropagation()}

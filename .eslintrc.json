@@ -41,7 +41,8 @@
           "info"
         ]
       }
-    ]
+    ],
+    "react/no-unescaped-entities": "off"
   },
   "ignorePatterns": [
     "node_modules/",

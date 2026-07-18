@@ -6,7 +6,8 @@ const steps = [
     number: '01',
     icon: 'MagnifyingGlassIcon',
     title: 'Browse & Discover',
-    description: 'Search verified textile sellers across India. Filter by GSM, width, MOQ, dispatch time, and more.',
+    description:
+      'Search verified textile sellers across India. Filter by GSM, width, MOQ, dispatch time, and more.',
     color: 'bg-blue-50 text-blue-600',
     accent: '#3B82F6',
   },
@@ -14,7 +15,8 @@ const steps = [
     number: '02',
     icon: 'DocumentCheckIcon',
     title: 'Submit Order Request',
-    description: 'Select quantity and submit your request. Seller confirms availability within their response window.',
+    description:
+      'Select quantity and submit your request. Seller confirms availability within their response window.',
     color: 'bg-amber-50 text-amber-600',
     accent: '#D97706',
   },
@@ -30,7 +32,8 @@ const steps = [
     number: '04',
     icon: 'TruckIcon',
     title: 'Automated Fulfilment',
-    description: 'Shipment created on Shiprocket automatically. Track your order in real-time from dashboard.',
+    description:
+      'Shipment created on Shiprocket automatically. Track your order in real-time from dashboard.',
     color: 'bg-primary/10 text-primary',
     accent: '#C8600A',
   },
@@ -58,10 +61,14 @@ export default function HowItWorks() {
 
               <div className="bg-card rounded-2xl p-6 border border-border card-shadow hover:card-shadow-hover transition-all relative z-10">
                 <div className="flex items-start justify-between mb-4">
-                  <div className={`w-12 h-12 rounded-xl ${step.color} flex items-center justify-center`}>
+                  <div
+                    className={`w-12 h-12 rounded-xl ${step.color} flex items-center justify-center`}
+                  >
                     <Icon name={step.icon as 'TruckIcon'} size={22} />
                   </div>
-                  <span className="font-mono text-2xl font-800 text-muted-foreground/30">{step.number}</span>
+                  <span className="font-mono text-2xl font-800 text-muted-foreground/30">
+                    {step.number}
+                  </span>
                 </div>
                 <h3 className="text-base font-700 text-foreground mb-2">{step.title}</h3>
                 <p className="text-sm text-muted-foreground leading-relaxed">{step.description}</p>
@@ -73,13 +80,16 @@ export default function HowItWorks() {
         {/* Feature Pills */}
         <div className="mt-8 flex flex-wrap justify-center gap-3">
           {[
-            '✅ No COD — 100% Prepaid',
-            '📦 No Returns — Exchange in 24hrs with unboxing video',
-            '🔒 GST Invoice on every order',
-            '🤖 AI-automated catalog upload via WhatsApp',
-            '📍 Real-time Shiprocket tracking',
+            '100% prepaid buyer orders',
+            'GST invoice on every order',
+            'Verified seller profiles',
+            'AI drape preview for fabric inspection',
+            'Real-time shipment tracking',
           ].map((pill) => (
-            <span key={pill} className="bg-muted border border-border rounded-full px-4 py-2 text-xs font-500 text-foreground">
+            <span
+              key={pill}
+              className="bg-muted border border-border rounded-full px-4 py-2 text-xs font-500 text-foreground"
+            >
               {pill}
             </span>
           ))}

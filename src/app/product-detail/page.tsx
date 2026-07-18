@@ -9,6 +9,8 @@ import RelatedProducts from '@/app/product-detail/components/RelatedProducts';
 import SellerRatings from '@/app/product-detail/components/SellerRatings';
 import ComparisonWidget from '@/app/product-detail/components/ComparisonWidget';
 import FabricDrapeViewer from '@/app/product-detail/components/FabricDrapeViewer';
+import BuyerFeedbackWidget from '@/app/product-detail/components/BuyerFeedbackWidget';
+import BulkOrderCart from '@/app/product-detail/components/BulkOrderCart';
 
 export default function ProductDetailPage() {
   return (
@@ -17,9 +19,13 @@ export default function ProductDetailPage() {
       <div className="pt-16">
         {/* Breadcrumb */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center gap-2 text-sm text-muted-foreground">
-          <a href="/marketplace" className="hover:text-primary transition-colors">Marketplace</a>
+          <a href="/marketplace" className="hover:text-primary transition-colors">
+            Marketplace
+          </a>
           <span>/</span>
-          <a href="/categories" className="hover:text-primary transition-colors">Net & Embroidered</a>
+          <a href="/categories" className="hover:text-primary transition-colors">
+            Net &amp; Embroidered
+          </a>
           <span>/</span>
           <span className="text-foreground font-500">Pure Dyeable Soft Nett Fabric</span>
         </div>
@@ -29,11 +35,17 @@ export default function ProductDetailPage() {
             {/* Left: Gallery + Specs */}
             <div className="lg:col-span-2 space-y-6">
               <ProductGallery />
-              {/* 3D Fabric Drape Feature */}
-              <FabricDrapeViewer />
+              {/* Virtual Drape-on Feature */}
+              <section id="drape-on" className="scroll-mt-24">
+                <FabricDrapeViewer />
+              </section>
               <ProductSpecs />
               <SellerRatings />
+              {/* Aggregate Buyer Feedback Widget */}
+              <BuyerFeedbackWidget />
               <ComparisonWidget />
+              {/* Bulk Order Cart */}
+              <BulkOrderCart />
             </div>
 
             {/* Right: Info + Order + Seller */}
