@@ -11,7 +11,7 @@ import BuyerWishlist from '@/app/buyer-dashboard/components/BuyerWishlist';
 import DisputeMessaging from '@/app/buyer-dashboard/components/DisputeMessaging';
 import NotificationPreferences from '@/app/components/NotificationPreferences';
 
-type DashTab = 'overview' | 'orders' | 'tracking' | 'wishlist' | 'disputes' | 'notifications' | 'account';
+type DashTab = 'overview' | 'orders' | 'tracking' | 'wishlist' | 'disputes' | 'notifications' | 'account' | 'requirements';
 
 const navItems: {key: DashTab;label: string;icon: string;badge?: number;}[] = [
 { key: 'overview', label: 'Overview', icon: 'HomeIcon' },
@@ -19,6 +19,7 @@ const navItems: {key: DashTab;label: string;icon: string;badge?: number;}[] = [
 { key: 'tracking', label: 'Track Shipments', icon: 'TruckIcon', badge: 2 },
 { key: 'wishlist', label: 'Wishlist', icon: 'HeartIcon' },
 { key: 'disputes', label: 'Disputes & Messages', icon: 'ChatBubbleLeftRightIcon', badge: 2 },
+{ key: 'requirements', label: 'Requirements Board', icon: 'MegaphoneIcon' },
 { key: 'notifications', label: 'Notifications', icon: 'BellIcon' },
 { key: 'account', label: 'Account', icon: 'UserCircleIcon' }];
 
@@ -114,6 +115,44 @@ export default function BuyerDashboardLayout() {
           {activeTab === 'tracking' && <BuyerTracking />}
           {activeTab === 'wishlist' && <BuyerWishlist />}
           {activeTab === 'disputes' && <DisputeMessaging mode="buyer" />}
+          {activeTab === 'requirements' && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-xl font-800 text-foreground">Requirements Board</h2>
+                  <p className="text-sm text-muted-foreground mt-0.5">Post what you need — sellers will connect with you via in-website chat</p>
+                </div>
+                <Link href="/buyer-requirements" className="btn-primary px-4 py-2 text-sm rounded-xl flex items-center gap-2">
+                  <Icon name="ArrowTopRightOnSquareIcon" size={14} />
+                  Open Board
+                </Link>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                {[
+                  { icon: 'MegaphoneIcon', title: 'Post Requirements', desc: 'Tell sellers exactly what fabric you need — quantity, budget, deadline', color: 'text-primary bg-primary/10' },
+                  { icon: 'ChatBubbleLeftRightIcon', title: 'Sellers Connect', desc: 'Interested sellers reach out via secure in-website chat only', color: 'text-secondary bg-secondary/10' },
+                  { icon: 'ShieldCheckIcon', title: 'Privacy Protected', desc: 'No phone numbers or emails shared — all communication on FabricTrad', color: 'text-success bg-success/10' },
+                ].map((item) => (
+                  <div key={item.title} className="bg-card border border-border rounded-2xl p-4">
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-3 ${item.color}`}>
+                      <Icon name={item.icon as 'MegaphoneIcon'} size={20} className={item.color.split(' ')[0]} />
+                    </div>
+                    <p className="font-700 text-foreground text-sm mb-1">{item.title}</p>
+                    <p className="text-xs text-muted-foreground leading-relaxed">{item.desc}</p>
+                  </div>
+                ))}
+              </div>
+              <div className="bg-card border border-border rounded-2xl p-5 text-center">
+                <Icon name="MegaphoneIcon" size={32} className="text-primary mx-auto mb-3 opacity-60" />
+                <p className="font-700 text-foreground mb-1">Ready to post your requirement?</p>
+                <p className="text-sm text-muted-foreground mb-4">Hundreds of verified sellers are waiting to fulfil your fabric needs</p>
+                <Link href="/buyer-requirements" className="btn-primary px-6 py-2.5 text-sm rounded-xl inline-flex items-center gap-2">
+                  <Icon name="PlusIcon" size={14} />
+                  Post a Requirement
+                </Link>
+              </div>
+            </div>
+          )}
           {activeTab === 'notifications' && <NotificationPreferences mode="buyer" />}
           {activeTab === 'account' &&
           <div className="max-w-lg">

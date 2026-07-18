@@ -15,8 +15,9 @@ import SellerFulfillment from '@/app/seller-dashboard/components/SellerFulfillme
 import NotificationPreferences from '@/app/components/NotificationPreferences';
 import SellerCategories from '@/app/seller-dashboard/components/SellerCategories';
 import SellerCourierSettings from '@/app/seller-dashboard/components/SellerCourierSettings';
+import SellerInbox from '@/app/seller-dashboard/components/SellerInbox';
 
-type SellerTab = 'overview' | 'orders' | 'inventory' | 'analytics' | 'upload' | 'profile' | 'earnings' | 'disputes' | 'notifications' | 'fulfillment' | 'categories' | 'courier';
+type SellerTab = 'overview' | 'orders' | 'inventory' | 'analytics' | 'upload' | 'profile' | 'earnings' | 'disputes' | 'notifications' | 'fulfillment' | 'categories' | 'courier' | 'inbox';
 
 const navItems: {key: SellerTab;label: string;icon: string;badge?: number;}[] = [
 { key: 'overview', label: 'Dashboard', icon: 'HomeIcon' },
@@ -27,6 +28,7 @@ const navItems: {key: SellerTab;label: string;icon: string;badge?: number;}[] = 
 { key: 'fulfillment', label: 'Fulfillment', icon: 'TruckIcon' },
 { key: 'courier', label: 'Courier & Shipping', icon: 'TruckIcon' },
 { key: 'earnings', label: 'Earnings & Payouts', icon: 'BanknotesIcon' },
+{ key: 'inbox', label: 'Buyer Inbox', icon: 'ChatBubbleLeftRightIcon', badge: 3 },
 { key: 'disputes', label: 'Disputes & Messages', icon: 'ChatBubbleLeftRightIcon', badge: 2 },
 { key: 'notifications', label: 'Notifications', icon: 'BellIcon' },
 { key: 'upload', label: 'Upload Catalog', icon: 'ArrowUpTrayIcon' },
@@ -129,6 +131,7 @@ export default function SellerDashboardLayout() {
           {activeTab === 'fulfillment' && <SellerFulfillment />}
           {activeTab === 'categories' && <SellerCategories />}
           {activeTab === 'courier' && <SellerCourierSettings />}
+          {activeTab === 'inbox' && <SellerInbox />}
           {activeTab === 'notifications' && <NotificationPreferences mode="seller" />}
           {activeTab === 'upload' && <SellerWhatsAppUpload />}
           {activeTab === 'profile' &&

@@ -8,6 +8,7 @@ const navLinks = [
   { label: 'Marketplace', href: '/marketplace' },
   { label: 'Categories', href: '/categories' },
   { label: 'Vendors', href: '/vendors' },
+  { label: 'Requirements Board', href: '/buyer-requirements' },
   { label: 'How It Works', href: '/#how-it-works' },
 ];
 

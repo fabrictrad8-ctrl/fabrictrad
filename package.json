@@ -51,14 +51,16 @@
   "dependencies": {
     "@dhiwise/component-tagger": "^1.0.15",
     "@heroicons/react": "^2.2.0",
+    "@rocketnew/llm-sdk": "^1.1.0",
     "@tailwindcss/forms": "^0.5.10",
     "@tailwindcss/typography": "^0.5.16",
+    "lucide-react": "^1.7.0",
     "next": "15.5.18",
+    "razorpay": "^2.9.4",
     "react": "19.0.3",
     "react-dom": "19.0.3",
-    "razorpay": "^2.9.4",
-    "recharts": "^2.15.2",
-    "lucide-react": "^1.7.0"
+    "react-hot-toast": "^2.6.0",
+    "recharts": "^2.15.2"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
