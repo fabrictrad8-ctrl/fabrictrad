@@ -14,10 +14,6 @@ export default function SellerDashboardPage() {
         router?.replace('/login?role=seller');
         return;
       }
-      if (profile && !profile?.phone) {
-        router?.replace('/auth/phone?role=seller');
-        return;
-      }
       if (profile && profile?.role !== 'seller' && profile?.role !== 'admin_staff' && profile?.role !== 'super_admin') {
         router?.replace('/buyer-dashboard');
         return;

@@ -34,8 +34,8 @@ export default function LoginPageClient() {
 
   useEffect(() => {
     if (!loading && user && profile) {
-      if (!profile.phone) {
-        router.replace(`/auth/phone?role=${profile.role}`);
+      if (profile.role === 'super_admin' || profile.role === 'admin_staff') {
+        router.replace('/admin-portal');
       } else if (profile.role === 'seller') {
         router.replace('/seller-dashboard');
       } else {

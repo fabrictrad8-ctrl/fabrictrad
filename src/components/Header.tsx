@@ -104,21 +104,24 @@ export default function Header() {
               <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
             ) : isLoggedIn ? (
               <>
-                {/* Role badge */}
                 <span className={`text-xs font-700 px-2.5 py-1 rounded-full border ${
-                  isSeller
-                    ? 'bg-secondary/10 text-secondary border-secondary/20' :'bg-primary/10 text-primary border-primary/20'
+                  isSeller ? 'bg-secondary/10 text-secondary border-secondary/20' : 'bg-primary/10 text-primary border-primary/20'
                 }`}>
                   {isSeller ? 'Seller' : 'Buyer'}
                 </span>
-                {/* Dashboard link */}
                 <Link
                   href={isSeller ? '/seller-dashboard' : '/buyer-dashboard'}
                   className="px-3 py-2 text-sm font-600 text-foreground hover:bg-muted rounded-lg transition-colors"
                 >
                   My Dashboard
                 </Link>
-                {/* Sign out */}
+                <Link
+                  href="/profile"
+                  className="px-3 py-2 text-sm font-600 text-foreground hover:bg-muted rounded-lg transition-colors flex items-center gap-1.5"
+                >
+                  <Icon name="UserCircleIcon" size={16} className="text-muted-foreground" />
+                  Profile
+                </Link>
                 <button
                   onClick={handleSignOut}
                   className="btn-secondary px-3 py-2 text-sm rounded-lg"
@@ -181,8 +184,7 @@ export default function Header() {
                 <span className="font-700 text-base text-secondary">FabricTrad</span>
                 {isLoggedIn && (
                   <span className={`ml-auto text-xs font-700 px-2 py-0.5 rounded-full border ${
-                    isSeller
-                      ? 'bg-secondary/10 text-secondary border-secondary/20' :'bg-primary/10 text-primary border-primary/20'
+                    isSeller ? 'bg-secondary/10 text-secondary border-secondary/20' : 'bg-primary/10 text-primary border-primary/20'
                   }`}>
                     {isSeller ? 'Seller' : 'Buyer'}
                   </span>
@@ -208,9 +210,17 @@ export default function Header() {
                     >
                       My Dashboard
                     </Link>
+                    <Link
+                      href="/profile"
+                      className="btn-secondary w-full px-4 py-3 text-sm rounded-lg text-center flex items-center justify-center gap-2"
+                      onClick={closeMobile}
+                    >
+                      <Icon name="UserCircleIcon" size={16} />
+                      My Profile
+                    </Link>
                     <button
                       onClick={handleSignOut}
-                      className="btn-secondary w-full px-4 py-3 text-sm rounded-lg text-center block"
+                      className="w-full px-4 py-3 text-sm rounded-lg text-center block border border-border text-muted-foreground hover:bg-muted transition-colors"
                     >
                       Sign Out
                     </button>
@@ -233,7 +243,7 @@ export default function Header() {
                     </Link>
                     <Link
                       href="/seller-registration"
-                      className="btn-navy w-full px-4 py-3 text-sm rounded-lg text-center block"
+                      className="w-full px-4 py-3 text-sm rounded-lg text-center block border border-secondary/30 text-secondary hover:bg-secondary/5 transition-colors"
                       onClick={closeMobile}
                     >
                       Sell on FabricTrad

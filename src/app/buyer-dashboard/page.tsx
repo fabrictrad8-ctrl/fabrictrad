@@ -14,10 +14,6 @@ export default function BuyerDashboardPage() {
         router?.replace('/login?role=buyer');
         return;
       }
-      if (profile && !profile?.phone) {
-        router?.replace('/auth/phone?role=buyer');
-        return;
-      }
       if (profile && profile?.role === 'seller') {
         router?.replace('/seller-dashboard');
         return;

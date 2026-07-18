@@ -2,95 +2,90 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import Icon from '@/components/ui/AppIcon';
+import { useAuth } from '@/contexts/AuthContext';
+import { useRouter } from 'next/navigation';
 
-type Step = 'phone' | 'otp' | 'profile' | 'address' | 'done';
+type Step = 'account' | 'profile' | 'address' | 'done';
 
 const steps = [
-  { key: 'phone', label: 'Phone', icon: 'DevicePhoneMobileIcon' },
-  { key: 'otp', label: 'Verify OTP', icon: 'KeyIcon' },
+  { key: 'account', label: 'Account', icon: 'UserIcon' },
   { key: 'profile', label: 'Business Profile', icon: 'BuildingOfficeIcon' },
   { key: 'address', label: 'Address', icon: 'MapPinIcon' },
   { key: 'done', label: 'Done', icon: 'CheckCircleIcon' },
 ];
 
-const stepOrder: Step[] = ['phone', 'otp', 'profile', 'address', 'done'];
+const stepOrder: Step[] = ['account', 'profile', 'address', 'done'];
+
+const indianStates = [
+  'Andhra Pradesh', 'Gujarat', 'Karnataka', 'Kerala', 'Madhya Pradesh',
+  'Maharashtra', 'Punjab', 'Rajasthan', 'Tamil Nadu', 'Telangana',
+  'Uttar Pradesh', 'West Bengal', 'Delhi', 'Haryana', 'Bihar',
+];
+const businessTypes = ['Retailer', 'Wholesaler', 'Manufacturer', 'Designer', 'Exporter', 'Other'];
+const categories = ['Silk Fabrics', 'Cotton & Linen', 'Net & Embroidered', 'Georgette', 'Polyester', 'Handloom', 'All Categories'];
 
 export default function BuyerRegistrationFlow() {
-  const [currentStep, setCurrentStep] = useState<Step>('phone');
-  const [phone, setPhone] = useState('');
-  const [otp, setOtp] = useState(['', '', '', '', '', '']);
-  const [otpSent, setOtpSent] = useState(false);
-  const [resendCooldown, setResendCooldown] = useState(0);
-  const [phoneConflictError, setPhoneConflictError] = useState('');
+  const router = useRouter();
+  const { signUp, signInWithGoogle } = useAuth();
+
+  const [currentStep, setCurrentStep] = useState<Step>('account');
+  const [account, setAccount] = useState({ fullName: '', email: '', password: '', confirmPassword: '' });
+  const [showPassword, setShowPassword] = useState(false);
   const [form, setForm] = useState({
-    fullName: '', email: '', businessName: '', businessType: '',
-    gstin: '', category: '', volume: '',
+    businessName: '', businessType: '', gstin: '', category: '', volume: '',
   });
   const [address, setAddress] = useState({
     line1: '', line2: '', landmark: '', city: '', district: '', state: '', pin: '', country: 'India',
     recipientName: '', recipientPhone: '',
   });
   const [agreed, setAgreed] = useState(false);
+  const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
   const [buyerId] = useState('FT-BYR-007842');
 
   const currentIndex = stepOrder.indexOf(currentStep);
 
-  const handleSendOtp = () => {
-    if (phone.length === 10) {
-      // Check if this number is already registered as a seller
-      const sellerNumbers: string[] = JSON.parse(typeof window !== 'undefined' ? localStorage.getItem('ft_seller_phones') || '[]' : '[]');
-      if (sellerNumbers.includes(phone)) {
-        setPhoneConflictError('This mobile number is already registered as a Seller. A person cannot be both a buyer and seller with the same number. Please use a different mobile number for your buyer account.');
-        return;
-      }
-      setPhoneConflictError('');
-      // Save buyer phone
-      if (typeof window !== 'undefined') {
-        const existing: string[] = JSON.parse(localStorage.getItem('ft_buyer_phones') || '[]');
-        if (!existing.includes(phone)) {
-          localStorage.setItem('ft_buyer_phones', JSON.stringify([...existing, phone]));
-        }
-      }
-      setOtpSent(true);
-      setResendCooldown(30);
-      const interval = setInterval(() => {
-        setResendCooldown((prev) => {
-          if (prev <= 1) { clearInterval(interval); return 0; }
-          return prev - 1;
-        });
-      }, 1000);
-      setCurrentStep('otp');
+  const handleGoogleSignup = async () => {
+    setError('');
+    setSubmitting(true);
+    try {
+      await signInWithGoogle('buyer');
+    } catch (e: any) {
+      setError(e.message || 'Google sign-up failed');
+      setSubmitting(false);
     }
   };
 
-  const handleOtpChange = (index: number, val: string) => {
-    if (val.length > 1) return;
-    const newOtp = [...otp];
-    newOtp[index] = val;
-    setOtp(newOtp);
-    if (val && index < 5) {
-      const next = document.getElementById(`otp-${index + 1}`);
-      next?.focus();
-    }
-  };
-
-  const handleVerifyOtp = () => {
+  const handleAccountContinue = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    if (!account.fullName.trim()) { setError('Full name is required'); return; }
+    if (!account.email.trim()) { setError('Email is required'); return; }
+    if (account.password.length < 8) { setError('Password must be at least 8 characters'); return; }
+    if (account.password !== account.confirmPassword) { setError('Passwords do not match'); return; }
     setCurrentStep('profile');
   };
 
-  const indianStates = [
-    'Andhra Pradesh', 'Gujarat', 'Karnataka', 'Kerala', 'Madhya Pradesh',
-    'Maharashtra', 'Punjab', 'Rajasthan', 'Tamil Nadu', 'Telangana',
-    'Uttar Pradesh', 'West Bengal', 'Delhi', 'Haryana', 'Bihar',
-  ];
-
-  const businessTypes = ['Retailer', 'Wholesaler', 'Manufacturer', 'Designer', 'Exporter', 'Other'];
-  const categories = ['Silk Fabrics', 'Cotton & Linen', 'Net & Embroidered', 'Georgette', 'Polyester', 'Handloom', 'All Categories'];
+  const handleComplete = async () => {
+    if (!agreed) return;
+    setSubmitting(true);
+    setError('');
+    try {
+      await signUp(account.email, account.password, {
+        fullName: account.fullName,
+        role: 'buyer',
+      });
+      setCurrentStep('done');
+    } catch (e: any) {
+      setError(e.message || 'Registration failed. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <div className="min-h-screen gradient-hero py-10 px-4">
       <div className="max-w-2xl mx-auto">
-        {/* Header */}
         <div className="text-center mb-8">
           <h1 className="text-2xl font-800 text-foreground mb-1">Create Buyer Account</h1>
           <p className="text-sm text-muted-foreground">Join 45,000+ businesses sourcing on FabricTrad</p>
@@ -109,12 +104,12 @@ export default function BuyerRegistrationFlow() {
             return (
               <div key={step.key} className="flex flex-col items-center gap-1.5 relative z-10">
                 <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 transition-all ${
-                  isCompleted ? 'bg-success border-success' : isActive ?'bg-primary border-primary': 'bg-background border-border'
+                  isCompleted ? 'bg-success border-success' : isActive ? 'bg-primary border-primary' : 'bg-background border-border'
                 }`}>
                   {isCompleted ? (
                     <Icon name="CheckIcon" size={16} className="text-white" />
                   ) : (
-                    <Icon name={step.icon as 'KeyIcon'} size={16} className={isActive ? 'text-white' : 'text-muted-foreground'} />
+                    <Icon name={step.icon as 'UserIcon'} size={16} className={isActive ? 'text-white' : 'text-muted-foreground'} />
                   )}
                 </div>
                 <span className={`text-xs font-600 hidden sm:block ${isActive ? 'text-primary' : isCompleted ? 'text-success' : 'text-muted-foreground'}`}>
@@ -125,143 +120,119 @@ export default function BuyerRegistrationFlow() {
           })}
         </div>
 
-        {/* Step Content */}
         <div className="bg-card rounded-2xl border border-border p-6 md:p-8 card-shadow-lg">
+          {error && (
+            <div className="flex items-start gap-2 p-3 bg-error/10 border border-error/20 rounded-xl mb-4">
+              <Icon name="ExclamationTriangleIcon" size={14} className="text-error shrink-0 mt-0.5" />
+              <p className="text-xs text-error">{error}</p>
+            </div>
+          )}
 
-          {/* Step 1: Phone */}
-          {currentStep === 'phone' && (
+          {/* Step 1: Account */}
+          {currentStep === 'account' && (
             <div>
-              <h2 className="text-xl font-800 text-foreground mb-1">Enter your mobile number</h2>
-              <p className="text-sm text-muted-foreground mb-6">We'll send a 6-digit OTP to verify your number</p>
-
-              <div className="mb-4">
-                <label className="block text-sm font-700 text-foreground mb-2">Mobile Number</label>
-                <div className="flex items-center gap-2">
-                  <div className="flex items-center gap-2 bg-muted border border-border rounded-xl px-3 py-3 shrink-0">
-                    <span className="text-lg">🇮🇳</span>
-                    <span className="text-sm font-600 text-foreground">+91</span>
-                  </div>
-                  <input
-                    type="tel"
-                    maxLength={10}
-                    value={phone}
-                    onChange={(e) => { setPhone(e.target.value.replace(/\D/g, '')); setPhoneConflictError(''); }}
-                    placeholder="98765 43210"
-                    className={`input-base flex-1 px-4 py-3 text-lg font-600 rounded-xl tracking-widest ${phoneConflictError ? 'border-error' : ''}`}
-                  />
-                </div>
-              </div>
-
-              {phoneConflictError && (
-                <div className="flex items-start gap-2 p-3 bg-error/10 border border-error/20 rounded-xl mb-4">
-                  <span className="text-error text-sm shrink-0">⚠️</span>
-                  <p className="text-xs text-error">{phoneConflictError}</p>
-                </div>
-              )}
-
-              {/* Unique number notice */}
-              <div className="flex items-start gap-2 p-3 bg-primary/5 border border-primary/20 rounded-xl mb-4">
-                <Icon name="InformationCircleIcon" size={14} className="text-primary shrink-0 mt-0.5" />
-                <p className="text-xs text-primary">
-                  If you are also a seller on FabricTrad, you must use a <strong>different mobile number</strong> for your buyer account. The same number cannot be used for both accounts.
-                </p>
-              </div>
-
-              {/* Dev mode notice */}
-              <div className="flex items-center gap-2 p-3 bg-amber-50 border border-amber-200 rounded-xl mb-5">
-                <Icon name="BeakerIcon" size={14} className="text-warning shrink-0" />
-                <p className="text-xs text-warning"><span className="font-700">DEV MODE:</span> OTP will be shown in console. Real SMS disabled.</p>
-              </div>
+              <h2 className="text-xl font-800 text-foreground mb-1">Create your account</h2>
+              <p className="text-sm text-muted-foreground mb-6">Sign up with Google or email and password</p>
 
               <button
-                onClick={handleSendOtp}
-                disabled={phone.length !== 10}
-                className="btn-primary w-full py-3 text-sm rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
+                onClick={handleGoogleSignup}
+                disabled={submitting}
+                className="w-full flex items-center justify-center gap-3 border border-border rounded-xl py-3 text-sm font-600 text-foreground hover:bg-muted transition-colors disabled:opacity-50 mb-4"
               >
-                Send OTP
+                <svg width="18" height="18" viewBox="0 0 24 24">
+                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                </svg>
+                Continue with Google
               </button>
+
+              <div className="flex items-center gap-3 my-4">
+                <div className="flex-1 h-px bg-border" />
+                <span className="text-xs text-muted-foreground">or</span>
+                <div className="flex-1 h-px bg-border" />
+              </div>
+
+              <form onSubmit={handleAccountContinue} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-700 text-foreground mb-1.5">Full Name *</label>
+                  <input
+                    type="text"
+                    value={account.fullName}
+                    onChange={(e) => setAccount({ ...account, fullName: e.target.value })}
+                    placeholder="Rajesh Kumar"
+                    className="input-base w-full px-4 py-3 text-sm rounded-xl"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-700 text-foreground mb-1.5">Email Address *</label>
+                  <input
+                    type="email"
+                    value={account.email}
+                    onChange={(e) => setAccount({ ...account, email: e.target.value })}
+                    placeholder="rajesh@business.com"
+                    className="input-base w-full px-4 py-3 text-sm rounded-xl"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-700 text-foreground mb-1.5">Password *</label>
+                  <div className="relative">
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      value={account.password}
+                      onChange={(e) => setAccount({ ...account, password: e.target.value })}
+                      placeholder="Min. 8 characters"
+                      className="input-base w-full px-4 py-3 pr-10 text-sm rounded-xl"
+                      required
+                    />
+                    <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                      <Icon name={showPassword ? 'EyeSlashIcon' : 'EyeIcon'} size={16} />
+                    </button>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-700 text-foreground mb-1.5">Confirm Password *</label>
+                  <input
+                    type="password"
+                    value={account.confirmPassword}
+                    onChange={(e) => setAccount({ ...account, confirmPassword: e.target.value })}
+                    placeholder="Repeat password"
+                    className="input-base w-full px-4 py-3 text-sm rounded-xl"
+                    required
+                  />
+                </div>
+                <div className="flex items-start gap-2 p-3 bg-primary/5 border border-primary/20 rounded-xl">
+                  <Icon name="InformationCircleIcon" size={14} className="text-primary shrink-0 mt-0.5" />
+                  <p className="text-xs text-primary">
+                    Phone number and address can be added in your profile after signing in. The same email cannot be used for both buyer and seller accounts.
+                  </p>
+                </div>
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="btn-primary w-full py-3 text-sm rounded-xl disabled:opacity-50"
+                >
+                  Continue
+                </button>
+              </form>
 
               <p className="text-xs text-muted-foreground text-center mt-4">
                 Already have an account?{' '}
-                <Link href="/buyer-dashboard" className="text-primary font-600 hover:underline">Login here</Link>
+                <Link href="/login" className="text-primary font-600 hover:underline">Login here</Link>
               </p>
             </div>
           )}
 
-          {/* Step 2: OTP */}
-          {currentStep === 'otp' && (
-            <div>
-              <h2 className="text-xl font-800 text-foreground mb-1">Verify your number</h2>
-              <p className="text-sm text-muted-foreground mb-6">
-                OTP sent to +91 {phone.slice(0, 5)}*****
-              </p>
-
-              <div className="flex justify-center gap-2 sm:gap-3 mb-6">
-                {otp.map((digit, i) => (
-                  <input
-                    key={i}
-                    id={`otp-${i}`}
-                    type="text"
-                    inputMode="numeric"
-                    maxLength={1}
-                    value={digit}
-                    onChange={(e) => handleOtpChange(i, e.target.value)}
-                    className="w-11 h-14 text-center text-xl font-800 input-base rounded-xl"
-                  />
-                ))}
-              </div>
-
-              <button onClick={handleVerifyOtp} className="btn-primary w-full py-3 text-sm rounded-xl mb-3">
-                Verify OTP
-              </button>
-
-              <div className="text-center">
-                {resendCooldown > 0 ? (
-                  <p className="text-xs text-muted-foreground">Resend OTP in {resendCooldown}s</p>
-                ) : (
-                  <button onClick={handleSendOtp} className="text-xs text-primary font-600 hover:underline">
-                    Resend OTP
-                  </button>
-                )}
-              </div>
-
-              <button onClick={() => setCurrentStep('phone')} className="mt-4 text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 mx-auto">
-                <Icon name="ArrowLeftIcon" size={12} />
-                Change number
-              </button>
-            </div>
-          )}
-
-          {/* Step 3: Business Profile */}
+          {/* Step 2: Business Profile */}
           {currentStep === 'profile' && (
             <div>
               <h2 className="text-xl font-800 text-foreground mb-1">Business Profile</h2>
-              <p className="text-sm text-muted-foreground mb-6">Tell us about your business</p>
+              <p className="text-sm text-muted-foreground mb-6">Tell us about your business (optional — can be updated later)</p>
 
               <div className="space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-700 text-foreground mb-1.5">Full Name *</label>
-                    <input
-                      type="text"
-                      value={form.fullName}
-                      onChange={(e) => setForm({ ...form, fullName: e.target.value })}
-                      placeholder="Rajesh Kumar"
-                      className="input-base w-full px-4 py-3 text-sm rounded-xl"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-700 text-foreground mb-1.5">Email Address *</label>
-                    <input
-                      type="email"
-                      value={form.email}
-                      onChange={(e) => setForm({ ...form, email: e.target.value })}
-                      placeholder="rajesh@business.com"
-                      className="input-base w-full px-4 py-3 text-sm rounded-xl"
-                    />
-                  </div>
-                </div>
-
                 <div>
                   <label className="block text-sm font-700 text-foreground mb-1.5">Business Name</label>
                   <input
@@ -300,7 +271,7 @@ export default function BuyerRegistrationFlow() {
 
                 <div>
                   <label className="block text-sm font-700 text-foreground mb-1.5">
-                    GSTIN <span className="text-xs text-muted-foreground font-400">(optional — required for GST invoices)</span>
+                    GSTIN <span className="text-xs text-muted-foreground font-400">(optional)</span>
                   </label>
                   <input
                     type="text"
@@ -328,25 +299,27 @@ export default function BuyerRegistrationFlow() {
                 </div>
               </div>
 
-              <button
-                onClick={() => setCurrentStep('address')}
-                className="btn-primary w-full py-3 text-sm rounded-xl mt-6"
-              >
-                Continue to Address
-              </button>
+              <div className="flex gap-3 mt-6">
+                <button onClick={() => setCurrentStep('account')} className="btn-secondary flex-1 py-3 text-sm rounded-xl">
+                  Back
+                </button>
+                <button onClick={() => setCurrentStep('address')} className="btn-primary flex-1 py-3 text-sm rounded-xl">
+                  Continue
+                </button>
+              </div>
             </div>
           )}
 
-          {/* Step 4: Address */}
+          {/* Step 3: Address */}
           {currentStep === 'address' && (
             <div>
               <h2 className="text-xl font-800 text-foreground mb-1">Shipping Address</h2>
-              <p className="text-sm text-muted-foreground mb-6">Primary delivery address for your orders</p>
+              <p className="text-sm text-muted-foreground mb-6">Primary delivery address (optional — can be added later in profile)</p>
 
               <div className="space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-700 text-foreground mb-1.5">Recipient Name *</label>
+                    <label className="block text-sm font-700 text-foreground mb-1.5">Recipient Name</label>
                     <input
                       type="text"
                       value={address.recipientName}
@@ -356,7 +329,7 @@ export default function BuyerRegistrationFlow() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-700 text-foreground mb-1.5">Recipient Phone *</label>
+                    <label className="block text-sm font-700 text-foreground mb-1.5">Recipient Phone</label>
                     <input
                       type="tel"
                       value={address.recipientPhone}
@@ -368,7 +341,7 @@ export default function BuyerRegistrationFlow() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-700 text-foreground mb-1.5">Address Line 1 *</label>
+                  <label className="block text-sm font-700 text-foreground mb-1.5">Address Line 1</label>
                   <input
                     type="text"
                     value={address.line1}
@@ -389,20 +362,9 @@ export default function BuyerRegistrationFlow() {
                   />
                 </div>
 
-                <div>
-                  <label className="block text-sm font-700 text-foreground mb-1.5">Landmark</label>
-                  <input
-                    type="text"
-                    value={address.landmark}
-                    onChange={(e) => setAddress({ ...address, landmark: e.target.value })}
-                    placeholder="Near Textile Market / Opposite Bank"
-                    className="input-base w-full px-4 py-3 text-sm rounded-xl"
-                  />
-                </div>
-
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <div className="col-span-2 sm:col-span-1">
-                    <label className="block text-sm font-700 text-foreground mb-1.5">PIN Code *</label>
+                    <label className="block text-sm font-700 text-foreground mb-1.5">PIN Code</label>
                     <input
                       type="text"
                       maxLength={6}
@@ -413,7 +375,7 @@ export default function BuyerRegistrationFlow() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-700 text-foreground mb-1.5">City *</label>
+                    <label className="block text-sm font-700 text-foreground mb-1.5">City</label>
                     <input
                       type="text"
                       value={address.city}
@@ -433,7 +395,7 @@ export default function BuyerRegistrationFlow() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-700 text-foreground mb-1.5">State *</label>
+                    <label className="block text-sm font-700 text-foreground mb-1.5">State</label>
                     <select
                       value={address.state}
                       onChange={(e) => setAddress({ ...address, state: e.target.value })}
@@ -445,7 +407,6 @@ export default function BuyerRegistrationFlow() {
                   </div>
                 </div>
 
-                {/* T&C */}
                 <div
                   className="flex items-start gap-3 p-4 bg-muted rounded-xl cursor-pointer"
                   onClick={() => setAgreed(!agreed)}
@@ -458,22 +419,31 @@ export default function BuyerRegistrationFlow() {
                     <span className="text-primary font-600">Buyer User Agreement</span>,{' '}
                     <span className="text-primary font-600">Terms of Use</span>, and{' '}
                     <span className="text-primary font-600">Privacy Policy</span>.
-                    I understand the No Return / Exchange-only policy with unboxing video within 24 hours.
                   </p>
                 </div>
               </div>
 
-              <button
-                onClick={() => setCurrentStep('done')}
-                disabled={!agreed}
-                className="btn-primary w-full py-3 text-sm rounded-xl mt-6 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Complete Registration
-              </button>
+              <div className="flex gap-3 mt-6">
+                <button onClick={() => setCurrentStep('profile')} className="btn-secondary flex-1 py-3 text-sm rounded-xl">
+                  Back
+                </button>
+                <button
+                  onClick={handleComplete}
+                  disabled={!agreed || submitting}
+                  className="btn-primary flex-1 py-3 text-sm rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {submitting ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      Creating...
+                    </span>
+                  ) : 'Complete Registration'}
+                </button>
+              </div>
             </div>
           )}
 
-          {/* Step 5: Done */}
+          {/* Step 4: Done */}
           {currentStep === 'done' && (
             <div className="text-center py-6">
               <div className="w-20 h-20 rounded-full bg-success/10 border-2 border-success flex items-center justify-center mx-auto mb-5">
@@ -481,7 +451,8 @@ export default function BuyerRegistrationFlow() {
               </div>
 
               <h2 className="text-2xl font-800 text-foreground mb-2">Welcome to FabricTrad!</h2>
-              <p className="text-muted-foreground text-sm mb-5">Your buyer account has been created successfully.</p>
+              <p className="text-muted-foreground text-sm mb-2">Your buyer account has been created successfully.</p>
+              <p className="text-xs text-muted-foreground mb-5">Check your email to verify your account, then complete your profile with phone number and address.</p>
 
               <div className="bg-muted rounded-2xl p-4 mb-6 inline-block">
                 <p className="text-xs text-muted-foreground mb-1">Your Buyer ID</p>
@@ -490,11 +461,10 @@ export default function BuyerRegistrationFlow() {
 
               <div className="space-y-2 text-left mb-6 bg-muted rounded-xl p-4">
                 {[
-                  '✅ Phone number verified',
-                  '✅ Business profile saved',
-                  '✅ Shipping address saved',
-                  '📧 Welcome email sent',
-                  '🔔 Notifications enabled',
+                  '✅ Account created',
+                  '📧 Verification email sent',
+                  '📱 Add phone number in profile settings',
+                  '🏠 Add address in profile settings',
                 ].map((item) => (
                   <p key={item} className="text-sm text-foreground">{item}</p>
                 ))}
@@ -512,7 +482,6 @@ export default function BuyerRegistrationFlow() {
           )}
         </div>
 
-        {/* Trust badges */}
         {currentStep !== 'done' && (
           <div className="flex items-center justify-center gap-6 mt-6">
             {[

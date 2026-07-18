@@ -2,17 +2,17 @@
 import React, { useState, useRef } from 'react';
 import Link from 'next/link';
 import Icon from '@/components/ui/AppIcon';
+import { useAuth } from '@/contexts/AuthContext';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-type Step = 'phone' | 'otp' | 'business' | 'gstin' | 'bank' | 'documents' | 'done';
+type Step = 'account' | 'business' | 'gstin' | 'bank' | 'documents' | 'done';
 
 interface SellerForm {
-  phone: string;
-  otp: string[];
   businessName: string;
   businessType: string;
   ownerName: string;
   email: string;
+  password: string;
+  confirmPassword: string;
   city: string;
   state: string;
   pincode: string;
@@ -48,10 +48,8 @@ interface DocumentUpload {
   required: boolean;
 }
 
-// ─── Constants ────────────────────────────────────────────────────────────────
 const STEPS: { key: Step; label: string; icon: string }[] = [
-  { key: 'phone', label: 'Phone', icon: 'DevicePhoneMobileIcon' },
-  { key: 'otp', label: 'Verify', icon: 'KeyIcon' },
+  { key: 'account', label: 'Account', icon: 'UserIcon' },
   { key: 'business', label: 'Business', icon: 'BuildingOfficeIcon' },
   { key: 'gstin', label: 'GSTIN', icon: 'IdentificationIcon' },
   { key: 'bank', label: 'Bank', icon: 'BanknotesIcon' },
@@ -59,7 +57,7 @@ const STEPS: { key: Step; label: string; icon: string }[] = [
   { key: 'done', label: 'Done', icon: 'CheckCircleIcon' },
 ];
 
-const STEP_ORDER: Step[] = ['phone', 'otp', 'business', 'gstin', 'bank', 'documents', 'done'];
+const STEP_ORDER: Step[] = ['account', 'business', 'gstin', 'bank', 'documents', 'done'];
 
 const BUSINESS_TYPES = ['Manufacturer', 'Wholesaler', 'Trader', 'Exporter', 'Weaver', 'Processor'];
 const CATEGORIES = ['Silk Fabrics', 'Cotton & Linen', 'Net & Embroidered', 'Georgette', 'Polyester', 'Handloom', 'Synthetic Blends', 'Woollen'];
@@ -75,7 +73,6 @@ const REQUIRED_DOCS: { key: string; label: string; hint: string; required: boole
   { key: 'address_proof', label: 'Address Proof', hint: 'Utility bill or rent agreement', required: false },
 ];
 
-// ─── GSTIN Validator ──────────────────────────────────────────────────────────
 function validateGstinFormat(gstin: string): boolean {
   const regex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
   return regex.test(gstin.toUpperCase());
@@ -85,25 +82,25 @@ function extractStateFromGstin(gstin: string): string {
   const stateCode: Record<string, string> = {
     '01': 'Jammu & Kashmir', '02': 'Himachal Pradesh', '03': 'Punjab', '04': 'Chandigarh',
     '05': 'Uttarakhand', '06': 'Haryana', '07': 'Delhi', '08': 'Rajasthan', '09': 'Uttar Pradesh',
-    '10': 'Bihar', '11': 'Sikkim', '12': 'Arunachal Pradesh', '13': 'Nagaland', '14': 'Manipur',
-    '15': 'Mizoram', '16': 'Tripura', '17': 'Meghalaya', '18': 'Assam', '19': 'West Bengal',
-    '20': 'Jharkhand', '21': 'Odisha', '22': 'Chhattisgarh', '23': 'Madhya Pradesh',
-    '24': 'Gujarat', '27': 'Maharashtra', '29': 'Karnataka', '30': 'Goa', '32': 'Kerala',
-    '33': 'Tamil Nadu', '36': 'Telangana', '37': 'Andhra Pradesh',
+    '10': 'Bihar', '18': 'Assam', '19': 'West Bengal', '20': 'Jharkhand', '21': 'Odisha',
+    '22': 'Chhattisgarh', '23': 'Madhya Pradesh', '24': 'Gujarat', '27': 'Maharashtra',
+    '29': 'Karnataka', '30': 'Goa', '32': 'Kerala', '33': 'Tamil Nadu', '36': 'Telangana', '37': 'Andhra Pradesh',
   };
   return stateCode[gstin.slice(0, 2)] || 'Unknown State';
 }
 
-// ─── Main Component ───────────────────────────────────────────────────────────
 export default function SellerRegistrationFlow() {
-  const [currentStep, setCurrentStep] = useState<Step>('phone');
-  const [resendCooldown, setResendCooldown] = useState(0);
+  const { signUp, signInWithGoogle } = useAuth();
+
+  const [currentStep, setCurrentStep] = useState<Step>('account');
   const [sellerId] = useState(`FT-SLR-${Math.floor(100000 + Math.random() * 900000)}`);
-  const [phoneConflictError, setPhoneConflictError] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
   const [form, setForm] = useState<SellerForm>({
-    phone: '', otp: ['', '', '', '', '', ''],
     businessName: '', businessType: '', ownerName: '', email: '',
+    password: '', confirmPassword: '',
     city: '', state: '', pincode: '', address: '', categories: [],
     monthlyCapacity: '', gstin: '', pan: '',
     bankAccountNumber: '', bankIfsc: '', bankAccountName: '', bankName: '',
@@ -119,33 +116,28 @@ export default function SellerRegistrationFlow() {
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const currentIndex = STEP_ORDER.indexOf(currentStep);
 
-  // ─── Handlers ───────────────────────────────────────────────────────────────
   const setField = (key: keyof SellerForm, value: unknown) =>
     setForm((prev) => ({ ...prev, [key]: value }));
 
-  const handleSendOtp = () => {
-    if (form.phone.length === 10) {
-      // Check if this number is already registered as a buyer
-      const buyerNumbers: string[] = JSON.parse(typeof window !== 'undefined' ? localStorage.getItem('ft_buyer_phones') || '[]' : '[]');
-      if (buyerNumbers.includes(form.phone)) {
-        setPhoneConflictError('This mobile number is already registered as a Buyer. A person cannot be both a buyer and seller with the same number. Please use a different mobile number for your seller account.');
-        return;
-      }
-      setPhoneConflictError('');
-      setResendCooldown(30);
-      const interval = setInterval(() => {
-        setResendCooldown((prev) => { if (prev <= 1) { clearInterval(interval); return 0; } return prev - 1; });
-      }, 1000);
-      setCurrentStep('otp');
+  const handleGoogleSignup = async () => {
+    setError('');
+    setSubmitting(true);
+    try {
+      await signInWithGoogle('seller');
+    } catch (e: any) {
+      setError(e.message || 'Google sign-up failed');
+      setSubmitting(false);
     }
   };
 
-  const handleOtpChange = (index: number, val: string) => {
-    if (val.length > 1) return;
-    const newOtp = [...form.otp];
-    newOtp[index] = val;
-    setField('otp', newOtp);
-    if (val && index < 5) document.getElementById(`sotp-${index + 1}`)?.focus();
+  const handleAccountContinue = (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    if (!form.ownerName.trim()) { setError('Owner name is required'); return; }
+    if (!form.email.trim()) { setError('Email is required'); return; }
+    if (form.password.length < 8) { setError('Password must be at least 8 characters'); return; }
+    if (form.password !== form.confirmPassword) { setError('Passwords do not match'); return; }
+    setCurrentStep('business');
   };
 
   const handleGstinValidate = async () => {
@@ -155,7 +147,6 @@ export default function SellerRegistrationFlow() {
       return;
     }
     setGstinValidation({ status: 'validating', message: 'Verifying with GST portal…' });
-    // Simulate API call (real integration: GST Suvidha Provider API)
     await new Promise((r) => setTimeout(r, 1500));
     const state = extractStateFromGstin(gstin);
     const pan = gstin.slice(2, 12);
@@ -173,7 +164,6 @@ export default function SellerRegistrationFlow() {
       return;
     }
     setBankVerification({ status: 'verifying', message: 'Creating Razorpay Route linked account…' });
-    // Simulate Razorpay Route linked account creation
     await new Promise((r) => setTimeout(r, 2000));
     const mockLinkedAccountId = `acc_${Math.random().toString(36).slice(2, 14)}`;
     setBankVerification({
@@ -185,21 +175,33 @@ export default function SellerRegistrationFlow() {
 
   const handleFileSelect = async (docKey: string, file: File) => {
     setDocuments((prev) => ({ ...prev, [docKey]: { ...prev[docKey], file, status: 'uploading' } }));
-    // Simulate upload
     await new Promise((r) => setTimeout(r, 1200));
-    const mockUrl = `https://storage.fabrictrad.com/docs/${docKey}_${Date.now()}.${file.name.split('.').pop()}`;
-    setDocuments((prev) => ({ ...prev, [docKey]: { ...prev[docKey], status: 'uploaded', url: mockUrl } }));
-    // Simulate real-time approval (admin review)
+    setDocuments((prev) => ({ ...prev, [docKey]: { ...prev[docKey], status: 'uploaded' } }));
     setTimeout(() => {
       setDocuments((prev) => ({ ...prev, [docKey]: { ...prev[docKey], status: 'approved' } }));
     }, 3000);
   };
 
+  const handleFinalSubmit = async () => {
+    setSubmitting(true);
+    setError('');
+    try {
+      await signUp(form.email, form.password, {
+        fullName: form.ownerName,
+        role: 'seller',
+      });
+      setCurrentStep('done');
+    } catch (e: any) {
+      setError(e.message || 'Registration failed. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const canProceedToNext = (): boolean => {
     switch (currentStep) {
-      case 'phone': return form.phone.length === 10;
-      case 'otp': return form.otp.every((d) => d !== '');
-      case 'business': return !!(form.businessName && form.businessType && form.ownerName && form.email && form.state && form.city);
+      case 'account': return !!(form.ownerName && form.email && form.password.length >= 8 && form.password === form.confirmPassword);
+      case 'business': return !!(form.businessName && form.businessType && form.state && form.city);
       case 'gstin': return gstinValidation.status === 'valid';
       case 'bank': return bankVerification.status === 'verified';
       case 'documents': return REQUIRED_DOCS.filter((d) => d.required).every((d) => ['uploaded', 'approved'].includes(documents[d.key]?.status));
@@ -208,6 +210,10 @@ export default function SellerRegistrationFlow() {
   };
 
   const goNext = () => {
+    if (currentStep === 'documents') {
+      handleFinalSubmit();
+      return;
+    }
     const idx = STEP_ORDER.indexOf(currentStep);
     if (idx < STEP_ORDER.length - 1) setCurrentStep(STEP_ORDER[idx + 1]);
   };
@@ -217,11 +223,9 @@ export default function SellerRegistrationFlow() {
     if (idx > 0) setCurrentStep(STEP_ORDER[idx - 1]);
   };
 
-  // ─── Render ──────────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen gradient-hero py-10 px-4">
       <div className="max-w-2xl mx-auto">
-        {/* Header */}
         <div className="text-center mb-8">
           <h1 className="text-2xl font-800 text-foreground mb-1">Become a FabricTrad Seller</h1>
           <p className="text-sm text-muted-foreground">Reach 45,000+ verified B2B buyers across India</p>
@@ -244,7 +248,7 @@ export default function SellerRegistrationFlow() {
                 }`}>
                   {isCompleted
                     ? <Icon name="CheckIcon" size={16} className="text-white" />
-                    : <Icon name={step.icon as 'KeyIcon'} size={16} className={isActive ? 'text-white' : 'text-muted-foreground'} />
+                    : <Icon name={step.icon as 'UserIcon'} size={16} className={isActive ? 'text-white' : 'text-muted-foreground'} />
                   }
                 </div>
                 <span className={`text-xs font-600 hidden sm:block ${isActive ? 'text-secondary' : isCompleted ? 'text-success' : 'text-muted-foreground'}`}>
@@ -255,99 +259,94 @@ export default function SellerRegistrationFlow() {
           })}
         </div>
 
-        {/* Step Card */}
         <div className="bg-card rounded-2xl border border-border p-6 md:p-8 shadow-sm">
+          {error && (
+            <div className="flex items-start gap-2 p-3 bg-error/10 border border-error/20 rounded-xl mb-4">
+              <Icon name="ExclamationTriangleIcon" size={14} className="text-error shrink-0 mt-0.5" />
+              <p className="text-xs text-error">{error}</p>
+            </div>
+          )}
 
-          {/* ── Step 1: Phone ── */}
-          {currentStep === 'phone' && (
+          {/* ── Step 1: Account ── */}
+          {currentStep === 'account' && (
             <div>
-              <h2 className="text-xl font-800 text-foreground mb-1">Enter your mobile number</h2>
-              <p className="text-sm text-muted-foreground mb-6">We'll send a 6-digit OTP to verify</p>
-              <label className="block text-sm font-700 text-foreground mb-2">Mobile Number</label>
-              <div className="flex items-center gap-2 mb-4">
-                <div className="flex items-center gap-2 bg-muted border border-border rounded-xl px-3 py-3 shrink-0">
-                  <span className="text-lg">🇮🇳</span>
-                  <span className="text-sm font-600 text-foreground">+91</span>
-                </div>
-                <input
-                  type="tel" maxLength={10} value={form.phone}
-                  onChange={(e) => { setField('phone', e.target.value.replace(/\D/g, '')); setPhoneConflictError(''); }}
-                  placeholder="98765 43210"
-                  className={`input-base flex-1 px-4 py-3 text-lg font-600 rounded-xl tracking-widest ${phoneConflictError ? 'border-error' : ''}`}
-                />
-              </div>
-              {phoneConflictError && (
-                <div className="flex items-start gap-2 p-3 bg-error/10 border border-error/20 rounded-xl mb-4">
-                  <span className="text-error text-sm shrink-0">⚠️</span>
-                  <p className="text-xs text-error">{phoneConflictError}</p>
-                </div>
-              )}
-              <div className="flex items-center gap-2 p-3 bg-amber-50 border border-amber-200 rounded-xl mb-5">
-                <Icon name="BeakerIcon" size={14} className="text-warning shrink-0" />
-                <p className="text-xs text-warning"><span className="font-700">DEV MODE:</span> OTP shown in console. Real SMS disabled.</p>
-              </div>
-              <div className="p-3 bg-secondary/5 border border-secondary/20 rounded-xl mb-5">
-                <p className="text-xs text-secondary font-600">
-                  ⚠️ Important: If you are also a buyer on FabricTrad, you must use a <strong>different mobile number</strong> for your seller account. The same number cannot be used for both buyer and seller accounts.
-                </p>
-              </div>
-              <button onClick={handleSendOtp} disabled={form.phone.length !== 10}
-                className="btn-primary w-full py-3 text-sm rounded-xl disabled:opacity-50 disabled:cursor-not-allowed">
-                Send OTP
+              <h2 className="text-xl font-800 text-foreground mb-1">Create your seller account</h2>
+              <p className="text-sm text-muted-foreground mb-6">Sign up with Google or email and password</p>
+
+              <button
+                onClick={handleGoogleSignup}
+                disabled={submitting}
+                className="w-full flex items-center justify-center gap-3 border border-border rounded-xl py-3 text-sm font-600 text-foreground hover:bg-muted transition-colors disabled:opacity-50 mb-4"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24">
+                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                </svg>
+                Continue with Google
               </button>
+
+              <div className="flex items-center gap-3 my-4">
+                <div className="flex-1 h-px bg-border" />
+                <span className="text-xs text-muted-foreground">or</span>
+                <div className="flex-1 h-px bg-border" />
+              </div>
+
+              <form onSubmit={handleAccountContinue} className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-700 text-foreground mb-1.5">Owner / Contact Name *</label>
+                    <input type="text" value={form.ownerName} onChange={(e) => setField('ownerName', e.target.value)}
+                      placeholder="Arjun Mehta" className="input-base w-full px-4 py-3 text-sm rounded-xl" required />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-700 text-foreground mb-1.5">Email Address *</label>
+                    <input type="email" value={form.email} onChange={(e) => setField('email', e.target.value)}
+                      placeholder="arjun@textiles.com" className="input-base w-full px-4 py-3 text-sm rounded-xl" required />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-700 text-foreground mb-1.5">Password *</label>
+                  <div className="relative">
+                    <input type={showPassword ? 'text' : 'password'} value={form.password}
+                      onChange={(e) => setField('password', e.target.value)}
+                      placeholder="Min. 8 characters" className="input-base w-full px-4 py-3 pr-10 text-sm rounded-xl" required />
+                    <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                      <Icon name={showPassword ? 'EyeSlashIcon' : 'EyeIcon'} size={16} />
+                    </button>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-700 text-foreground mb-1.5">Confirm Password *</label>
+                  <input type="password" value={form.confirmPassword}
+                    onChange={(e) => setField('confirmPassword', e.target.value)}
+                    placeholder="Repeat password" className="input-base w-full px-4 py-3 text-sm rounded-xl" required />
+                </div>
+                <div className="flex items-start gap-2 p-3 bg-secondary/5 border border-secondary/20 rounded-xl">
+                  <Icon name="InformationCircleIcon" size={14} className="text-secondary shrink-0 mt-0.5" />
+                  <p className="text-xs text-secondary">
+                    Phone number can be added in your profile settings after signing in. The same email cannot be used for both buyer and seller accounts.
+                  </p>
+                </div>
+                <button type="submit" disabled={submitting} className="btn-primary w-full py-3 text-sm rounded-xl disabled:opacity-50">
+                  Continue
+                </button>
+              </form>
+
               <p className="text-xs text-muted-foreground text-center mt-4">
                 Already a seller?{' '}
-                <Link href="/seller-dashboard" className="text-secondary font-600 hover:underline">Login here</Link>
+                <Link href="/login?role=seller" className="text-secondary font-600 hover:underline">Login here</Link>
               </p>
             </div>
           )}
 
-          {/* ── Step 2: OTP ── */}
-          {currentStep === 'otp' && (
-            <div>
-              <h2 className="text-xl font-800 text-foreground mb-1">Verify your number</h2>
-              <p className="text-sm text-muted-foreground mb-6">OTP sent to +91 {form.phone.slice(0, 5)}*****</p>
-              <div className="flex justify-center gap-2 sm:gap-3 mb-6">
-                {form.otp.map((digit, i) => (
-                  <input key={i} id={`sotp-${i}`} type="text" inputMode="numeric" maxLength={1} value={digit}
-                    onChange={(e) => handleOtpChange(i, e.target.value)}
-                    className="w-11 h-14 text-center text-xl font-800 input-base rounded-xl" />
-                ))}
-              </div>
-              <button onClick={goNext} disabled={!canProceedToNext()}
-                className="btn-primary w-full py-3 text-sm rounded-xl mb-3 disabled:opacity-50">
-                Verify OTP
-              </button>
-              <div className="text-center">
-                {resendCooldown > 0
-                  ? <p className="text-xs text-muted-foreground">Resend in {resendCooldown}s</p>
-                  : <button onClick={handleSendOtp} className="text-xs text-secondary font-600 hover:underline">Resend OTP</button>
-                }
-              </div>
-              <button onClick={goBack} className="mt-4 text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 mx-auto">
-                <Icon name="ArrowLeftIcon" size={12} /> Change number
-              </button>
-            </div>
-          )}
-
-          {/* ── Step 3: Business Details ── */}
+          {/* ── Step 2: Business Details ── */}
           {currentStep === 'business' && (
             <div>
               <h2 className="text-xl font-800 text-foreground mb-1">Business Details</h2>
               <p className="text-sm text-muted-foreground mb-6">Tell us about your textile business</p>
               <div className="space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-700 text-foreground mb-1.5">Owner / Contact Name *</label>
-                    <input type="text" value={form.ownerName} onChange={(e) => setField('ownerName', e.target.value)}
-                      placeholder="Arjun Mehta" className="input-base w-full px-4 py-3 text-sm rounded-xl" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-700 text-foreground mb-1.5">Email Address *</label>
-                    <input type="email" value={form.email} onChange={(e) => setField('email', e.target.value)}
-                      placeholder="arjun@textiles.com" className="input-base w-full px-4 py-3 text-sm rounded-xl" />
-                  </div>
-                </div>
                 <div>
                   <label className="block text-sm font-700 text-foreground mb-1.5">Business / Company Name *</label>
                   <input type="text" value={form.businessName} onChange={(e) => setField('businessName', e.target.value)}
@@ -383,34 +382,19 @@ export default function SellerRegistrationFlow() {
                       placeholder="50,000" className="input-base w-full px-4 py-3 text-sm rounded-xl" />
                   </div>
                 </div>
-
-                {/* MOQ Setting */}
                 <div>
-                  <label className="block text-sm font-700 text-foreground mb-2">
-                    Minimum Order Quantity (MOQ) *
-                  </label>
-                  <p className="text-xs text-muted-foreground mb-2">Set the minimum metres a buyer must order from you</p>
+                  <label className="block text-sm font-700 text-foreground mb-2">Minimum Order Quantity (MOQ) *</label>
                   <div className="flex gap-2 flex-wrap">
                     {MOQ_OPTIONS.map((qty) => (
-                      <button
-                        key={qty}
-                        type="button"
-                        onClick={() => setField('moqMetres', qty)}
+                      <button key={qty} type="button" onClick={() => setField('moqMetres', qty)}
                         className={`px-4 py-2.5 rounded-xl text-sm font-700 border-2 transition-all ${
-                          form.moqMetres === qty
-                            ? 'bg-secondary text-white border-secondary' :'bg-card border-border text-muted-foreground hover:border-secondary/50'
-                        }`}
-                      >
-                        {qty} mtr
-                        {qty === 3 && <span className="ml-1 text-xs opacity-70">(min)</span>}
+                          form.moqMetres === qty ? 'bg-secondary text-white border-secondary' : 'bg-card border-border text-muted-foreground hover:border-secondary/50'
+                        }`}>
+                        {qty} mtr{qty === 3 && <span className="ml-1 text-xs opacity-70">(min)</span>}
                       </button>
                     ))}
                   </div>
-                  <p className="text-xs text-muted-foreground mt-2">
-                    Selected: <strong className="text-foreground">{form.moqMetres} metres minimum per order</strong>
-                  </p>
                 </div>
-
                 <div>
                   <label className="block text-sm font-700 text-foreground mb-2">Product Categories</label>
                   <div className="flex flex-wrap gap-2">
@@ -430,7 +414,7 @@ export default function SellerRegistrationFlow() {
             </div>
           )}
 
-          {/* ── Step 4: GSTIN Validation ── */}
+          {/* ── Step 3: GSTIN Validation ── */}
           {currentStep === 'gstin' && (
             <div>
               <h2 className="text-xl font-800 text-foreground mb-1">GSTIN Verification</h2>
@@ -438,24 +422,18 @@ export default function SellerRegistrationFlow() {
               <div className="mb-4">
                 <label className="block text-sm font-700 text-foreground mb-1.5">GSTIN *</label>
                 <div className="flex gap-2">
-                  <input
-                    type="text" maxLength={15} value={form.gstin}
-                    onChange={(e) => {
-                      setField('gstin', e.target.value.toUpperCase());
-                      setGstinValidation({ status: 'idle', message: '' });
-                    }}
+                  <input type="text" maxLength={15} value={form.gstin}
+                    onChange={(e) => { setField('gstin', e.target.value.toUpperCase()); setGstinValidation({ status: 'idle', message: '' }); }}
                     placeholder="24AAAPL1234Z1Z5"
                     className={`input-base flex-1 px-4 py-3 text-sm rounded-xl font-mono tracking-wider uppercase ${
                       gstinValidation.status === 'valid' ? 'border-success' : gstinValidation.status === 'invalid' ? 'border-error' : ''
-                    }`}
-                  />
+                    }`} />
                   <button onClick={handleGstinValidate}
                     disabled={form.gstin.length < 15 || gstinValidation.status === 'validating'}
                     className="btn-secondary px-4 py-3 text-sm rounded-xl disabled:opacity-50 shrink-0">
                     {gstinValidation.status === 'validating' ? 'Checking…' : 'Verify'}
                   </button>
                 </div>
-                {/* Inline validation feedback */}
                 {gstinValidation.status !== 'idle' && (
                   <div className={`mt-2 flex items-start gap-2 p-3 rounded-xl text-xs ${
                     gstinValidation.status === 'valid' ? 'bg-success/10 border border-success/20 text-success'
@@ -476,7 +454,6 @@ export default function SellerRegistrationFlow() {
                   </div>
                 )}
               </div>
-              {/* GSTIN format guide */}
               <div className="p-4 bg-muted/50 rounded-xl border border-border">
                 <p className="text-xs font-700 text-foreground mb-2">GSTIN Format Guide</p>
                 <div className="font-mono text-xs text-muted-foreground space-y-1">
@@ -490,7 +467,7 @@ export default function SellerRegistrationFlow() {
             </div>
           )}
 
-          {/* ── Step 5: Bank Account Verification ── */}
+          {/* ── Step 4: Bank Account Verification ── */}
           {currentStep === 'bank' && (
             <div>
               <h2 className="text-xl font-800 text-foreground mb-1">Bank Account Verification</h2>
@@ -525,8 +502,7 @@ export default function SellerRegistrationFlow() {
                 <button onClick={handleBankVerify}
                   disabled={bankVerification.status === 'verifying' || bankVerification.status === 'verified'}
                   className={`w-full py-3 text-sm rounded-xl font-700 transition-all ${
-                    bankVerification.status === 'verified' ? 'bg-success/10 text-success border border-success/30 cursor-default'
-                    : 'btn-secondary disabled:opacity-50'
+                    bankVerification.status === 'verified' ? 'bg-success/10 text-success border border-success/30 cursor-default' : 'btn-secondary disabled:opacity-50'
                   }`}>
                   {bankVerification.status === 'verifying' ? (
                     <span className="flex items-center justify-center gap-2">
@@ -556,11 +532,11 @@ export default function SellerRegistrationFlow() {
             </div>
           )}
 
-          {/* ── Step 6: Document Upload ── */}
+          {/* ── Step 5: Document Upload ── */}
           {currentStep === 'documents' && (
             <div>
               <h2 className="text-xl font-800 text-foreground mb-1">Document Upload</h2>
-              <p className="text-sm text-muted-foreground mb-5">Upload required documents for seller verification. Approval status updates in real-time.</p>
+              <p className="text-sm text-muted-foreground mb-5">Upload required documents for seller verification.</p>
               <div className="space-y-3">
                 {REQUIRED_DOCS.map((doc) => {
                   const docState = documents[doc.key];
@@ -581,43 +557,30 @@ export default function SellerRegistrationFlow() {
                             {doc.required && <span className="text-xs text-error font-600">Required</span>}
                           </div>
                           <p className="text-xs text-muted-foreground">{doc.hint}</p>
-                          {docState.file && (
-                            <p className="text-xs font-mono text-muted-foreground mt-1 truncate">{docState.file.name}</p>
-                          )}
+                          {docState.file && <p className="text-xs font-mono text-muted-foreground mt-1 truncate">{docState.file.name}</p>}
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
                           <span className={`flex items-center gap-1 text-xs font-600 ${statusConfig.iconColor}`}>
-                            <Icon name={statusConfig.icon as 'CheckCircleIcon'} size={14}
-                              className={docState.status === 'uploading' ? 'animate-spin' : ''} />
+                            <Icon name={statusConfig.icon as 'CheckCircleIcon'} size={14} className={docState.status === 'uploading' ? 'animate-spin' : ''} />
                             {statusConfig.label}
                           </span>
                           {(docState.status === 'idle' || docState.status === 'rejected') && (
-                            <button
-                              onClick={() => fileInputRefs.current[doc.key]?.click()}
-                              className="btn-secondary px-3 py-1.5 text-xs rounded-lg">
+                            <button onClick={() => fileInputRefs.current[doc.key]?.click()} className="btn-secondary px-3 py-1.5 text-xs rounded-lg">
                               {docState.status === 'rejected' ? 'Re-upload' : 'Choose File'}
                             </button>
                           )}
                         </div>
                       </div>
-                      <input
-                        ref={(el) => { fileInputRefs.current[doc.key] = el; }}
-                        type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden"
-                        onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFileSelect(doc.key, f); }}
-                      />
+                      <input ref={(el) => { fileInputRefs.current[doc.key] = el; }} type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden"
+                        onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFileSelect(doc.key, f); }} />
                     </div>
                   );
                 })}
               </div>
-              <div className="mt-4 p-3 bg-muted/50 rounded-xl border border-border">
-                <p className="text-xs text-muted-foreground">
-                  <span className="font-700 text-foreground">Real-time approval:</span> Documents are reviewed by our team within 2–4 business hours. You'll receive an SMS/email notification when approved.
-                </p>
-              </div>
             </div>
           )}
 
-          {/* ── Step 7: Done ── */}
+          {/* ── Step 6: Done ── */}
           {currentStep === 'done' && (
             <div className="text-center py-4">
               <div className="w-20 h-20 rounded-full bg-success/10 border-2 border-success/30 flex items-center justify-center mx-auto mb-5">
@@ -625,13 +588,13 @@ export default function SellerRegistrationFlow() {
               </div>
               <h2 className="text-2xl font-800 text-foreground mb-2">Application Submitted!</h2>
               <p className="text-sm text-muted-foreground mb-1">Your seller application is under review</p>
-              <p className="mono-id mb-6">{sellerId}</p>
+              <p className="text-xs text-muted-foreground mb-4">Check your email to verify your account. Add your phone number in profile settings.</p>
               <div className="bg-muted/50 rounded-xl border border-border p-4 text-left mb-6 space-y-2">
                 {[
+                  { label: 'Seller ID', value: sellerId },
                   { label: 'Business', value: form.businessName },
                   { label: 'GSTIN', value: form.gstin },
                   { label: 'Bank', value: form.bankAccountNumber ? `****${form.bankAccountNumber.slice(-4)}` : '—' },
-                  { label: 'Linked Account', value: bankVerification.linkedAccountId || '—' },
                 ].map((item) => (
                   <div key={item.label} className="flex items-center justify-between">
                     <span className="text-xs text-muted-foreground">{item.label}</span>
@@ -651,21 +614,29 @@ export default function SellerRegistrationFlow() {
           )}
 
           {/* Navigation Buttons */}
-          {currentStep !== 'phone' && currentStep !== 'otp' && currentStep !== 'done' && (
+          {currentStep !== 'account' && currentStep !== 'done' && (
             <div className="flex items-center justify-between mt-8 pt-6 border-t border-border">
               <button onClick={goBack} className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
                 <Icon name="ArrowLeftIcon" size={16} /> Back
               </button>
-              <button onClick={goNext} disabled={!canProceedToNext()}
+              <button onClick={goNext} disabled={!canProceedToNext() || submitting}
                 className="btn-primary px-6 py-2.5 text-sm rounded-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2">
-                {currentStep === 'documents' ? 'Submit Application' : 'Continue'}
-                <Icon name="ArrowRightIcon" size={16} />
+                {submitting ? (
+                  <span className="flex items-center gap-2">
+                    <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    Submitting...
+                  </span>
+                ) : (
+                  <>
+                    {currentStep === 'documents' ? 'Submit Application' : 'Continue'}
+                    <Icon name="ArrowRightIcon" size={16} />
+                  </>
+                )}
               </button>
             </div>
           )}
         </div>
 
-        {/* Progress indicator */}
         <p className="text-center text-xs text-muted-foreground mt-4">
           Step {currentIndex + 1} of {STEP_ORDER.length} · {Math.round((currentIndex / (STEP_ORDER.length - 1)) * 100)}% complete
         </p>
