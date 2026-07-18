@@ -4,7 +4,7 @@
 -- ─── Seller Categories ────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.seller_categories (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  seller_id UUID NOT NULL REFERENCES public.sellers(id) ON DELETE CASCADE,
+  seller_id UUID NOT NULL REFERENCES public.seller_profiles(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   icon TEXT DEFAULT '📦',
   parent_id UUID REFERENCES public.seller_categories(id) ON DELETE CASCADE,
@@ -17,7 +17,7 @@ ALTER TABLE public.seller_categories ENABLE ROW LEVEL SECURITY;
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'seller_categories' AND policyname = 'Sellers manage own categories') THEN
     CREATE POLICY "Sellers manage own categories" ON public.seller_categories
-      FOR ALL USING (seller_id IN (SELECT id FROM public.sellers WHERE user_id = auth.uid()));
+      FOR ALL USING (seller_id IN (SELECT id FROM public.seller_profiles WHERE user_id = auth.uid()));
   END IF;
 END $$;
 
@@ -32,7 +32,7 @@ END $$;
 CREATE TABLE IF NOT EXISTS public.bulk_orders (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   buyer_id UUID REFERENCES auth.users(id),
-  seller_id UUID REFERENCES public.sellers(id),
+  seller_id UUID REFERENCES public.seller_profiles(id),
   status TEXT DEFAULT 'draft' CHECK (status IN ('draft', 'quote_sent', 'confirmed', 'paid', 'shipped', 'delivered', 'cancelled')),
   buyer_name TEXT,
   buyer_company TEXT,
@@ -85,7 +85,7 @@ END $$;
 CREATE TABLE IF NOT EXISTS public.seller_shipments (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   order_id TEXT NOT NULL,
-  seller_id UUID REFERENCES public.sellers(id),
+  seller_id UUID REFERENCES public.seller_profiles(id),
   courier_type TEXT NOT NULL CHECK (courier_type IN ('shiprocket', 'local')),
   courier_name TEXT,
   awb_number TEXT,
@@ -105,7 +105,7 @@ ALTER TABLE public.seller_shipments ENABLE ROW LEVEL SECURITY;
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'seller_shipments' AND policyname = 'Sellers manage own shipments') THEN
     CREATE POLICY "Sellers manage own shipments" ON public.seller_shipments
-      FOR ALL USING (seller_id IN (SELECT id FROM public.sellers WHERE user_id = auth.uid()));
+      FOR ALL USING (seller_id IN (SELECT id FROM public.seller_profiles WHERE user_id = auth.uid()));
   END IF;
 END $$;
 
@@ -118,8 +118,8 @@ END $$;
 
 -- ─── Seller MOQ Settings ──────────────────────────────────────────────────────
 DO $$ BEGIN
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'sellers' AND column_name = 'moq_metres') THEN
-    ALTER TABLE public.sellers ADD COLUMN moq_metres INTEGER DEFAULT 3 CHECK (moq_metres IN (3, 6, 9, 12));
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'seller_profiles' AND column_name = 'moq_metres') THEN
+    ALTER TABLE public.seller_profiles ADD COLUMN moq_metres INTEGER DEFAULT 3 CHECK (moq_metres IN (3, 6, 9, 12));
   END IF;
 END $$;
 

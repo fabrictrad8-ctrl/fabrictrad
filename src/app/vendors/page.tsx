@@ -15,7 +15,7 @@ const vendors = [
   products: 48,
   verified: true,
   gstin: true,
-  image: "https://img.rocket.new/generatedImages/rocket_gen_img_18c66c46c-1763301780768.png",
+  image: "https://img.rocket.new/generatedImages/rocket_gen_img_184483679-1784377999014.png",
   alt: 'Surat Textile Mills seller profile photo',
   badge: 'Top Seller'
 },
@@ -30,7 +30,7 @@ const vendors = [
   products: 32,
   verified: true,
   gstin: true,
-  image: "https://img.rocket.new/generatedImages/rocket_gen_img_140561897-1774719752264.png",
+  image: "https://img.rocket.new/generatedImages/rocket_gen_img_11f81a505-1773030174078.png",
   alt: 'Bhiwandi Weave House fabric warehouse',
   badge: null
 },
@@ -45,7 +45,7 @@ const vendors = [
   products: 56,
   verified: true,
   gstin: true,
-  image: "https://images.unsplash.com/photo-1593803572349-239cb116819c",
+  image: "https://img.rocket.new/generatedImages/rocket_gen_img_1eb71c246-1772369535100.png",
   alt: 'Jaipur Crafts Emporium embroidered fabric display',
   badge: 'Best Rated'
 },

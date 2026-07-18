@@ -15,7 +15,7 @@ export default function SellerCard() {
       <div className="flex items-start gap-3 mb-4">
         <div className="w-12 h-12 rounded-xl overflow-hidden bg-muted shrink-0">
           <AppImage
-            src="https://img.rocket.new/generatedImages/rocket_gen_img_17e5b7cbb-1784319275061.png"
+            src="https://img.rocket.new/generatedImages/rocket_gen_img_14df8d316-1784314860425.png"
             alt="Surat Textile Mills office building exterior, modern commercial building"
             width={48}
             height={48}
@@ -30,15 +30,15 @@ export default function SellerCard() {
           {/* Aggregate Rating */}
           <div className="flex items-center gap-1.5 mt-1.5">
             <div className="flex items-center gap-0.5">
-              {[1,2,3,4,5].map((s) => (
-                <Icon
-                  key={s}
-                  name="StarIcon"
-                  size={11}
-                  className={s <= Math.floor(SELLER_RATING) ? 'text-amber-400' : 'text-amber-200'}
-                  variant="solid"
-                />
-              ))}
+              {[1, 2, 3, 4, 5].map((s) =>
+              <Icon
+                key={s}
+                name="StarIcon"
+                size={11}
+                className={s <= Math.floor(SELLER_RATING) ? 'text-amber-400' : 'text-amber-200'}
+                variant="solid" />
+
+              )}
             </div>
             <span className="text-xs font-800 text-foreground">{SELLER_RATING}</span>
             <span className="text-xs text-muted-foreground">({SELLER_REVIEW_COUNT} reviews)</span>

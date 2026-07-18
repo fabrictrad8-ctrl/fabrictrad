@@ -31,7 +31,7 @@ const alternatives = [
   reviews: 87,
   dispatch: '3-5 days',
   acceptance: '89%',
-  image: "https://img.rocket.new/generatedImages/rocket_gen_img_1ed6be656-1784319275674.png",
+  image: "https://img.rocket.new/generatedImages/rocket_gen_img_182d42e83-1784315624078.png",
   alt: 'Off-white soft nett fabric roll on wooden surface',
   isCurrent: false
 },
@@ -46,7 +46,7 @@ const alternatives = [
   reviews: 42,
   dispatch: '4-6 days',
   acceptance: '82%',
-  image: "https://img.rocket.new/generatedImages/rocket_gen_img_113bb05f9-1784319275951.png",
+  image: "https://img.rocket.new/generatedImages/rocket_gen_img_15b1c4966-1784377998330.png",
   alt: 'Premium net fabric sample in natural light',
   isCurrent: false
 }];
