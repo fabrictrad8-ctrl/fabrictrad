@@ -25,6 +25,7 @@ interface SellerForm {
   bankIfsc: string;
   bankAccountName: string;
   bankName: string;
+  moqMetres: MOQOption;
 }
 
 interface GstinValidation {
@@ -63,6 +64,8 @@ const STEP_ORDER: Step[] = ['phone', 'otp', 'business', 'gstin', 'bank', 'docume
 const BUSINESS_TYPES = ['Manufacturer', 'Wholesaler', 'Trader', 'Exporter', 'Weaver', 'Processor'];
 const CATEGORIES = ['Silk Fabrics', 'Cotton & Linen', 'Net & Embroidered', 'Georgette', 'Polyester', 'Handloom', 'Synthetic Blends', 'Woollen'];
 const INDIAN_STATES = ['Gujarat', 'Maharashtra', 'Rajasthan', 'Tamil Nadu', 'Karnataka', 'Uttar Pradesh', 'West Bengal', 'Punjab', 'Haryana', 'Madhya Pradesh', 'Telangana', 'Andhra Pradesh', 'Delhi', 'Kerala', 'Bihar'];
+const MOQ_OPTIONS = [3, 6, 9, 12] as const;
+type MOQOption = typeof MOQ_OPTIONS[number];
 
 const REQUIRED_DOCS: { key: string; label: string; hint: string; required: boolean }[] = [
   { key: 'gst_certificate', label: 'GST Registration Certificate', hint: 'PDF or image of your GST certificate', required: true },
@@ -96,6 +99,7 @@ export default function SellerRegistrationFlow() {
   const [currentStep, setCurrentStep] = useState<Step>('phone');
   const [resendCooldown, setResendCooldown] = useState(0);
   const [sellerId] = useState(`FT-SLR-${Math.floor(100000 + Math.random() * 900000)}`);
+  const [phoneConflictError, setPhoneConflictError] = useState('');
 
   const [form, setForm] = useState<SellerForm>({
     phone: '', otp: ['', '', '', '', '', ''],
@@ -103,6 +107,7 @@ export default function SellerRegistrationFlow() {
     city: '', state: '', pincode: '', address: '', categories: [],
     monthlyCapacity: '', gstin: '', pan: '',
     bankAccountNumber: '', bankIfsc: '', bankAccountName: '', bankName: '',
+    moqMetres: 3,
   });
 
   const [gstinValidation, setGstinValidation] = useState<GstinValidation>({ status: 'idle', message: '' });
@@ -120,6 +125,13 @@ export default function SellerRegistrationFlow() {
 
   const handleSendOtp = () => {
     if (form.phone.length === 10) {
+      // Check if this number is already registered as a buyer
+      const buyerNumbers: string[] = JSON.parse(typeof window !== 'undefined' ? localStorage.getItem('ft_buyer_phones') || '[]' : '[]');
+      if (buyerNumbers.includes(form.phone)) {
+        setPhoneConflictError('This mobile number is already registered as a Buyer. A person cannot be both a buyer and seller with the same number. Please use a different mobile number for your seller account.');
+        return;
+      }
+      setPhoneConflictError('');
       setResendCooldown(30);
       const interval = setInterval(() => {
         setResendCooldown((prev) => { if (prev <= 1) { clearInterval(interval); return 0; } return prev - 1; });
@@ -252,21 +264,32 @@ export default function SellerRegistrationFlow() {
               <h2 className="text-xl font-800 text-foreground mb-1">Enter your mobile number</h2>
               <p className="text-sm text-muted-foreground mb-6">We'll send a 6-digit OTP to verify</p>
               <label className="block text-sm font-700 text-foreground mb-2">Mobile Number</label>
-              <div className="flex items-center gap-2 mb-6">
+              <div className="flex items-center gap-2 mb-4">
                 <div className="flex items-center gap-2 bg-muted border border-border rounded-xl px-3 py-3 shrink-0">
                   <span className="text-lg">🇮🇳</span>
                   <span className="text-sm font-600 text-foreground">+91</span>
                 </div>
                 <input
                   type="tel" maxLength={10} value={form.phone}
-                  onChange={(e) => setField('phone', e.target.value.replace(/\D/g, ''))}
+                  onChange={(e) => { setField('phone', e.target.value.replace(/\D/g, '')); setPhoneConflictError(''); }}
                   placeholder="98765 43210"
-                  className="input-base flex-1 px-4 py-3 text-lg font-600 rounded-xl tracking-widest"
+                  className={`input-base flex-1 px-4 py-3 text-lg font-600 rounded-xl tracking-widest ${phoneConflictError ? 'border-error' : ''}`}
                 />
               </div>
+              {phoneConflictError && (
+                <div className="flex items-start gap-2 p-3 bg-error/10 border border-error/20 rounded-xl mb-4">
+                  <span className="text-error text-sm shrink-0">⚠️</span>
+                  <p className="text-xs text-error">{phoneConflictError}</p>
+                </div>
+              )}
               <div className="flex items-center gap-2 p-3 bg-amber-50 border border-amber-200 rounded-xl mb-5">
                 <Icon name="BeakerIcon" size={14} className="text-warning shrink-0" />
                 <p className="text-xs text-warning"><span className="font-700">DEV MODE:</span> OTP shown in console. Real SMS disabled.</p>
+              </div>
+              <div className="p-3 bg-secondary/5 border border-secondary/20 rounded-xl mb-5">
+                <p className="text-xs text-secondary font-600">
+                  ⚠️ Important: If you are also a buyer on FabricTrad, you must use a <strong>different mobile number</strong> for your seller account. The same number cannot be used for both buyer and seller accounts.
+                </p>
               </div>
               <button onClick={handleSendOtp} disabled={form.phone.length !== 10}
                 className="btn-primary w-full py-3 text-sm rounded-xl disabled:opacity-50 disabled:cursor-not-allowed">
@@ -360,6 +383,34 @@ export default function SellerRegistrationFlow() {
                       placeholder="50,000" className="input-base w-full px-4 py-3 text-sm rounded-xl" />
                   </div>
                 </div>
+
+                {/* MOQ Setting */}
+                <div>
+                  <label className="block text-sm font-700 text-foreground mb-2">
+                    Minimum Order Quantity (MOQ) *
+                  </label>
+                  <p className="text-xs text-muted-foreground mb-2">Set the minimum metres a buyer must order from you</p>
+                  <div className="flex gap-2 flex-wrap">
+                    {MOQ_OPTIONS.map((qty) => (
+                      <button
+                        key={qty}
+                        type="button"
+                        onClick={() => setField('moqMetres', qty)}
+                        className={`px-4 py-2.5 rounded-xl text-sm font-700 border-2 transition-all ${
+                          form.moqMetres === qty
+                            ? 'bg-secondary text-white border-secondary' :'bg-card border-border text-muted-foreground hover:border-secondary/50'
+                        }`}
+                      >
+                        {qty} mtr
+                        {qty === 3 && <span className="ml-1 text-xs opacity-70">(min)</span>}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Selected: <strong className="text-foreground">{form.moqMetres} metres minimum per order</strong>
+                  </p>
+                </div>
+
                 <div>
                   <label className="block text-sm font-700 text-foreground mb-2">Product Categories</label>
                   <div className="flex flex-wrap gap-2">

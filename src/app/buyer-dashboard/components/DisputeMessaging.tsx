@@ -180,13 +180,6 @@ export default function DisputeMessaging({ mode = 'buyer' }: DisputeMessagingPro
     }, 500);
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, type: 'image' | 'document' | 'video') => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setUploadedFile({ name: file.name, type });
-    }
-  };
-
   const handleCreateDispute = () => {
     if (!newDisputeOrderId || !newDisputeDesc) return;
 
@@ -250,7 +243,7 @@ export default function DisputeMessaging({ mode = 'buyer' }: DisputeMessagingPro
 
       <div className="flex" style={{ height: 480 }}>
         {/* Left: Dispute List */}
-        <div className="w-64 shrink-0 border-r border-border overflow-y-auto">
+        <div className="w-56 shrink-0 border-r border-border overflow-y-auto">
           {disputes.map((dispute) => (
             <button
               key={dispute.id}
@@ -260,7 +253,8 @@ export default function DisputeMessaging({ mode = 'buyer' }: DisputeMessagingPro
                 activeDisputeId === dispute.id ? 'bg-primary/5 border-l-2 border-l-primary' : ''
               }`}
             >
-              <div className="flex items-start justify-between gap-1 mb-1">
+              {/* Row 1: Order ID + unread badge */}
+              <div className="flex items-center justify-between gap-1 mb-1">
                 <span className="text-xs font-700 text-foreground truncate">{dispute.orderId}</span>
                 {dispute.unreadCount > 0 && (
                   <span className="shrink-0 w-4 h-4 bg-primary text-white text-xs rounded-full flex items-center justify-center font-700">
@@ -268,15 +262,20 @@ export default function DisputeMessaging({ mode = 'buyer' }: DisputeMessagingPro
                   </span>
                 )}
               </div>
-              <p className="text-xs text-muted-foreground truncate mb-1">{dispute.product}</p>
-              <div className="flex items-center gap-1.5">
-                <span className={`text-xs px-1.5 py-0.5 rounded-full border font-600 ${statusConfig[dispute.status].color}`}>
-                  {statusConfig[dispute.status].label}
-                </span>
-                {dispute.hasUnboxingVideo && (
-                  <Icon name="VideoCameraIcon" size={11} className="text-success" />
-                )}
-              </div>
+              {/* Row 2: Product name */}
+              <p className="text-xs text-muted-foreground truncate mb-1.5">{dispute.product}</p>
+              {/* Row 3: Status badge only */}
+              <span className={`inline-block text-xs px-1.5 py-0.5 rounded-full border font-600 ${statusConfig[dispute.status].color}`}>
+                {statusConfig[dispute.status].label}
+              </span>
+              {/* Row 4: Video icon (separate row, no text overlap) */}
+              {dispute.hasUnboxingVideo && (
+                <div className="flex items-center gap-1 mt-1">
+                  <Icon name="VideoCameraIcon" size={11} className="text-success shrink-0" />
+                  <span className="text-xs text-success font-600">Video proof</span>
+                </div>
+              )}
+              {/* Row 5: Date */}
               <p className="text-xs text-muted-foreground mt-1">{dispute.createdAt}</p>
             </button>
           ))}
@@ -295,8 +294,8 @@ export default function DisputeMessaging({ mode = 'buyer' }: DisputeMessagingPro
                   <div>
                     <p className="text-xs font-700 text-warning mb-1">Platform Policy</p>
                     <p className="text-xs text-amber-700">
-                      <strong>No Returns.</strong> Exchanges are only accepted for damaged goods with an unboxing video as proof.
-                      No Cash on Delivery — all orders are 100% prepaid.
+                      <strong>No Returns.</strong> Exchanges only for damaged goods with unboxing video proof.
+                      Exchange window: <strong>12 hours after parcel receipt</strong>. No COD — all orders prepaid.
                     </p>
                   </div>
                 </div>
@@ -356,7 +355,7 @@ export default function DisputeMessaging({ mode = 'buyer' }: DisputeMessagingPro
                       )}
                     </div>
                     <p className="text-xs text-muted-foreground mb-2">
-                      Exchange/damage claims require an unboxing video showing the damage at the time of delivery.
+                      Exchange/damage claims require an unboxing video. Must be raised within <strong>12 hours</strong> of parcel receipt.
                     </p>
                     <button
                       type="button"
@@ -427,7 +426,7 @@ export default function DisputeMessaging({ mode = 'buyer' }: DisputeMessagingPro
                     <div key={msg.id} className={`flex gap-2 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
                       <div className={`w-7 h-7 rounded-full shrink-0 flex items-center justify-center text-xs font-700 ${
                         msg.sender === 'buyer' ? 'bg-primary/20 text-primary' :
-                        msg.sender === 'seller'? 'bg-secondary/20 text-secondary' : 'bg-muted text-muted-foreground'
+                        msg.sender === 'seller' ? 'bg-secondary/20 text-secondary' : 'bg-muted text-muted-foreground'
                       }`}>
                         {msg.senderName[0]}
                       </div>

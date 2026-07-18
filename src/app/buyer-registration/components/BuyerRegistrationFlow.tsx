@@ -21,6 +21,7 @@ export default function BuyerRegistrationFlow() {
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [otpSent, setOtpSent] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
+  const [phoneConflictError, setPhoneConflictError] = useState('');
   const [form, setForm] = useState({
     fullName: '', email: '', businessName: '', businessType: '',
     gstin: '', category: '', volume: '',
@@ -36,6 +37,20 @@ export default function BuyerRegistrationFlow() {
 
   const handleSendOtp = () => {
     if (phone.length === 10) {
+      // Check if this number is already registered as a seller
+      const sellerNumbers: string[] = JSON.parse(typeof window !== 'undefined' ? localStorage.getItem('ft_seller_phones') || '[]' : '[]');
+      if (sellerNumbers.includes(phone)) {
+        setPhoneConflictError('This mobile number is already registered as a Seller. A person cannot be both a buyer and seller with the same number. Please use a different mobile number for your buyer account.');
+        return;
+      }
+      setPhoneConflictError('');
+      // Save buyer phone
+      if (typeof window !== 'undefined') {
+        const existing: string[] = JSON.parse(localStorage.getItem('ft_buyer_phones') || '[]');
+        if (!existing.includes(phone)) {
+          localStorage.setItem('ft_buyer_phones', JSON.stringify([...existing, phone]));
+        }
+      }
       setOtpSent(true);
       setResendCooldown(30);
       const interval = setInterval(() => {
@@ -130,11 +145,26 @@ export default function BuyerRegistrationFlow() {
                     type="tel"
                     maxLength={10}
                     value={phone}
-                    onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))}
+                    onChange={(e) => { setPhone(e.target.value.replace(/\D/g, '')); setPhoneConflictError(''); }}
                     placeholder="98765 43210"
-                    className="input-base flex-1 px-4 py-3 text-lg font-600 rounded-xl tracking-widest"
+                    className={`input-base flex-1 px-4 py-3 text-lg font-600 rounded-xl tracking-widest ${phoneConflictError ? 'border-error' : ''}`}
                   />
                 </div>
+              </div>
+
+              {phoneConflictError && (
+                <div className="flex items-start gap-2 p-3 bg-error/10 border border-error/20 rounded-xl mb-4">
+                  <span className="text-error text-sm shrink-0">⚠️</span>
+                  <p className="text-xs text-error">{phoneConflictError}</p>
+                </div>
+              )}
+
+              {/* Unique number notice */}
+              <div className="flex items-start gap-2 p-3 bg-primary/5 border border-primary/20 rounded-xl mb-4">
+                <Icon name="InformationCircleIcon" size={14} className="text-primary shrink-0 mt-0.5" />
+                <p className="text-xs text-primary">
+                  If you are also a seller on FabricTrad, you must use a <strong>different mobile number</strong> for your buyer account. The same number cannot be used for both accounts.
+                </p>
               </div>
 
               {/* Dev mode notice */}
