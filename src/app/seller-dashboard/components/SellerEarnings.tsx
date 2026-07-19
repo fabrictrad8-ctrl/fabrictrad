@@ -48,9 +48,11 @@ export default function SellerEarnings() {
   const razorpayFee = Math.round(gross * 0.02);
   const gstOnCommission = Math.round(commission * 0.18);
   const sellerEarnings = Math.max(gross - commission - razorpayFee - gstOnCommission, 0);
-  const pending = orders
-    .filter((order) => ['paid', 'confirmed', 'shipped'].includes(order.status || ''))
-    .reduce((sum, order) => sum + Number(order.net_total || 0) * 0.862, 0);
+  const pending = Math.round(
+    orders
+      .filter((order) => ['paid', 'confirmed', 'shipped'].includes(order.status || ''))
+      .reduce((sum, order) => sum + Number(order.net_total || 0) * 0.862, 0)
+  );
   const paidOrderCount = orders.filter((order) =>
     ['paid', 'confirmed', 'shipped', 'delivered'].includes(order.status || '')
   ).length;
