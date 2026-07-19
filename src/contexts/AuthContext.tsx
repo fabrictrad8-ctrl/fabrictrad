@@ -57,12 +57,6 @@ const getAuthRedirectBase = () => {
 
 const googleAuthEnabled = process.env.NEXT_PUBLIC_ENABLE_GOOGLE_AUTH === 'true';
 
-const setOAuthRoleCookie = (role: 'buyer' | 'seller') => {
-  if (typeof document === 'undefined') return;
-  const secure = window.location.protocol === 'https:' ? '; Secure' : '';
-  document.cookie = `fabrictrad_oauth_role=${role}; Path=/; Max-Age=600; SameSite=Lax${secure}`;
-};
-
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {
@@ -162,19 +156,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       throw new Error(status?.message || 'Google sign-in is not fully configured.');
     }
 
-    setOAuthRoleCookie(role);
-
-    const { data, error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: `${getAuthRedirectBase()}/auth/callback?role=${role}`,
-        queryParams: {
-          prompt: 'select_account',
-        },
-      },
-    });
-    if (error) throw error;
-    return data;
+    window.location.assign(`/api/auth/google/start?role=${role}`);
+    return null;
   };
 
   // Send Email OTP (magic link)
