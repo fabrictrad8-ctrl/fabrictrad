@@ -2,6 +2,7 @@ import React from 'react';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import Link from 'next/link';
+import BuyerOnlyGuard from '@/components/BuyerOnlyGuard';
 
 const vendors = [
   {
@@ -98,108 +99,110 @@ const vendors = [
 
 export default function VendorsPage() {
   return (
-    <main className="min-h-screen bg-background">
-      <Header />
-      <div className="pt-16">
-        {/* Banner */}
-        <div className="bg-gradient-to-br from-secondary to-secondary/80 text-white py-12 px-4">
-          <div className="max-w-7xl mx-auto text-center">
-            <div className="flex items-center justify-center gap-2 mb-3">
-              <Link href="/" className="text-white/60 hover:text-white text-sm transition-colors">
-                Home
-              </Link>
-              <span className="text-white/40">/</span>
-              <span className="text-white text-sm font-500">Verified Vendors</span>
+    <BuyerOnlyGuard>
+      <main className="min-h-screen bg-background">
+        <Header />
+        <div className="pt-16">
+          {/* Banner */}
+          <div className="bg-gradient-to-br from-secondary to-secondary/80 text-white py-12 px-4">
+            <div className="max-w-7xl mx-auto text-center">
+              <div className="flex items-center justify-center gap-2 mb-3">
+                <Link href="/" className="text-white/60 hover:text-white text-sm transition-colors">
+                  Home
+                </Link>
+                <span className="text-white/40">/</span>
+                <span className="text-white text-sm font-500">Verified Vendors</span>
+              </div>
+              <h1 className="text-3xl sm:text-4xl font-800 mb-3">Verified Textile Vendors</h1>
+              <p className="text-white/80 text-base max-w-xl mx-auto">
+                All vendors on FabricTrad are GST-registered, document-verified, and approved by our
+                team before going live.
+              </p>
             </div>
-            <h1 className="text-3xl sm:text-4xl font-800 mb-3">Verified Textile Vendors</h1>
-            <p className="text-white/80 text-base max-w-xl mx-auto">
-              All vendors on FabricTrad are GST-registered, document-verified, and approved by our
-              team before going live.
-            </p>
           </div>
-        </div>
 
-        {/* Vendor Grid */}
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {vendors?.map((vendor) => (
-              <Link
-                key={vendor?.id}
-                href={`/marketplace?seller=${vendor?.id}`}
-                className="group bg-card rounded-2xl border border-border p-5 hover:shadow-lg hover:border-primary/30 transition-all duration-300"
-              >
-                <div className="flex items-start gap-4 mb-4">
-                  <div className="w-14 h-14 rounded-xl overflow-hidden bg-muted shrink-0">
-                    <img
-                      src={vendor?.image}
-                      alt={vendor?.alt}
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1 flex-wrap">
-                      {vendor?.verified && (
-                        <span className="inline-flex items-center gap-1 text-xs font-600 text-success bg-success/10 border border-success/20 px-2 py-0.5 rounded-full">
-                          ✓ Verified
-                        </span>
-                      )}
-                      {vendor?.badge && (
-                        <span className="text-xs font-700 text-primary bg-primary/10 border border-primary/20 px-2 py-0.5 rounded-full">
-                          {vendor?.badge}
-                        </span>
-                      )}
+          {/* Vendor Grid */}
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+              {vendors?.map((vendor) => (
+                <Link
+                  key={vendor?.id}
+                  href={`/marketplace?seller=${vendor?.id}`}
+                  className="group bg-card rounded-2xl border border-border p-5 hover:shadow-lg hover:border-primary/30 transition-all duration-300"
+                >
+                  <div className="flex items-start gap-4 mb-4">
+                    <div className="w-14 h-14 rounded-xl overflow-hidden bg-muted shrink-0">
+                      <img
+                        src={vendor?.image}
+                        alt={vendor?.alt}
+                        className="w-full h-full object-cover"
+                      />
                     </div>
-                    <h3 className="font-700 text-sm text-foreground group-hover:text-primary transition-colors leading-snug">
-                      {vendor?.name}
-                    </h3>
-                    <p className="text-xs text-muted-foreground">
-                      {vendor?.city} · {vendor?.type}
-                    </p>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                        {vendor?.verified && (
+                          <span className="inline-flex items-center gap-1 text-xs font-600 text-success bg-success/10 border border-success/20 px-2 py-0.5 rounded-full">
+                            ✓ Verified
+                          </span>
+                        )}
+                        {vendor?.badge && (
+                          <span className="text-xs font-700 text-primary bg-primary/10 border border-primary/20 px-2 py-0.5 rounded-full">
+                            {vendor?.badge}
+                          </span>
+                        )}
+                      </div>
+                      <h3 className="font-700 text-sm text-foreground group-hover:text-primary transition-colors leading-snug">
+                        {vendor?.name}
+                      </h3>
+                      <p className="text-xs text-muted-foreground">
+                        {vendor?.city} · {vendor?.type}
+                      </p>
+                    </div>
                   </div>
-                </div>
 
-                <div className="flex flex-wrap gap-1.5 mb-3">
-                  {vendor?.categories?.map((cat) => (
-                    <span
-                      key={cat}
-                      className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded-lg"
-                    >
-                      {cat}
-                    </span>
-                  ))}
-                </div>
-
-                <div className="flex items-center justify-between text-xs text-muted-foreground border-t border-border pt-3">
-                  <div className="flex items-center gap-1">
-                    <span className="text-amber-400">★</span>
-                    <span className="font-700 text-foreground">{vendor?.rating}</span>
-                    <span>({vendor?.reviews} reviews)</span>
+                  <div className="flex flex-wrap gap-1.5 mb-3">
+                    {vendor?.categories?.map((cat) => (
+                      <span
+                        key={cat}
+                        className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded-lg"
+                      >
+                        {cat}
+                      </span>
+                    ))}
                   </div>
-                  <span className="font-600 text-primary">{vendor?.products} products</span>
-                </div>
+
+                  <div className="flex items-center justify-between text-xs text-muted-foreground border-t border-border pt-3">
+                    <div className="flex items-center gap-1">
+                      <span className="text-amber-400">★</span>
+                      <span className="font-700 text-foreground">{vendor?.rating}</span>
+                      <span>({vendor?.reviews} reviews)</span>
+                    </div>
+                    <span className="font-600 text-primary">{vendor?.products} products</span>
+                  </div>
+                </Link>
+              ))}
+            </div>
+
+            {/* Become a Seller CTA */}
+            <div className="mt-10 text-center bg-gradient-to-r from-primary/10 to-secondary/10 border border-primary/20 rounded-2xl p-8">
+              <h2 className="text-xl font-800 text-foreground mb-2">
+                Are you a textile manufacturer or wholesaler?
+              </h2>
+              <p className="text-sm text-muted-foreground mb-4">
+                Join 500+ verified vendors on FabricTrad. Get GST-verified, list your products, and
+                reach B2B buyers across India.
+              </p>
+              <Link
+                href="/become-a-seller"
+                className="btn-primary px-6 py-2.5 text-sm rounded-xl inline-block"
+              >
+                Apply as a Vendor
               </Link>
-            ))}
-          </div>
-
-          {/* Become a Seller CTA */}
-          <div className="mt-10 text-center bg-gradient-to-r from-primary/10 to-secondary/10 border border-primary/20 rounded-2xl p-8">
-            <h2 className="text-xl font-800 text-foreground mb-2">
-              Are you a textile manufacturer or wholesaler?
-            </h2>
-            <p className="text-sm text-muted-foreground mb-4">
-              Join 500+ verified vendors on FabricTrad. Get GST-verified, list your products, and
-              reach B2B buyers across India.
-            </p>
-            <Link
-              href="/become-a-seller"
-              className="btn-primary px-6 py-2.5 text-sm rounded-xl inline-block"
-            >
-              Apply as a Vendor
-            </Link>
+            </div>
           </div>
         </div>
-      </div>
-      <Footer />
-    </main>
+        <Footer />
+      </main>
+    </BuyerOnlyGuard>
   );
 }

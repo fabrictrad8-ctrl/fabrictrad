@@ -321,12 +321,14 @@ export default function BuyerRequirementsBoard() {
           </span>
         </div>
         <div className="ml-auto flex items-center gap-3">
-          <Link
-            href="/marketplace"
-            className="text-xs text-muted-foreground hover:text-foreground transition-colors hidden sm:block"
-          >
-            Marketplace
-          </Link>
+          {userRole === 'buyer' && (
+            <Link
+              href="/marketplace"
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors hidden sm:block"
+            >
+              Marketplace
+            </Link>
+          )}
           {canPost ? (
             <button
               onClick={() => setShowPostForm(true)}
@@ -620,7 +622,7 @@ export default function BuyerRequirementsBoard() {
                           className="btn-primary px-4 py-1.5 text-xs rounded-xl flex items-center gap-1.5"
                         >
                           <Icon name="ChatBubbleLeftRightIcon" size={13} />
-                          Connect with Buyer
+                          Respond to Request
                         </button>
                       )}
                       {userRole === 'buyer' && req.buyerId === user?.id && (

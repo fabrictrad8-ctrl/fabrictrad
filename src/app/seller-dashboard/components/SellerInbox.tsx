@@ -51,7 +51,8 @@ export default function SellerInbox() {
         <div>
           <h2 className="text-xl font-800 text-foreground">Buyer Inbox</h2>
           <p className="text-sm text-muted-foreground mt-0.5">
-            All buyer messages — product inquiries, requirement responses, post-purchase support
+            Buyer-started chats only — product inquiries, requirement responses, post-purchase
+            support
           </p>
         </div>
         {totalUnread > 0 && (
@@ -66,7 +67,8 @@ export default function SellerInbox() {
         <Icon name="ShieldCheckIcon" size={14} className="text-success shrink-0" />
         <p className="text-xs text-success">
           <span className="font-700">Secure messaging:</span> All communication stays on FabricTrad.
-          No phone numbers or email addresses are shared.
+          Sellers cannot initiate a buyer chat first; replies open only after a buyer request,
+          product inquiry, or order message.
         </p>
       </div>
 
@@ -100,7 +102,7 @@ export default function SellerInbox() {
             <p className="font-700 text-foreground">No account messages yet</p>
             <p className="mx-auto mt-1 max-w-md text-sm">
               Product inquiries, requirement replies, and post-purchase support threads will appear
-              here only when they belong to this seller account.
+              here only when a buyer has contacted this seller account first.
             </p>
           </div>
         )}

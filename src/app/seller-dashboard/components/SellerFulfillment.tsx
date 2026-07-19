@@ -75,6 +75,36 @@ const failureReasons = [
   { reason: 'Other', count: 1, pct: 8 },
 ];
 
+const activeOrderProgress = [
+  {
+    id: 'FT-BULK-DEMO-002',
+    buyer: 'Jaipur Garment House',
+    product: 'Linen Slub Fabric',
+    partner: 'Shiprocket',
+    status: 'Pickup scheduled',
+    progress: 50,
+    eta: '21 Jul 2026',
+  },
+  {
+    id: 'FT-BULK-DEMO-003',
+    buyer: 'Mumbai Design Co.',
+    product: 'Organza Sequence Fabric',
+    partner: 'Own partner: DTDC',
+    status: 'In transit',
+    progress: 72,
+    eta: '22 Jul 2026',
+  },
+  {
+    id: 'FT-BULK-DEMO-004',
+    buyer: 'Surat Boutique Studio',
+    product: 'Georgette Embroidered',
+    partner: 'Own partner: Local Transport',
+    status: 'Delivered',
+    progress: 100,
+    eta: 'Delivered',
+  },
+];
+
 export default function SellerFulfillment() {
   const [dateRange, setDateRange] = useState('Last 6 Months');
   const [showExportMenu, setShowExportMenu] = useState(false);
@@ -293,6 +323,47 @@ export default function SellerFulfillment() {
               ))}
             </tbody>
           </table>
+        </div>
+      </div>
+
+      {/* Active Order Progress */}
+      <div className="mb-6 rounded-2xl border border-border bg-card p-5">
+        <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-sm font-800 text-foreground">Order Delivery Progress</h2>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Per-order delivery tracking across Shiprocket and seller-managed partners.
+            </p>
+          </div>
+          <span className="w-fit rounded-full border border-success/20 bg-success/10 px-3 py-1 text-xs font-700 text-success">
+            Buyer-visible tracking
+          </span>
+        </div>
+        <div className="space-y-3">
+          {activeOrderProgress.map((order) => (
+            <div key={order.id} className="rounded-xl border border-border p-4">
+              <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                <div className="min-w-0">
+                  <p className="mono-id">{order.id}</p>
+                  <p className="mt-1 text-sm font-800 text-foreground">{order.product}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {order.buyer} · {order.partner}
+                  </p>
+                </div>
+                <div className="text-left sm:text-right">
+                  <p className="text-xs font-800 text-primary">{order.status}</p>
+                  <p className="text-xs text-muted-foreground">ETA: {order.eta}</p>
+                </div>
+              </div>
+              <div className="h-2 overflow-hidden rounded-full bg-muted">
+                <div
+                  className="h-full rounded-full bg-success"
+                  style={{ width: `${order.progress}%` }}
+                />
+              </div>
+              <p className="mt-1 text-right text-xs font-700 text-success">{order.progress}%</p>
+            </div>
+          ))}
         </div>
       </div>
 

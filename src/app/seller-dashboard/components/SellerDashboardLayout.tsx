@@ -18,6 +18,7 @@ import NotificationPreferences from '@/app/components/NotificationPreferences';
 import SellerCategories from '@/app/seller-dashboard/components/SellerCategories';
 import SellerCourierSettings from '@/app/seller-dashboard/components/SellerCourierSettings';
 import SellerInbox from '@/app/seller-dashboard/components/SellerInbox';
+import SellerBuyerRequests from '@/app/seller-dashboard/components/SellerBuyerRequests';
 
 type SellerTab =
   | 'overview'
@@ -32,7 +33,8 @@ type SellerTab =
   | 'fulfillment'
   | 'categories'
   | 'courier'
-  | 'inbox';
+  | 'inbox'
+  | 'requests';
 
 const navItems: { key: SellerTab; label: string; icon: string; badge?: number }[] = [
   { key: 'overview', label: 'Dashboard', icon: 'HomeIcon' },
@@ -43,6 +45,7 @@ const navItems: { key: SellerTab; label: string; icon: string; badge?: number }[
   { key: 'fulfillment', label: 'Fulfillment', icon: 'TruckIcon' },
   { key: 'courier', label: 'Courier & Shipping', icon: 'TruckIcon' },
   { key: 'earnings', label: 'Earnings & Payouts', icon: 'BanknotesIcon' },
+  { key: 'requests', label: 'Buyer Requests', icon: 'MegaphoneIcon' },
   { key: 'inbox', label: 'Buyer Inbox', icon: 'ChatBubbleLeftRightIcon' },
   { key: 'disputes', label: 'Disputes & Messages', icon: 'ChatBubbleLeftRightIcon' },
   { key: 'notifications', label: 'Notifications', icon: 'BellIcon' },
@@ -158,16 +161,6 @@ export default function SellerDashboardLayout() {
                 )}
               </button>
             ))}
-            <div className="pt-4 mt-4 border-t border-border">
-              <Link
-                href="/marketplace"
-                className="sidebar-nav-item w-full text-left flex items-center gap-3"
-              >
-                <Icon name="GlobeAltIcon" size={18} />
-                <span>View Marketplace</span>
-              </Link>
-            </div>
-
             {/* Account-scoped inventory alert placeholder */}
             <div className="mt-4 p-3 bg-secondary/10 border border-secondary/20 rounded-xl">
               <div className="flex items-center gap-2 mb-1">
@@ -193,11 +186,7 @@ export default function SellerDashboardLayout() {
           {isDemoAccount && (
             <div className="mb-4 rounded-xl border border-secondary/20 bg-secondary/5 p-3">
               <div className="flex items-start gap-2">
-                <Icon
-                  name="ShieldCheckIcon"
-                  size={16}
-                  className="mt-0.5 shrink-0 text-secondary"
-                />
+                <Icon name="ShieldCheckIcon" size={16} className="mt-0.5 shrink-0 text-secondary" />
                 <div>
                   <p className="text-xs font-800 text-secondary">Demo seller sandbox</p>
                   <p className="mt-0.5 text-xs leading-5 text-muted-foreground">
@@ -218,6 +207,7 @@ export default function SellerDashboardLayout() {
           {activeTab === 'categories' && <SellerCategories />}
           {activeTab === 'courier' && <SellerCourierSettings />}
           {activeTab === 'inbox' && <SellerInbox />}
+          {activeTab === 'requests' && <SellerBuyerRequests />}
           {activeTab === 'notifications' && <NotificationPreferences mode="seller" />}
           {activeTab === 'upload' && <SellerWhatsAppUpload />}
           {activeTab === 'profile' && (

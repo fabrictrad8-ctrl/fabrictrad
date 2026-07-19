@@ -9,6 +9,16 @@ import {
 } from '@/lib/hooks/useAccountOrders';
 
 type OrderStatus = 'pending' | 'accepted' | 'paid' | 'shipped' | 'delivered' | 'rejected';
+type DeliveryPartner = 'shiprocket' | 'own';
+
+interface OrderDeliverySelection {
+  partner: DeliveryPartner;
+  courierName: string;
+  awbNumber: string;
+  trackingUrl: string;
+  estimatedDelivery: string;
+  saved: boolean;
+}
 
 interface Order {
   id: string;
@@ -38,6 +48,9 @@ const statusMap: Record<OrderStatus, { label: string; class: string }> = {
 export default function SellerOrders() {
   const { orders: accountOrders, loading } = useSellerBulkOrders();
   const [localStatuses, setLocalStatuses] = useState<Record<string, OrderStatus>>({});
+  const [deliverySelections, setDeliverySelections] = useState<
+    Record<string, OrderDeliverySelection>
+  >({});
   const [activeFilter, setActiveFilter] = useState('All');
   const [showCounterModal, setShowCounterModal] = useState<string | null>(null);
   const [counterQty, setCounterQty] = useState('');
@@ -128,7 +141,241 @@ export default function SellerOrders() {
 
   const handleMarkReady = (orderId: string) => {
     setLocalStatuses((prev) => ({ ...prev, [orderId]: 'shipped' }));
-    showSuccess(`Order ${orderId} marked ready for pickup. Shiprocket pickup scheduled.`);
+    const selection = getDeliverySelection(orderId);
+    showSuccess(
+      selection.partner === 'shiprocket'
+        ? `Order ${orderId} marked ready. Shiprocket pickup will be scheduled.`
+        : `Order ${orderId} marked shipped with ${selection.courierName || 'own delivery partner'}.`
+    );
+  };
+
+  const getDeliverySelection = (orderId: string): OrderDeliverySelection =>
+    deliverySelections[orderId] || {
+      partner: 'shiprocket',
+      courierName: '',
+      awbNumber: '',
+      trackingUrl: '',
+      estimatedDelivery: '',
+      saved: false,
+    };
+
+  const updateDeliverySelection = (orderId: string, patch: Partial<OrderDeliverySelection>) => {
+    setDeliverySelections((prev) => ({
+      ...prev,
+      [orderId]: { ...getDeliverySelection(orderId), ...patch, saved: false },
+    }));
+  };
+
+  const handleSaveDelivery = (orderId: string) => {
+    const selection = getDeliverySelection(orderId);
+    if (
+      selection.partner === 'own' &&
+      (!selection.courierName.trim() ||
+        !selection.awbNumber.trim() ||
+        !selection.trackingUrl.trim())
+    ) {
+      showSuccess('Own delivery partner requires courier name, AWB number, and live tracking URL.');
+      return;
+    }
+
+    setDeliverySelections((prev) => ({
+      ...prev,
+      [orderId]: { ...selection, saved: true },
+    }));
+    showSuccess(
+      selection.partner === 'shiprocket'
+        ? `Shiprocket selected for ${orderId}. Buyer will receive platform tracking updates.`
+        : `Own delivery tracking saved for ${orderId}. Buyer will see the live tracking link.`
+    );
+  };
+
+  const getOrderProgress = (status: OrderStatus) => {
+    const steps = [
+      { key: 'accepted', label: 'Accepted' },
+      { key: 'paid', label: 'Paid' },
+      { key: 'shipped', label: 'Shipped' },
+      { key: 'delivered', label: 'Delivered' },
+    ];
+    const currentIndex =
+      status === 'pending' || status === 'rejected'
+        ? -1
+        : steps.findIndex((step) => step.key === status);
+    const progress = currentIndex < 0 ? 0 : ((currentIndex + 1) / steps.length) * 100;
+    return { steps, currentIndex, progress };
+  };
+
+  const renderDeliveryPanel = (order: Order) => {
+    const selection = getDeliverySelection(order.id);
+    const { steps, currentIndex, progress } = getOrderProgress(order.status);
+    const canShip = order.status === 'paid' || order.status === 'shipped';
+
+    return (
+      <div className="mt-4 rounded-2xl border border-border bg-muted/20 p-4">
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p className="text-sm font-800 text-foreground">Delivery Partner for This Order</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Choose Shiprocket or your own delivery partner after the buyer order is accepted.
+              Buyer-visible tracking is maintained from this order.
+            </p>
+          </div>
+          <span
+            className={`w-fit rounded-full px-2.5 py-1 text-xs font-700 ${
+              selection.saved ? 'bg-success/10 text-success' : 'bg-amber-50 text-amber-700'
+            }`}
+          >
+            {selection.saved ? 'Saved for order' : 'Not saved yet'}
+          </span>
+        </div>
+
+        <div className="mb-4 grid gap-2 sm:grid-cols-4">
+          {steps.map((step, index) => (
+            <div key={step.key} className="rounded-xl border border-border bg-card p-2">
+              <div className="mb-1 flex items-center gap-2">
+                <span
+                  className={`h-2.5 w-2.5 rounded-full ${
+                    index <= currentIndex ? 'bg-success' : 'bg-muted-foreground/30'
+                  }`}
+                />
+                <p className="text-xs font-700 text-foreground">{step.label}</p>
+              </div>
+              <div className="h-1 rounded-full bg-muted">
+                <div
+                  className="h-full rounded-full bg-success"
+                  style={{ width: index <= currentIndex ? '100%' : '0%' }}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="mb-4 h-2 overflow-hidden rounded-full bg-muted">
+          <div className="h-full rounded-full bg-success" style={{ width: `${progress}%` }} />
+        </div>
+
+        <div className="grid gap-3 md:grid-cols-2">
+          <button
+            type="button"
+            onClick={() => updateDeliverySelection(order.id, { partner: 'shiprocket' })}
+            className={`rounded-xl border-2 p-4 text-left transition-all ${
+              selection.partner === 'shiprocket'
+                ? 'border-primary bg-primary/5'
+                : 'border-border bg-card hover:border-primary/40'
+            }`}
+          >
+            <div className="mb-1 flex items-center gap-2">
+              <Icon name="RocketLaunchIcon" size={18} className="text-primary" />
+              <p className="text-sm font-800 text-foreground">Shiprocket</p>
+              {selection.partner === 'shiprocket' && (
+                <Icon name="CheckCircleIcon" size={16} className="ml-auto text-primary" />
+              )}
+            </div>
+            <p className="text-xs leading-5 text-muted-foreground">
+              Platform-managed courier booking, pickup, and automatic tracking updates.
+            </p>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => updateDeliverySelection(order.id, { partner: 'own' })}
+            className={`rounded-xl border-2 p-4 text-left transition-all ${
+              selection.partner === 'own'
+                ? 'border-secondary bg-secondary/5'
+                : 'border-border bg-card hover:border-secondary/40'
+            }`}
+          >
+            <div className="mb-1 flex items-center gap-2">
+              <Icon name="TruckIcon" size={18} className="text-secondary" />
+              <p className="text-sm font-800 text-foreground">Own Delivery Partner</p>
+              {selection.partner === 'own' && (
+                <Icon name="CheckCircleIcon" size={16} className="ml-auto text-secondary" />
+              )}
+            </div>
+            <p className="text-xs leading-5 text-muted-foreground">
+              Seller-managed delivery. AWB and live tracking link are required for buyers.
+            </p>
+          </button>
+        </div>
+
+        {selection.partner === 'own' && (
+          <div className="mt-4 grid gap-3 lg:grid-cols-4">
+            <div>
+              <label className="mb-1.5 block text-xs font-700 text-foreground">
+                Courier Name *
+              </label>
+              <input
+                value={selection.courierName}
+                onChange={(event) =>
+                  updateDeliverySelection(order.id, { courierName: event.target.value })
+                }
+                placeholder="DTDC, Blue Dart, local transport"
+                className="input-base w-full rounded-xl px-3 py-2.5 text-sm"
+              />
+            </div>
+            <div>
+              <label className="mb-1.5 block text-xs font-700 text-foreground">
+                AWB / Tracking No. *
+              </label>
+              <input
+                value={selection.awbNumber}
+                onChange={(event) =>
+                  updateDeliverySelection(order.id, { awbNumber: event.target.value })
+                }
+                placeholder="Tracking number"
+                className="input-base w-full rounded-xl px-3 py-2.5 text-sm font-mono"
+              />
+            </div>
+            <div>
+              <label className="mb-1.5 block text-xs font-700 text-foreground">
+                Live Tracking URL *
+              </label>
+              <input
+                type="url"
+                value={selection.trackingUrl}
+                onChange={(event) =>
+                  updateDeliverySelection(order.id, { trackingUrl: event.target.value })
+                }
+                placeholder="https://..."
+                className="input-base w-full rounded-xl px-3 py-2.5 text-sm"
+              />
+            </div>
+            <div>
+              <label className="mb-1.5 block text-xs font-700 text-foreground">
+                Estimated Delivery
+              </label>
+              <input
+                type="date"
+                value={selection.estimatedDelivery}
+                onChange={(event) =>
+                  updateDeliverySelection(order.id, { estimatedDelivery: event.target.value })
+                }
+                className="input-base w-full rounded-xl px-3 py-2.5 text-sm"
+              />
+            </div>
+          </div>
+        )}
+
+        <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+          <button
+            type="button"
+            onClick={() => handleSaveDelivery(order.id)}
+            className="btn-secondary flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-xs"
+          >
+            <Icon name="CheckCircleIcon" size={14} />
+            Save Delivery Partner
+          </button>
+          {canShip && (
+            <button
+              type="button"
+              onClick={() => handleMarkReady(order.id)}
+              className="btn-primary flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-xs"
+            >
+              <Icon name="TruckIcon" size={14} />
+              {order.status === 'shipped' ? 'Update Tracking' : 'Mark Ready / Shipped'}
+            </button>
+          )}
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -284,30 +531,6 @@ export default function SellerOrders() {
                 </div>
               )}
 
-              {/* Actions for paid */}
-              {order.status === 'paid' && (
-                <div className="flex flex-wrap gap-2 pt-4 border-t border-border">
-                  <button
-                    type="button"
-                    onClick={() => handleMarkReady(order.id)}
-                    className="flex items-center gap-1.5 btn-primary px-4 py-2 text-xs rounded-xl"
-                  >
-                    <Icon name="TruckIcon" size={14} />
-                    Mark Ready for Pickup
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      alert('Shipping label will be generated once Shiprocket pickup is scheduled.')
-                    }
-                    className="flex items-center gap-1.5 btn-secondary px-4 py-2 text-xs rounded-xl"
-                  >
-                    <Icon name="DocumentArrowDownIcon" size={14} />
-                    Download Label
-                  </button>
-                </div>
-              )}
-
               {/* Accepted — awaiting payment */}
               {order.status === 'accepted' && (
                 <div className="flex items-center gap-2 pt-4 border-t border-border">
@@ -317,6 +540,9 @@ export default function SellerOrders() {
                   </p>
                 </div>
               )}
+
+              {['accepted', 'paid', 'shipped', 'delivered'].includes(order.status) &&
+                renderDeliveryPanel(order)}
             </div>
           </div>
         ))}

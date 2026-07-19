@@ -20,6 +20,7 @@ const sellerNavLinks = [
   { label: 'Dashboard', href: '/seller-dashboard' },
   { label: 'Upload Catalog', href: '/seller-dashboard?tab=upload' },
   { label: 'Orders', href: '/seller-dashboard?tab=orders' },
+  { label: 'Buyer Requests', href: '/seller-dashboard?tab=requests' },
   { label: 'Payouts', href: '/seller-dashboard?tab=earnings' },
 ];
 

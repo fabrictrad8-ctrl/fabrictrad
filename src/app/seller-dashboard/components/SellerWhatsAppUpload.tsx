@@ -60,10 +60,38 @@ const referenceMatches = [
   },
 ];
 
+const whatsappUploadNumbers = [
+  {
+    id: 'surat',
+    label: 'Surat Seller Upload Bot',
+    number: '+91 98765 00001',
+    waNumber: '919876500001',
+    scope: 'Fabric, lace, embroidery and textile catalog uploads',
+  },
+  {
+    id: 'mumbai',
+    label: 'Mumbai Seller Upload Bot',
+    number: '+91 98765 00002',
+    waNumber: '919876500002',
+    scope: 'Ready garment, boutique and sample catalog uploads',
+  },
+  {
+    id: 'jaipur',
+    label: 'Jaipur Seller Upload Bot',
+    number: '+91 98765 00003',
+    waNumber: '919876500003',
+    scope: 'Handwork, block print and artisan product references',
+  },
+];
+
 export default function SellerWhatsAppUpload() {
   const [status, setStatus] = useState<UploadStatus>('idle');
   const [rawText, setRawText] = useState('');
   const [parsedData, setParsedData] = useState<Record<string, string> | null>(null);
+  const [selectedWhatsAppId, setSelectedWhatsAppId] = useState(whatsappUploadNumbers[0].id);
+  const selectedWhatsApp =
+    whatsappUploadNumbers.find((number) => number.id === selectedWhatsAppId) ||
+    whatsappUploadNumbers[0];
 
   const handleParse = () => {
     setStatus('parsing');
@@ -84,6 +112,15 @@ export default function SellerWhatsAppUpload() {
 
   const handleSubmit = () => {
     setStatus('submitted');
+  };
+
+  const getWhatsAppMessage = () =>
+    rawText.trim() ||
+    'Fabric = pure dyeable soft nett\nWidth = 44\nWork = handwork all over\nRate = 840 per mtr';
+
+  const handleOpenWhatsApp = () => {
+    const text = encodeURIComponent(getWhatsAppMessage());
+    window.open(`https://wa.me/${selectedWhatsApp.waNumber}?text=${text}`, '_blank', 'noopener');
   };
 
   return (
@@ -209,12 +246,39 @@ export default function SellerWhatsAppUpload() {
               Also attach photos of the fabric. AI will auto-detect: category, GSM, HSN code, and
               GST rate.
             </p>
-            <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-xl">
-              <Icon name="ChatBubbleLeftRightIcon" size={16} className="text-green-600" />
-              <div>
-                <p className="text-xs font-700 text-green-800">WhatsApp: +91 98765 00001</p>
-                <p className="text-xs text-green-600">FabricTrad Seller Upload Bot</p>
+            <div className="rounded-xl border border-green-200 bg-green-50 p-3">
+              <div className="mb-3 flex items-center gap-2">
+                <Icon name="ChatBubbleLeftRightIcon" size={16} className="text-green-600" />
+                <div>
+                  <p className="text-xs font-700 text-green-800">
+                    Send to: {selectedWhatsApp.number}
+                  </p>
+                  <p className="text-xs text-green-600">{selectedWhatsApp.label}</p>
+                </div>
               </div>
+              <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+                <select
+                  value={selectedWhatsAppId}
+                  onChange={(event) => setSelectedWhatsAppId(event.target.value)}
+                  className="input-base w-full rounded-xl px-3 py-2 text-xs"
+                  aria-label="Choose WhatsApp upload number"
+                >
+                  {whatsappUploadNumbers.map((number) => (
+                    <option key={number.id} value={number.id}>
+                      {number.label} · {number.number}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={handleOpenWhatsApp}
+                  className="btn-primary inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-xs"
+                >
+                  <Icon name="PaperAirplaneIcon" size={13} />
+                  Open WhatsApp
+                </button>
+              </div>
+              <p className="mt-2 text-xs text-green-700">{selectedWhatsApp.scope}</p>
             </div>
           </div>
         </div>
@@ -239,6 +303,14 @@ export default function SellerWhatsAppUpload() {
               className="btn-primary px-5 py-2.5 text-sm rounded-xl disabled:opacity-50"
             >
               Process with AI
+            </button>
+            <button
+              type="button"
+              onClick={handleOpenWhatsApp}
+              className="ml-2 inline-flex items-center gap-2 rounded-xl border border-green-200 bg-green-50 px-5 py-2.5 text-sm font-700 text-green-700 transition-colors hover:bg-green-100"
+            >
+              <Icon name="ChatBubbleLeftRightIcon" size={15} />
+              Send on WhatsApp
             </button>
           </div>
         )}

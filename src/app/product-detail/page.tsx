@@ -11,54 +11,57 @@ import ComparisonWidget from '@/app/product-detail/components/ComparisonWidget';
 import FabricDrapeViewer from '@/app/product-detail/components/FabricDrapeViewer';
 import BuyerFeedbackWidget from '@/app/product-detail/components/BuyerFeedbackWidget';
 import BulkOrderCart from '@/app/product-detail/components/BulkOrderCart';
+import BuyerOnlyGuard from '@/components/BuyerOnlyGuard';
 
 export default function ProductDetailPage() {
   return (
-    <main className="min-h-screen bg-background">
-      <Header />
-      <div className="pt-16">
-        {/* Breadcrumb */}
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center gap-2 text-sm text-muted-foreground">
-          <a href="/marketplace" className="hover:text-primary transition-colors">
-            Marketplace
-          </a>
-          <span>/</span>
-          <a href="/categories" className="hover:text-primary transition-colors">
-            Net &amp; Embroidered
-          </a>
-          <span>/</span>
-          <span className="text-foreground font-500">Pure Dyeable Soft Nett Fabric</span>
-        </div>
-
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 pb-12">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Left: Gallery + Specs */}
-            <div className="lg:col-span-2 space-y-6">
-              <ProductGallery />
-              {/* Virtual Drape-on Feature */}
-              <section id="drape-on" className="scroll-mt-24">
-                <FabricDrapeViewer />
-              </section>
-              <ProductSpecs />
-              <SellerRatings />
-              {/* Aggregate Buyer Feedback Widget */}
-              <BuyerFeedbackWidget />
-              <ComparisonWidget />
-              {/* Bulk Order Cart */}
-              <BulkOrderCart />
-            </div>
-
-            {/* Right: Info + Order + Seller */}
-            <div className="space-y-4">
-              <ProductInfo />
-              <SellerCard />
-            </div>
+    <BuyerOnlyGuard>
+      <main className="min-h-screen bg-background">
+        <Header />
+        <div className="pt-16">
+          {/* Breadcrumb */}
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center gap-2 text-sm text-muted-foreground">
+            <a href="/marketplace" className="hover:text-primary transition-colors">
+              Marketplace
+            </a>
+            <span>/</span>
+            <a href="/categories" className="hover:text-primary transition-colors">
+              Net &amp; Embroidered
+            </a>
+            <span>/</span>
+            <span className="text-foreground font-500">Pure Dyeable Soft Nett Fabric</span>
           </div>
 
-          <RelatedProducts />
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 pb-12">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              {/* Left: Gallery + Specs */}
+              <div className="lg:col-span-2 space-y-6">
+                <ProductGallery />
+                {/* Virtual Drape-on Feature */}
+                <section id="drape-on" className="scroll-mt-24">
+                  <FabricDrapeViewer />
+                </section>
+                <ProductSpecs />
+                <SellerRatings />
+                {/* Aggregate Buyer Feedback Widget */}
+                <BuyerFeedbackWidget />
+                <ComparisonWidget />
+                {/* Bulk Order Cart */}
+                <BulkOrderCart />
+              </div>
+
+              {/* Right: Info + Order + Seller */}
+              <div className="space-y-4">
+                <ProductInfo />
+                <SellerCard />
+              </div>
+            </div>
+
+            <RelatedProducts />
+          </div>
         </div>
-      </div>
-      <Footer />
-    </main>
+        <Footer />
+      </main>
+    </BuyerOnlyGuard>
   );
 }

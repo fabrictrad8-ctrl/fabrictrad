@@ -40,6 +40,7 @@ const sellerItems: MenuItem[] = [
     href: '/seller-dashboard?tab=inbox',
     icon: 'ChatBubbleLeftRightIcon',
   },
+  { label: 'Buyer Requests', href: '/seller-dashboard?tab=requests', icon: 'MegaphoneIcon' },
   { label: 'Analytics', href: '/seller-dashboard?tab=analytics', icon: 'ChartBarIcon' },
   { label: 'Shipping', href: '/seller-dashboard?tab=fulfillment', icon: 'TruckIcon' },
   { label: 'Notifications', href: '/seller-dashboard?tab=notifications', icon: 'BellIcon' },

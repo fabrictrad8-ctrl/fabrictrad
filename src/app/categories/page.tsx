@@ -2,6 +2,7 @@ import React from 'react';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import Link from 'next/link';
+import BuyerOnlyGuard from '@/components/BuyerOnlyGuard';
 
 const categories = [
   {
@@ -128,89 +129,91 @@ const categories = [
 
 export default function CategoriesPage() {
   return (
-    <main className="min-h-screen bg-background">
-      <Header />
-      <div className="pt-16">
-        {/* Hero Banner */}
-        <div className="bg-gradient-to-br from-secondary to-secondary/80 text-white py-12 px-4">
-          <div className="max-w-7xl mx-auto text-center">
-            <div className="flex items-center justify-center gap-2 mb-3">
-              <Link href="/" className="text-white/60 hover:text-white text-sm transition-colors">
-                Home
-              </Link>
-              <span className="text-white/40">/</span>
-              <span className="text-white text-sm font-500">Categories</span>
+    <BuyerOnlyGuard>
+      <main className="min-h-screen bg-background">
+        <Header />
+        <div className="pt-16">
+          {/* Hero Banner */}
+          <div className="bg-gradient-to-br from-secondary to-secondary/80 text-white py-12 px-4">
+            <div className="max-w-7xl mx-auto text-center">
+              <div className="flex items-center justify-center gap-2 mb-3">
+                <Link href="/" className="text-white/60 hover:text-white text-sm transition-colors">
+                  Home
+                </Link>
+                <span className="text-white/40">/</span>
+                <span className="text-white text-sm font-500">Categories</span>
+              </div>
+              <h1 className="text-3xl sm:text-4xl font-800 mb-3">Browse by Category</h1>
+              <p className="text-white/80 text-base max-w-xl mx-auto">
+                Explore {categories?.reduce((a, c) => a + c?.count, 0)?.toLocaleString('en-IN')}+
+                verified textile products across {categories?.length} categories from India&apos;s
+                top B2B suppliers.
+              </p>
             </div>
-            <h1 className="text-3xl sm:text-4xl font-800 mb-3">Browse by Category</h1>
-            <p className="text-white/80 text-base max-w-xl mx-auto">
-              Explore {categories?.reduce((a, c) => a + c?.count, 0)?.toLocaleString('en-IN')}+
-              verified textile products across {categories?.length} categories from India&apos;s top
-              B2B suppliers.
-            </p>
           </div>
-        </div>
 
-        {/* Category Grid */}
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10">
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-5">
-            {categories?.map((cat) => (
-              <Link
-                key={cat?.id}
-                href={cat?.href}
-                className="group bg-card rounded-2xl border border-border overflow-hidden hover:shadow-lg hover:border-primary/30 transition-all duration-300"
-              >
-                {/* Image */}
-                <div className="aspect-video overflow-hidden bg-muted relative">
-                  <img
-                    src={cat?.image}
-                    alt={cat?.alt}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                  />
+          {/* Category Grid */}
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-5">
+              {categories?.map((cat) => (
+                <Link
+                  key={cat?.id}
+                  href={cat?.href}
+                  className="group bg-card rounded-2xl border border-border overflow-hidden hover:shadow-lg hover:border-primary/30 transition-all duration-300"
+                >
+                  {/* Image */}
+                  <div className="aspect-video overflow-hidden bg-muted relative">
+                    <img
+                      src={cat?.image}
+                      alt={cat?.alt}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    />
 
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
-                  <div className="absolute bottom-2 left-2 text-2xl">{cat?.icon}</div>
-                </div>
-
-                {/* Info */}
-                <div className="p-3">
-                  <h3 className="font-700 text-sm text-foreground group-hover:text-primary transition-colors mb-1 leading-snug">
-                    {cat?.name}
-                  </h3>
-                  <p className="text-xs text-muted-foreground line-clamp-2 mb-2 leading-relaxed">
-                    {cat?.description}
-                  </p>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-600 text-primary">{cat?.count}+ products</span>
-                    <span className="text-xs text-muted-foreground group-hover:text-primary transition-colors">
-                      Browse →
-                    </span>
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
+                    <div className="absolute bottom-2 left-2 text-2xl">{cat?.icon}</div>
                   </div>
-                </div>
-              </Link>
-            ))}
-          </div>
 
-          {/* CTA */}
-          <div className="mt-10 text-center bg-gradient-to-r from-primary/10 to-secondary/10 border border-primary/20 rounded-2xl p-8">
-            <h2 className="text-xl font-800 text-foreground mb-2">
-              Can&apos;t find your category?
-            </h2>
-            <p className="text-sm text-muted-foreground mb-4">
-              FabricTrad connects you with 500+ verified textile suppliers across India. Browse the
-              full marketplace or contact us.
-            </p>
-            <div className="flex items-center justify-center gap-3 flex-wrap">
-              <Link href="/marketplace" className="btn-primary px-6 py-2.5 text-sm rounded-xl">
-                Browse All Products
-              </Link>
-              <Link href="/register" className="btn-secondary px-6 py-2.5 text-sm rounded-xl">
-                Create Account
-              </Link>
+                  {/* Info */}
+                  <div className="p-3">
+                    <h3 className="font-700 text-sm text-foreground group-hover:text-primary transition-colors mb-1 leading-snug">
+                      {cat?.name}
+                    </h3>
+                    <p className="text-xs text-muted-foreground line-clamp-2 mb-2 leading-relaxed">
+                      {cat?.description}
+                    </p>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-600 text-primary">{cat?.count}+ products</span>
+                      <span className="text-xs text-muted-foreground group-hover:text-primary transition-colors">
+                        Browse →
+                      </span>
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+
+            {/* CTA */}
+            <div className="mt-10 text-center bg-gradient-to-r from-primary/10 to-secondary/10 border border-primary/20 rounded-2xl p-8">
+              <h2 className="text-xl font-800 text-foreground mb-2">
+                Can&apos;t find your category?
+              </h2>
+              <p className="text-sm text-muted-foreground mb-4">
+                FabricTrad connects you with 500+ verified textile suppliers across India. Browse
+                the full marketplace or contact us.
+              </p>
+              <div className="flex items-center justify-center gap-3 flex-wrap">
+                <Link href="/marketplace" className="btn-primary px-6 py-2.5 text-sm rounded-xl">
+                  Browse All Products
+                </Link>
+                <Link href="/register" className="btn-secondary px-6 py-2.5 text-sm rounded-xl">
+                  Create Account
+                </Link>
+              </div>
             </div>
           </div>
         </div>
-      </div>
-      <Footer />
-    </main>
+        <Footer />
+      </main>
+    </BuyerOnlyGuard>
   );
 }
