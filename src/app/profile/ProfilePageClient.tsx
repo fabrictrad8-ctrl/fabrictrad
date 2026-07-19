@@ -47,7 +47,7 @@ const getValidProfileTab = (tab: string | null): ProfileTab =>
 export default function ProfilePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user, profile, loading, refreshProfile } = useAuth();
+  const { user, profile, loading, refreshProfile, isDemoAccount } = useAuth();
   const supabase = createClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -118,6 +118,13 @@ export default function ProfilePage() {
     const file = e.target.files?.[0];
     if (!file || !user) return;
 
+    if (isDemoAccount) {
+      setErrorMsg('');
+      setSuccessMsg('Demo profile photo preview acknowledged. Demo accounts do not save files.');
+      setTimeout(() => setSuccessMsg(''), 3000);
+      return;
+    }
+
     setUploadingPhoto(true);
     setErrorMsg('');
     try {
@@ -171,6 +178,12 @@ export default function ProfilePage() {
     }
 
     try {
+      if (isDemoAccount) {
+        setSuccessMsg('Demo personal details checked. Demo accounts do not update live records.');
+        setTimeout(() => setSuccessMsg(''), 3000);
+        return;
+      }
+
       const { error } = await supabase
         .from('user_profiles')
         .update({
@@ -199,6 +212,12 @@ export default function ProfilePage() {
     setErrorMsg('');
     setSaving(true);
     try {
+      if (isDemoAccount) {
+        setSuccessMsg('Demo address checked. Demo accounts do not update live records.');
+        setTimeout(() => setSuccessMsg(''), 3000);
+        return;
+      }
+
       const { error } = await supabase
         .from('user_profiles')
         .update({
@@ -235,6 +254,13 @@ export default function ProfilePage() {
     }
     setSaving(true);
     try {
+      if (isDemoAccount) {
+        setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+        setSuccessMsg('Demo password flow checked. Demo credentials stay fixed.');
+        setTimeout(() => setSuccessMsg(''), 3000);
+        return;
+      }
+
       const { error } = await supabase.auth.updateUser({ password: passwordForm.newPassword });
       if (error) throw error;
       setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });

@@ -40,8 +40,12 @@ export default function SellerCourierSettings() {
     shippableOrders.find((order) => order.id === activeOrderId) || shippableOrders[0] || null;
 
   const handleTrackAWB = async () => {
-    if (!localCourier.awbNumber.trim()) {
-      setTrackingError('Please enter AWB number first');
+    if (!localCourier.courierName.trim() || !localCourier.awbNumber.trim()) {
+      setTrackingError('Please enter courier name and AWB number first');
+      return;
+    }
+    if (!localCourier.trackingUrl.trim()) {
+      setTrackingError('Please add a live tracking URL before notifying the buyer');
       return;
     }
     setIsTracking(true);
@@ -68,6 +72,17 @@ export default function SellerCourierSettings() {
   };
 
   const handleSave = () => {
+    if (selectedCourier === 'local') {
+      if (!localCourier.courierName.trim() || !localCourier.awbNumber.trim()) {
+        setTrackingError('Courier name and AWB number are required for own delivery partners');
+        return;
+      }
+      if (!localCourier.trackingUrl.trim()) {
+        setTrackingError('A live tracking URL is required for own delivery partners');
+        return;
+      }
+    }
+    setTrackingError('');
     setSaved(true);
     setTimeout(() => setSaved(false), 2500);
   };
@@ -177,13 +192,13 @@ export default function SellerCourierSettings() {
           >
             <div className="flex items-center gap-2 mb-2">
               <span className="text-xl">🚛</span>
-              <span className="font-700 text-sm text-foreground">Local Courier</span>
+              <span className="font-700 text-sm text-foreground">Own Delivery Partner</span>
               {selectedCourier === 'local' && (
                 <Icon name="CheckCircleIcon" size={16} className="text-secondary ml-auto" />
               )}
             </div>
             <p className="text-xs text-muted-foreground">
-              Your own courier · Enter AWB manually · AI auto-tracks
+              Seller managed · AWB + live link required · buyer sees updates
             </p>
           </button>
         </div>
@@ -212,11 +227,12 @@ export default function SellerCourierSettings() {
             <div className="p-3 bg-secondary/5 border border-secondary/20 rounded-xl mb-3">
               <div className="flex items-center gap-2 mb-1">
                 <Icon name="SparklesIcon" size={14} className="text-secondary" />
-                <p className="text-xs font-700 text-secondary">AI Auto-Tracking Enabled</p>
+                <p className="text-xs font-700 text-secondary">Seller-Managed Tracking</p>
               </div>
               <p className="text-xs text-muted-foreground">
-                Enter the courier name and AWB number. Our AI will automatically track the shipment
-                and update the buyer.
+                You can use DTDC, Blue Dart, Delhivery, local transport, or any delivery partner.
+                You must maintain the AWB, live tracking URL, delivery dates, and buyer-visible
+                status updates until delivery is complete.
               </p>
             </div>
 
@@ -264,7 +280,7 @@ export default function SellerCourierSettings() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-700 text-foreground mb-1.5">
-                  Tracking URL (optional)
+                  Live Tracking URL *
                 </label>
                 <input
                   type="url"

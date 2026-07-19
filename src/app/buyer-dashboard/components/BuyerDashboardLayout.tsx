@@ -38,7 +38,7 @@ const getValidTab = (tab: string | null): DashTab =>
   navItems.some((item) => item.key === tab) ? (tab as DashTab) : 'overview';
 
 export default function BuyerDashboardLayout() {
-  const { user, profile } = useAuth();
+  const { user, profile, isDemoAccount } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState<DashTab>(() =>
@@ -169,6 +169,24 @@ export default function BuyerDashboardLayout() {
 
         {/* Main Content */}
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 min-w-0">
+          {isDemoAccount && (
+            <div className="mb-4 rounded-xl border border-primary/20 bg-primary/5 p-3">
+              <div className="flex items-start gap-2">
+                <Icon
+                  name="ShieldCheckIcon"
+                  size={16}
+                  className="mt-0.5 shrink-0 text-primary"
+                />
+                <div>
+                  <p className="text-xs font-800 text-primary">Demo buyer sandbox</p>
+                  <p className="mt-0.5 text-xs leading-5 text-muted-foreground">
+                    This account is for testing only. You can explore buyer features, but real
+                    checkout and product ordering are disabled.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
           {activeTab === 'overview' && <BuyerOverview onNavigate={navigateToTab} />}
           {activeTab === 'orders' && <BuyerOrders />}
           {activeTab === 'tracking' && <BuyerTracking />}

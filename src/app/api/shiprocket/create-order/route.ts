@@ -32,7 +32,15 @@ export async function POST(request: NextRequest) {
       breadth,
       height,
       sellerPickupAddress,
+      demoAccount,
     } = await request.json();
+
+    if (demoAccount) {
+      return NextResponse.json(
+        { success: false, error: 'Demo accounts cannot create real courier shipments.' },
+        { status: 403 }
+      );
+    }
 
     if (!SHIPROCKET_EMAIL || !SHIPROCKET_PASSWORD) {
       // Dev mock mode

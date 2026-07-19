@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { DEMO_BULK_ORDERS } from '@/lib/demoAccounts';
 
 type BulkOrderItem = {
   product_name?: string | null;
@@ -45,7 +46,7 @@ export function firstOrderItem(order: AccountBulkOrder) {
 }
 
 export function useBuyerBulkOrders() {
-  const { user } = useAuth();
+  const { user, isDemoAccount } = useAuth();
   const [orders, setOrders] = useState<AccountBulkOrder[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -53,6 +54,12 @@ export function useBuyerBulkOrders() {
     let mounted = true;
 
     async function loadOrders() {
+      if (isDemoAccount) {
+        setOrders(DEMO_BULK_ORDERS.buyer as AccountBulkOrder[]);
+        setLoading(false);
+        return;
+      }
+
       if (!user?.id) {
         setOrders([]);
         setLoading(false);
@@ -76,13 +83,13 @@ export function useBuyerBulkOrders() {
     return () => {
       mounted = false;
     };
-  }, [user?.id]);
+  }, [isDemoAccount, user?.id]);
 
   return { orders, loading };
 }
 
 export function useSellerBulkOrders() {
-  const { user } = useAuth();
+  const { user, isDemoAccount } = useAuth();
   const [orders, setOrders] = useState<AccountBulkOrder[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -90,6 +97,12 @@ export function useSellerBulkOrders() {
     let mounted = true;
 
     async function loadOrders() {
+      if (isDemoAccount) {
+        setOrders(DEMO_BULK_ORDERS.seller as AccountBulkOrder[]);
+        setLoading(false);
+        return;
+      }
+
       if (!user?.id) {
         setOrders([]);
         setLoading(false);
@@ -127,7 +140,7 @@ export function useSellerBulkOrders() {
     return () => {
       mounted = false;
     };
-  }, [user?.id]);
+  }, [isDemoAccount, user?.id]);
 
   return { orders, loading };
 }

@@ -1,5 +1,7 @@
 import React from 'react';
 import Icon from '@/components/ui/AppIcon';
+import { useAuth } from '@/contexts/AuthContext';
+import { DEMO_SHIPMENTS } from '@/lib/demoAccounts';
 
 const shipments: {
   orderId: string;
@@ -12,15 +14,19 @@ const shipments: {
   statusLabel: string;
   edd: string;
   lastUpdate: string;
+  trackingUrl?: string;
   timeline: { event: string; time: string; done: boolean; active?: boolean }[];
 }[] = [];
 
 export default function BuyerTracking() {
+  const { isDemoAccount } = useAuth();
+  const visibleShipments = isDemoAccount ? DEMO_SHIPMENTS : shipments;
+
   return (
     <div>
       <h1 className="text-xl font-800 text-foreground mb-6">Track Shipments</h1>
       <div className="space-y-5">
-        {shipments.length === 0 && (
+        {visibleShipments.length === 0 && (
           <div className="bg-card rounded-2xl border border-border px-5 py-12 text-center">
             <Icon name="TruckIcon" size={34} className="mx-auto mb-3 text-muted-foreground" />
             <p className="text-sm font-800 text-foreground">No shipments for this account</p>
@@ -29,7 +35,7 @@ export default function BuyerTracking() {
             </p>
           </div>
         )}
-        {shipments?.map((shipment) => (
+        {visibleShipments?.map((shipment) => (
           <div
             key={shipment?.shipmentId}
             className="bg-card rounded-2xl border border-border overflow-hidden"
@@ -54,6 +60,17 @@ export default function BuyerTracking() {
                   </div>
                   <p className="text-xs text-muted-foreground">AWB: {shipment?.awb}</p>
                   <p className="text-xs font-700 text-primary">EDD: {shipment?.edd}</p>
+                  {shipment?.trackingUrl && (
+                    <a
+                      href={shipment.trackingUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mt-1 inline-flex items-center gap-1 text-xs font-700 text-secondary hover:underline"
+                    >
+                      <Icon name="ArrowTopRightOnSquareIcon" size={11} />
+                      Seller live tracking
+                    </a>
+                  )}
                 </div>
               </div>
             </div>
@@ -107,6 +124,17 @@ export default function BuyerTracking() {
                 <Icon name="MapPinIcon" size={14} className="text-muted-foreground" />
                 <p className="text-xs text-muted-foreground">Last update: {shipment?.lastUpdate}</p>
               </div>
+
+              {shipment?.trackingUrl && (
+                <div className="mt-3 rounded-xl border border-secondary/20 bg-secondary/5 p-3">
+                  <p className="text-xs font-800 text-secondary">Seller-managed delivery</p>
+                  <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                    This order uses the seller's own delivery partner instead of Shiprocket. The
+                    seller is responsible for maintaining the tracking number, live tracking link,
+                    delivery status, and buyer updates.
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         ))}

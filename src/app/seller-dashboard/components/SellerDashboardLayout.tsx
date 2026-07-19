@@ -54,7 +54,7 @@ const getValidTab = (tab: string | null): SellerTab =>
   navItems.some((item) => item.key === tab) ? (tab as SellerTab) : 'overview';
 
 export default function SellerDashboardLayout() {
-  const { user, profile } = useAuth();
+  const { user, profile, isDemoAccount } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState<SellerTab>(() =>
@@ -190,6 +190,24 @@ export default function SellerDashboardLayout() {
 
         {/* Main */}
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 min-w-0">
+          {isDemoAccount && (
+            <div className="mb-4 rounded-xl border border-secondary/20 bg-secondary/5 p-3">
+              <div className="flex items-start gap-2">
+                <Icon
+                  name="ShieldCheckIcon"
+                  size={16}
+                  className="mt-0.5 shrink-0 text-secondary"
+                />
+                <div>
+                  <p className="text-xs font-800 text-secondary">Demo seller sandbox</p>
+                  <p className="mt-0.5 text-xs leading-5 text-muted-foreground">
+                    This account is for testing only. You can explore seller features, but real
+                    products, sales, payouts, and courier creation are disabled.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
           {activeTab === 'overview' && <SellerOverview onNavigate={navigateToTab} />}
           {activeTab === 'orders' && <SellerOrders />}
           {activeTab === 'inventory' && <SellerInventory />}

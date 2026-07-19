@@ -15,7 +15,18 @@ export async function POST(request: NextRequest) {
       orderId,
       sellerLinkedAccountId,
       sellerAmount,
+      demoAccount,
     } = await request.json();
+
+    if (demoAccount) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Demo accounts cannot create real Razorpay orders.',
+        },
+        { status: 403 }
+      );
+    }
 
     if (!amount || amount <= 0) {
       return NextResponse.json({ success: false, error: 'Invalid amount' }, { status: 400 });

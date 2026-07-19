@@ -3,6 +3,12 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import { createClient } from '../lib/supabase/client';
 import { normalizeEmail, normalizeIndianPhone } from '@/lib/authValidation';
+import {
+  DEMO_SESSION_STORAGE_KEY,
+  getDemoAccountByEmail,
+  getDemoUserId,
+  validateDemoCredentials,
+} from '@/lib/demoAccounts';
 
 interface UserProfile {
   id: string;
@@ -21,6 +27,7 @@ interface AuthContextType {
   profile: UserProfile | null;
   loading: boolean;
   profileLoading: boolean;
+  isDemoAccount: boolean;
   googleAuthEnabled: boolean;
   signUp: (email: string, password: string, metadata?: any) => Promise<any>;
   signIn: (email: string, password: string) => Promise<any>;
@@ -77,7 +84,57 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [profileLoading, setProfileLoading] = useState(false);
+  const [isDemoAccount, setIsDemoAccount] = useState(false);
   const supabase = createClient();
+
+  const buildDemoSession = (role: 'buyer' | 'seller') => {
+    const account = getDemoAccountByEmail(
+      role === 'buyer' ? 'demo.buyer@fabrictrad.com' : 'demo.seller@fabrictrad.com'
+    );
+    if (!account) return null;
+
+    const id = getDemoUserId(role);
+    return {
+      user: {
+        id,
+        email: account.email,
+        email_confirmed_at: new Date().toISOString(),
+        user_metadata: {
+          full_name: account.fullName,
+          role,
+          demo: true,
+        },
+        app_metadata: { role, demo: true },
+      },
+      profile: {
+        id,
+        email: account.email,
+        full_name: account.fullName,
+        phone: account.phone,
+        phone_verified: true,
+        role,
+        is_active: true,
+        avatar_url: null,
+        business_name: account.company,
+        gstin: role === 'seller' ? '27ABCDE1234F1Z5' : '24ABCDE1234F1Z5',
+        city: role === 'seller' ? 'Surat' : 'Mumbai',
+        address_line1: role === 'seller' ? 'Demo Textile Market, Ring Road' : 'Demo Sourcing Office',
+        pincode: role === 'seller' ? '395002' : '400001',
+      } as UserProfile,
+    };
+  };
+
+  const applyDemoSession = (role: 'buyer' | 'seller') => {
+    const demoSession = buildDemoSession(role);
+    if (!demoSession) return false;
+    localStorage.setItem(DEMO_SESSION_STORAGE_KEY, role);
+    setSession(null);
+    setUser(demoSession.user);
+    setProfile(demoSession.profile);
+    setIsDemoAccount(true);
+    setLoading(false);
+    return true;
+  };
 
   const loadProfile = async (userId: string) => {
     setProfileLoading(true);
@@ -98,6 +155,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   useEffect(() => {
+    const storedDemoRole =
+      typeof window !== 'undefined'
+        ? localStorage.getItem(DEMO_SESSION_STORAGE_KEY)
+        : null;
+    if (storedDemoRole === 'buyer' || storedDemoRole === 'seller') {
+      applyDemoSession(storedDemoRole);
+      return;
+    }
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
@@ -110,6 +176,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
+      setIsDemoAccount(false);
       if (session?.user) {
         loadProfile(session.user.id);
       } else {
@@ -123,6 +190,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   // Email/Password Sign Up
   const signUp = async (email: string, password: string, metadata: any = {}) => {
+    if (getDemoAccountByEmail(email)) {
+      throw new Error('Demo accounts are built into FabricTrad. Please sign in with the demo password.');
+    }
+
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -142,6 +213,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   // Email/Password Sign In
   const signIn = async (email: string, password: string) => {
+    const demoAccount = validateDemoCredentials(email, password);
+    if (demoAccount) {
+      await supabase.auth.signOut().catch(() => undefined);
+      applyDemoSession(demoAccount.role);
+      return { user: buildDemoSession(demoAccount.role)?.user, session: null };
+    }
+
+    if (getDemoAccountByEmail(email)) {
+      throw new Error('Invalid demo password. Use the demo credentials shown on this page.');
+    }
+
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
@@ -203,9 +285,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   // Sign Out
   const signOut = async () => {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem(DEMO_SESSION_STORAGE_KEY);
+    }
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
     setProfile(null);
+    setUser(null);
+    setSession(null);
+    setIsDemoAccount(false);
   };
 
   // Get Current User
@@ -301,6 +389,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     profile,
     loading,
     profileLoading,
+    isDemoAccount,
     googleAuthEnabled,
     signUp,
     signIn,

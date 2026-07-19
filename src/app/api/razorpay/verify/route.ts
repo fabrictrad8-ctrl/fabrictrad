@@ -3,7 +3,15 @@ import crypto from 'crypto';
 
 export async function POST(request: NextRequest) {
   try {
-    const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = await request.json();
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, demoAccount } =
+      await request.json();
+
+    if (demoAccount) {
+      return NextResponse.json(
+        { success: false, error: 'Demo accounts cannot verify real payments.' },
+        { status: 403 }
+      );
+    }
 
     if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
       return NextResponse.json(

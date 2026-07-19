@@ -27,6 +27,26 @@ interface Requirement {
 
 const emptyRequirements: Requirement[] = [];
 
+const demoRequirements: Requirement[] = [
+  {
+    id: 'DEMO-REQ-001',
+    buyerId: 'fabrictrad-demo-buyer',
+    buyerName: 'Demo Buyer',
+    buyerAvatar: '',
+    title: 'Need 180 mtr ivory embroidered net',
+    description:
+      'Looking for wedding-season ivory embroidered net with soft hand feel and quick dispatch.',
+    category: 'Net / Embroidered',
+    quantity: '180 mtr',
+    budget: '₹750 - ₹950/mtr',
+    deadline: '22 Jul 2026',
+    postedAt: 'Today',
+    responses: 3,
+    status: 'open',
+    tags: ['Ivory', 'Embroidery', 'Wedding', 'Fast dispatch'],
+  },
+];
+
 const statusConfig: Record<string, { label: string; color: string }> = {
   open: { label: 'Open', color: 'bg-success/10 text-success border-success/20' },
   in_discussion: { label: 'In Discussion', color: 'bg-amber-50 text-amber-700 border-amber-200' },
@@ -70,7 +90,7 @@ const referenceVendorMatches = [
 ];
 
 export default function BuyerRequirementsBoard() {
-  const { user, profile, loading: authLoading } = useAuth();
+  const { user, profile, loading: authLoading, isDemoAccount } = useAuth();
   const supabase = useMemo(() => createClient(), []);
   const [requirements, setRequirements] = useState<Requirement[]>(emptyRequirements);
   const [loading, setLoading] = useState(true);
@@ -91,6 +111,12 @@ export default function BuyerRequirementsBoard() {
     if (authLoading) return;
     if (!user) {
       setRequirements([]);
+      setLoading(false);
+      return;
+    }
+
+    if (isDemoAccount) {
+      setRequirements(demoRequirements);
       setLoading(false);
       return;
     }
@@ -151,7 +177,7 @@ export default function BuyerRequirementsBoard() {
     return () => {
       mounted = false;
     };
-  }, [accountAvatar, accountName, authLoading, profile?.role, supabase, user]);
+  }, [accountAvatar, accountName, authLoading, isDemoAccount, profile?.role, supabase, user]);
 
   // Post form state
   const [form, setForm] = useState({
@@ -182,6 +208,43 @@ export default function BuyerRequirementsBoard() {
       .split(',')
       .map((t) => t.trim())
       .filter(Boolean);
+
+    if (isDemoAccount) {
+      const newReq: Requirement = {
+        id: `DEMO-REQ-${Date.now().toString().slice(-5)}`,
+        buyerId: user.id,
+        buyerName: accountName,
+        buyerAvatar: accountAvatar,
+        title: form.title,
+        description: form.description,
+        category: form.category,
+        quantity: form.quantity,
+        budget: form.budget,
+        deadline: form.deadline
+          ? new Date(form.deadline).toLocaleDateString('en-IN', {
+              day: '2-digit',
+              month: 'short',
+              year: 'numeric',
+            })
+          : 'Flexible',
+        postedAt: 'Just now',
+        responses: 0,
+        status: 'open',
+        tags,
+      };
+      setRequirements((prev) => [newReq, ...prev]);
+      setShowPostForm(false);
+      setForm({
+        title: '',
+        description: '',
+        category: 'Silk Fabric',
+        quantity: '',
+        budget: '',
+        deadline: '',
+        tags: '',
+      });
+      return;
+    }
 
     const { data, error } = await supabase
       .from('buyer_requirements')

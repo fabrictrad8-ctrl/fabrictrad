@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import Script from 'next/script';
 import Icon from '@/components/ui/AppIcon';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface RazorpayCheckoutProps {
   amount: number;
@@ -33,11 +34,20 @@ export function RazorpayCheckout({
   className = '',
   disabled = false,
 }: RazorpayCheckoutProps) {
+  const { isDemoAccount } = useAuth();
   const [loading, setLoading] = useState(false);
   const [scriptLoaded, setScriptLoaded] = useState(false);
 
   const handlePayment = async () => {
     if (!scriptLoaded || loading || disabled) return;
+    if (isDemoAccount) {
+      onError?.(
+        new Error(
+          'Demo accounts are sandbox-only. They can review checkout but cannot place real paid orders.'
+        )
+      );
+      return;
+    }
     setLoading(true);
 
     try {
@@ -50,6 +60,7 @@ export function RazorpayCheckout({
           orderId,
           sellerLinkedAccountId,
           sellerAmount,
+          demoAccount: isDemoAccount,
         }),
       });
 
@@ -135,7 +146,9 @@ export function RazorpayCheckout({
       {/* No COD notice */}
       <p className="text-xs text-center text-muted-foreground mt-1.5 flex items-center justify-center gap-1">
         <Icon name="ShieldCheckIcon" size={11} className="text-success" />
-        100% Prepaid · No Cash on Delivery
+        {isDemoAccount
+          ? 'Demo checkout only · real payment disabled'
+          : '100% Prepaid · No Cash on Delivery'}
       </p>
     </>
   );
