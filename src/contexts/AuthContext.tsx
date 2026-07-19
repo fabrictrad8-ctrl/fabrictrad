@@ -47,8 +47,12 @@ type IdentityConflict = {
 };
 
 const getAuthRedirectBase = () => {
+  if (process.env.NEXT_PUBLIC_SITE_URL) {
+    return process.env.NEXT_PUBLIC_SITE_URL.replace(/\/$/, '');
+  }
+
   if (typeof window !== 'undefined') return window.location.origin;
-  return process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+  return 'http://localhost:3000';
 };
 
 const googleAuthEnabled = process.env.NEXT_PUBLIC_ENABLE_GOOGLE_AUTH === 'true';
