@@ -5,7 +5,6 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import AppLogo from '@/components/ui/AppLogo';
 import Icon from '@/components/ui/AppIcon';
 import { useAuth } from '@/contexts/AuthContext';
-import { DEMO_ACCOUNTS } from '@/lib/demoAccounts';
 
 type AuthMode = 'choose' | 'email-password' | 'email-otp' | 'otp-verify';
 type LoginRole = 'buyer' | 'seller';
@@ -91,21 +90,6 @@ export default function LoginPageClient() {
       await signIn(email, password);
     } catch (e: any) {
       setError(e.message || 'Invalid email or password');
-      setSubmitting(false);
-    }
-  };
-
-  const handleDemoLogin = async (demoRole: LoginRole) => {
-    const account = DEMO_ACCOUNTS[demoRole];
-    setRole(demoRole);
-    setEmail(account.email);
-    setPassword(account.password);
-    setError('');
-    setSubmitting(true);
-    try {
-      await signIn(account.email, account.password);
-    } catch (e: any) {
-      setError(e.message || 'Demo login failed');
       setSubmitting(false);
     }
   };
@@ -289,54 +273,6 @@ export default function LoginPageClient() {
           {/* Choose Mode */}
           {mode === 'choose' && (
             <div className="space-y-3">
-              <div className="rounded-xl border border-primary/20 bg-primary/5 p-3">
-                <div className="mb-3 flex items-start gap-2">
-                  <Icon
-                    name="ShieldCheckIcon"
-                    size={15}
-                    className="mt-0.5 shrink-0 text-primary"
-                  />
-                  <div>
-                    <p className="text-xs font-800 text-primary">Demo accounts</p>
-                    <p className="mt-0.5 text-xs leading-5 text-muted-foreground">
-                      Sandbox accounts for website checking only. They can explore features but
-                      cannot place orders, accept real sales, or create real shipments.
-                    </p>
-                  </div>
-                </div>
-                <div className="grid gap-2">
-                  {(['buyer', 'seller'] as LoginRole[]).map((demoRole) => {
-                    const account = DEMO_ACCOUNTS[demoRole];
-                    return (
-                      <button
-                        key={account.email}
-                        type="button"
-                        onClick={() => handleDemoLogin(demoRole)}
-                        disabled={submitting}
-                        className="w-full rounded-lg border border-border bg-card px-3 py-2 text-left transition-colors hover:border-primary/40 hover:bg-muted/40 disabled:opacity-60"
-                      >
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="min-w-0">
-                            <p className="text-xs font-800 capitalize text-foreground">
-                              Demo {demoRole}
-                            </p>
-                            <p className="truncate text-xs font-mono text-muted-foreground">
-                              {account.email}
-                            </p>
-                            <p className="truncate text-xs font-mono text-muted-foreground">
-                              {account.password}
-                            </p>
-                          </div>
-                          <span className="shrink-0 text-xs font-700 text-primary">
-                            Sign in
-                          </span>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
               {googleAuthEnabled && role === 'buyer' && (
                 <>
                   <button
