@@ -4,13 +4,11 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import Icon from '@/components/ui/AppIcon';
 import { formatMoney, useSellerBulkOrders } from '@/lib/hooks/useAccountOrders';
 
-const earningsData: { month: string; gross: number; commission: number; net: number }[] = [];
+const earningsData: { month: string; earnings: number }[] = [];
 
 const pendingPayouts: {
   id: string;
   buyer: string;
-  amount: number;
-  commission: number;
   net: number;
   status: string;
   date: string;
@@ -21,9 +19,6 @@ const payoutHistory: {
   id: string;
   period: string;
   orders: number;
-  gross: number;
-  commission: number;
-  razorpayFee: number;
   net: number;
   status: string;
   date: string;
@@ -45,82 +40,65 @@ const statusColors: Record<string, string> = {
 
 export default function SellerEarnings() {
   const { orders } = useSellerBulkOrders();
-  const [activeSection, setActiveSection] = useState<
-    'overview' | 'pending' | 'history' | 'reconcile'
-  >('overview');
+  const [activeSection, setActiveSection] = useState<'overview' | 'pending' | 'history'>(
+    'overview'
+  );
   const gross = orders.reduce((sum, order) => sum + Number(order.net_total || 0), 0);
   const commission = Math.round(gross * 0.1);
-  const net = gross - commission;
-  const pending = orders
-    .filter((order) => ['paid', 'confirmed', 'shipped'].includes(order.status || ''))
-    .reduce((sum, order) => sum + Number(order.net_total || 0) * 0.9, 0);
   const razorpayFee = Math.round(gross * 0.02);
   const gstOnCommission = Math.round(commission * 0.18);
-  const netAfterDeductions = Math.max(gross - commission - razorpayFee - gstOnCommission, 0);
-  const reconciliationRows = orders.map((order) => {
-    const collected = Number(order.net_total || 0);
-    const rowCommission = Math.round(collected * 0.1);
-    const status = ['paid', 'shipped', 'delivered'].includes(order.status || '')
-      ? 'Pending'
-      : 'On Hold';
-
-    return {
-      order: `FT-ORD-${order.id.slice(0, 8).toUpperCase()}`,
-      rzpId: 'Recorded after payment capture',
-      collected,
-      commission: rowCommission,
-      transferred: status === 'Pending' ? Math.round(collected * 0.9) : 0,
-      status,
-    };
-  });
+  const sellerEarnings = Math.max(gross - commission - razorpayFee - gstOnCommission, 0);
+  const pending = orders
+    .filter((order) => ['paid', 'confirmed', 'shipped'].includes(order.status || ''))
+    .reduce((sum, order) => sum + Number(order.net_total || 0) * 0.862, 0);
+  const paidOrderCount = orders.filter((order) =>
+    ['paid', 'confirmed', 'shipped', 'delivered'].includes(order.status || '')
+  ).length;
 
   const tabs = [
     { key: 'overview', label: 'Earnings Overview', icon: 'ChartBarIcon' },
     { key: 'pending', label: 'Pending Payouts', icon: 'ClockIcon' },
     { key: 'history', label: 'Payout History', icon: 'DocumentTextIcon' },
-    { key: 'reconcile', label: 'Reconciliation', icon: 'ArrowsRightLeftIcon' },
   ] as const;
 
   return (
     <div>
       <div className="mb-6">
         <h1 className="text-xl font-800 text-foreground">Seller Earnings</h1>
-        <p className="text-sm text-muted-foreground">
-          Razorpay Route · Settlement Account: HDFC ****4521
-        </p>
+        <p className="text-sm text-muted-foreground">Settlement Account: HDFC ****4521</p>
       </div>
 
       {/* Summary Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
         {[
           {
-            label: 'This Month Gross',
-            value: formatMoney(gross),
-            sub: 'Before deductions',
+            label: 'This Month Earnings',
+            value: formatMoney(sellerEarnings),
+            sub: 'Seller amount earned',
             icon: 'CurrencyRupeeIcon',
-            color: 'text-primary',
-            bg: 'bg-primary/10 border-primary/20',
+            color: 'text-success',
+            bg: 'bg-success/10 border-success/20',
           },
           {
-            label: 'Platform Commission',
-            value: formatMoney(commission),
-            sub: '10% of gross',
-            icon: 'ReceiptPercentIcon',
-            color: 'text-error',
-            bg: 'bg-error/10 border-error/20',
-          },
-          {
-            label: 'Net Earnings',
-            value: formatMoney(net),
-            sub: 'After commission',
+            label: 'Available to Settle',
+            value: formatMoney(pending),
+            sub: `${paidOrderCount} paid account orders`,
             icon: 'BanknotesIcon',
             color: 'text-success',
             bg: 'bg-success/10 border-success/20',
           },
           {
-            label: 'Pending Payout',
-            value: formatMoney(pending),
-            sub: `${orders.length} account orders`,
+            label: 'Settled Payout',
+            value: formatMoney(0),
+            sub: 'No completed payouts yet',
+            icon: 'CheckCircleIcon',
+            color: 'text-primary',
+            bg: 'bg-primary/10 border-primary/20',
+          },
+          {
+            label: 'Orders Earning',
+            value: paidOrderCount.toString(),
+            sub: `${orders.length} total account orders`,
             icon: 'ClockIcon',
             color: 'text-amber-600',
             bg: 'bg-amber-50 border-amber-200',
@@ -180,14 +158,7 @@ export default function SellerEarnings() {
                   tickFormatter={formatINR}
                 />
                 <Tooltip
-                  formatter={(val: number, name: string) => [
-                    formatINR(val),
-                    name === 'gross'
-                      ? 'Gross Sales'
-                      : name === 'commission'
-                        ? 'Commission'
-                        : 'Net Earnings',
-                  ]}
+                  formatter={(val: number, name: string) => [formatINR(val), 'Seller Earnings']}
                   contentStyle={{
                     background: 'var(--card)',
                     border: '1px solid var(--border)',
@@ -196,25 +167,11 @@ export default function SellerEarnings() {
                   }}
                 />
                 <Bar
-                  dataKey="gross"
-                  fill="var(--secondary)"
-                  radius={[4, 4, 0, 0]}
-                  barSize={12}
-                  name="gross"
-                />
-                <Bar
-                  dataKey="commission"
-                  fill="var(--error)"
-                  radius={[4, 4, 0, 0]}
-                  barSize={12}
-                  name="commission"
-                />
-                <Bar
-                  dataKey="net"
+                  dataKey="earnings"
                   fill="var(--success)"
                   radius={[4, 4, 0, 0]}
                   barSize={12}
-                  name="net"
+                  name="earnings"
                 />
               </BarChart>
             </ResponsiveContainer>
@@ -227,11 +184,7 @@ export default function SellerEarnings() {
               </div>
             )}
             <div className="flex items-center gap-4 mt-3 justify-center">
-              {[
-                { color: 'bg-secondary', label: 'Gross Sales' },
-                { color: 'bg-error', label: 'Commission' },
-                { color: 'bg-success', label: 'Net Earnings' },
-              ].map((l) => (
+              {[{ color: 'bg-success', label: 'Seller Earnings' }].map((l) => (
                 <div key={l.label} className="flex items-center gap-1.5">
                   <div className={`w-3 h-3 rounded-sm ${l.color}`} />
                   <span className="text-xs text-muted-foreground">{l.label}</span>
@@ -240,41 +193,22 @@ export default function SellerEarnings() {
             </div>
           </div>
 
-          {/* Commission Breakdown */}
           <div className="bg-card rounded-2xl border border-border p-5">
-            <h2 className="font-800 text-foreground text-sm mb-4">
-              Commission & Deduction Breakdown (This Month)
-            </h2>
-            <div className="space-y-3">
+            <h2 className="font-800 text-foreground text-sm mb-4">What You Made This Month</h2>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               {[
-                { label: 'Gross Sales Value', amount: gross, type: 'credit' },
-                { label: 'Platform Commission (10%)', amount: -commission, type: 'debit' },
-                {
-                  label: 'Razorpay Payment Gateway Fee (2%)',
-                  amount: -razorpayFee,
-                  type: 'debit',
-                },
-                {
-                  label: 'GST on Commission (18%)',
-                  amount: -gstOnCommission,
-                  type: 'debit',
-                },
-                { label: 'Net Payable to Seller', amount: netAfterDeductions, type: 'total' },
+                { label: 'Current Earnings', amount: sellerEarnings },
+                { label: 'Pending Settlement', amount: pending },
+                { label: 'Paid Out', amount: 0 },
               ].map((row) => (
                 <div
                   key={row.label}
-                  className={`flex items-center justify-between py-2.5 px-3 rounded-xl ${row.type === 'total' ? 'bg-success/10 border border-success/20' : row.type === 'debit' ? 'bg-error/5' : 'bg-muted'}`}
+                  className="rounded-xl border border-success/20 bg-success/10 p-4"
                 >
-                  <span
-                    className={`text-sm ${row.type === 'total' ? 'font-800 text-success' : 'font-500 text-foreground'}`}
-                  >
-                    {row.label}
-                  </span>
-                  <span
-                    className={`text-sm font-800 ${row.type === 'total' ? 'text-success' : row.type === 'debit' ? 'text-error' : 'text-foreground'}`}
-                  >
-                    {row.amount < 0 ? '-' : ''}₹{Math.abs(row.amount).toLocaleString('en-IN')}
-                  </span>
+                  <p className="text-xs text-muted-foreground">{row.label}</p>
+                  <p className="mt-1 text-xl font-800 text-success">
+                    ₹{Math.round(row.amount).toLocaleString('en-IN')}
+                  </p>
                 </div>
               ))}
             </div>
@@ -310,14 +244,8 @@ export default function SellerEarnings() {
                     </p>
                   </div>
                   <div className="text-right shrink-0">
-                    <p className="text-xs text-muted-foreground">
-                      Gross: ₹{payout.amount.toLocaleString('en-IN')}
-                    </p>
-                    <p className="text-xs text-error">
-                      Commission: -₹{payout.commission.toLocaleString('en-IN')}
-                    </p>
                     <p className="text-base font-800 text-success">
-                      Net: ₹{payout.net.toLocaleString('en-IN')}
+                      ₹{payout.net.toLocaleString('en-IN')}
                     </p>
                   </div>
                 </div>
@@ -368,15 +296,6 @@ export default function SellerEarnings() {
                     </p>
                   </div>
                   <div className="text-right shrink-0 space-y-0.5">
-                    <p className="text-xs text-muted-foreground">
-                      Gross: ₹{payout.gross.toLocaleString('en-IN')}
-                    </p>
-                    <p className="text-xs text-error">
-                      Commission: -₹{payout.commission.toLocaleString('en-IN')}
-                    </p>
-                    <p className="text-xs text-error">
-                      Razorpay Fee: -₹{payout.razorpayFee.toLocaleString('en-IN')}
-                    </p>
                     <p className="text-base font-800 text-success">
                       ₹{payout.net.toLocaleString('en-IN')}
                     </p>
@@ -397,116 +316,6 @@ export default function SellerEarnings() {
                 </p>
               </div>
             )}
-          </div>
-        </div>
-      )}
-
-      {/* Reconciliation */}
-      {activeSection === 'reconcile' && (
-        <div className="space-y-5">
-          <div className="bg-card rounded-2xl border border-border p-5">
-            <h2 className="font-800 text-foreground text-sm mb-4 flex items-center gap-2">
-              <Icon name="ArrowsRightLeftIcon" size={16} className="text-secondary" />
-              Razorpay Route Transaction Reconciliation
-            </h2>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm min-w-[600px]">
-                <thead>
-                  <tr className="bg-muted">
-                    <th className="text-left px-3 py-2.5 text-xs font-700 text-muted-foreground rounded-l-lg">
-                      Order ID
-                    </th>
-                    <th className="text-left px-3 py-2.5 text-xs font-700 text-muted-foreground">
-                      Razorpay Payment ID
-                    </th>
-                    <th className="text-right px-3 py-2.5 text-xs font-700 text-muted-foreground">
-                      Collected
-                    </th>
-                    <th className="text-right px-3 py-2.5 text-xs font-700 text-muted-foreground">
-                      Commission
-                    </th>
-                    <th className="text-right px-3 py-2.5 text-xs font-700 text-muted-foreground">
-                      Transferred
-                    </th>
-                    <th className="text-center px-3 py-2.5 text-xs font-700 text-muted-foreground rounded-r-lg">
-                      Status
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {reconciliationRows.map((row) => (
-                    <tr key={row.order} className="hover:bg-muted/50 transition-colors">
-                      <td className="px-3 py-3 mono-id text-xs">{row.order}</td>
-                      <td className="px-3 py-3 font-mono text-xs text-muted-foreground">
-                        {row.rzpId}
-                      </td>
-                      <td className="px-3 py-3 text-right text-xs font-700 text-foreground">
-                        ₹{row.collected.toLocaleString('en-IN')}
-                      </td>
-                      <td className="px-3 py-3 text-right text-xs font-700 text-error">
-                        -₹{row.commission.toLocaleString('en-IN')}
-                      </td>
-                      <td className="px-3 py-3 text-right text-xs font-700 text-success">
-                        ₹{row.transferred.toLocaleString('en-IN')}
-                      </td>
-                      <td className="px-3 py-3 text-center">
-                        <span
-                          className={`text-xs font-600 border rounded-full px-2 py-0.5 ${statusColors[row.status] || 'bg-muted text-muted-foreground border-border'}`}
-                        >
-                          {row.status}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                  {reconciliationRows.length === 0 && (
-                    <tr>
-                      <td
-                        colSpan={6}
-                        className="px-3 py-10 text-center text-sm text-muted-foreground"
-                      >
-                        No account orders to reconcile yet.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* Reconciliation Summary */}
-          <div className="bg-card rounded-2xl border border-border p-5">
-            <h2 className="font-800 text-foreground text-sm mb-4">Reconciliation Summary</h2>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              {[
-                {
-                  label: 'Total Collected by Razorpay',
-                  value: formatMoney(gross),
-                  color: 'text-foreground',
-                },
-                {
-                  label: 'Total Commission Deducted',
-                  value: formatMoney(commission),
-                  color: 'text-error',
-                },
-                {
-                  label: 'Total Transferred to You',
-                  value: formatMoney(net),
-                  color: 'text-success',
-                },
-                {
-                  label: 'Pending Transfer',
-                  value: formatMoney(pending),
-                  color: 'text-amber-600',
-                },
-                { label: 'On Hold', value: formatMoney(0), color: 'text-warning' },
-                { label: 'Discrepancies', value: formatMoney(0), color: 'text-success' },
-              ].map((item) => (
-                <div key={item.label} className="bg-muted rounded-xl p-3">
-                  <p className="text-xs text-muted-foreground mb-1">{item.label}</p>
-                  <p className={`text-base font-800 ${item.color}`}>{item.value}</p>
-                </div>
-              ))}
-            </div>
           </div>
         </div>
       )}

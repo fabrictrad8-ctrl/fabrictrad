@@ -48,6 +48,7 @@ export default function AdminSellers() {
   } | null>(null);
   const [actionReason, setActionReason] = useState('');
   const [toast, setToast] = useState<string | null>(null);
+  const [financialSeller, setFinancialSeller] = useState<Seller | null>(null);
 
   const filters = ['All', 'Verified', 'Pending Review', 'Suspended', 'Deactivated'];
 
@@ -152,6 +153,21 @@ export default function AdminSellers() {
   };
 
   const pendingCount = sellers.filter((s) => s.status === 'pending_review').length;
+  const getSellerFinancials = (seller: Seller) => {
+    const gross = Number(seller.gmv.replace(/[^\d]/g, '')) || 0;
+    const commission = Math.round(gross * 0.1);
+    const razorpayFee = Math.round(gross * 0.02);
+    const gstOnCommission = Math.round(commission * 0.18);
+    const netPayable = Math.max(gross - commission - razorpayFee - gstOnCommission, 0);
+
+    return [
+      { label: 'Gross Sales Value', amount: gross, type: 'credit' },
+      { label: 'Platform Commission (10%)', amount: -commission, type: 'debit' },
+      { label: 'Razorpay Payment Gateway Fee (2%)', amount: -razorpayFee, type: 'debit' },
+      { label: 'GST on Commission (18%)', amount: -gstOnCommission, type: 'debit' },
+      { label: 'Net Payable to Seller', amount: netPayable, type: 'total' },
+    ];
+  };
 
   return (
     <div className="relative">
@@ -306,6 +322,16 @@ export default function AdminSellers() {
                           Reactivate
                         </button>
                       )}
+                      <button
+                        onClick={() =>
+                          setFinancialSeller((current) =>
+                            current?.id === seller.id ? null : seller
+                          )
+                        }
+                        className="bg-primary/10 text-primary text-xs px-2.5 py-1 rounded-lg font-600 hover:bg-primary hover:text-white transition-all"
+                      >
+                        Financials
+                      </button>
                       {seller.status === 'rejected' && (
                         <span className="text-xs text-muted-foreground">Rejected</span>
                       )}
@@ -334,6 +360,59 @@ export default function AdminSellers() {
           </table>
         </div>
       </div>
+
+      {financialSeller && (
+        <div className="mt-5 rounded-2xl border border-border bg-card p-5">
+          <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h2 className="text-sm font-800 text-foreground">Commission & Deduction Breakdown</h2>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                {financialSeller.name} · {financialSeller.id}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setFinancialSeller(null)}
+              className="w-fit rounded-lg bg-muted px-3 py-1.5 text-xs font-700 text-muted-foreground hover:bg-border"
+            >
+              Close
+            </button>
+          </div>
+          <div className="space-y-3">
+            {getSellerFinancials(financialSeller).map((row) => (
+              <div
+                key={row.label}
+                className={`flex items-center justify-between rounded-xl px-3 py-2.5 ${
+                  row.type === 'total'
+                    ? 'border border-success/20 bg-success/10'
+                    : row.type === 'debit'
+                      ? 'bg-error/5'
+                      : 'bg-muted'
+                }`}
+              >
+                <span
+                  className={`text-sm ${
+                    row.type === 'total' ? 'font-800 text-success' : 'font-500 text-foreground'
+                  }`}
+                >
+                  {row.label}
+                </span>
+                <span
+                  className={`text-sm font-800 ${
+                    row.type === 'total'
+                      ? 'text-success'
+                      : row.type === 'debit'
+                        ? 'text-error'
+                        : 'text-foreground'
+                  }`}
+                >
+                  {row.amount < 0 ? '-' : ''}₹{Math.abs(row.amount).toLocaleString('en-IN')}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Action Confirmation Modal */}
       {actionModal && (
