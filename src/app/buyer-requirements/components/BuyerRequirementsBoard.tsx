@@ -2,6 +2,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import AppLogo from '@/components/ui/AppLogo';
+import AppImage from '@/components/ui/AppImage';
 import Icon from '@/components/ui/AppIcon';
 import InWebsiteChat from '@/app/components/InWebsiteChat';
 import { useAuth } from '@/contexts/AuthContext';
@@ -43,6 +44,31 @@ const CATEGORIES = [
   'Chiffon',
 ];
 
+const referenceVendorMatches = [
+  {
+    id: 'REF-1150',
+    vendor: 'Aarav Ethnic Studio',
+    city: 'Surat',
+    title: 'White Indo-Western Jacket',
+    image: 'https://images.unsplash.com/photo-1593032465175-481ac7f401f0?w=320&h=360&fit=crop',
+    confidence: 94,
+    price: '₹1,850 - ₹2,250/pc',
+    availability: 'Sample ready, 40 pcs/week',
+    tags: ['Ivory', 'Mandarin collar', 'Gold embroidery', 'Pearl buttons'],
+  },
+  {
+    id: 'REF-1142',
+    vendor: 'Surat Zari House',
+    city: 'Surat',
+    title: 'Ivory Designer Fabric Panel',
+    image: 'https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?w=320&h=360&fit=crop',
+    confidence: 88,
+    price: '₹780 - ₹940/mtr',
+    availability: '220 mtr available',
+    tags: ['Ivory base', 'Zari motif', 'Occasion wear', 'Fabric match'],
+  },
+];
+
 export default function BuyerRequirementsBoard() {
   const { user, profile, loading: authLoading } = useAuth();
   const supabase = useMemo(() => createClient(), []);
@@ -52,6 +78,9 @@ export default function BuyerRequirementsBoard() {
   const [searchQuery, setSearchQuery] = useState('');
   const [showPostForm, setShowPostForm] = useState(false);
   const [activeChatReq, setActiveChatReq] = useState<Requirement | null>(null);
+  const [showReferenceMatches, setShowReferenceMatches] = useState(false);
+  const [matchStatus, setMatchStatus] = useState<'idle' | 'scanning' | 'matched'>('idle');
+  const [referenceImageName, setReferenceImageName] = useState('');
   const userRole: 'buyer' | 'seller' = profile?.role === 'seller' ? 'seller' : 'buyer';
   const canPost = !!user && profile?.role === 'buyer';
   const accountName =
@@ -208,6 +237,13 @@ export default function BuyerRequirementsBoard() {
     });
   };
 
+  const runReferenceMatch = (fileName?: string) => {
+    if (fileName) setReferenceImageName(fileName);
+    setShowReferenceMatches(true);
+    setMatchStatus('scanning');
+    window.setTimeout(() => setMatchStatus('matched'), 900);
+  };
+
   return (
     <div className="min-h-screen bg-muted/30">
       {/* Header */}
@@ -276,6 +312,67 @@ export default function BuyerRequirementsBoard() {
                 {item.text}
               </div>
             ))}
+          </div>
+        </div>
+
+        {/* AI Reference Finder */}
+        <div className="mb-5 rounded-2xl border border-secondary/20 bg-card p-5">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_1.1fr]">
+            <div>
+              <div className="mb-2 flex items-center gap-2">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-secondary/10">
+                  <Icon name="SparklesIcon" size={18} className="text-secondary" />
+                </div>
+                <div>
+                  <h2 className="text-base font-800 text-foreground">AI Reference Finder</h2>
+                  <p className="text-xs text-muted-foreground">
+                    Upload a product or fabric image to find vendor references.
+                  </p>
+                </div>
+              </div>
+              <p className="text-sm leading-relaxed text-muted-foreground">
+                If a buyer posts the same image or a similar fabric reference, FabricTrad filters
+                seller WhatsApp catalog uploads and pops up matching vendor accounts with details.
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-dashed border-border bg-muted/40 p-4">
+              <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl bg-card px-4 py-5 text-center transition-colors hover:bg-muted">
+                <Icon name="PhotoIcon" size={26} className="text-primary" />
+                <span className="text-sm font-800 text-foreground">
+                  {referenceImageName || 'Choose buyer reference image'}
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  AI will compare it with vendor WhatsApp catalog references
+                </span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="sr-only"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    if (file) runReferenceMatch(file.name);
+                  }}
+                />
+              </label>
+              <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                <button
+                  type="button"
+                  onClick={() => runReferenceMatch(referenceImageName || 'D.No.1150 reference.jpg')}
+                  className="btn-primary flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm"
+                >
+                  <Icon name="MagnifyingGlassIcon" size={15} />
+                  Find Reference Vendors
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowPostForm(true)}
+                  className="btn-secondary rounded-xl px-4 py-2.5 text-sm"
+                >
+                  Post Requirement
+                </button>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -524,6 +621,36 @@ export default function BuyerRequirementsBoard() {
                   className="w-full px-3 py-2.5 bg-muted border border-border rounded-xl text-sm focus:outline-none focus:border-primary transition-colors resize-none"
                 />
               </div>
+              <div>
+                <label className="mb-1.5 block text-xs font-700 text-foreground">
+                  Reference Image
+                </label>
+                <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-dashed border-border bg-muted px-3 py-3 transition-colors hover:border-primary/60">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-card">
+                    <Icon name="PhotoIcon" size={18} className="text-primary" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-700 text-foreground">
+                      {referenceImageName || 'Attach product or fabric image'}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      AI will filter seller catalog references and show matching vendors.
+                    </p>
+                  </div>
+                  <span className="rounded-lg bg-card px-2 py-1 text-xs font-700 text-primary">
+                    Scan
+                  </span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="sr-only"
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      if (file) runReferenceMatch(file.name);
+                    }}
+                  />
+                </label>
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-700 text-foreground block mb-1.5">
@@ -614,6 +741,111 @@ export default function BuyerRequirementsBoard() {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* AI Match Popup */}
+      {showReferenceMatches && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-3xl overflow-hidden rounded-2xl border border-border bg-card shadow-xl">
+            <div className="flex items-start justify-between gap-4 border-b border-border p-5">
+              <div>
+                <p className="text-xs font-800 uppercase text-primary">AI image match</p>
+                <h3 className="text-lg font-800 text-foreground">Reference vendors found</h3>
+                <p className="mt-0.5 text-sm text-muted-foreground">
+                  Matched against seller WhatsApp catalog uploads
+                  {referenceImageName ? ` for ${referenceImageName}` : ''}.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowReferenceMatches(false)}
+                className="rounded-lg p-1.5 transition-colors hover:bg-muted"
+                aria-label="Close reference matches"
+              >
+                <Icon name="XMarkIcon" size={18} className="text-muted-foreground" />
+              </button>
+            </div>
+
+            {matchStatus === 'scanning' ? (
+              <div className="px-5 py-12 text-center">
+                <div className="mx-auto mb-3 h-12 w-12 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+                <p className="text-sm font-800 text-foreground">Scanning image reference...</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Comparing colour, garment shape, embroidery and catalog text.
+                </p>
+              </div>
+            ) : (
+              <div className="grid max-h-[70vh] grid-cols-1 gap-4 overflow-y-auto p-5 md:grid-cols-2">
+                {referenceVendorMatches.map((match) => (
+                  <div key={match.id} className="rounded-2xl border border-border p-4">
+                    <div className="flex gap-3">
+                      <div className="relative h-32 w-24 shrink-0 overflow-hidden rounded-xl bg-muted">
+                        <AppImage
+                          src={match.image}
+                          alt={`${match.title} vendor reference`}
+                          fill
+                          sizes="96px"
+                          className="object-cover"
+                        />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <p className="text-xs font-700 text-primary">{match.id}</p>
+                            <h4 className="text-sm font-800 text-foreground">{match.title}</h4>
+                          </div>
+                          <span className="rounded-full bg-success/10 px-2 py-0.5 text-xs font-800 text-success">
+                            {match.confidence}%
+                          </span>
+                        </div>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {match.vendor} · {match.city}
+                        </p>
+                        <p className="mt-2 text-sm font-800 text-foreground">{match.price}</p>
+                        <p className="text-xs text-muted-foreground">{match.availability}</p>
+                      </div>
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-1.5">
+                      {match.tags.map((tag) => (
+                        <span
+                          key={tag}
+                          className="rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary"
+                        >
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowReferenceMatches(false);
+                        setActiveChatReq({
+                          id: match.id,
+                          buyerId: user?.id || 'buyer',
+                          buyerName: accountName,
+                          buyerAvatar: accountAvatar,
+                          title: match.title,
+                          description: `AI matched this buyer reference with ${match.vendor}.`,
+                          category: 'AI Reference',
+                          quantity: 'Discuss in chat',
+                          budget: match.price,
+                          deadline: 'Flexible',
+                          postedAt: 'Just now',
+                          responses: 1,
+                          status: 'open',
+                          tags: match.tags,
+                        });
+                      }}
+                      className="btn-primary mt-4 flex w-full items-center justify-center gap-2 rounded-xl py-2 text-sm"
+                    >
+                      <Icon name="ChatBubbleLeftRightIcon" size={14} />
+                      Connect with Reference Vendor
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}

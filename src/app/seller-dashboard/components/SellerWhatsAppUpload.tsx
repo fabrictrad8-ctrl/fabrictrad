@@ -39,6 +39,27 @@ const processedUploads = [
   },
 ];
 
+const referenceMatches = [
+  {
+    id: 'REF-1150',
+    vendor: 'Aarav Ethnic Studio',
+    image: 'https://images.unsplash.com/photo-1593032465175-481ac7f401f0?w=240&h=280&fit=crop',
+    title: 'White Indo-Western Jacket',
+    confidence: '94%',
+    details: ['Pearl button placket', 'Mandarin collar', 'Gold hand embroidery', 'Ready reference'],
+    capturedFrom: 'WhatsApp image + caption',
+  },
+  {
+    id: 'REF-1142',
+    vendor: 'Surat Zari House',
+    image: 'https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?w=240&h=280&fit=crop',
+    title: 'Ivory Designer Fabric Panel',
+    confidence: '88%',
+    details: ['Ivory base', 'Zari motif', 'Occasion wear', 'Sample available'],
+    capturedFrom: 'Seller catalog upload',
+  },
+];
+
 export default function SellerWhatsAppUpload() {
   const [status, setStatus] = useState<UploadStatus>('idle');
   const [rawText, setRawText] = useState('');
@@ -283,6 +304,95 @@ export default function SellerWhatsAppUpload() {
             </button>
           </div>
         )}
+      </div>
+
+      {/* AI Reference Matching */}
+      <div className="mb-6 rounded-2xl border border-secondary/20 bg-card p-5">
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h2 className="flex items-center gap-2 text-sm font-800 text-foreground">
+              <Icon name="SparklesIcon" size={16} className="text-secondary" />
+              AI Reference Matching
+            </h2>
+            <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+              Product or fabric photos shared on WhatsApp become searchable vendor references with
+              extracted details. When a buyer posts the same or similar image, FabricTrad can show
+              matching vendors instantly.
+            </p>
+          </div>
+          <span className="w-fit rounded-full border border-success/20 bg-success/10 px-3 py-1 text-xs font-700 text-success">
+            Buyer popup enabled
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+          <div className="rounded-xl border border-border bg-muted/40 p-4">
+            <p className="mb-3 text-xs font-800 uppercase text-muted-foreground">
+              WhatsApp to account flow
+            </p>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              {[
+                {
+                  icon: 'PhotoIcon',
+                  title: 'Image received',
+                  desc: 'Vendor sends catalog image, product code, rate and notes.',
+                },
+                {
+                  icon: 'CpuChipIcon',
+                  title: 'AI fills details',
+                  desc: 'Fabric, work, colour, price, tags and reference ID are drafted.',
+                },
+                {
+                  icon: 'BellAlertIcon',
+                  title: 'Buyer match popup',
+                  desc: 'Similar buyer image posts surface this vendor as a reference.',
+                },
+              ].map((step) => (
+                <div key={step.title} className="rounded-xl border border-border bg-card p-3">
+                  <Icon name={step.icon as 'PhotoIcon'} size={18} className="mb-2 text-primary" />
+                  <p className="text-sm font-800 text-foreground">{step.title}</p>
+                  <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{step.desc}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            {referenceMatches.map((match) => (
+              <div key={match.id} className="flex gap-3 rounded-xl border border-border p-3">
+                <div className="relative h-24 w-20 shrink-0 overflow-hidden rounded-lg bg-muted">
+                  <AppImage
+                    src={match.image}
+                    alt={`${match.title} AI reference image`}
+                    fill
+                    sizes="80px"
+                    className="object-cover"
+                  />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="text-xs font-700 text-primary">{match.id}</p>
+                      <p className="text-sm font-800 text-foreground">{match.title}</p>
+                    </div>
+                    <span className="rounded-full bg-secondary/10 px-2 py-0.5 text-xs font-800 text-secondary">
+                      {match.confidence}
+                    </span>
+                  </div>
+                  <p className="mt-0.5 text-xs text-muted-foreground">{match.vendor}</p>
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {match.details.slice(0, 3).map((detail) => (
+                      <span key={detail} className="rounded-full bg-muted px-2 py-0.5 text-xs">
+                        {detail}
+                      </span>
+                    ))}
+                  </div>
+                  <p className="mt-2 text-xs text-muted-foreground">{match.capturedFrom}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
 
       {/* Recent Uploads */}
