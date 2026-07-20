@@ -1,254 +1,17 @@
 'use client';
-import React, { useMemo, useState, useEffect } from 'react';
+
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import toast from 'react-hot-toast';
 import AppImage from '@/components/ui/AppImage';
 import Icon from '@/components/ui/AppIcon';
 import { trackFunnelStep } from '@/lib/analytics';
-import { useAuth } from '@/contexts/AuthContext';
-import { personalizeProducts } from '@/lib/recommendations';
+import { CATALOG_PRODUCTS, productDetailHref, type CatalogProduct } from '@/lib/catalog';
+import { createClient } from '@/lib/supabase/client';
+import { useWishlist } from '@/lib/hooks/useWishlist';
 
-const allProducts = [
-  {
-    id: 'mp1',
-    name: 'Pure Dyeable Soft Nett Fabric',
-    seller: 'Surat Textile Mills Pvt Ltd',
-    city: 'Surat, GJ',
-    price: 840,
-    unit: 'mtr',
-    moq: 50,
-    gsm: '120 GSM',
-    width: '44"',
-    work: 'Handwork',
-    rating: 4.8,
-    reviews: 124,
-    badge: 'bestseller',
-    verified: true,
-    image: 'https://images.unsplash.com/photo-1727933882951-115ddb44388d',
-    alt: 'Cream nett fabric with gold embroidery floral pattern close-up',
-    dispatch: '2-3d',
-    gst: true,
-  },
-  {
-    id: 'mp2',
-    name: 'Premium Cotton Cambric',
-    seller: 'Bhiwandi Weave House',
-    city: 'Bhiwandi, MH',
-    price: 185,
-    unit: 'mtr',
-    moq: 100,
-    gsm: '80 GSM',
-    width: '60"',
-    work: 'Plain',
-    rating: 4.6,
-    reviews: 89,
-    badge: 'new',
-    verified: true,
-    image: 'https://img.rocket.new/generatedImages/rocket_gen_img_197569977-1767988369489.png',
-    alt: 'Rolled white cotton fabric bolts in bright warehouse',
-    dispatch: '1-2d',
-    gst: true,
-  },
-  {
-    id: 'mp3',
-    name: 'Georgette Embroidered',
-    seller: 'Jaipur Crafts Emporium',
-    city: 'Jaipur, RJ',
-    price: 1250,
-    unit: 'mtr',
-    moq: 25,
-    gsm: '90 GSM',
-    width: '44"',
-    work: 'Zari',
-    rating: 4.9,
-    reviews: 67,
-    badge: 'bestseller',
-    verified: true,
-    image: 'https://img.rocket.new/generatedImages/rocket_gen_img_1a15cecc6-1766283014372.png',
-    alt: 'Pink georgette with gold zari embroidery on mannequin',
-    dispatch: '3-5d',
-    gst: true,
-  },
-  {
-    id: 'mp4',
-    name: 'Banarasi Silk Brocade',
-    seller: 'Varanasi Silk Traders',
-    city: 'Varanasi, UP',
-    price: 3200,
-    unit: 'mtr',
-    moq: 10,
-    gsm: '200 GSM',
-    width: '44"',
-    work: 'Zari Brocade',
-    rating: 5.0,
-    reviews: 43,
-    badge: 'premium',
-    verified: true,
-    image: 'https://img.rocket.new/generatedImages/rocket_gen_img_13e79a640-1775554509083.png',
-    alt: 'Deep red Banarasi silk with intricate gold brocade pattern',
-    dispatch: '5-7d',
-    gst: true,
-  },
-  {
-    id: 'mp5',
-    name: 'Polyester Crepe Fabric',
-    seller: 'Mumbai Fabric Zone',
-    city: 'Mumbai, MH',
-    price: 320,
-    unit: 'mtr',
-    moq: 200,
-    gsm: '140 GSM',
-    width: '58"',
-    work: 'Solid',
-    rating: 4.4,
-    reviews: 201,
-    badge: null,
-    verified: true,
-    image: 'https://img.rocket.new/generatedImages/rocket_gen_img_1dfa765bb-1772211451367.png',
-    alt: 'Colorful polyester fabric rolls stacked in bright warehouse',
-    dispatch: '1-2d',
-    gst: false,
-  },
-  {
-    id: 'mp6',
-    name: 'Handloom Khadi Cotton',
-    seller: 'Kutch Khadi Gramodyog',
-    city: 'Bhuj, GJ',
-    price: 450,
-    unit: 'mtr',
-    moq: 50,
-    gsm: '160 GSM',
-    width: '36"',
-    work: 'Block Print Ready',
-    rating: 4.7,
-    reviews: 56,
-    badge: 'new',
-    verified: true,
-    image: 'https://img.rocket.new/generatedImages/rocket_gen_img_11953b441-1772872649342.png',
-    alt: 'Natural khadi cotton on traditional wooden loom, artisan weaving',
-    dispatch: '4-6d',
-    gst: true,
-  },
-  {
-    id: 'mp7',
-    name: 'Velvet Crush Fabric',
-    seller: 'Ludhiana Velvet House',
-    city: 'Ludhiana, PB',
-    price: 680,
-    unit: 'mtr',
-    moq: 30,
-    gsm: '280 GSM',
-    width: '44"',
-    work: 'Crushed Velvet',
-    rating: 4.5,
-    reviews: 38,
-    badge: null,
-    verified: false,
-    image: 'https://images.unsplash.com/photo-1556354148-58e886e0c4ec',
-    alt: 'Deep purple crushed velvet fabric with rich light-reflecting texture',
-    dispatch: '2-4d',
-    gst: true,
-  },
-  {
-    id: 'mp8',
-    name: 'Organza Sequence Fabric',
-    seller: 'Surat Zari Works',
-    city: 'Surat, GJ',
-    price: 980,
-    unit: 'mtr',
-    moq: 20,
-    gsm: '60 GSM',
-    width: '44"',
-    work: 'Sequence',
-    rating: 4.8,
-    reviews: 91,
-    badge: 'bestseller',
-    verified: true,
-    image: 'https://img.rocket.new/generatedImages/rocket_gen_img_1807e8cd1-1771579098647.png',
-    alt: 'Sheer white organza with gold sequence embroidery on dark background',
-    dispatch: '3-4d',
-    gst: true,
-  },
-  {
-    id: 'mp9',
-    name: 'Linen Slub Fabric',
-    seller: 'Kolkata Linen Co.',
-    city: 'Kolkata, WB',
-    price: 560,
-    unit: 'mtr',
-    moq: 75,
-    gsm: '180 GSM',
-    width: '58"',
-    work: 'Natural Slub',
-    rating: 4.3,
-    reviews: 29,
-    badge: null,
-    verified: true,
-    image: 'https://img.rocket.new/generatedImages/rocket_gen_img_186b88c42-1772146413683.png',
-    alt: 'Natural linen slub fabric with visible texture weave in warm beige tones',
-    dispatch: '3-5d',
-    gst: true,
-  },
-  {
-    id: 'mp10',
-    name: 'Chiffon Digital Print',
-    seller: 'Ahmedabad Print House',
-    city: 'Ahmedabad, GJ',
-    price: 420,
-    unit: 'mtr',
-    moq: 50,
-    gsm: '70 GSM',
-    width: '44"',
-    work: 'Digital Print',
-    rating: 4.6,
-    reviews: 112,
-    badge: 'new',
-    verified: true,
-    image: 'https://img.rocket.new/generatedImages/rocket_gen_img_12cbc1d6c-1780173991466.png',
-    alt: 'Flowing chiffon fabric with vibrant digital floral print, light airy setting',
-    dispatch: '2-3d',
-    gst: true,
-  },
-  {
-    id: 'mp11',
-    name: 'Wool Blend Suiting',
-    seller: 'Ludhiana Suiting Mills',
-    city: 'Ludhiana, PB',
-    price: 1800,
-    unit: 'mtr',
-    moq: 20,
-    gsm: '320 GSM',
-    width: '58"',
-    work: 'Woven Stripe',
-    rating: 4.7,
-    reviews: 44,
-    badge: null,
-    verified: true,
-    image: 'https://img.rocket.new/generatedImages/rocket_gen_img_138ab1587-1781344617013.png',
-    alt: 'Charcoal grey wool suiting fabric with fine stripe weave, professional setting',
-    dispatch: '5-7d',
-    gst: true,
-  },
-  {
-    id: 'mp12',
-    name: 'Denim Stretch Fabric',
-    seller: 'Ahmedabad Denim Works',
-    city: 'Ahmedabad, GJ',
-    price: 380,
-    unit: 'mtr',
-    moq: 150,
-    gsm: '260 GSM',
-    width: '60"',
-    work: 'Stretch Twill',
-    rating: 4.5,
-    reviews: 78,
-    badge: null,
-    verified: true,
-    image: 'https://img.rocket.new/generatedImages/rocket_gen_img_19faec2de-1775604046124.png',
-    alt: 'Indigo blue stretch denim fabric rolls in factory setting, bright industrial light',
-    dispatch: '2-4d',
-    gst: false,
-  },
-];
+const PAGE_SIZE = 9;
 
 const sortOptions = [
   { value: 'relevance', label: 'Relevance' },
@@ -260,273 +23,297 @@ const sortOptions = [
   { value: 'newest', label: 'Newest First' },
 ];
 
+function splitParam(params: URLSearchParams, key: string) {
+  return (params.get(key) || '').split(',').map((value) => value.trim()).filter(Boolean);
+}
+
+function matchesGsm(value: number, selected: string[]) {
+  if (!selected.length) return true;
+  return selected.some((range) => {
+    if (range === '< 80 GSM') return value < 80;
+    if (range === '80-120 GSM') return value >= 80 && value <= 120;
+    if (range === '120-200 GSM') return value >= 120 && value <= 200;
+    if (range === '200-300 GSM') return value >= 200 && value <= 300;
+    return value >= 300;
+  });
+}
+
+function matchesDispatch(value: number, selected: string[]) {
+  if (!selected.length) return true;
+  return selected.some((range) => {
+    if (range === 'Same Day') return value <= 1;
+    if (range === '1-2 Days') return value <= 2;
+    if (range === '3-5 Days') return value >= 3 && value <= 5;
+    return value >= 5 && value <= 7;
+  });
+}
+
+function mapSellerProduct(row: Record<string, unknown>, sellerName: string): CatalogProduct {
+  const image = String(row.image_url || 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64');
+  const extraImages = Array.isArray(row.image_urls) ? row.image_urls.map(String) : [];
+  return {
+    id: `seller-${String(row.id)}`,
+    source: 'seller',
+    sellerId: String(row.seller_id),
+    name: String(row.name || 'Untitled fabric'),
+    seller: sellerName,
+    city: [row.origin_city, row.origin_state].filter(Boolean).join(', ') || 'India',
+    category: String(row.category || 'Other'),
+    price: Number(row.price_per_unit || 0),
+    unit: String(row.unit || 'mtr'),
+    moq: Number(row.moq || 1),
+    available: Number(row.available_quantity || 0),
+    gsm: Number(row.gsm || 0),
+    width: row.width_inches ? `${Number(row.width_inches)} inches` : 'Not specified',
+    work: String(row.work_type || 'Plain'),
+    rating: 0,
+    reviews: 0,
+    badge: row.created_at && Date.now() - new Date(String(row.created_at)).getTime() < 30 * 86400000 ? 'new' : null,
+    verified: true,
+    image,
+    images: [image, ...extraImages.filter((value) => value !== image)],
+    alt: `${String(row.name || 'Fabric')} supplied by ${sellerName}`,
+    dispatchDays: Number(row.dispatch_days || 3),
+    gst: true,
+    description: String(row.description || ''),
+    sku: row.sku ? String(row.sku) : null,
+  };
+}
+
 export default function MarketplaceGrid() {
-  const { user, profile } = useAuth();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const [liveProducts, setLiveProducts] = useState<CatalogProduct[]>([]);
+  const [loadingLive, setLoadingLive] = useState(true);
   const [selected, setSelected] = useState<string[]>([]);
-  const [sort, setSort] = useState('relevance');
   const [view, setView] = useState<'grid' | 'list'>('grid');
+  const { has, toggle } = useWishlist();
 
   useEffect(() => {
     trackFunnelStep('marketplace_view', { page: 'marketplace' });
   }, []);
 
-  const toggleSelect = (id: string) => {
-    setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
-  };
+  useEffect(() => {
+    let mounted = true;
+    async function loadProducts() {
+      const supabase = createClient();
+      const { data: rows, error } = await supabase
+        .from('seller_products')
+        .select('*')
+        .eq('status', 'active')
+        .gt('available_quantity', 0)
+        .order('updated_at', { ascending: false });
 
-  const rankedProducts = useMemo(
-    () => personalizeProducts(allProducts, profile, user, 'marketplace'),
-    [profile, user]
-  );
+      if (!mounted) return;
+      if (error || !rows?.length) {
+        setLiveProducts([]);
+        setLoadingLive(false);
+        return;
+      }
 
-  const visibleProducts = useMemo(() => {
-    const sorted = [...rankedProducts];
+      const sellerIds = [...new Set(rows.map((row) => row.seller_id).filter(Boolean))];
+      const { data: sellers } = await supabase
+        .from('seller_directory')
+        .select('id,display_name,legal_business_name')
+        .in('id', sellerIds);
+      const names = new Map(
+        (sellers || []).map((seller) => [
+          seller.id,
+          seller.display_name || seller.legal_business_name || 'Verified FabricTrad Seller',
+        ])
+      );
+      setLiveProducts(rows.map((row) => mapSellerProduct(row, names.get(row.seller_id) || 'Verified FabricTrad Seller')));
+      setLoadingLive(false);
+    }
+    loadProducts();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const params = useMemo(() => new URLSearchParams(searchParams.toString()), [searchParams]);
+  const sort = params.get('sort') || 'relevance';
+  const page = Math.max(1, Number(params.get('page') || 1));
+
+  const filteredProducts = useMemo(() => {
+    const search = (params.get('search') || '').toLowerCase();
+    const category = params.get('category');
+    const fabricTypes = splitParam(params, 'fabricType');
+    const gsm = splitParam(params, 'gsm');
+    const widths = splitParam(params, 'width');
+    const works = splitParam(params, 'work');
+    const dispatch = splitParam(params, 'dispatch');
+    const maxPrice = Number(params.get('maxPrice') || 5000);
+    const maxMoq = Number(params.get('maxMoq') || 500);
+    const verified = params.get('verified') === '1';
+
+    const products = [...liveProducts, ...CATALOG_PRODUCTS].filter((product) => {
+      const searchable = [product.name, product.seller, product.city, product.category, product.work, product.gsm, product.width, product.sku]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+      if (search && !searchable.includes(search)) return false;
+      if (category && product.category !== category) return false;
+      if (fabricTypes.length && !fabricTypes.includes(product.category)) return false;
+      if (verified && !product.verified) return false;
+      if (product.price > maxPrice || product.moq > maxMoq) return false;
+      if (!matchesGsm(product.gsm, gsm)) return false;
+      if (widths.length && !widths.includes(product.width)) return false;
+      if (works.length && !works.some((work) => product.work.toLowerCase().includes(work.toLowerCase()))) return false;
+      if (!matchesDispatch(product.dispatchDays, dispatch)) return false;
+      return true;
+    });
+
     switch (sort) {
       case 'price-asc':
-        return sorted.sort((a, b) => a.price - b.price);
+        return products.sort((a, b) => a.price - b.price);
       case 'price-desc':
-        return sorted.sort((a, b) => b.price - a.price);
+        return products.sort((a, b) => b.price - a.price);
       case 'rating':
-        return sorted.sort((a, b) => b.rating - a.rating || b.reviews - a.reviews);
+        return products.sort((a, b) => b.rating - a.rating || b.reviews - a.reviews);
       case 'moq':
-        return sorted.sort((a, b) => a.moq - b.moq);
+        return products.sort((a, b) => a.moq - b.moq);
       case 'dispatch':
-        return sorted.sort(
-          (a, b) =>
-            Number(a.dispatch.match(/\d+/)?.[0] || 9) - Number(b.dispatch.match(/\d+/)?.[0] || 9)
-        );
+        return products.sort((a, b) => a.dispatchDays - b.dispatchDays);
       case 'newest':
-        return sorted.sort((a, b) => (b.badge === 'new' ? 1 : 0) - (a.badge === 'new' ? 1 : 0));
+        return products.sort((a, b) => Number(b.badge === 'new') - Number(a.badge === 'new'));
       default:
-        return sorted;
+        return products.sort((a, b) => Number(b.source === 'seller') - Number(a.source === 'seller') || b.rating - a.rating);
     }
-  }, [rankedProducts, sort]);
+  }, [liveProducts, params, sort]);
 
-  return (
-    <div>
-      {/* Toolbar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
-        <div>
-          <p className="text-sm text-muted-foreground">
-            Showing <span className="font-700 text-foreground">{visibleProducts.length}</span>{' '}
-            products
-            {sort === 'relevance' && profile?.role && (
-              <span className="ml-1">ranked for your {profile.role.replace('_', ' ')} account</span>
-            )}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <select
-            value={sort}
-            onChange={(e) => setSort(e.target.value)}
-            className="input-base px-3 py-2 text-sm rounded-xl pr-8"
+  const pageCount = Math.max(1, Math.ceil(filteredProducts.length / PAGE_SIZE));
+  const safePage = Math.min(page, pageCount);
+  const visibleProducts = filteredProducts.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+
+  const updateParam = (key: string, value?: string) => {
+    const next = new URLSearchParams(searchParams.toString());
+    if (value) next.set(key, value);
+    else next.delete(key);
+    if (key !== 'page') next.delete('page');
+    router.replace(`${pathname}${next.size ? `?${next.toString()}` : ''}`, { scroll: false });
+  };
+
+  const toggleCompare = (id: string) => {
+    setSelected((current) => {
+      if (current.includes(id)) return current.filter((item) => item !== id);
+      if (current.length >= 3) {
+        toast.error('You can compare up to three products.');
+        return current;
+      }
+      return [...current, id];
+    });
+  };
+
+  const productCard = (product: CatalogProduct) => {
+    const saved = has(product.id);
+    return (
+      <article key={product.id} className={`overflow-hidden rounded-2xl border border-border bg-card product-card ${view === 'list' ? 'flex min-h-48' : ''}`}>
+        <div className={`relative bg-muted ${view === 'list' ? 'w-48 shrink-0 sm:w-60' : 'aspect-square'}`}>
+          <Link href={productDetailHref(product)} onClick={() => trackFunnelStep('product_view', { product_id: product.id })}>
+            <AppImage src={product.image} alt={product.alt} fill sizes={view === 'list' ? '240px' : '(max-width: 640px) 100vw, 33vw'} className="object-cover transition-transform duration-300 hover:scale-105" />
+          </Link>
+          <div className="absolute left-2 top-2 flex flex-wrap gap-1">
+            {product.badge && <span className={product.badge === 'premium' ? 'tag-premium' : product.badge === 'new' ? 'tag-new' : 'tag-bestseller'}>{product.badge === 'premium' ? 'Premium' : product.badge === 'new' ? 'New' : 'Best Seller'}</span>}
+            {product.source === 'seller' && <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] font-800 text-white">Live Stock</span>}
+          </div>
+          <button
+            type="button"
+            onClick={async () => {
+              try {
+                const added = await toggle(product);
+                toast.success(added ? 'Saved to wishlist' : 'Removed from wishlist');
+              } catch (error) {
+                toast.error(error instanceof Error ? error.message : 'Could not update wishlist');
+              }
+            }}
+            className={`absolute right-2 top-2 flex h-9 w-9 items-center justify-center rounded-full border bg-white/90 shadow-sm transition-colors ${saved ? 'border-error text-error' : 'border-white text-muted-foreground hover:text-error'}`}
+            aria-label={`${saved ? 'Remove' : 'Add'} ${product.name} ${saved ? 'from' : 'to'} wishlist`}
           >
-            {sortOptions.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
-          <div className="flex items-center border border-border rounded-xl overflow-hidden">
-            <button
-              onClick={() => setView('grid')}
-              className={`p-2 transition-colors ${view === 'grid' ? 'bg-primary text-white' : 'bg-card text-muted-foreground hover:text-foreground'}`}
-            >
-              <Icon name="Squares2X2Icon" size={16} />
-            </button>
-            <button
-              onClick={() => setView('list')}
-              className={`p-2 transition-colors ${view === 'list' ? 'bg-primary text-white' : 'bg-card text-muted-foreground hover:text-foreground'}`}
-            >
-              <Icon name="ListBulletIcon" size={16} />
-            </button>
-          </div>
+            <Icon name="HeartIcon" size={17} variant={saved ? 'solid' : 'outline'} />
+          </button>
+          <label className="absolute bottom-2 left-2 flex cursor-pointer items-center gap-1.5 rounded-lg bg-white/90 px-2 py-1 text-[11px] font-700 text-foreground shadow-sm">
+            <input type="checkbox" checked={selected.includes(product.id)} onChange={() => toggleCompare(product.id)} className="rounded border-border text-primary focus:ring-primary" />
+            Compare
+          </label>
         </div>
-      </div>
 
-      {/* Bulk Select Bar */}
-      {selected.length > 0 && (
-        <div className="mb-4 flex items-center justify-between bg-primary/10 border border-primary/25 rounded-xl px-4 py-3">
-          <div className="flex items-center gap-2">
-            <Icon name="ShoppingCartIcon" size={18} className="text-primary" />
-            <span className="text-sm font-600 text-primary">
-              {selected.length} products selected
-            </span>
+        <div className={`p-4 ${view === 'list' ? 'flex min-w-0 flex-1 flex-col justify-between' : ''}`}>
+          <div>
+            <div className="mb-1 flex items-center gap-1.5">
+              {product.verified && <Icon name="ShieldCheckIcon" size={13} className="text-success" title="GST-verified seller" />}
+              <p className="truncate text-xs text-muted-foreground">{product.seller}</p>
+            </div>
+            <Link href={productDetailHref(product)} className="line-clamp-2 text-sm font-800 text-foreground hover:text-primary">
+              {product.name}
+            </Link>
+            <p className="mt-1 text-xs text-muted-foreground">{product.city} · {product.gsm || '—'} GSM · {product.width}</p>
+            <div className="mt-2 flex items-center gap-1 text-xs">
+              <Icon name="StarIcon" size={13} variant="solid" className="text-amber-400" />
+              <span className="font-700 text-foreground">{product.reviews ? product.rating.toFixed(1) : 'New'}</span>
+              {product.reviews > 0 && <span className="text-muted-foreground">({product.reviews})</span>}
+              <span className="ml-auto text-muted-foreground">Dispatch {product.dispatchDays}d</span>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setSelected([])}
-              className="text-xs text-muted-foreground hover:text-foreground px-2 py-1"
-            >
-              Clear
-            </button>
-            <Link href="/product-detail" className="btn-primary px-4 py-2 text-xs rounded-lg">
-              Add to Order Request
+          <div className="mt-4 flex items-end justify-between gap-3 border-t border-border pt-3">
+            <div>
+              <p className="text-lg font-800 text-primary">₹{product.price.toLocaleString('en-IN')}<span className="text-xs font-500 text-muted-foreground">/{product.unit}</span></p>
+              <p className="text-xs text-muted-foreground">MOQ {product.moq} mtrs · {product.available.toLocaleString('en-IN')} available</p>
+            </div>
+            <Link href={productDetailHref(product)} className="btn-primary shrink-0 rounded-lg px-3 py-2 text-xs">
+              View & Request
             </Link>
           </div>
         </div>
-      )}
+      </article>
+    );
+  };
 
-      {/* Grid */}
-      {view === 'grid' ? (
-        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-4">
-          {visibleProducts.map((p, i) => (
-            <div
-              key={p.id}
-              className="product-card border border-border group relative"
-              style={{ animationDelay: `${i * 40}ms` }}
-            >
-              <button
-                onClick={() => toggleSelect(p.id)}
-                className={`absolute top-2 left-2 z-10 w-6 h-6 rounded-md border-2 flex items-center justify-center transition-all ${
-                  selected.includes(p.id)
-                    ? 'bg-primary border-primary'
-                    : 'bg-white/80 border-border opacity-0 group-hover:opacity-100'
-                }`}
-                aria-label={`Select ${p.name}`}
-              >
-                {selected.includes(p.id) && (
-                  <Icon name="CheckIcon" size={10} className="text-white" />
-                )}
-              </button>
+  return (
+    <div>
+      <div className="mb-5 flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+        <div>
+          <p className="text-sm text-muted-foreground">
+            {loadingLive ? 'Checking live seller inventory…' : <><span className="font-700 text-foreground">{filteredProducts.length}</span> matching product{filteredProducts.length === 1 ? '' : 's'}</>}
+          </p>
+          {selected.length > 0 && (
+            <p className="mt-1 text-xs font-700 text-primary">{selected.length} selected for comparison</p>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <select value={sort} onChange={(event) => updateParam('sort', event.target.value === 'relevance' ? undefined : event.target.value)} className="input-base rounded-xl px-3 py-2 pr-8 text-sm" aria-label="Sort products">
+            {sortOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+          </select>
+          <div className="flex overflow-hidden rounded-xl border border-border">
+            <button type="button" onClick={() => setView('grid')} className={`p-2 ${view === 'grid' ? 'bg-primary text-white' : 'bg-card text-muted-foreground hover:text-foreground'}`} aria-label="Grid view" aria-pressed={view === 'grid'}><Icon name="Squares2X2Icon" size={16} /></button>
+            <button type="button" onClick={() => setView('list')} className={`p-2 ${view === 'list' ? 'bg-primary text-white' : 'bg-card text-muted-foreground hover:text-foreground'}`} aria-label="List view" aria-pressed={view === 'list'}><Icon name="ListBulletIcon" size={16} /></button>
+          </div>
+        </div>
+      </div>
 
-              {p.badge && (
-                <div className="absolute top-2 right-2 z-10">
-                  {p.badge === 'bestseller' && <span className="tag-bestseller">Best Seller</span>}
-                  {p.badge === 'new' && <span className="tag-new">New</span>}
-                  {p.badge === 'premium' && (
-                    <span className="bg-gradient-to-r from-amber-500 to-yellow-400 text-white text-[0.6rem] font-800 px-2 py-0.5 rounded-full uppercase">
-                      Premium
-                    </span>
-                  )}
-                </div>
-              )}
-
-              <Link href="/product-detail" className="block aspect-square overflow-hidden bg-muted">
-                <AppImage
-                  src={p.image}
-                  alt={p.alt}
-                  width={250}
-                  height={250}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                />
-              </Link>
-
-              <div className="p-3">
-                <div className="flex items-center gap-1 mb-1">
-                  {p.verified && (
-                    <Icon name="ShieldCheckIcon" size={11} className="text-success shrink-0" />
-                  )}
-                  <span className="text-xs text-muted-foreground truncate">{p.city}</span>
-                  {p.gst && <span className="badge-gstin ml-auto shrink-0">GST</span>}
-                </div>
-                <Link href="/product-detail">
-                  <h3 className="text-xs font-700 text-foreground line-clamp-2 mb-1.5 hover:text-primary transition-colors leading-snug">
-                    {p.name}
-                  </h3>
-                </Link>
-                <div className="flex flex-wrap gap-1 mb-1.5">
-                  <span className="text-xs bg-muted text-muted-foreground px-1.5 py-0.5 rounded">
-                    {p.gsm}
-                  </span>
-                  <span className="text-xs bg-muted text-muted-foreground px-1.5 py-0.5 rounded">
-                    {p.width}
-                  </span>
-                </div>
-                <div className="flex items-center gap-1 mb-1.5">
-                  <Icon name="StarIcon" size={11} className="text-amber-400" variant="solid" />
-                  <span className="text-xs font-700">{p.rating}</span>
-                  <span className="text-xs text-muted-foreground">({p.reviews})</span>
-                </div>
-                <div className="flex items-end justify-between mb-2">
-                  <div>
-                    <span className="text-sm font-800 text-primary">
-                      ₹{p.price.toLocaleString('en-IN')}
-                    </span>
-                    <span className="text-xs text-muted-foreground ml-1">/{p.unit}</span>
-                  </div>
-                  <span className="badge-moq">MOQ:{p.moq}</span>
-                </div>
-                <Link
-                  href="/product-detail"
-                  className="btn-primary w-full py-1.5 text-xs rounded-lg block text-center"
-                >
-                  Request Order
-                </Link>
-              </div>
-            </div>
-          ))}
+      {filteredProducts.length === 0 ? (
+        <div className="rounded-2xl border border-border bg-card px-5 py-16 text-center">
+          <Icon name="MagnifyingGlassIcon" size={36} className="mx-auto mb-3 text-muted-foreground" />
+          <p className="text-sm font-800 text-foreground">No fabrics match these filters</p>
+          <p className="mt-1 text-xs text-muted-foreground">Try increasing the price or MOQ range, or clear a filter.</p>
+          <button type="button" onClick={() => router.replace('/marketplace')} className="btn-primary mt-4 rounded-xl px-4 py-2 text-xs">Clear Filters</button>
         </div>
       ) : (
-        <div className="space-y-3">
-          {visibleProducts.map((p) => (
-            <div
-              key={p.id}
-              className="bg-card rounded-2xl border border-border p-4 flex items-center gap-4 hover:card-shadow-hover transition-all"
-            >
-              <div className="w-20 h-20 rounded-xl overflow-hidden bg-muted shrink-0">
-                <AppImage
-                  src={p.image}
-                  alt={p.alt}
-                  width={80}
-                  height={80}
-                  className="w-full h-full object-cover"
-                />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                  {p.verified && <Icon name="ShieldCheckIcon" size={12} className="text-success" />}
-                  <span className="text-xs text-muted-foreground">
-                    {p.seller} · {p.city}
-                  </span>
-                  {p.badge === 'bestseller' && <span className="tag-bestseller">Best Seller</span>}
-                </div>
-                <Link href="/product-detail">
-                  <h3 className="text-sm font-700 text-foreground hover:text-primary transition-colors mb-1">
-                    {p.name}
-                  </h3>
-                </Link>
-                <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-                  <span>{p.gsm}</span>
-                  <span>·</span>
-                  <span>{p.width}</span>
-                  <span>·</span>
-                  <span>{p.work}</span>
-                </div>
-              </div>
-              <div className="text-right shrink-0">
-                <p className="text-base font-800 text-primary">
-                  ₹{p.price.toLocaleString('en-IN')}
-                  <span className="text-xs text-muted-foreground font-500">/{p.unit}</span>
-                </p>
-                <p className="text-xs text-muted-foreground mb-2">MOQ: {p.moq} mtrs</p>
-                <Link
-                  href="/product-detail"
-                  className="btn-primary px-3 py-1.5 text-xs rounded-lg inline-block"
-                >
-                  Request
-                </Link>
-              </div>
-            </div>
-          ))}
+        <div className={view === 'grid' ? 'grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3' : 'space-y-4'}>
+          {visibleProducts.map(productCard)}
         </div>
       )}
 
-      {/* Pagination */}
-      <div className="mt-8 flex items-center justify-center gap-2">
-        {[1, 2, 3, '...', 12].map((page, i) => (
-          <button
-            key={i}
-            className={`w-9 h-9 rounded-lg text-sm font-600 transition-all ${
-              page === 1
-                ? 'bg-primary text-white'
-                : 'bg-card border border-border text-muted-foreground hover:border-primary hover:text-primary'
-            }`}
-          >
-            {page}
-          </button>
-        ))}
-      </div>
+      {pageCount > 1 && (
+        <nav className="mt-8 flex items-center justify-center gap-2" aria-label="Marketplace pages">
+          <button type="button" onClick={() => updateParam('page', String(Math.max(1, safePage - 1)))} disabled={safePage === 1} className="flex h-9 items-center gap-1 rounded-lg border border-border bg-card px-3 text-xs font-700 text-muted-foreground disabled:cursor-not-allowed disabled:opacity-40" aria-label="Previous page"><Icon name="ChevronLeftIcon" size={14} /> Prev</button>
+          {Array.from({ length: pageCount }, (_, index) => index + 1).map((pageNumber) => (
+            <button key={pageNumber} type="button" onClick={() => updateParam('page', pageNumber === 1 ? undefined : String(pageNumber))} className={`h-9 w-9 rounded-lg text-sm font-600 ${pageNumber === safePage ? 'bg-primary text-white' : 'border border-border bg-card text-muted-foreground hover:border-primary hover:text-primary'}`} aria-current={pageNumber === safePage ? 'page' : undefined}>{pageNumber}</button>
+          ))}
+          <button type="button" onClick={() => updateParam('page', String(Math.min(pageCount, safePage + 1)))} disabled={safePage === pageCount} className="flex h-9 items-center gap-1 rounded-lg border border-border bg-card px-3 text-xs font-700 text-muted-foreground disabled:cursor-not-allowed disabled:opacity-40" aria-label="Next page">Next <Icon name="ChevronRightIcon" size={14} /></button>
+        </nav>
+      )}
     </div>
   );
 }
