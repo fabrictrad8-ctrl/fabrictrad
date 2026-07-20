@@ -1,22 +1,14 @@
 'use client';
-import React, { useState } from 'react';
+
+import { useMemo, useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import Icon from '@/components/ui/AppIcon';
 
 const filterGroups = [
   {
     label: 'Fabric Type',
     key: 'fabricType',
-    options: [
-      'Silk',
-      'Cotton',
-      'Polyester',
-      'Net',
-      'Georgette',
-      'Organza',
-      'Velvet',
-      'Khadi',
-      'Linen',
-    ],
+    options: ['Silk', 'Cotton', 'Polyester', 'Net & Netting', 'Georgette', 'Organza', 'Velvet', 'Handloom', 'Linen', 'Denim', 'Wool'],
   },
   {
     label: 'GSM Range',
@@ -31,156 +23,166 @@ const filterGroups = [
   {
     label: 'Work Type',
     key: 'work',
-    options: [
-      'Plain',
-      'Embroidered',
-      'Zari Work',
-      'Block Print',
-      'Digital Print',
-      'Handloom',
-      'Sequence',
-    ],
-  },
-  {
-    label: 'Seller Type',
-    key: 'sellerType',
-    options: ['Manufacturer', 'Wholesaler', 'Distributor', 'Exporter'],
+    options: ['Plain', 'Embroidered', 'Zari Work', 'Block Print', 'Digital Print', 'Handloom', 'Sequence'],
   },
   {
     label: 'Dispatch Time',
     key: 'dispatch',
     options: ['Same Day', '1-2 Days', '3-5 Days', '5-7 Days'],
   },
-];
+] as const;
+
+function valuesFor(params: URLSearchParams, key: string) {
+  return (params.get(key) || '').split(',').map((value) => value.trim()).filter(Boolean);
+}
 
 export default function MarketplaceFilters() {
-  const [selected, setSelected] = useState<Record<string, string[]>>({});
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [expanded, setExpanded] = useState<string[]>(['fabricType', 'work']);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [priceRange, setPriceRange] = useState([0, 5000]);
-  const [moqMax, setMoqMax] = useState(500);
 
-  const toggleOption = (key: string, val: string) => {
-    setSelected((prev) => {
-      const cur = prev[key] || [];
-      return {
-        ...prev,
-        [key]: cur.includes(val) ? cur.filter((x) => x !== val) : [...cur, val],
-      };
+  const selected = useMemo(() => {
+    const params = new URLSearchParams(searchParams.toString());
+    return Object.fromEntries(filterGroups.map((group) => [group.key, valuesFor(params, group.key)]));
+  }, [searchParams]);
+
+  const priceMax = Number(searchParams.get('maxPrice') || 5000);
+  const moqMax = Number(searchParams.get('maxMoq') || 500);
+  const verifiedOnly = searchParams.get('verified') === '1';
+  const totalActive =
+    Object.values(selected).flat().length +
+    Number(verifiedOnly) +
+    Number(priceMax !== 5000) +
+    Number(moqMax !== 500);
+
+  const updateParams = (update: (params: URLSearchParams) => void) => {
+    const params = new URLSearchParams(searchParams.toString());
+    update(params);
+    params.delete('page');
+    router.replace(`${pathname}${params.size ? `?${params.toString()}` : ''}`, { scroll: false });
+  };
+
+  const toggleOption = (key: string, value: string) => {
+    updateParams((params) => {
+      const current = valuesFor(params, key);
+      const next = current.includes(value)
+        ? current.filter((item) => item !== value)
+        : [...current, value];
+      if (next.length) params.set(key, next.join(','));
+      else params.delete(key);
     });
   };
 
-  const toggleExpand = (key: string) => {
-    setExpanded((prev) => (prev.includes(key) ? prev.filter((x) => x !== key) : [...prev, key]));
+  const clearAll = () => {
+    updateParams((params) => {
+      ['fabricType', 'gsm', 'width', 'work', 'dispatch', 'verified', 'maxPrice', 'maxMoq'].forEach((key) => params.delete(key));
+    });
   };
-
-  const totalActive = Object.values(selected).flat().length;
 
   const filterContent = (
     <div className="space-y-5">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Icon name="FunnelIcon" size={16} className="text-foreground" />
-          <span className="font-700 text-sm text-foreground">Filters</span>
+          <span className="text-sm font-700 text-foreground">Filters</span>
           {totalActive > 0 && (
-            <span className="bg-primary text-white text-xs font-700 px-1.5 py-0.5 rounded-full">
-              {totalActive}
-            </span>
+            <span className="rounded-full bg-primary px-1.5 py-0.5 text-xs font-700 text-white">{totalActive}</span>
           )}
         </div>
         {totalActive > 0 && (
-          <button
-            onClick={() => setSelected({})}
-            className="text-xs text-primary font-600 hover:underline"
-          >
+          <button type="button" onClick={clearAll} className="text-xs font-600 text-primary hover:underline">
             Clear All
           </button>
         )}
       </div>
 
-      {/* Verified Only */}
-      <div className="flex items-center justify-between py-2 border-b border-border">
-        <div className="flex items-center gap-2">
+      <button
+        type="button"
+        onClick={() => updateParams((params) => verifiedOnly ? params.delete('verified') : params.set('verified', '1'))}
+        className="flex w-full items-center justify-between border-b border-border py-2 text-left"
+        aria-pressed={verifiedOnly}
+      >
+        <span className="flex items-center gap-2">
           <Icon name="ShieldCheckIcon" size={14} className="text-success" />
           <span className="text-sm font-600 text-foreground">GST Verified Sellers Only</span>
-        </div>
-        <div className="w-10 h-5 bg-success rounded-full relative cursor-pointer">
-          <div className="absolute right-0.5 top-0.5 w-4 h-4 bg-white rounded-full shadow-sm" />
-        </div>
-      </div>
+        </span>
+        <span className={`relative h-6 w-11 rounded-full transition-colors ${verifiedOnly ? 'bg-success' : 'bg-muted-foreground/30'}`}>
+          <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${verifiedOnly ? 'translate-x-5' : 'translate-x-0.5'}`} />
+        </span>
+      </button>
 
-      {/* Price Range */}
       <div>
-        <p className="text-sm font-700 text-foreground mb-3">Price per Metre</p>
-        <div className="flex items-center justify-between text-xs text-muted-foreground mb-2">
-          <span>₹{priceRange[0]}</span>
-          <span>₹{priceRange[1].toLocaleString('en-IN')}</span>
+        <div className="mb-2 flex items-center justify-between">
+          <p className="text-sm font-700 text-foreground">Maximum price per metre</p>
+          <output className="text-xs font-700 text-primary">₹{priceMax.toLocaleString('en-IN')}</output>
         </div>
         <input
+          aria-label="Maximum price per metre"
           type="range"
-          min={0}
+          min={100}
           max={10000}
-          value={priceRange[1]}
-          onChange={(e) => setPriceRange([priceRange[0], parseInt(e.target.value)])}
+          step={100}
+          value={priceMax}
+          onChange={(event) => updateParams((params) => {
+            const value = Number(event.target.value);
+            if (value === 5000) params.delete('maxPrice');
+            else params.set('maxPrice', String(value));
+          })}
           className="w-full accent-primary"
         />
       </div>
 
-      {/* MOQ */}
       <div>
-        <p className="text-sm font-700 text-foreground mb-3">Max MOQ (metres)</p>
-        <div className="flex items-center justify-between text-xs text-muted-foreground mb-2">
-          <span>1</span>
-          <span>{moqMax}</span>
+        <div className="mb-2 flex items-center justify-between">
+          <p className="text-sm font-700 text-foreground">Maximum MOQ</p>
+          <output className="text-xs font-700 text-primary">{moqMax} mtrs</output>
         </div>
         <input
+          aria-label="Maximum minimum order quantity"
           type="range"
           min={1}
           max={1000}
+          step={5}
           value={moqMax}
-          onChange={(e) => setMoqMax(parseInt(e.target.value))}
+          onChange={(event) => updateParams((params) => {
+            const value = Number(event.target.value);
+            if (value === 500) params.delete('maxMoq');
+            else params.set('maxMoq', String(value));
+          })}
           className="w-full accent-primary"
         />
       </div>
 
-      {/* Filter Groups */}
       {filterGroups.map((group) => (
         <div key={group.key} className="border-t border-border pt-4">
           <button
-            onClick={() => toggleExpand(group.key)}
-            className="w-full flex items-center justify-between mb-2"
+            type="button"
+            onClick={() => setExpanded((current) => current.includes(group.key) ? current.filter((key) => key !== group.key) : [...current, group.key])}
+            className="mb-2 flex w-full items-center justify-between"
+            aria-expanded={expanded.includes(group.key)}
           >
             <span className="text-sm font-700 text-foreground">{group.label}</span>
-            <Icon
-              name={expanded.includes(group.key) ? 'ChevronUpIcon' : 'ChevronDownIcon'}
-              size={16}
-              className="text-muted-foreground"
-            />
+            <Icon name={expanded.includes(group.key) ? 'ChevronUpIcon' : 'ChevronDownIcon'} size={16} className="text-muted-foreground" />
           </button>
 
           {expanded.includes(group.key) && (
             <div className="space-y-1.5">
-              {group.options.map((opt) => {
-                const isSelected = (selected[group.key] || []).includes(opt);
+              {group.options.map((option) => {
+                const active = (selected[group.key] || []).includes(option);
                 return (
                   <button
-                    key={opt}
-                    onClick={() => toggleOption(group.key, opt)}
-                    className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm transition-all ${
-                      isSelected
-                        ? 'bg-primary/10 text-primary font-600'
-                        : 'text-foreground hover:bg-muted'
-                    }`}
+                    key={option}
+                    type="button"
+                    onClick={() => toggleOption(group.key, option)}
+                    className={`flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-sm transition-all ${active ? 'bg-primary/10 font-600 text-primary' : 'text-foreground hover:bg-muted'}`}
+                    aria-pressed={active}
                   >
-                    <div
-                      className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 ${
-                        isSelected ? 'bg-primary border-primary' : 'border-border'
-                      }`}
-                    >
-                      {isSelected && <Icon name="CheckIcon" size={10} className="text-white" />}
-                    </div>
-                    {opt}
+                    <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border-2 ${active ? 'border-primary bg-primary' : 'border-border'}`}>
+                      {active && <Icon name="CheckIcon" size={10} className="text-white" />}
+                    </span>
+                    {option}
                   </button>
                 );
               })}
@@ -193,50 +195,35 @@ export default function MarketplaceFilters() {
 
   return (
     <>
-      {/* Mobile Filter Toggle */}
-      <div className="lg:hidden mb-4">
-        <button
-          onClick={() => setMobileOpen(true)}
-          className="flex items-center gap-2 btn-secondary px-4 py-2 text-sm rounded-xl"
-        >
+      <div className="mb-4 lg:hidden">
+        <button type="button" onClick={() => setMobileOpen(true)} className="btn-secondary flex items-center gap-2 rounded-xl px-4 py-2 text-sm">
           <Icon name="FunnelIcon" size={16} />
           Filters {totalActive > 0 && `(${totalActive})`}
         </button>
       </div>
 
-      {/* Mobile Overlay */}
       {mobileOpen && (
-        <div
-          className="fixed inset-0 z-50 bg-black/50 lg:hidden"
-          onClick={() => setMobileOpen(false)}
-        >
-          <div
-            className="absolute left-0 top-0 bottom-0 w-72 bg-background p-5 overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between mb-4">
-              <span className="font-700 text-foreground">Filters</span>
-              <button onClick={() => setMobileOpen(false)}>
+        <div className="fixed inset-0 z-50 bg-black/50 lg:hidden" onClick={() => setMobileOpen(false)}>
+          <div className="absolute bottom-0 left-0 top-0 w-[min(320px,90vw)] overflow-y-auto bg-background p-5" onClick={(event) => event.stopPropagation()}>
+            <div className="mb-4 flex items-center justify-between">
+              <span className="font-700 text-foreground">Refine products</span>
+              <button type="button" onClick={() => setMobileOpen(false)} className="rounded-lg p-2 hover:bg-muted" aria-label="Close filters">
                 <Icon name="XMarkIcon" size={20} className="text-foreground" />
               </button>
             </div>
             {filterContent}
-            <button
-              onClick={() => setMobileOpen(false)}
-              className="btn-primary w-full py-3 text-sm rounded-xl mt-6"
-            >
-              Apply Filters
+            <button type="button" onClick={() => setMobileOpen(false)} className="btn-primary mt-6 w-full rounded-xl py-3 text-sm">
+              Show Results
             </button>
           </div>
         </div>
       )}
 
-      {/* Desktop Sidebar */}
-      <div className="hidden lg:block w-60 shrink-0">
-        <div className="bg-card rounded-2xl border border-border p-5 sticky top-20 max-h-[calc(100vh-6rem)] overflow-y-auto scrollbar-thin">
+      <aside className="hidden w-60 shrink-0 lg:block" aria-label="Marketplace filters">
+        <div className="sticky top-20 max-h-[calc(100vh-6rem)] overflow-y-auto rounded-2xl border border-border bg-card p-5 scrollbar-thin">
           {filterContent}
         </div>
-      </div>
+      </aside>
     </>
   );
 }

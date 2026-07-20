@@ -7,6 +7,8 @@ import Icon from '@/components/ui/AppIcon';
 import AppImage from '@/components/ui/AppImage';
 import { useAuth } from '@/contexts/AuthContext';
 import { createClient } from '@/lib/supabase/client';
+import { INDIAN_STATES_AND_UTS, SUPPORTED_LANGUAGES, type SupportedLanguageCode } from '@/lib/india';
+import { useAppPreferences, type ThemePreference } from '@/contexts/AppPreferencesContext';
 
 function validateIndianPhone(phone: string): { valid: boolean; message: string } {
   const cleaned = phone.replace(/\D/g, '');
@@ -19,27 +21,11 @@ function validateIndianPhone(phone: string): { valid: boolean; message: string }
   return { valid: true, message: '' };
 }
 
-const indianStates = [
-  'Andhra Pradesh',
-  'Gujarat',
-  'Karnataka',
-  'Kerala',
-  'Madhya Pradesh',
-  'Maharashtra',
-  'Punjab',
-  'Rajasthan',
-  'Tamil Nadu',
-  'Telangana',
-  'Uttar Pradesh',
-  'West Bengal',
-  'Delhi',
-  'Haryana',
-  'Bihar',
-];
 
-type ProfileTab = 'personal' | 'business' | 'address' | 'activity' | 'security';
 
-const profileTabs: ProfileTab[] = ['personal', 'business', 'address', 'activity', 'security'];
+type ProfileTab = 'personal' | 'business' | 'address' | 'preferences' | 'activity' | 'security';
+
+const profileTabs: ProfileTab[] = ['personal', 'business', 'address', 'preferences', 'activity', 'security'];
 
 const getValidProfileTab = (tab: string | null): ProfileTab =>
   profileTabs.includes(tab as ProfileTab) ? (tab as ProfileTab) : 'personal';
@@ -48,6 +34,7 @@ export default function ProfilePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, profile, loading, refreshProfile, isDemoAccount } = useAuth();
+  const { language, setLanguage, theme, setTheme } = useAppPreferences();
   const supabase = createClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -210,6 +197,10 @@ export default function ProfilePage() {
     e.preventDefault();
     if (!user) return;
     setErrorMsg('');
+    if (!addressForm.line1.trim() || !addressForm.city.trim() || !addressForm.state || !/^\d{6}$/.test(addressForm.pin)) {
+      setErrorMsg('Enter a complete address, state and valid 6-digit PIN code.');
+      return;
+    }
     setSaving(true);
     try {
       if (isDemoAccount) {
@@ -540,6 +531,11 @@ export default function ProfilePage() {
                   icon: 'MapPinIcon',
                 },
                 {
+                  key: 'preferences',
+                  label: 'Language & Theme',
+                  icon: 'LanguageIcon',
+                },
+                {
                   key: 'activity',
                   label: isSeller ? 'Store Activity' : 'Purchase Activity',
                   icon: 'ClockIcon',
@@ -832,7 +828,7 @@ export default function ProfilePage() {
                       className="input-base w-full px-4 py-3 text-sm rounded-xl"
                     >
                       <option value="">Select state</option>
-                      {indianStates.map((s) => (
+                      {INDIAN_STATES_AND_UTS.map((s) => (
                         <option key={s} value={s}>
                           {s}
                         </option>
@@ -854,6 +850,60 @@ export default function ProfilePage() {
                     )}
                   </button>
                 </form>
+              </div>
+            )}
+
+            {activeTab === 'preferences' && (
+              <div className="bg-card rounded-2xl border border-border p-6 card-shadow">
+                <h2 className="text-base font-800 text-foreground">Language, appearance and region</h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  These choices apply across the buyer and seller experience on this device and are saved to your account.
+                </p>
+                <div className="mt-6 grid gap-5 sm:grid-cols-2">
+                  <div>
+                    <label className="block text-sm font-700 text-foreground mb-1.5">Preferred language</label>
+                    <select
+                      value={language}
+                      onChange={(event) => void setLanguage(event.target.value as SupportedLanguageCode)}
+                      className="input-base w-full rounded-xl px-4 py-3 text-sm"
+                    >
+                      {SUPPORTED_LANGUAGES.map((item) => (
+                        <option key={item.code} value={item.code}>{item.label}</option>
+                      ))}
+                    </select>
+                    <p className="mt-2 text-xs text-muted-foreground">Navigation and key marketplace guidance are translated instantly.</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-700 text-foreground mb-1.5">Appearance</label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {(['light', 'dark', 'system'] as ThemePreference[]).map((item) => (
+                        <button
+                          key={item}
+                          type="button"
+                          onClick={() => setTheme(item)}
+                          className={`rounded-xl border px-3 py-3 text-sm font-800 capitalize transition ${theme === item ? 'border-primary bg-primary text-white' : 'border-border bg-muted text-foreground hover:border-primary/40'}`}
+                        >
+                          <Icon name={item === 'light' ? 'SunIcon' : item === 'dark' ? 'MoonIcon' : 'ComputerDesktopIcon'} size={18} className="mx-auto mb-1" />
+                          {item}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-6 rounded-2xl border border-border bg-muted/50 p-5">
+                  <div className="flex items-start gap-3">
+                    <Icon name="MapPinIcon" size={20} className="mt-0.5 text-primary" />
+                    <div>
+                      <p className="text-sm font-800 text-foreground">Your operating state</p>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        {addressForm.state || 'No state selected yet'}{addressForm.city ? ` · ${addressForm.city}` : ''}
+                      </p>
+                      <button type="button" onClick={() => handleProfileTabChange('address')} className="mt-3 text-sm font-800 text-primary hover:underline">
+                        Update {isSeller ? 'pickup' : 'delivery'} state and address
+                      </button>
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
 

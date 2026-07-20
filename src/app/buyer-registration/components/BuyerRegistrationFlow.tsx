@@ -4,6 +4,8 @@ import Link from 'next/link';
 import Icon from '@/components/ui/AppIcon';
 import { useAuth } from '@/contexts/AuthContext';
 import { normalizeEmail, normalizeIndianPhone, validateIndianPhone } from '@/lib/authValidation';
+import { INDIAN_STATES_AND_UTS, SUPPORTED_LANGUAGES, type SupportedLanguageCode } from '@/lib/india';
+import { useAppPreferences } from '@/contexts/AppPreferencesContext';
 
 type Step = 'account' | 'address' | 'done';
 
@@ -15,26 +17,9 @@ const steps = [
 
 const stepOrder: Step[] = ['account', 'address', 'done'];
 
-const indianStates = [
-  'Andhra Pradesh',
-  'Gujarat',
-  'Karnataka',
-  'Kerala',
-  'Madhya Pradesh',
-  'Maharashtra',
-  'Punjab',
-  'Rajasthan',
-  'Tamil Nadu',
-  'Telangana',
-  'Uttar Pradesh',
-  'West Bengal',
-  'Delhi',
-  'Haryana',
-  'Bihar',
-];
 export default function BuyerRegistrationFlow() {
-  const { signUp, signInWithGoogle, googleAuthEnabled, checkEmailUnique, checkPhoneUnique } =
-    useAuth();
+  const { signUp, signInWithGoogle, googleAuthEnabled, checkEmailUnique, checkPhoneUnique } = useAuth();
+  const { language, setLanguage, t } = useAppPreferences();
 
   const [currentStep, setCurrentStep] = useState<Step>('account');
   const [account, setAccount] = useState({
@@ -56,6 +41,7 @@ export default function BuyerRegistrationFlow() {
     country: 'India',
     recipientName: '',
     recipientPhone: '',
+    preferredLanguage: language as SupportedLanguageCode,
   });
   const [agreed, setAgreed] = useState(false);
   const [error, setError] = useState('');
@@ -135,8 +121,12 @@ export default function BuyerRegistrationFlow() {
 
   const handleComplete = async () => {
     if (!agreed) return;
-    setSubmitting(true);
     setError('');
+    if (!address.line1.trim() || !address.city.trim() || !address.state || !/^\d{6}$/.test(address.pin)) {
+      setError('Enter a complete delivery address, state and valid 6-digit PIN code.');
+      return;
+    }
+    setSubmitting(true);
     try {
       const email = normalizeEmail(account.email);
       const phone = normalizeIndianPhone(account.phone);
@@ -156,6 +146,12 @@ export default function BuyerRegistrationFlow() {
         fullName: account.fullName,
         phone,
         role: 'buyer',
+        addressLine1: address.line1,
+        addressLine2: address.line2,
+        city: address.city,
+        state: address.state,
+        pincode: address.pin,
+        preferredLanguage: address.preferredLanguage,
       });
       setCurrentStep('done');
     } catch (e: any) {
@@ -454,8 +450,8 @@ export default function BuyerRegistrationFlow() {
                   />
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  <div className="col-span-2 sm:col-span-1">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div >
                     <label className="block text-sm font-700 text-foreground mb-1.5">
                       PIN Code
                     </label>
@@ -493,14 +489,14 @@ export default function BuyerRegistrationFlow() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-700 text-foreground mb-1.5">State</label>
+                    <label className="block text-sm font-700 text-foreground mb-1.5">{t('form.state')}</label>
                     <select
                       value={address.state}
                       onChange={(e) => setAddress({ ...address, state: e.target.value })}
                       className="input-base w-full px-4 py-3 text-sm rounded-xl"
                     >
-                      <option value="">State</option>
-                      {indianStates.map((s) => (
+                      <option value="">{t('form.selectState')}</option>
+                      {INDIAN_STATES_AND_UTS.map((s) => (
                         <option key={s} value={s}>
                           {s}
                         </option>
@@ -509,22 +505,30 @@ export default function BuyerRegistrationFlow() {
                   </div>
                 </div>
 
-                <div
-                  className="flex items-start gap-3 p-4 bg-muted rounded-xl cursor-pointer"
-                  onClick={() => setAgreed(!agreed)}
-                >
-                  <div
-                    className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 mt-0.5 transition-all ${agreed ? 'bg-primary border-primary' : 'border-border bg-card'}`}
+                <div>
+                  <label className="block text-sm font-700 text-foreground mb-1.5">{t('form.language')}</label>
+                  <select
+                    value={address.preferredLanguage}
+                    onChange={(event) => {
+                      const next = event.target.value as SupportedLanguageCode;
+                      setAddress({ ...address, preferredLanguage: next });
+                      void setLanguage(next);
+                    }}
+                    className="input-base w-full px-4 py-3 text-sm rounded-xl"
                   >
-                    {agreed && <Icon name="CheckIcon" size={12} className="text-white" />}
-                  </div>
+                    {SUPPORTED_LANGUAGES.map((item) => <option key={item.code} value={item.code}>{item.label}</option>)}
+                  </select>
+                </div>
+
+                <label className="flex items-start gap-3 p-4 bg-muted rounded-xl cursor-pointer">
+                  <input type="checkbox" checked={agreed} onChange={(event) => setAgreed(event.target.checked)} className="mt-1 h-4 w-4 rounded border-border text-primary focus:ring-primary" />
                   <p className="text-xs text-muted-foreground leading-relaxed">
                     I agree to FabricTrad's{' '}
                     <span className="text-primary font-600">Buyer User Agreement</span>,{' '}
                     <span className="text-primary font-600">Terms of Use</span>, and{' '}
                     <span className="text-primary font-600">Privacy Policy</span>.
                   </p>
-                </div>
+                </label>
               </div>
 
               <div className="flex gap-3 mt-6">

@@ -6,29 +6,16 @@ import AppLogo from '@/components/ui/AppLogo';
 import Icon from '@/components/ui/AppIcon';
 import { useAuth } from '@/contexts/AuthContext';
 import ProfileMenu from '@/components/ProfileMenu';
-
-const publicNavLinks: { label: string; href: string }[] = [];
-
-const buyerNavLinks = [
-  { label: 'Marketplace', href: '/marketplace' },
-  { label: 'Categories', href: '/categories' },
-  { label: 'Vendors', href: '/vendors' },
-  { label: 'Requirements Board', href: '/buyer-requirements' },
-];
-
-const sellerNavLinks = [
-  { label: 'Dashboard', href: '/seller-dashboard' },
-  { label: 'Upload Catalog', href: '/seller-dashboard?tab=upload' },
-  { label: 'Orders', href: '/seller-dashboard?tab=orders' },
-  { label: 'Buyer Requests', href: '/seller-dashboard?tab=requests' },
-  { label: 'Payouts', href: '/seller-dashboard?tab=earnings' },
-];
+import WishlistMenu from '@/components/WishlistMenu';
+import PreferenceControls from '@/components/PreferenceControls';
+import { useAppPreferences } from '@/contexts/AppPreferencesContext';
 
 export default function Header() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const { user, profile, loading, signOut } = useAuth();
+  const { t } = useAppPreferences();
   const router = useRouter();
 
   const isSeller = profile?.role === 'seller';
@@ -40,6 +27,31 @@ export default function Header() {
       ? '/seller-dashboard'
       : '/buyer-dashboard';
   const accountRoleLabel = isAdmin ? 'Admin' : isSeller ? 'Seller' : 'Buyer';
+  const notificationsHref = isAdmin
+    ? '/admin-portal?tab=activity'
+    : isSeller
+      ? '/seller-dashboard?tab=notifications'
+      : '/buyer-dashboard?tab=notifications';
+
+  const publicNavLinks = [
+    { label: t('nav.marketplace'), href: '/marketplace' },
+    { label: 'Categories', href: '/categories' },
+    { label: 'AI Drape', href: '/#drape-studio' },
+    { label: 'Vendors', href: '/vendors' },
+  ];
+  const buyerNavLinks = [
+    { label: t('nav.marketplace'), href: '/marketplace' },
+    { label: 'Categories', href: '/categories' },
+    { label: 'Vendors', href: '/vendors' },
+    { label: 'Requirements', href: '/buyer-requirements' },
+  ];
+  const sellerNavLinks = [
+    { label: t('nav.dashboard'), href: '/seller-dashboard' },
+    { label: 'Inventory', href: '/seller-dashboard?tab=inventory' },
+    { label: 'Orders', href: '/seller-dashboard?tab=orders' },
+    { label: 'Buyer Requests', href: '/seller-dashboard?tab=requests' },
+    { label: 'Payouts', href: '/seller-dashboard?tab=earnings' },
+  ];
 
   const navLinks = isLoggedIn
     ? isAdmin
@@ -96,7 +108,6 @@ export default function Header() {
         }`}
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
-          {/* Logo */}
           <Link href="/" className="flex items-center gap-2 shrink-0" onClick={closeMobile}>
             <AppLogo size={36} />
             <span className="font-display font-800 text-lg text-secondary hidden sm:block tracking-tight">
@@ -116,7 +127,7 @@ export default function Header() {
                 type="search"
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
-                placeholder="Search fabrics, sellers, GSM..."
+                placeholder="Search fabrics"
                 className="min-w-0 flex-1 bg-transparent px-3 text-sm text-foreground outline-none placeholder:text-muted-foreground"
               />
               <button
@@ -128,7 +139,6 @@ export default function Header() {
             </form>
           )}
 
-          {/* Desktop Nav */}
           <nav className="hidden md:flex items-center gap-1">
             {navLinks?.map((link) => (
               <Link
@@ -141,8 +151,8 @@ export default function Header() {
             ))}
           </nav>
 
-          {/* Desktop Actions */}
           <div className="hidden md:flex items-center gap-2">
+            <PreferenceControls compact />
             {loading ? (
               <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
             ) : isLoggedIn ? (
@@ -151,7 +161,15 @@ export default function Header() {
                   href={dashboardHref}
                   className="px-3 py-2 text-sm font-600 text-foreground hover:bg-muted rounded-lg transition-colors"
                 >
-                  {isAdmin ? 'Admin Portal' : 'My Dashboard'}
+                  {isAdmin ? 'Admin Portal' : t('nav.dashboard')}
+                </Link>
+                {!isSeller && !isAdmin && <WishlistMenu />}
+                <Link
+                  href={notificationsHref}
+                  className="flex h-10 w-10 items-center justify-center rounded-full border border-border bg-card text-muted-foreground shadow-sm transition-colors hover:border-primary/40 hover:text-primary"
+                  aria-label="Open notifications"
+                >
+                  <Icon name="BellIcon" size={18} />
                 </Link>
                 <ProfileMenu />
               </>
@@ -161,16 +179,15 @@ export default function Header() {
                   href="/login"
                   className="px-3 py-2 text-sm font-500 text-muted-foreground hover:text-foreground transition-colors"
                 >
-                  Sign In
+                  {t('nav.signIn')}
                 </Link>
                 <Link href="/register" className="btn-primary px-4 py-2 text-sm rounded-lg">
-                  Create Account
+                  {t('nav.createAccount')}
                 </Link>
               </>
             )}
           </div>
 
-          {/* Mobile Hamburger */}
           <button
             className="md:hidden p-2 rounded-lg hover:bg-muted transition-colors"
             onClick={() => setMobileOpen((prev) => !prev)}
@@ -186,7 +203,6 @@ export default function Header() {
         </div>
       </header>
 
-      {/* Mobile Menu */}
       {mobileOpen && (
         <>
           <div
@@ -230,6 +246,12 @@ export default function Header() {
                   </span>
                 )}
               </div>
+              <div className="mb-4 flex items-center justify-between rounded-xl border border-border bg-card p-3">
+                <span className="text-xs font-800 uppercase tracking-wider text-muted-foreground">
+                  {t('preferences.language')} · {t('preferences.theme')}
+                </span>
+                <PreferenceControls compact />
+              </div>
               {navLinks?.map((link) => (
                 <Link
                   key={link?.label}
@@ -269,7 +291,7 @@ export default function Header() {
                       className="btn-primary w-full px-4 py-3 text-sm rounded-lg text-center block"
                       onClick={closeMobile}
                     >
-                      {isAdmin ? 'Admin Portal' : 'My Dashboard'}
+                      {isAdmin ? 'Admin Portal' : t('nav.dashboard')}
                     </Link>
                     <Link
                       href="/profile"
@@ -278,6 +300,14 @@ export default function Header() {
                     >
                       <Icon name="UserCircleIcon" size={16} />
                       My Profile
+                    </Link>
+                    <Link
+                      href={notificationsHref}
+                      className="btn-secondary w-full px-4 py-3 text-sm rounded-lg text-center flex items-center justify-center gap-2"
+                      onClick={closeMobile}
+                    >
+                      <Icon name="BellIcon" size={16} />
+                      Notifications
                     </Link>
                     {(isAdmin
                       ? [
@@ -292,6 +322,7 @@ export default function Header() {
                             ['Listings', '/seller-dashboard?tab=inventory'],
                             ['Earnings', '/seller-dashboard?tab=earnings'],
                             ['Buyer Inbox', '/seller-dashboard?tab=inbox'],
+                            ['Billing Uploads', '/seller-dashboard?tab=billing'],
                           ]
                         : [
                             ['Purchases', '/buyer-dashboard?tab=orders'],
@@ -323,14 +354,14 @@ export default function Header() {
                       className="btn-primary w-full px-4 py-3 text-sm rounded-lg text-center block"
                       onClick={closeMobile}
                     >
-                      Sign In
+                      {t('nav.signIn')}
                     </Link>
                     <Link
                       href="/register"
                       className="btn-secondary w-full px-4 py-3 text-sm rounded-lg text-center block"
                       onClick={closeMobile}
                     >
-                      Create Account
+                      {t('nav.createAccount')}
                     </Link>
                   </>
                 )}
