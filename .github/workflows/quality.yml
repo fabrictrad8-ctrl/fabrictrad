@@ -1,25 +1,19 @@
-name: Apply, validate and publish UI overhaul
+name: Quality and security checks
 
 on:
   pull_request:
-    branches:
-      - main
   push:
     branches:
-      - agent/ui-functionality-fixes
-  workflow_dispatch:
-
-concurrency:
-  group: fabrictrad-ui-finalizer
-  cancel-in-progress: true
+      - main
+      - 'agent/**'
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  apply-build-commit:
+  check:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 25
     env:
       NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
       NEXT_PUBLIC_SUPABASE_ANON_KEY: test-anon-key
@@ -27,92 +21,14 @@ jobs:
       NEXT_PUBLIC_ENABLE_GOOGLE_AUTH: 'false'
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: agent/ui-functionality-fixes
-          fetch-depth: 0
-
-      - name: Apply verified state, language and theme patches
-        shell: bash
-        run: |
-          set -euo pipefail
-          cat .github/patches/plain/part*.patch > /tmp/final-ui.patch
-          for path in src/app/buyer-registration/components/BuyerRegistrationFlow.tsx src/app/profile/ProfilePageClient.tsx src/app/seller-registration/components/SellerRegistrationFlow.tsx src/styles/tailwind.css
-          do
-            git apply --check --include="$path" /tmp/final-ui.patch
-            git apply --include="$path" /tmp/final-ui.patch
-          done
-
-      - name: Connect landing page and apply compiler fixes
-        shell: bash
-        run: |
-          set -euo pipefail
-          python - <<'PY'
-          from pathlib import Path
-
-          home = Path('src/app/components/HomeExperience.tsx')
-          text = home.read_text()
-          marker = "import TrustSection from '@/app/components/TrustSection';"
-          modern_import = "import ModernLandingPage from '@/app/components/ModernLandingPage';"
-          if modern_import not in text:
-              if marker not in text:
-                  raise RuntimeError('Could not locate the landing-page import section')
-              text = text.replace(marker, marker + "\n" + modern_import)
-          old_route = "  if (!user || !profile) return <PublicBrandHome />;"
-          new_route = "  if (!user || !profile) return <ModernLandingPage />;"
-          if old_route not in text and new_route not in text:
-              raise RuntimeError('Could not locate the public landing-page route')
-          text = text.replace(old_route, new_route)
-          home.write_text(text)
-
-          recommendations = Path('src/lib/recommendations.ts')
-          text = recommendations.read_text()
-          text = text.replace('  city?: string;\n', '  city?: string | null;\n')
-          text = text.replace('  state?: string;\n', '  state?: string | null;\n')
-          text = text.replace('  gstin?: string;\n', '  gstin?: string | null;\n')
-          recommendations.write_text(text)
-
-          drape = Path('src/app/product-detail/components/ModernFabricDrapeViewer.tsx')
-          text = drape.read_text()
-          text = text.replace(
-              'const [modelId, setModelId] = useState(models[0].id);',
-              "const [modelId, setModelId] = useState<(typeof models)[number]['id']>(models[0].id);",
-          )
-          text = text.replace(
-              'const [garmentId, setGarmentId] = useState(garments[0].id);',
-              "const [garmentId, setGarmentId] = useState<(typeof garments)[number]['id']>(garments[0].id);",
-          )
-          drape.write_text(text)
-          PY
-
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-
       - name: Install dependencies
         run: npm install --no-audit --no-fund --package-lock=false
-
       - name: Type check
         run: npm run type-check
-
       - name: Lint
         run: npm run lint
-
       - name: Production build
         run: npm run build
-
-      - name: Commit validated application files
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name "FabricTrad Automation"
-          git config user.email "actions@users.noreply.github.com"
-          git add \
-            src/app/buyer-registration/components/BuyerRegistrationFlow.tsx \
-            src/app/profile/ProfilePageClient.tsx \
-            src/app/seller-registration/components/SellerRegistrationFlow.tsx \
-            src/styles/tailwind.css \
-            src/app/components/HomeExperience.tsx \
-            src/lib/recommendations.ts \
-            src/app/product-detail/components/ModernFabricDrapeViewer.tsx
-          git commit -m "Publish responsive UI, regional preferences and drape studio [skip ci]"
-          git push origin HEAD:agent/ui-functionality-fixes
