@@ -1,0 +1,202 @@
+        ['BuildingStorefrontIcon', 'Sellers', '/admin-portal?tab=sellers'],
+-              ['ExclamationTriangleIcon', 'Errors', '/admin-portal?tab=errors'],
+-            ].map(([icon, title, href]) => (
+-              <Link
+-                key={title}
+-                href={href}
+-                className="rounded-2xl border border-border bg-card p-5 card-shadow"
+-              >
+-                <Icon name={icon as 'ChartPieIcon'} size={24} className="mb-4 text-primary" />
+-                <p className="font-800 text-foreground">{title}</p>
+-              </Link>
++              { icon:'BuildingOffice2Icon', title:t('roles.buyerTitle'), copy:t('roles.buyerCopy'), href:'/buyer-registration', cta:t('roles.joinBuyer'), features:['Multi-filter marketplace','Wishlist and comparisons','Pending orders and tracking','AI fabric drape'] },
++              { icon:'BuildingStorefrontIcon', title:t('roles.sellerTitle'), copy:t('roles.sellerCopy'), href:'/seller-registration', cta:t('roles.joinSeller'), features:['Add and update products','Inventory and stock alerts','Order fulfilment','Billing document upload'] },
++            ].map((role, index) => (
++              <div key={role.title} className={`rounded-[2rem] border p-7 sm:p-9 ${index===0?'border-white/20 bg-white/10':'border-primary/40 bg-primary/20'} backdrop-blur`}>
++                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/15"><Icon name={role.icon as 'BuildingStorefrontIcon'} size={25} /></div>
++                <h3 className="mt-6 text-2xl font-800">{role.title}</h3>
++                <p className="mt-3 max-w-xl text-sm leading-6 text-white/75">{role.copy}</p>
++                <div className="mt-6 grid gap-2 sm:grid-cols-2">
++                  {role.features.map((feature)=><div key={feature} className="flex items-center gap-2 text-sm font-700"><Icon name="CheckCircleIcon" size={16} className="text-gold" />{feature}</div>)}
++                </div>
++                <Link href={role.href} className="mt-7 inline-flex items-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-800 text-secondary transition hover:-translate-y-0.5 hover:shadow-xl">{role.cta}<Icon name="ArrowRightIcon" size={16} /></Link>
++              </div>
+             ))}
+           </div>
+         </div>
+       </section>
++
++      <section className="py-20 sm:py-24">
++        <div className="mx-auto max-w-7xl px-4 sm:px-6">
++          <div className="rounded-[2rem] border border-border bg-card p-7 card-shadow-lg sm:p-10">
++            <div className="grid gap-8 lg:grid-cols-[0.75fr_1.25fr] lg:items-center">
++              <div><p className="text-xs font-800 uppercase tracking-[0.18em] text-primary">Safety by design</p><h2 className="mt-4 text-4xl font-800 tracking-tight text-foreground">{t('trust.title')}</h2></div>
++              <div className="grid gap-3 sm:grid-cols-2">
++                {[
++                  ['IdentificationIcon',t('trust.gst')],['CreditCardIcon',t('trust.payment')],['TruckIcon',t('trust.shipping')],['LockClosedIcon',t('trust.privacy')]
++                ].map(([icon,label])=><div key={label} className="flex items-center gap-3 rounded-2xl bg-muted p-4"><div className="flex h-10 w-10 items-center justify-center rounded-xl bg-success/10 text-success"><Icon name={icon as 'TruckIcon'} size={19}/></div><span className="text-sm font-800 text-foreground">{label}</span></div>)}
++              </div>
++            </div>
++          </div>
++          <div className="mt-8 overflow-hidden rounded-[2rem] bg-gradient-to-r from-primary via-saffron-light to-gold p-8 text-white sm:p-12">
++            <div className="flex flex-col gap-7 lg:flex-row lg:items-center lg:justify-between">
++              <div><h2 className="text-balance text-3xl font-800 sm:text-4xl">{t('cta.title')}</h2><p className="mt-3 max-w-2xl text-sm leading-6 text-white/85 sm:text-base">{t('cta.copy')}</p></div>
++              <div className="flex shrink-0 flex-col gap-3 sm:flex-row"><Link href="/register" className="rounded-xl bg-white px-6 py-3.5 text-center text-sm font-800 text-primary shadow-xl">{t('nav.createAccount')}</Link><Link href="/marketplace" className="rounded-xl border border-white/40 bg-black/10 px-6 py-3.5 text-center text-sm font-800 text-white">{t('hero.explore')}</Link></div>
++            </div>
++          </div>
++        </div>
++      </section>
++      <Footer />
+     </main>
+   );
+ }
+ 
+-export default function HomeExperience() {
+-  const { user, profile, loading } = useAuth();
++function SellerHome() {
++  return (
++    <main className="min-h-screen bg-background"><Header /><section className="px-4 pb-16 pt-28 sm:px-6"><div className="mx-auto max-w-7xl"><div className="rounded-[2rem] border border-border bg-card p-7 card-shadow-lg sm:p-10"><p className="text-xs font-800 uppercase tracking-widest text-primary">Seller workspace</p><h1 className="mt-3 max-w-3xl text-4xl font-800 text-foreground sm:text-5xl">Manage products, inventory, orders and payouts in one place.</h1><p className="mt-4 max-w-2xl leading-7 text-muted-foreground">Your seller dashboard now includes product creation, stock updates, order decisions, billing uploads and fulfilment tracking.</p><div className="mt-7 flex flex-wrap gap-3"><Link href="/seller-dashboard?tab=inventory" className="btn-primary px-6 py-3">Manage inventory</Link><Link href="/seller-dashboard?tab=orders" className="btn-secondary px-6 py-3">Open orders</Link><Link href="/seller-dashboard?tab=billing" className="btn-secondary px-6 py-3">Upload billing</Link></div></div></div></section><Footer /></main>
++  );
++}
+ 
+-  if (loading) {
+-    return (
+-      <main className="min-h-screen bg-background flex items-center justify-center">
+-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+-      </main>
+-    );
+-  }
++function AdminHome() {
++  return <main className="min-h-screen bg-background"><Header /><section className="px-4 pb-16 pt-28"><div className="mx-auto max-w-6xl"><p className="text-xs font-800 uppercase tracking-widest text-error">Admin operations</p><h1 className="mt-2 text-4xl font-800 text-foreground">Platform control centre</h1><div className="mt-7 grid gap-4 md:grid-cols-4">{[['ChartPieIcon','Dashboard','/admin-portal'],['CreditCardIcon','Payments','/admin-portal?tab=payments'],['BuildingStorefrontIcon','Sellers','/admin-portal?tab=sellers'],['ExclamationTriangleIcon','Errors','/admin-portal?tab=errors']].map(([icon,title,href])=><Link key={title} href={href} className="rounded-2xl border border-border bg-card p-5 card-shadow"><Icon name={icon as 'ChartPieIcon'} size={24} className="mb-4 text-primary"/><p className="font-800 text-foreground">{title}</p></Link>)}</div></div></section></main>;
++}
+ 
++export default function HomeExperience() {
++  const { user, profile, loading } = useAuth();
++  if (loading) return <main className="flex min-h-screen items-center justify-center bg-background"><div className="h-9 w-9 animate-spin rounded-full border-2 border-primary border-t-transparent" /></main>;
+   if (!user || !profile) return <PublicBrandHome />;
+-
+   if (profile.role === 'seller') return <SellerHome />;
+   if (profile.role === 'admin_staff' || profile.role === 'super_admin') return <AdminHome />;
+-
+-  return (
+-    <main className="min-h-screen bg-background">
+-      <Header />
+-      <HeroSection />
+-      <CategorySection />
+-      <FeaturedProducts />
+-      <HowItWorks />
+-      <TrustSection />
+-      <Footer />
+-    </main>
+-  );
++  return <main className="min-h-screen bg-background"><Header /><HeroSection /><CategorySection /><FeaturedProducts /><HowItWorks /><TrustSection /><Footer /></main>;
+ }
+--- a/src/app/product-detail/components/FabricDrapeViewer.tsx
++++ b/src/app/product-detail/components/FabricDrapeViewer.tsx
+@@ -1,989 +1,353 @@
+ 'use client';
+-import React, { useState, useRef, useCallback, useEffect } from 'react';
++
++import { useEffect, useMemo, useRef, useState } from 'react';
++import Link from 'next/link';
+ import Icon from '@/components/ui/AppIcon';
+ import AppImage from '@/components/ui/AppImage';
+-import toast from 'react-hot-toast';
++import { useProduct } from '@/lib/hooks/useProduct';
++import { useAuth } from '@/contexts/AuthContext';
++import { useAppPreferences } from '@/contexts/AppPreferencesContext';
+ 
+-// Product fabric images — actual images of the fabric being viewed
+-const PRODUCT_FABRIC_IMAGES = [
+-  {
+-    id: 'fabric-1',
+-    name: 'Full View',
+-    src: 'https://images.unsplash.com/photo-1514830482894-94795a87f997',
+-    alt: 'Cream soft nett fabric with intricate gold embroidery floral pattern',
+-    thumbnail: 'https://images.unsplash.com/photo-1514830482894-94795a87f997',
+-  },
++const MODEL_OPTIONS = [
+   {
+-    id: 'fabric-2',
+-    name: 'Close-up',
+-    src: 'https://img.rocket.new/generatedImages/rocket_gen_img_1acbbfc48-1773129576236.png',
+-    alt: 'Close-up macro detail of gold embroidery thread work on white nett fabric',
+-    thumbnail: 'https://img.rocket.new/generatedImages/rocket_gen_img_1acbbfc48-1773129576236.png',
++    id: 'studio-woman',
++    label: 'Studio model',
++    image: 'https://images.unsplash.com/photo-1618375531912-867984bdfd87?auto=format&fit=crop&w=1200&q=88',
+   },
+   {
+-    id: 'fabric-3',
+-    name: 'Draped',
+-    src: 'https://img.rocket.new/generatedImages/rocket_gen_img_13cdc9d4f-1772216883669.png',
+-    alt: 'Draped soft nett fabric showing flow and texture in studio setting',
+-    thumbnail: 'https://img.rocket.new/generatedImages/rocket_gen_img_13cdc9d4f-1772216883669.png',
++    id: 'traditional-woman',
++    label: 'Indian occasionwear',
++    image: 'https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=1200&q=88',
+   },
+   {
+-    id: 'fabric-4',
+-    name: 'Texture',
+-    src: 'https://img.rocket.new/generatedImages/rocket_gen_img_1b23ddc65-1772723055087.png',
+-    alt: 'Fabric texture close-up showing weave pattern and embroidery density',
+-    thumbnail: 'https://img.rocket.new/generatedImages/rocket_gen_img_1b23ddc65-1772723055087.png',
+-  },
+-];
+-
+-const MODEL_POSES = [
+-  {
+-    id: 'saree',
+-    label: 'Saree Drape',
+-    icon: '👘',
+-    image: 'https://img.rocket.new/generatedImages/rocket_gen_img_1405f67fe-1778499810520.png',
+-    alt: 'Fashion model in saree pose for fabric draping visualization',
+-    description: 'Traditional saree draping style',
++    id: 'menswear',
++    label: 'Menswear model',
++    image: 'https://images.unsplash.com/photo-1617137968427-85924c800a22?auto=format&fit=crop&w=1200&q=88',
+   },
+-  {
+-    id: 'lehenga',
+-    label: 'Lehenga',
+-    icon: '👗',
+-    image: 'https://images.unsplash.com/photo-1611505254094-4b0ae99e6500',
+-    alt: 'Fashion model in lehenga pose for fabric draping visualization',
+-    description: 'Lehenga & dupatta style',
+-  },
+-  {
+-    id: 'suit',
+-    label: 'Suit / Kurti',
+-    icon: '🥻',
+-    image: 'https://img.rocket.new/generatedImages/rocket_gen_img_1c0bc95c6-1773141263634.png',
+-    alt: 'Fashion model in suit pose for fabric draping visualization',
+-    description: 'Salwar suit / kurti style',
+-  },
+-];
+-
+-const FREE_QUOTA = 3;
+-const STORAGE_KEY = 'ft_drape_usage_v2';
++] as const;
+ 
+-function getDrapeUsage(): { count: number; date: string } {
+-  if (typeof window === 'undefined') return { count: 0, date: '' };
+-  try {
+-    const raw = localStorage.getItem(STORAGE_KEY);
+-    if (!raw) return { count: 0, date: new Date().toDateString() };
+-    return JSON.parse(raw);
+-  } catch {
+-    return { count: 0, date: new Date().toDateString() };
+-  }
+-}
+-
+-function incrementDrapeUsage(): number {
+-  if (typeof window === 'undefined') return 0;
+-  const today = new Date().toDateString();
+-  const usage = getDrapeUsage();
+-  const newCount = usage.date === today ? usage.count + 1 : 1;
+-  localStorage.setItem(STORAGE_KEY, JSON.stringify({ count: newCount, date: today }));
+-  return newCount;
+-}
+-
+-async function imageUrlToBase64(url: string): Promise<string> {
