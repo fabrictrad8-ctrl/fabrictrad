@@ -1,106 +1,62 @@
 'use client';
-import React, { useState } from 'react';
+
+import { useEffect, useState } from 'react';
 import AppImage from '@/components/ui/AppImage';
 import Icon from '@/components/ui/AppIcon';
-
-const images = [
-  {
-    src: 'https://images.unsplash.com/photo-1514830482894-94795a87f997',
-    alt: 'Cream soft nett fabric with intricate gold embroidery floral pattern, full view',
-  },
-  {
-    src: 'https://img.rocket.new/generatedImages/rocket_gen_img_1acbbfc48-1773129576236.png',
-    alt: 'Close-up macro detail of gold embroidery thread work on white nett fabric',
-  },
-  {
-    src: 'https://img.rocket.new/generatedImages/rocket_gen_img_13cdc9d4f-1772216883669.png',
-    alt: 'Draped soft nett fabric showing flow and texture in studio setting',
-  },
-  {
-    src: 'https://img.rocket.new/generatedImages/rocket_gen_img_1b23ddc65-1772723055087.png',
-    alt: 'Fabric texture close-up showing weave pattern and embroidery density',
-  },
-];
+import { useProduct } from '@/lib/hooks/useProduct';
 
 export default function ProductGallery() {
+  const { product, loading } = useProduct();
   const [activeImg, setActiveImg] = useState(0);
   const [zoom, setZoom] = useState(false);
+  const images = product.images.length ? product.images : [product.image];
+
+  useEffect(() => {
+    setActiveImg(0);
+    setZoom(false);
+  }, [product.id]);
+
+  if (loading) {
+    return <div className="aspect-square animate-pulse rounded-2xl border border-border bg-muted" />;
+  }
+
+  const showPrevious = () => setActiveImg((current) => (current - 1 + images.length) % images.length);
+  const showNext = () => setActiveImg((current) => (current + 1) % images.length);
 
   return (
-    <div className="bg-card rounded-2xl border border-border overflow-hidden">
-      {/* Main Image */}
+    <div className="overflow-hidden rounded-2xl border border-border bg-card">
       <div
-        className="relative aspect-square bg-muted cursor-zoom-in overflow-hidden"
-        onClick={() => setZoom(!zoom)}
+        className="relative aspect-square cursor-zoom-in overflow-hidden bg-muted"
+        onClick={() => setZoom((current) => !current)}
+        onKeyDown={(event) => {
+          if (event.key === 'ArrowLeft') showPrevious();
+          if (event.key === 'ArrowRight') showNext();
+          if (event.key === 'Enter' || event.key === ' ') setZoom((current) => !current);
+        }}
+        role="button"
+        tabIndex={0}
+        aria-label={`${zoom ? 'Zoom out of' : 'Zoom into'} ${product.name}`}
       >
-        <AppImage
-          src={images?.[activeImg]?.src}
-          alt={images?.[activeImg]?.alt}
-          fill
-          priority
-          sizes="(max-width: 1024px) 100vw, 66vw"
-          className={`object-cover transition-transform duration-500 ${zoom ? 'scale-150' : 'scale-100'}`}
-        />
+        <AppImage src={images[activeImg]} alt={`${product.name}, image ${activeImg + 1}`} fill priority sizes="(max-width: 1024px) 100vw, 66vw" className={`object-cover transition-transform duration-500 ${zoom ? 'scale-150' : 'scale-100'}`} />
 
-        {/* Navigation arrows */}
-        <button
-          onClick={(e) => {
-            e?.stopPropagation();
-            setActiveImg((prev) => (prev - 1 + images?.length) % images?.length);
-          }}
-          className="absolute left-3 top-1/2 -translate-y-1/2 w-9 h-9 bg-white/80 backdrop-blur-sm rounded-full flex items-center justify-center shadow-sm hover:bg-white transition-colors"
-        >
-          <Icon name="ChevronLeftIcon" size={18} className="text-foreground" />
-        </button>
-        <button
-          onClick={(e) => {
-            e?.stopPropagation();
-            setActiveImg((prev) => (prev + 1) % images?.length);
-          }}
-          className="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 bg-white/80 backdrop-blur-sm rounded-full flex items-center justify-center shadow-sm hover:bg-white transition-colors"
-        >
-          <Icon name="ChevronRightIcon" size={18} className="text-foreground" />
-        </button>
+        {images.length > 1 && (
+          <>
+            <button type="button" onClick={(event) => { event.stopPropagation(); showPrevious(); }} className="absolute left-3 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 shadow-sm hover:bg-white" aria-label="Previous product image"><Icon name="ChevronLeftIcon" size={18} /></button>
+            <button type="button" onClick={(event) => { event.stopPropagation(); showNext(); }} className="absolute right-3 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 shadow-sm hover:bg-white" aria-label="Next product image"><Icon name="ChevronRightIcon" size={18} /></button>
+          </>
+        )}
 
-        {/* Zoom hint */}
-        <div className="absolute bottom-3 right-3 bg-black/40 text-white text-xs px-2 py-1 rounded-lg flex items-center gap-1">
-          <Icon name="MagnifyingGlassPlusIcon" size={12} />
-          {zoom ? 'Click to zoom out' : 'Click to zoom'}
-        </div>
-
-        {/* Image counter */}
-        <div className="absolute bottom-3 left-3 bg-black/40 text-white text-xs px-2 py-1 rounded-lg">
-          {activeImg + 1} / {images?.length}
-        </div>
+        <div className="absolute bottom-3 right-3 flex items-center gap-1 rounded-lg bg-black/50 px-2 py-1 text-xs text-white"><Icon name="MagnifyingGlassPlusIcon" size={12} />{zoom ? 'Zoom out' : 'Zoom'}</div>
+        <div className="absolute bottom-3 left-3 rounded-lg bg-black/50 px-2 py-1 text-xs text-white">{activeImg + 1} / {images.length}</div>
       </div>
-      {/* Thumbnails */}
-      <div className="flex gap-2 p-3">
-        {images?.map((img, i) => (
-          <button
-            key={i}
-            onClick={() => setActiveImg(i)}
-            className={`w-16 h-16 rounded-xl overflow-hidden border-2 transition-all shrink-0 ${
-              activeImg === i ? 'border-primary' : 'border-border hover:border-muted-foreground'
-            }`}
-          >
-            <AppImage
-              src={img?.src}
-              alt={`Thumbnail ${i + 1}`}
-              width={64}
-              height={64}
-              className="w-full h-full object-cover"
-            />
+
+      <div className="flex gap-2 overflow-x-auto p-3 scrollbar-thin">
+        {images.map((image, index) => (
+          <button key={`${image}-${index}`} type="button" onClick={() => { setActiveImg(index); setZoom(false); }} className={`h-16 w-16 shrink-0 overflow-hidden rounded-xl border-2 ${activeImg === index ? 'border-primary' : 'border-border hover:border-muted-foreground'}`} aria-label={`Show image ${index + 1}`} aria-current={activeImg === index}>
+            <AppImage src={image} alt={`${product.name} thumbnail ${index + 1}`} width={64} height={64} className="h-full w-full object-cover" />
           </button>
         ))}
-
-        {/* Virtual Try-On Button */}
-        <div className="flex-1 min-w-0 bg-gradient-to-br from-primary/10 to-secondary/10 border border-primary/20 rounded-xl p-2 flex flex-col items-center justify-center gap-1">
-          <Icon name="SparklesIcon" size={16} className="text-primary" />
-          <span className="text-xs font-600 text-primary text-center leading-tight">
-            Virtual Try-On
-          </span>
-          <span className="text-xs text-muted-foreground">₹10/image</span>
-        </div>
+        <a href="#drape-on" className="flex min-w-28 flex-1 flex-col items-center justify-center gap-1 rounded-xl border border-primary/20 bg-gradient-to-br from-primary/10 to-secondary/10 p-2"><Icon name="SparklesIcon" size={16} className="text-primary" /><span className="text-center text-xs font-600 leading-tight text-primary">Virtual Try-On</span><span className="text-xs text-muted-foreground">₹10/image</span></a>
       </div>
     </div>
   );
