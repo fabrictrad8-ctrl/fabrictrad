@@ -1,0 +1,194 @@
+    <div className="inline-flex items-center gap-2 rounded-full border border-success/30 bg-success/10 px-4 py-2 text-xs font-800 uppercase tracking-[0.16em] text-success">
++              <span className="relative flex h-2 w-2"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success opacity-60" /><span className="relative inline-flex h-2 w-2 rounded-full bg-success" /></span>
++              {t('hero.eyebrow')}
+             </div>
+-            <h1 className="text-hero-lg text-foreground">
+-              Run your FabricTrad store from catalog to payout
++            <h1 className="mt-7 max-w-4xl text-balance text-5xl font-800 leading-[0.98] tracking-[-0.045em] text-foreground sm:text-6xl lg:text-7xl xl:text-[5.5rem]">
++              {t('hero.titleStart')} <span className="bg-gradient-to-r from-primary via-saffron-light to-gold bg-clip-text text-transparent">{t('hero.titleAccent')}</span> {t('hero.titleEnd')}
+             </h1>
+-            <p className="mt-4 max-w-2xl text-sm leading-6 text-muted-foreground md:text-base">
+-              Upload your own catalog, manage only your orders, confirm dispatch, resolve buyer
+-              messages, and track payouts tied to this seller account.
++            <p className="mt-7 max-w-2xl text-base font-500 leading-7 text-muted-foreground sm:text-lg sm:leading-8">
++              {t('hero.description')}
+             </p>
+-            <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+-              <Link href="/seller-dashboard?tab=upload" className="btn-primary px-6 py-3 text-sm">
+-                Upload Catalog
+-              </Link>
+-              <Link href="/seller-dashboard?tab=orders" className="btn-secondary px-6 py-3 text-sm">
+-                Manage Orders
+-              </Link>
+-              <Link href="/seller-dashboard?tab=earnings" className="btn-navy px-6 py-3 text-sm">
+-                View Payouts
++            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
++              <Link href="/marketplace" className="btn-primary inline-flex items-center justify-center gap-2 px-7 py-4 text-sm">
++                {t('hero.explore')}<Icon name="ArrowRightIcon" size={17} />
+               </Link>
++              <a href="#drape-studio" className="btn-secondary inline-flex items-center justify-center gap-2 px-7 py-4 text-sm">
++                <Icon name="SparklesIcon" size={17} />{t('hero.tryDrape')}
++              </a>
++            </div>
++            <div className="mt-5 flex flex-wrap gap-3">
++              <Link href="/buyer-registration" className="text-sm font-800 text-foreground underline decoration-primary/40 underline-offset-4 hover:text-primary">{t('hero.buyer')}</Link>
++              <span className="text-border">•</span>
++              <Link href="/seller-registration" className="text-sm font-800 text-foreground underline decoration-primary/40 underline-offset-4 hover:text-primary">{t('hero.seller')}</Link>
+             </div>
+           </div>
+ 
+-          <div className="rounded-2xl border border-border bg-card p-5 card-shadow-lg">
+-            <div className="flex items-start gap-3">
+-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-secondary text-white">
+-                <Icon name="ChatBubbleLeftRightIcon" size={19} />
+-              </div>
+-              <div>
+-                <p className="text-sm font-800 text-foreground">WhatsApp Catalog Upload</p>
+-                <p className="text-xs text-muted-foreground">
+-                  Seller-only automation for creating listings faster.
+-                </p>
++          <div className="relative mx-auto w-full max-w-[620px] animate-slide-in-right">
++            <div className="absolute -left-8 top-20 hidden h-28 w-28 rotate-6 rounded-3xl bg-primary/15 lg:block" />
++            <div className="absolute -right-7 bottom-24 hidden h-36 w-36 -rotate-6 rounded-full bg-gold/20 lg:block" />
++            <div className="glass-card relative rounded-[2rem] p-3 shadow-2xl sm:p-4">
++              <div className="relative aspect-[5/4] overflow-hidden rounded-[1.5rem]">
++                <AppImage src="https://images.unsplash.com/photo-1603252109303-2751441dd157?auto=format&fit=crop&w=1400&q=88" alt="Textile sourcing and fabric apparel" fill className="object-cover" priority />
++                <div className="absolute inset-0 bg-gradient-to-tr from-secondary/65 via-transparent to-primary/25" />
++                <div className="absolute left-4 top-4 rounded-full border border-white/30 bg-black/30 px-3 py-1.5 text-xs font-800 text-white backdrop-blur">Live B2B workflow</div>
++                <div className="absolute bottom-4 left-4 right-4 grid grid-cols-3 gap-2 sm:bottom-6 sm:left-6 sm:right-6">
++                  {[
++                    ['CheckBadgeIcon', 'Verified seller'],
++                    ['SparklesIcon', 'AI drape'],
++                    ['TruckIcon', 'Live tracking'],
++                  ].map(([icon, label]) => (
++                    <div key={label} className="rounded-2xl border border-white/25 bg-black/35 p-3 text-white backdrop-blur-md">
++                      <Icon name={icon as 'TruckIcon'} size={18} className="mb-2 text-gold" />
++                      <p className="text-xs font-800 sm:text-sm">{label}</p>
++                    </div>
++                  ))}
++                </div>
+               </div>
+-            </div>
+-            <div className="mt-4 rounded-xl bg-muted p-4 text-xs">
+-              <p className="text-muted-foreground">Message format</p>
+-              <p className="mt-2 font-700 text-foreground">Fabric: dyeable soft net</p>
+-              <p className="text-muted-foreground">Width: 44 in · MOQ: 50 mtrs · Rate: ₹840</p>
+-              <div className="mt-3 flex items-center gap-2 border-t border-border pt-3 text-success">
+-                <Icon name="CheckCircleIcon" size={16} />
+-                <span className="font-700">AI extracts product fields for seller review</span>
++              <div className="mt-3 flex items-center justify-between gap-4 rounded-2xl bg-card px-4 py-3">
++                <div className="flex -space-x-2">
++                  {['S', 'M', 'J', 'L'].map((letter, index) => <span key={letter} className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-card bg-muted text-xs font-800 text-foreground" style={{ zIndex: 4-index }}>{letter}</span>)}
++                </div>
++                <p className="text-right text-xs font-700 text-muted-foreground"><span className="font-800 text-foreground">Trusted across textile hubs</span><br />Surat · Mumbai · Tiruppur · Jaipur</p>
+               </div>
+             </div>
+           </div>
+         </div>
++      </section>
++
++      <section className="border-y border-border bg-card py-6">
++        <div className="mx-auto grid max-w-7xl grid-cols-2 gap-4 px-4 sm:px-6 lg:grid-cols-4">
++          {metrics.map(([icon, value, label]) => (
++            <div key={label} className="flex items-center gap-3 rounded-2xl p-3">
++              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary"><Icon name={icon as 'ShieldCheckIcon'} size={21} /></div>
++              <div><p className="text-xl font-800 text-foreground">{value}</p><p className="text-xs font-600 text-muted-foreground">{label}</p></div>
++            </div>
++          ))}
++        </div>
++      </section>
++
++      <LandingDrapeDemo />
+ 
+-        <div className="relative mx-auto mt-6 max-w-7xl">
+-          <div className="grid gap-4 md:grid-cols-3">
++      <section className="py-20 sm:py-24">
++        <div className="mx-auto max-w-7xl px-4 sm:px-6">
++          <div className="mx-auto max-w-3xl text-center">
++            <p className="text-xs font-800 uppercase tracking-[0.18em] text-primary">{t('how.eyebrow')}</p>
++            <h2 className="mt-4 text-balance text-4xl font-800 tracking-tight text-foreground sm:text-5xl">{t('how.title')}</h2>
++          </div>
++          <div className="mt-12 grid gap-5 md:grid-cols-3">
+             {[
+-              [
+-                'ClipboardDocumentListIcon',
+-                'Order Queue',
+-                '/seller-dashboard?tab=orders',
+-                'Respond to buyer orders assigned to your seller profile.',
+-              ],
+-              [
+-                'ArchiveBoxIcon',
+-                'Inventory',
+-                '/seller-dashboard?tab=inventory',
+-                'Upload and maintain your own catalog only.',
+-              ],
+-              [
+-                'BanknotesIcon',
+-                'Earnings',
+-                '/seller-dashboard?tab=earnings',
+-                'Track payout and settlement status for your payments.',
+-              ],
+-              [
+-                'TruckIcon',
+-                'Fulfillment',
+-                '/seller-dashboard?tab=fulfillment',
+-                'Confirm dispatch, courier handoff, and shipment updates.',
+-              ],
+-              [
+-                'ChatBubbleLeftRightIcon',
+-                'Buyer Inbox',
+-                '/seller-dashboard?tab=inbox',
+-                'Reply to buyer questions and order messages.',
+-              ],
+-              [
+-                'BuildingOfficeIcon',
+-                'Business Profile',
+-                '/profile',
+-                'Maintain GST, store, pickup, and verification details.',
+-              ],
+-            ].map(([icon, title, href, copy]) => (
+-              <Link
+-                key={title}
+-                href={href}
+-                className="rounded-2xl border border-border bg-card p-5 card-shadow transition-all hover:-translate-y-0.5 hover:card-shadow-hover"
+-              >
+-                <Icon name={icon as 'ArchiveBoxIcon'} size={24} className="mb-4 text-secondary" />
+-                <p className="text-base font-800 text-foreground">{title}</p>
+-                <p className="mt-2 text-sm leading-6 text-muted-foreground">{copy}</p>
+-              </Link>
++              ['MagnifyingGlassIcon', t('how.one.title'), t('how.one.copy')],
++              ['ChatBubbleLeftRightIcon', t('how.two.title'), t('how.two.copy')],
++              ['TruckIcon', t('how.three.title'), t('how.three.copy')],
++            ].map(([icon, title, copy], index) => (
++              <div key={title} className="relative rounded-3xl border border-border bg-card p-7 card-shadow transition hover:-translate-y-1 hover:card-shadow-hover">
++                <span className="absolute right-5 top-4 text-5xl font-800 text-muted">0{index+1}</span>
++                <div className="relative flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary"><Icon name={icon as 'TruckIcon'} size={23} /></div>
++                <h3 className="relative mt-6 text-xl font-800 text-foreground">{title}</h3>
++                <p className="relative mt-3 text-sm leading-6 text-muted-foreground">{copy}</p>
++              </div>
+             ))}
+           </div>
+         </div>
+       </section>
+-      <Footer />
+-    </main>
+-  );
+-}
+ 
+-function AdminHome() {
+-  return (
+-    <main className="min-h-screen bg-background">
+-      <Header />
+-      <section className="px-4 pt-28 pb-12">
+-        <div className="mx-auto max-w-6xl">
+-          <p className="text-xs font-800 uppercase tracking-widest text-error">Admin Operations</p>
+-          <h1 className="mt-2 text-hero-lg text-foreground">Platform control center</h1>
+-          <div className="mt-6 grid gap-4 md:grid-cols-4">
++      <section id="roles" className="bg-secondary py-20 text-white sm:py-24">
++        <div className="mx-auto max-w-7xl px-4 sm:px-6">
++          <h2 className="max-w-3xl text-balance text-4xl font-800 tracking-tight sm:text-5xl">{t('roles.title')}</h2>
++          <div className="mt-10 grid gap-5 lg:grid-cols-2">
+             {[
+-              ['ChartPieIcon', 'Dashboard', '/admin-portal'],
+-              ['CreditCardIcon', 'Payments', '/admin-portal?tab=payments'],
+-       
