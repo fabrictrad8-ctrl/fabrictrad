@@ -62,6 +62,7 @@ export default function SellerCard() {
           contextId={`product-${product.id}`}
           contextTitle={product.name}
           otherPartyName={product.seller}
+          otherPartyAvatar={product.images?.[0] || ''}
           currentUserRole="buyer"
           onClose={() => setShowChat(false)}
         />
