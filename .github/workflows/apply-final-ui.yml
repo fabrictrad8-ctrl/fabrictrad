@@ -32,3 +32,4 @@ jobs:
           git add -A
           git commit -m "Complete responsive UI, preferences and AI drape studio"
           git push origin HEAD:agent/ui-functionality-fixes
+# Trigger the patch application after the workflow exists on the branch.
