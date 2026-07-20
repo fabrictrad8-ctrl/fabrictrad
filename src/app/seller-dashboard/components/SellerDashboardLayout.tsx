@@ -19,6 +19,7 @@ import SellerCategories from '@/app/seller-dashboard/components/SellerCategories
 import SellerCourierSettings from '@/app/seller-dashboard/components/SellerCourierSettings';
 import SellerInbox from '@/app/seller-dashboard/components/SellerInbox';
 import SellerBuyerRequests from '@/app/seller-dashboard/components/SellerBuyerRequests';
+import SellerBillingDocuments from '@/app/seller-dashboard/components/SellerBillingDocuments';
 
 type SellerTab =
   | 'overview'
@@ -34,7 +35,8 @@ type SellerTab =
   | 'categories'
   | 'courier'
   | 'inbox'
-  | 'requests';
+  | 'requests'
+  | 'billing';
 
 const navItems: { key: SellerTab; label: string; icon: string; badge?: number }[] = [
   { key: 'overview', label: 'Dashboard', icon: 'HomeIcon' },
@@ -45,6 +47,7 @@ const navItems: { key: SellerTab; label: string; icon: string; badge?: number }[
   { key: 'fulfillment', label: 'Fulfillment', icon: 'TruckIcon' },
   { key: 'courier', label: 'Courier & Shipping', icon: 'TruckIcon' },
   { key: 'earnings', label: 'Earnings & Payouts', icon: 'BanknotesIcon' },
+  { key: 'billing', label: 'Billing Uploads', icon: 'DocumentArrowUpIcon' },
   { key: 'requests', label: 'Buyer Requests', icon: 'MegaphoneIcon' },
   { key: 'inbox', label: 'Buyer Inbox', icon: 'ChatBubbleLeftRightIcon' },
   { key: 'disputes', label: 'Disputes & Messages', icon: 'ChatBubbleLeftRightIcon' },
@@ -64,7 +67,7 @@ export default function SellerDashboardLayout() {
     getValidTab(searchParams?.get('tab') || null)
   );
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const sellerName = (profile as any)?.business_name || profile?.full_name || 'Seller';
+  const sellerName = profile?.business_name || profile?.full_name || 'Seller';
   const sellerInitials = sellerName
     .split(/\s+/)
     .slice(0, 2)
@@ -85,7 +88,6 @@ export default function SellerDashboardLayout() {
 
   return (
     <div className="min-h-screen bg-muted/30 flex flex-col">
-      {/* Top Bar */}
       <header className="bg-card border-b border-border sticky top-0 z-40 h-14 flex items-center px-4 sm:px-6 gap-4">
         <button className="md:hidden p-1.5" onClick={() => setSidebarOpen(!sidebarOpen)}>
           <Icon name="Bars3Icon" size={20} className="text-foreground" />
@@ -100,13 +102,17 @@ export default function SellerDashboardLayout() {
           </span>
         </div>
         <div className="ml-auto flex items-center gap-3">
-          <div className="hidden sm:flex items-center gap-1.5 bg-success/10 border border-success/20 rounded-xl px-3 py-1.5">
-            <span className="w-2 h-2 rounded-full bg-success animate-pulse" />
-            <span className="text-xs font-600 text-success">Store Live</span>
+          <div className="hidden sm:flex items-center gap-1.5 bg-secondary/10 border border-secondary/20 rounded-xl px-3 py-1.5">
+            <span className="w-2 h-2 rounded-full bg-secondary" />
+            <span className="text-xs font-600 text-secondary">Seller Account</span>
           </div>
-          <button className="relative p-2 hover:bg-muted rounded-lg transition-colors">
+          <button
+            type="button"
+            onClick={() => navigateToTab('notifications')}
+            className="relative p-2 hover:bg-muted rounded-lg transition-colors"
+            aria-label="Open seller notifications"
+          >
             <Icon name="BellIcon" size={18} className="text-foreground" />
-            <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-primary" />
           </button>
           <div className="flex items-center gap-2">
             <Link
@@ -136,7 +142,6 @@ export default function SellerDashboardLayout() {
       </header>
 
       <div className="flex flex-1 overflow-hidden">
-        {/* Sidebar */}
         <aside
           className={`fixed md:static inset-y-0 left-0 z-30 w-56 seller-sidebar pt-14 md:pt-0 transition-transform duration-300 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}
         >
@@ -161,7 +166,6 @@ export default function SellerDashboardLayout() {
                 )}
               </button>
             ))}
-            {/* Account-scoped inventory alert placeholder */}
             <div className="mt-4 p-3 bg-secondary/10 border border-secondary/20 rounded-xl">
               <div className="flex items-center gap-2 mb-1">
                 <Icon name="ArchiveBoxIcon" size={14} className="text-secondary" />
@@ -181,7 +185,6 @@ export default function SellerDashboardLayout() {
           />
         )}
 
-        {/* Main */}
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 min-w-0">
           {isDemoAccount && (
             <div className="mb-4 rounded-xl border border-secondary/20 bg-secondary/5 p-3">
@@ -202,6 +205,7 @@ export default function SellerDashboardLayout() {
           {activeTab === 'inventory' && <SellerInventory />}
           {activeTab === 'analytics' && <SellerAnalytics />}
           {activeTab === 'earnings' && <SellerEarnings />}
+          {activeTab === 'billing' && <SellerBillingDocuments />}
           {activeTab === 'disputes' && <SellerDisputes />}
           {activeTab === 'fulfillment' && <SellerFulfillment />}
           {activeTab === 'categories' && <SellerCategories />}
@@ -242,35 +246,14 @@ export default function SellerDashboardLayout() {
                   </div>
                 </div>
                 {[
-                  {
-                    label: 'Mobile',
-                    value: profile?.phone ? `+91 ${profile.phone}` : 'Add phone',
-                    verified: !!profile?.phone,
-                  },
-                  {
-                    label: 'GSTIN',
-                    value: (profile as any)?.gstin || 'Add GSTIN',
-                    verified: !!(profile as any)?.gstin,
-                  },
-                  { label: 'Business Name', value: (profile as any)?.business_name || sellerName },
-                  { label: 'Pickup City', value: (profile as any)?.city || 'Add city' },
-                  {
-                    label: 'Pickup Address',
-                    value:
-                      [(profile as any)?.address_line1, (profile as any)?.pincode]
-                        .filter(Boolean)
-                        .join(' - ') || 'Add pickup address',
-                  },
-                  {
-                    label: 'Store Status',
-                    value: profile?.is_active ? 'Live' : 'Inactive',
-                    verified: !!profile?.is_active,
-                  },
+                  { label: 'Mobile', value: profile?.phone ? `+91 ${profile.phone}` : 'Add phone', verified: !!profile?.phone },
+                  { label: 'GSTIN', value: profile?.gstin || 'Add GSTIN', verified: !!profile?.gstin },
+                  { label: 'Business Name', value: profile?.business_name || sellerName },
+                  { label: 'Pickup City', value: profile?.city || 'Add city' },
+                  { label: 'Pickup Address', value: [profile?.address_line1, profile?.pincode].filter(Boolean).join(' - ') || 'Add pickup address' },
+                  { label: 'Store Status', value: profile?.is_active ? 'Live' : 'Inactive', verified: !!profile?.is_active },
                 ].map((field) => (
-                  <div
-                    key={field.label}
-                    className="flex items-center justify-between py-2 border-b border-border last:border-b-0"
-                  >
+                  <div key={field.label} className="flex items-center justify-between py-2 border-b border-border last:border-b-0">
                     <div>
                       <p className="text-xs text-muted-foreground">{field.label}</p>
                       <p className="text-sm font-600 text-foreground">{field.value}</p>
@@ -278,10 +261,7 @@ export default function SellerDashboardLayout() {
                     {field.verified && <span className="badge-verified">Verified</span>}
                   </div>
                 ))}
-                <Link
-                  href="/profile"
-                  className="btn-primary mt-2 inline-flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm"
-                >
+                <Link href="/profile" className="btn-primary mt-2 inline-flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm">
                   <Icon name="PencilSquareIcon" size={16} />
                   Manage Business Profile
                 </Link>
