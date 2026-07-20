@@ -1,0 +1,266 @@
+--- a/src/app/buyer-registration/components/BuyerRegistrationFlow.tsx
++++ b/src/app/buyer-registration/components/BuyerRegistrationFlow.tsx
+@@ -4,6 +4,8 @@
+ import Icon from '@/components/ui/AppIcon';
+ import { useAuth } from '@/contexts/AuthContext';
+ import { normalizeEmail, normalizeIndianPhone, validateIndianPhone } from '@/lib/authValidation';
++import { INDIAN_STATES_AND_UTS, SUPPORTED_LANGUAGES, type SupportedLanguageCode } from '@/lib/india';
++import { useAppPreferences } from '@/contexts/AppPreferencesContext';
+ 
+ type Step = 'account' | 'address' | 'done';
+ 
+@@ -15,26 +17,9 @@
+ 
+ const stepOrder: Step[] = ['account', 'address', 'done'];
+ 
+-const indianStates = [
+-  'Andhra Pradesh',
+-  'Gujarat',
+-  'Karnataka',
+-  'Kerala',
+-  'Madhya Pradesh',
+-  'Maharashtra',
+-  'Punjab',
+-  'Rajasthan',
+-  'Tamil Nadu',
+-  'Telangana',
+-  'Uttar Pradesh',
+-  'West Bengal',
+-  'Delhi',
+-  'Haryana',
+-  'Bihar',
+-];
+ export default function BuyerRegistrationFlow() {
+-  const { signUp, signInWithGoogle, googleAuthEnabled, checkEmailUnique, checkPhoneUnique } =
+-    useAuth();
++  const { signUp, signInWithGoogle, googleAuthEnabled, checkEmailUnique, checkPhoneUnique } = useAuth();
++  const { language, setLanguage, t } = useAppPreferences();
+ 
+   const [currentStep, setCurrentStep] = useState<Step>('account');
+   const [account, setAccount] = useState({
+@@ -56,6 +41,7 @@
+     country: 'India',
+     recipientName: '',
+     recipientPhone: '',
++    preferredLanguage: language as SupportedLanguageCode,
+   });
+   const [agreed, setAgreed] = useState(false);
+   const [error, setError] = useState('');
+@@ -135,8 +121,12 @@
+ 
+   const handleComplete = async () => {
+     if (!agreed) return;
+-    setSubmitting(true);
+     setError('');
++    if (!address.line1.trim() || !address.city.trim() || !address.state || !/^\d{6}$/.test(address.pin)) {
++      setError('Enter a complete delivery address, state and valid 6-digit PIN code.');
++      return;
++    }
++    setSubmitting(true);
+     try {
+       const email = normalizeEmail(account.email);
+       const phone = normalizeIndianPhone(account.phone);
+@@ -156,6 +146,12 @@
+         fullName: account.fullName,
+         phone,
+         role: 'buyer',
++        addressLine1: address.line1,
++        addressLine2: address.line2,
++        city: address.city,
++        state: address.state,
++        pincode: address.pin,
++        preferredLanguage: address.preferredLanguage,
+       });
+       setCurrentStep('done');
+     } catch (e: any) {
+@@ -454,8 +450,8 @@
+                   />
+                 </div>
+ 
+-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+-                  <div className="col-span-2 sm:col-span-1">
++                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
++                  <div >
+                     <label className="block text-sm font-700 text-foreground mb-1.5">
+                       PIN Code
+                     </label>
+@@ -493,14 +489,14 @@
+                     />
+                   </div>
+                   <div>
+-                    <label className="block text-sm font-700 text-foreground mb-1.5">State</label>
++                    <label className="block text-sm font-700 text-foreground mb-1.5">{t('form.state')}</label>
+                     <select
+                       value={address.state}
+                       onChange={(e) => setAddress({ ...address, state: e.target.value })}
+                       className="input-base w-full px-4 py-3 text-sm rounded-xl"
+                     >
+-                      <option value="">State</option>
+-                      {indianStates.map((s) => (
++                      <option value="">{t('form.selectState')}</option>
++                      {INDIAN_STATES_AND_UTS.map((s) => (
+                         <option key={s} value={s}>
+                           {s}
+                         </option>
+@@ -509,22 +505,30 @@
+                   </div>
+                 </div>
+ 
+-                <div
+-                  className="flex items-start gap-3 p-4 bg-muted rounded-xl cursor-pointer"
+-                  onClick={() => setAgreed(!agreed)}
+-                >
+-                  <div
+-                    className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 mt-0.5 transition-all ${agreed ? 'bg-primary border-primary' : 'border-border bg-card'}`}
++                <div>
++                  <label className="block text-sm font-700 text-foreground mb-1.5">{t('form.language')}</label>
++                  <select
++                    value={address.preferredLanguage}
++                    onChange={(event) => {
++                      const next = event.target.value as SupportedLanguageCode;
++                      setAddress({ ...address, preferredLanguage: next });
++                      void setLanguage(next);
++                    }}
++                    className="input-base w-full px-4 py-3 text-sm rounded-xl"
+                   >
+-                    {agreed && <Icon name="CheckIcon" size={12} className="text-white" />}
+-                  </div>
++                    {SUPPORTED_LANGUAGES.map((item) => <option key={item.code} value={item.code}>{item.label}</option>)}
++                  </select>
++                </div>
++
++                <label className="flex items-start gap-3 p-4 bg-muted rounded-xl cursor-pointer">
++                  <input type="checkbox" checked={agreed} onChange={(event) => setAgreed(event.target.checked)} className="mt-1 h-4 w-4 rounded border-border text-primary focus:ring-primary" />
+                   <p className="text-xs text-muted-foreground leading-relaxed">
+                     I agree to FabricTrad's{' '}
+                     <span className="text-primary font-600">Buyer User Agreement</span>,{' '}
+                     <span className="text-primary font-600">Terms of Use</span>, and{' '}
+                     <span className="text-primary font-600">Privacy Policy</span>.
+                   </p>
+-                </div>
++                </label>
+               </div>
+ 
+               <div className="flex gap-3 mt-6">
+--- a/src/app/components/HomeExperience.tsx
++++ b/src/app/components/HomeExperience.tsx
+@@ -1,307 +1,363 @@
+ 'use client';
+ 
++import { useRef, useState } from 'react';
+ import Link from 'next/link';
+ import Header from '@/components/Header';
+ import Footer from '@/components/Footer';
+ import Icon from '@/components/ui/AppIcon';
++import AppImage from '@/components/ui/AppImage';
+ import { useAuth } from '@/contexts/AuthContext';
++import { useAppPreferences } from '@/contexts/AppPreferencesContext';
+ import HeroSection from '@/app/components/HeroSection';
+ import CategorySection from '@/app/components/CategorySection';
+ import FeaturedProducts from '@/app/components/FeaturedProducts';
+ import HowItWorks from '@/app/components/HowItWorks';
+ import TrustSection from '@/app/components/TrustSection';
+ 
+-function PublicBrandHome() {
+-  const englishTagline =
+-    "The textile market's smartest and most trustworthy B2B network platform. From sourcing to shipping, everything is automated.";
++const FABRIC_SWATCHES = [
++  {
++    id: 'embroidered-net',
++    label: 'Embroidered net',
++    image: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?auto=format&fit=crop&w=900&q=85',
++  },
++  {
++    id: 'banarasi',
++    label: 'Banarasi silk',
++    image: 'https://images.unsplash.com/photo-1600185365483-26d7a4cc7519c?auto=format&fit=crop&w=900&q=85',
++  },
++  {
++    id: 'cotton',
++    label: 'Printed cotton',
++    image: 'https://images.unsplash.com/photo-1586075010923-2dd4570fb338?auto=format&fit=crop&w=900&q=85',
++  },
++];
++
++const GARMENTS = [
++  { id: 'saree', label: 'Saree', icon: 'SparklesIcon' },
++  { id: 'lehenga', label: 'Lehenga', icon: 'StarIcon' },
++  { id: 'kurta', label: 'Kurta', icon: 'UserIcon' },
++];
++
++function LandingDrapeDemo() {
++  const { t } = useAppPreferences();
++  const [fabric, setFabric] = useState(FABRIC_SWATCHES[0]);
++  const [garment, setGarment] = useState(GARMENTS[0]);
++  const [compare, setCompare] = useState(68);
++  const [photo, setPhoto] = useState<string | null>(null);
++  const fileRef = useRef<HTMLInputElement>(null);
++
++  const handlePhoto = (file?: File) => {
++    if (!file || !file.type.startsWith('image/')) return;
++    if (photo?.startsWith('blob:')) URL.revokeObjectURL(photo);
++    setPhoto(URL.createObjectURL(file));
++  };
++
++  const modelImage =
++    photo ||
++    'https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=1200&q=88';
+ 
+   return (
+-    <main className="min-h-screen overflow-hidden bg-background">
+-      <Header />
+-      <section className="relative min-h-[calc(100vh-1px)] px-4 pb-10 pt-24 sm:px-6 sm:pt-28 lg:pb-14">
+-        <div
+-          className="absolute inset-0 bg-cover bg-center opacity-[0.13]"
+-          style={{
+-            backgroundImage:
+-              "url('https://images.unsplash.com/photo-1558769132-cb1aea458c5e?auto=format&fit=crop&w=1800&q=80')",
+-          }}
+-          aria-hidden="true"
+-        />
+-        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(250,248,243,0.78),rgba(250,248,243,0.98)_72%)]" />
+-
+-        <div className="relative mx-auto grid max-w-7xl items-center gap-8 lg:grid-cols-[minmax(0,1.02fr)_minmax(360px,0.78fr)]">
+-          <div className="max-w-3xl animate-fade-in-up text-center lg:text-left">
+-            <div className="mx-auto mb-5 inline-flex items-center gap-2 rounded-full border border-primary/20 bg-card/80 px-4 py-2 text-xs font-800 uppercase tracking-widest text-primary shadow-sm backdrop-blur lg:mx-0">
+-              <span className="h-2 w-2 rounded-full bg-success" />
+-              Verified B2B Textile Network
+-            </div>
+-            <h1 className="text-[3.35rem] font-800 leading-[0.95] tracking-normal text-foreground sm:text-[4.4rem] md:text-[5.4rem] lg:text-[6.3rem]">
+-              FabricTrad
+-            </h1>
+-            <p className="mx-auto mt-5 max-w-2xl text-base font-700 leading-7 text-secondary sm:text-xl sm:leading-8 lg:mx-0">
+-              {englishTagline}
+-            </p>
+-            <p className="mx-auto mt-4 max-w-xl text-sm leading-6 text-muted-foreground sm:text-base lg:mx-0">
+-              Sign in to continue, or create an account and choose whether you are buying textiles
+-              or selling through a GST-verified store.
+-            </p>
+-
+-            <div className="mt-8 flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center lg:justify-start">
+-              <Link href="/login" className="btn-primary px-7 py-3.5 text-sm sm:min-w-36">
+-                Sign In
+-              </Link>
+-              <Link href="/register" className="btn-navy px-7 py-3.5 text-sm sm:min-w-44">
+-                Create Account
+-              </Link>
+-            </div>
++    <section id="drape-studio" className="relative overflow-hidden border-y border-border bg-muted/40 py-20 sm:py-24">
++      <div className="landing-orb absolute -left-32 top-10 h-80 w-80 rounded-full bg-primary/25" />
++      <div className="landing-orb absolute -right-24 bottom-0 h-96 w-96 rounded-full bg-secondary/20" />
++      <div className="relative mx-auto grid max-w-7xl gap-10 px-4 sm:px-6 lg:grid-cols-[0.82fr_1.18fr] lg:items-center">
++        <div>
++          <span className="inline-flex items-center gap-2 rounded-full border border-primary/25 bg-primary/10 px-3 py-1.5 text-xs font-800 uppercase tracking-[0.16em] text-primary">
++            <Icon name="SparklesIcon" size={15} />
++            {t('drape.eyebrow')}
++          </span>
++          <h2 className="mt-5 max-w-xl text-balance text-4xl font-800 leading-tight text-foreground sm:text-5xl">
++            {t('drape.title')}
++          </h2>
++          <p className="mt-5 max-w-xl text-base leading-7 text-muted-foreground sm:text-lg">
++            {t('drape.description')}
++          </p>
+ 
+-            <div className="mt-7 grid gap-3 sm:grid-cols-3">
+-              {[
+-                [
