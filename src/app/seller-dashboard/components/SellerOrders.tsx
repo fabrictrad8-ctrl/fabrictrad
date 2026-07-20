@@ -1,683 +1,205 @@
 'use client';
-import React, { useState } from 'react';
+
+import { useMemo, useState } from 'react';
+import toast from 'react-hot-toast';
 import Icon from '@/components/ui/AppIcon';
+import { createClient } from '@/lib/supabase/client';
 import {
   firstOrderItem,
   formatMoney,
   formatOrderDate,
+  type AccountBulkOrder,
   useSellerBulkOrders,
 } from '@/lib/hooks/useAccountOrders';
 
-type OrderStatus = 'pending' | 'accepted' | 'paid' | 'shipped' | 'delivered' | 'rejected';
-type DeliveryPartner = 'shiprocket' | 'own';
-
-interface OrderDeliverySelection {
-  partner: DeliveryPartner;
+type OrderTab = 'pending' | 'active' | 'shipping' | 'completed' | 'cancelled';
+type DeliveryDraft = {
+  partner: 'shiprocket' | 'own';
   courierName: string;
   awbNumber: string;
   trackingUrl: string;
   estimatedDelivery: string;
   saved: boolean;
-}
-
-interface Order {
-  id: string;
-  buyer: string;
-  buyerType: string;
-  product: string;
-  qty: number;
-  unit: string;
-  price: number;
-  amount: string;
-  status: OrderStatus;
-  expiresIn: string | null;
-  date: string;
-  city: string;
-  stock: number;
-}
-
-const statusMap: Record<OrderStatus, { label: string; class: string }> = {
-  pending: { label: 'Awaiting Response', class: 'order-status-pending' },
-  accepted: { label: 'Accepted', class: 'order-status-confirmed' },
-  paid: { label: 'Payment Received', class: 'order-status-paid' },
-  shipped: { label: 'Shipped', class: 'order-status-shipped' },
-  delivered: { label: 'Delivered', class: 'order-status-delivered' },
-  rejected: { label: 'Rejected', class: 'order-status-rejected' },
 };
 
+const emptyDelivery: DeliveryDraft = {
+  partner: 'shiprocket',
+  courierName: '',
+  awbNumber: '',
+  trackingUrl: '',
+  estimatedDelivery: '',
+  saved: false,
+};
+
+const tabs: { key: OrderTab; label: string; statuses: string[] }[] = [
+  { key: 'pending', label: 'Pending', statuses: ['draft', 'quote_sent'] },
+  { key: 'active', label: 'Accepted & Paid', statuses: ['confirmed', 'paid'] },
+  { key: 'shipping', label: 'Shipped', statuses: ['shipped'] },
+  { key: 'completed', label: 'Delivered', statuses: ['delivered'] },
+  { key: 'cancelled', label: 'Cancelled', statuses: ['cancelled', 'rejected', 'refunded'] },
+];
+
+function orderCode(order: AccountBulkOrder) {
+  return `FT-BULK-${order.id.slice(0, 8).toUpperCase()}`;
+}
+
 export default function SellerOrders() {
-  const { orders: accountOrders, loading } = useSellerBulkOrders();
-  const [localStatuses, setLocalStatuses] = useState<Record<string, OrderStatus>>({});
-  const [deliverySelections, setDeliverySelections] = useState<
-    Record<string, OrderDeliverySelection>
-  >({});
-  const [activeFilter, setActiveFilter] = useState('All');
-  const [showCounterModal, setShowCounterModal] = useState<string | null>(null);
-  const [counterQty, setCounterQty] = useState('');
-  const [counterNote, setCounterNote] = useState('');
-  const [rejectReason, setRejectReason] = useState('');
-  const [rejectStock, setRejectStock] = useState('');
-  const [showRejectModal, setShowRejectModal] = useState<string | null>(null);
-  const [successMsg, setSuccessMsg] = useState('');
+  const { orders, loading, error, refresh, updateOrder } = useSellerBulkOrders();
+  const [tab, setTab] = useState<OrderTab>('pending');
+  const [delivery, setDelivery] = useState<Record<string, DeliveryDraft>>({});
+  const [busyId, setBusyId] = useState<string | null>(null);
 
-  const filters = ['All', 'Pending', 'Accepted', 'Paid', 'Shipped'];
-  const orders: Order[] = accountOrders.map((order) => {
-    const displayId = `FT-BULK-${order.id.slice(0, 8).toUpperCase()}`;
+  const visibleOrders = useMemo(() => {
+    const statuses = tabs.find((item) => item.key === tab)?.statuses || [];
+    return orders.filter((order) => statuses.includes(order.status || 'draft'));
+  }, [orders, tab]);
+
+  const runOrderAction = async (order: AccountBulkOrder, patch: { status?: string; notes?: string }, success: string) => {
+    setBusyId(order.id);
+    try {
+      await updateOrder(order.id, patch);
+      toast.success(success);
+    } catch (actionError) {
+      toast.error(actionError instanceof Error ? actionError.message : 'Order update failed.');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const sendCounterOffer = async (order: AccountBulkOrder) => {
     const item = firstOrderItem(order);
-    const remoteStatus = (order.status || 'pending') as string;
-    const status: OrderStatus =
-      localStatuses[displayId] ||
-      (remoteStatus === 'quote_sent'
-        ? 'pending'
-        : remoteStatus === 'confirmed'
-          ? 'accepted'
-          : remoteStatus === 'cancelled'
-            ? 'rejected'
-            : (remoteStatus as OrderStatus));
-
-    return {
-      id: displayId,
-      buyer: order.buyer_company || order.buyer_name || 'Buyer account',
-      buyerType: 'Buyer',
-      product: item?.product_name || 'Bulk fabric order',
-      qty: item?.quantity_mtrs || 0,
-      unit: 'mtrs',
-      price: item?.price_per_mtr || 0,
-      amount: formatMoney(order.net_total),
-      status,
-      expiresIn: status === 'pending' ? 'Respond now' : null,
-      date: formatOrderDate(order.created_at),
-      city: order.buyer_email || 'Private buyer details',
-      stock: 0,
-    };
-  });
-  const filtered =
-    activeFilter === 'All' ? orders : orders.filter((o) => o.status === activeFilter.toLowerCase());
-
-  const rejectionReasons = [
-    'Insufficient stock',
-    'Sold offline',
-    'Production delay',
-    'Incorrect inventory',
-    'Quality issue',
-    'Delivery location not serviceable',
-    'Temporarily unavailable',
-    'Other',
-  ];
-
-  const showSuccess = (msg: string) => {
-    setSuccessMsg(msg);
-    setTimeout(() => setSuccessMsg(''), 3000);
-  };
-
-  const handleAccept = (orderId: string) => {
-    setLocalStatuses((prev) => ({ ...prev, [orderId]: 'accepted' }));
-    showSuccess(`Order ${orderId} accepted successfully! Buyer will be notified.`);
-  };
-
-  const handleCounter = () => {
-    if (!counterQty || !showCounterModal) return;
-    setLocalStatuses((prev) => ({
-      ...prev,
-      [showCounterModal]: 'accepted',
-    }));
-    showSuccess(`Counter offer sent for ${showCounterModal}. Buyer will review and confirm.`);
-    setShowCounterModal(null);
-    setCounterQty('');
-    setCounterNote('');
-  };
-
-  const handleReject = () => {
-    if (!rejectReason || !showRejectModal) return;
-    setLocalStatuses((prev) => ({
-      ...prev,
-      [showRejectModal]: 'rejected',
-    }));
-    showSuccess(`Order ${showRejectModal} rejected. Buyer will be notified with reason.`);
-    setShowRejectModal(null);
-    setRejectReason('');
-    setRejectStock('');
-  };
-
-  const handleMarkReady = (orderId: string) => {
-    setLocalStatuses((prev) => ({ ...prev, [orderId]: 'shipped' }));
-    const selection = getDeliverySelection(orderId);
-    showSuccess(
-      selection.partner === 'shiprocket'
-        ? `Order ${orderId} marked ready. Shiprocket pickup will be scheduled.`
-        : `Order ${orderId} marked shipped with ${selection.courierName || 'own delivery partner'}.`
-    );
-  };
-
-  const getDeliverySelection = (orderId: string): OrderDeliverySelection =>
-    deliverySelections[orderId] || {
-      partner: 'shiprocket',
-      courierName: '',
-      awbNumber: '',
-      trackingUrl: '',
-      estimatedDelivery: '',
-      saved: false,
-    };
-
-  const updateDeliverySelection = (orderId: string, patch: Partial<OrderDeliverySelection>) => {
-    setDeliverySelections((prev) => ({
-      ...prev,
-      [orderId]: { ...getDeliverySelection(orderId), ...patch, saved: false },
-    }));
-  };
-
-  const handleSaveDelivery = (orderId: string) => {
-    const selection = getDeliverySelection(orderId);
-    if (
-      selection.partner === 'own' &&
-      (!selection.courierName.trim() ||
-        !selection.awbNumber.trim() ||
-        !selection.trackingUrl.trim())
-    ) {
-      showSuccess('Own delivery partner requires courier name, AWB number, and live tracking URL.');
+    const requested = Number(item?.quantity_mtrs || 0);
+    const answer = window.prompt(`Counter quantity in metres${requested ? ` (maximum ${requested})` : ''}:`);
+    if (!answer) return;
+    const quantity = Number(answer);
+    if (!Number.isFinite(quantity) || quantity < 1 || (requested > 0 && quantity > requested)) {
+      toast.error('Enter a valid counter quantity.');
       return;
     }
+    const note = window.prompt('Optional reason or dispatch note:')?.trim();
+    await runOrderAction(
+      order,
+      { notes: `Seller counter offer: ${quantity} metres.${note ? ` ${note}` : ''}` },
+      'Counter offer saved for buyer review.'
+    );
+  };
 
-    setDeliverySelections((prev) => ({
-      ...prev,
-      [orderId]: { ...selection, saved: true },
+  const rejectOrder = async (order: AccountBulkOrder) => {
+    const reason = window.prompt('Reason for rejecting this order:')?.trim();
+    if (!reason) return;
+    if (!window.confirm(`Reject ${orderCode(order)}?`)) return;
+    await runOrderAction(order, { status: 'cancelled', notes: `Rejected by seller: ${reason}` }, 'Order rejected and buyer status updated.');
+  };
+
+  const updateDelivery = (orderId: string, patch: Partial<DeliveryDraft>) => {
+    setDelivery((current) => ({
+      ...current,
+      [orderId]: { ...(current[orderId] || emptyDelivery), ...patch, saved: false },
     }));
-    showSuccess(
-      selection.partner === 'shiprocket'
-        ? `Shiprocket selected for ${orderId}. Buyer will receive platform tracking updates.`
-        : `Own delivery tracking saved for ${orderId}. Buyer will see the live tracking link.`
-    );
   };
 
-  const getOrderProgress = (status: OrderStatus) => {
-    const steps = [
-      { key: 'accepted', label: 'Accepted' },
-      { key: 'paid', label: 'Paid' },
-      { key: 'shipped', label: 'Shipped' },
-      { key: 'delivered', label: 'Delivered' },
-    ];
-    const currentIndex =
-      status === 'pending' || status === 'rejected'
-        ? -1
-        : steps.findIndex((step) => step.key === status);
-    const progress = currentIndex < 0 ? 0 : ((currentIndex + 1) / steps.length) * 100;
-    return { steps, currentIndex, progress };
+  const saveDelivery = async (order: AccountBulkOrder) => {
+    const draft = delivery[order.id] || emptyDelivery;
+    if (draft.partner === 'own' && (!draft.courierName.trim() || !draft.awbNumber.trim())) {
+      toast.error('Courier name and AWB/tracking number are required.');
+      return;
+    }
+    if (draft.partner === 'own' && (!order.seller_id || !order.buyer_id)) {
+      toast.error('Seller or buyer shipment details are missing.');
+      return;
+    }
+    setBusyId(order.id);
+    try {
+      if (draft.partner === 'own') {
+        const supabase = createClient();
+        const { error: shipmentError } = await supabase.from('seller_shipments').upsert(
+          {
+            order_id: order.id,
+            seller_id: order.seller_id,
+            buyer_id: order.buyer_id,
+            courier_type: 'local',
+            courier_name: draft.courierName.trim(),
+            awb_number: draft.awbNumber.trim(),
+            tracking_url: draft.trackingUrl.trim() || null,
+            estimated_delivery: draft.estimatedDelivery || null,
+            status: order.status === 'shipped' ? 'in_transit' : 'pending',
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'order_id' }
+        );
+        if (shipmentError) throw shipmentError;
+      }
+      setDelivery((current) => ({ ...current, [order.id]: { ...draft, saved: true } }));
+      toast.success('Delivery details saved.');
+    } catch (deliveryError) {
+      toast.error(deliveryError instanceof Error ? deliveryError.message : 'Could not save delivery details.');
+    } finally {
+      setBusyId(null);
+    }
   };
 
-  const renderDeliveryPanel = (order: Order) => {
-    const selection = getDeliverySelection(order.id);
-    const { steps, currentIndex, progress } = getOrderProgress(order.status);
-    const canShip = order.status === 'paid' || order.status === 'shipped';
-
-    return (
-      <div className="mt-4 rounded-2xl border border-border bg-muted/20 p-4">
-        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <p className="text-sm font-800 text-foreground">Delivery Partner for This Order</p>
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              Choose Shiprocket or your own delivery partner after the buyer order is accepted.
-              Buyer-visible tracking is maintained from this order.
-            </p>
-          </div>
-          <span
-            className={`w-fit rounded-full px-2.5 py-1 text-xs font-700 ${
-              selection.saved ? 'bg-success/10 text-success' : 'bg-amber-50 text-amber-700'
-            }`}
-          >
-            {selection.saved ? 'Saved for order' : 'Not saved yet'}
-          </span>
-        </div>
-
-        <div className="mb-4 grid gap-2 sm:grid-cols-4">
-          {steps.map((step, index) => (
-            <div key={step.key} className="rounded-xl border border-border bg-card p-2">
-              <div className="mb-1 flex items-center gap-2">
-                <span
-                  className={`h-2.5 w-2.5 rounded-full ${
-                    index <= currentIndex ? 'bg-success' : 'bg-muted-foreground/30'
-                  }`}
-                />
-                <p className="text-xs font-700 text-foreground">{step.label}</p>
-              </div>
-              <div className="h-1 rounded-full bg-muted">
-                <div
-                  className="h-full rounded-full bg-success"
-                  style={{ width: index <= currentIndex ? '100%' : '0%' }}
-                />
-              </div>
-            </div>
-          ))}
-        </div>
-        <div className="mb-4 h-2 overflow-hidden rounded-full bg-muted">
-          <div className="h-full rounded-full bg-success" style={{ width: `${progress}%` }} />
-        </div>
-
-        <div className="grid gap-3 md:grid-cols-2">
-          <button
-            type="button"
-            onClick={() => updateDeliverySelection(order.id, { partner: 'shiprocket' })}
-            className={`rounded-xl border-2 p-4 text-left transition-all ${
-              selection.partner === 'shiprocket'
-                ? 'border-primary bg-primary/5'
-                : 'border-border bg-card hover:border-primary/40'
-            }`}
-          >
-            <div className="mb-1 flex items-center gap-2">
-              <Icon name="RocketLaunchIcon" size={18} className="text-primary" />
-              <p className="text-sm font-800 text-foreground">Shiprocket</p>
-              {selection.partner === 'shiprocket' && (
-                <Icon name="CheckCircleIcon" size={16} className="ml-auto text-primary" />
-              )}
-            </div>
-            <p className="text-xs leading-5 text-muted-foreground">
-              Platform-managed courier booking, pickup, and automatic tracking updates.
-            </p>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => updateDeliverySelection(order.id, { partner: 'own' })}
-            className={`rounded-xl border-2 p-4 text-left transition-all ${
-              selection.partner === 'own'
-                ? 'border-secondary bg-secondary/5'
-                : 'border-border bg-card hover:border-secondary/40'
-            }`}
-          >
-            <div className="mb-1 flex items-center gap-2">
-              <Icon name="TruckIcon" size={18} className="text-secondary" />
-              <p className="text-sm font-800 text-foreground">Own Delivery Partner</p>
-              {selection.partner === 'own' && (
-                <Icon name="CheckCircleIcon" size={16} className="ml-auto text-secondary" />
-              )}
-            </div>
-            <p className="text-xs leading-5 text-muted-foreground">
-              Seller-managed delivery. AWB and live tracking link are required for buyers.
-            </p>
-          </button>
-        </div>
-
-        {selection.partner === 'own' && (
-          <div className="mt-4 grid gap-3 lg:grid-cols-4">
-            <div>
-              <label className="mb-1.5 block text-xs font-700 text-foreground">
-                Courier Name *
-              </label>
-              <input
-                value={selection.courierName}
-                onChange={(event) =>
-                  updateDeliverySelection(order.id, { courierName: event.target.value })
-                }
-                placeholder="DTDC, Blue Dart, local transport"
-                className="input-base w-full rounded-xl px-3 py-2.5 text-sm"
-              />
-            </div>
-            <div>
-              <label className="mb-1.5 block text-xs font-700 text-foreground">
-                AWB / Tracking No. *
-              </label>
-              <input
-                value={selection.awbNumber}
-                onChange={(event) =>
-                  updateDeliverySelection(order.id, { awbNumber: event.target.value })
-                }
-                placeholder="Tracking number"
-                className="input-base w-full rounded-xl px-3 py-2.5 text-sm font-mono"
-              />
-            </div>
-            <div>
-              <label className="mb-1.5 block text-xs font-700 text-foreground">
-                Live Tracking URL *
-              </label>
-              <input
-                type="url"
-                value={selection.trackingUrl}
-                onChange={(event) =>
-                  updateDeliverySelection(order.id, { trackingUrl: event.target.value })
-                }
-                placeholder="https://..."
-                className="input-base w-full rounded-xl px-3 py-2.5 text-sm"
-              />
-            </div>
-            <div>
-              <label className="mb-1.5 block text-xs font-700 text-foreground">
-                Estimated Delivery
-              </label>
-              <input
-                type="date"
-                value={selection.estimatedDelivery}
-                onChange={(event) =>
-                  updateDeliverySelection(order.id, { estimatedDelivery: event.target.value })
-                }
-                className="input-base w-full rounded-xl px-3 py-2.5 text-sm"
-              />
-            </div>
-          </div>
-        )}
-
-        <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-          <button
-            type="button"
-            onClick={() => handleSaveDelivery(order.id)}
-            className="btn-secondary flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-xs"
-          >
-            <Icon name="CheckCircleIcon" size={14} />
-            Save Delivery Partner
-          </button>
-          {canShip && (
-            <button
-              type="button"
-              onClick={() => handleMarkReady(order.id)}
-              className="btn-primary flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-xs"
-            >
-              <Icon name="TruckIcon" size={14} />
-              {order.status === 'shipped' ? 'Update Tracking' : 'Mark Ready / Shipped'}
-            </button>
-          )}
-        </div>
-      </div>
-    );
+  const markShipped = async (order: AccountBulkOrder) => {
+    const draft = delivery[order.id] || emptyDelivery;
+    if (!draft.saved) {
+      toast.error('Save delivery details before marking the order shipped.');
+      return;
+    }
+    setBusyId(order.id);
+    try {
+      if (draft.partner === 'shiprocket') {
+        const response = await fetch('/api/shiprocket/create-order', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ orderId: order.id }),
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'Shiprocket booking failed.');
+      }
+      await updateOrder(order.id, { status: 'shipped' });
+      toast.success(draft.partner === 'shiprocket' ? 'Shiprocket pickup created and order marked shipped.' : 'Order marked shipped.');
+    } catch (shippingError) {
+      toast.error(shippingError instanceof Error ? shippingError.message : 'Could not ship order.');
+    } finally {
+      setBusyId(null);
+    }
   };
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-xl font-800 text-foreground">Order Queue</h1>
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <span className="w-2 h-2 rounded-full bg-success animate-pulse" />
-          Live updates
-        </div>
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div><h1 className="text-xl font-800 text-foreground">Order Queue</h1><p className="mt-1 text-xs text-muted-foreground">Accept, counter, reject, fulfil and track buyer orders.</p></div>
+        <button type="button" onClick={() => void refresh()} className="btn-secondary flex w-fit items-center gap-2 rounded-xl px-4 py-2 text-xs"><Icon name="ArrowPathIcon" size={15} />Refresh</button>
       </div>
 
-      {/* Success Toast */}
-      {successMsg && (
-        <div className="mb-4 flex items-center gap-2 p-3 bg-success/10 border border-success/20 rounded-xl animate-fade-in">
-          <Icon name="CheckCircleIcon" size={16} className="text-success shrink-0" />
-          <p className="text-sm font-600 text-success">{successMsg}</p>
-        </div>
-      )}
-
-      {/* Filters */}
-      <div className="flex items-center gap-2 overflow-x-auto scrollbar-thin pb-2 mb-5">
-        {filters.map((f) => (
-          <button
-            key={f}
-            type="button"
-            onClick={() => setActiveFilter(f)}
-            className={`shrink-0 px-3 py-1.5 rounded-xl text-xs font-600 transition-all ${
-              activeFilter === f
-                ? 'bg-secondary text-white'
-                : 'bg-card border border-border text-muted-foreground hover:border-secondary'
-            }`}
-          >
-            {f}
-          </button>
-        ))}
+      <div className="mb-5 flex gap-2 overflow-x-auto pb-1">
+        {tabs.map((item) => {
+          const count = orders.filter((order) => item.statuses.includes(order.status || 'draft')).length;
+          return <button key={item.key} type="button" onClick={() => setTab(item.key)} className={`shrink-0 rounded-xl px-4 py-2 text-xs font-700 ${tab === item.key ? 'bg-secondary text-white' : 'border border-border bg-card text-muted-foreground hover:text-foreground'}`}>{item.label} <span className="ml-1 opacity-80">{count}</span></button>;
+        })}
       </div>
 
-      {/* Orders */}
+      {error && <div className="mb-4 rounded-xl border border-error/20 bg-error/5 p-3 text-xs text-error">{error}</div>}
+      {loading && <div className="rounded-2xl border border-border bg-card py-16 text-center"><span className="mx-auto block h-8 w-8 animate-spin rounded-full border-2 border-secondary border-t-transparent" /></div>}
+      {!loading && visibleOrders.length === 0 && <div className="rounded-2xl border border-dashed border-border bg-card py-16 text-center"><Icon name="ClipboardDocumentListIcon" size={34} className="mx-auto mb-3 text-muted-foreground" /><p className="text-sm font-800 text-foreground">No {tabs.find((item) => item.key === tab)?.label.toLowerCase()} orders</p></div>}
+
       <div className="space-y-4">
-        {loading && (
-          <div className="bg-card rounded-2xl border border-border px-5 py-12 text-center">
-            <div className="w-7 h-7 border-2 border-secondary border-t-transparent rounded-full animate-spin mx-auto" />
-          </div>
-        )}
-        {!loading && filtered.length === 0 && (
-          <div className="bg-card rounded-2xl border border-border px-5 py-12 text-center">
-            <Icon
-              name="ClipboardDocumentListIcon"
-              size={34}
-              className="mx-auto mb-3 text-muted-foreground"
-            />
-            <p className="text-sm font-800 text-foreground">No order requests for this seller</p>
-            <p className="text-xs text-muted-foreground mt-1">
-              This queue will show only orders assigned to the signed-in seller account.
-            </p>
-          </div>
-        )}
-        {filtered.map((order) => (
-          <div
-            key={order.id}
-            className={`bg-card rounded-2xl border overflow-hidden ${order.status === 'pending' ? 'border-primary/30' : 'border-border'}`}
-          >
-            {/* Header */}
-            <div className="px-5 py-4 border-b border-border bg-muted/20">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <span className="mono-id">{order.id}</span>
-                  <span
-                    className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-600 ${statusMap[order.status]?.class}`}
-                  >
-                    {statusMap[order.status]?.label}
-                  </span>
-                  {order.expiresIn && (
-                    <span className="flex items-center gap-1 text-xs font-700 text-error bg-error/10 px-2 py-0.5 rounded-full">
-                      <Icon name="ClockIcon" size={11} />
-                      {order.expiresIn} left
-                    </span>
-                  )}
-                </div>
-                <span className="text-xs text-muted-foreground">{order.date}</span>
-              </div>
+        {!loading && visibleOrders.map((order) => {
+          const item = firstOrderItem(order);
+          const draft = delivery[order.id] || emptyDelivery;
+          const isBusy = busyId === order.id;
+          return <article key={order.id} className="rounded-2xl border border-border bg-card p-5">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div><div className="flex flex-wrap items-center gap-2"><p className="font-mono text-xs font-800 text-primary">{orderCode(order)}</p><span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-800 uppercase text-muted-foreground">{String(order.status || 'draft').replaceAll('_', ' ')}</span></div><h2 className="mt-2 text-base font-800 text-foreground">{item?.product_name || 'Bulk fabric order'}</h2><p className="mt-1 text-xs text-muted-foreground">{order.buyer_company || order.buyer_name || 'Buyer account'} · {formatOrderDate(order.created_at)}</p></div>
+              <div className="sm:text-right"><p className="text-lg font-800 text-secondary">{formatMoney(order.net_total)}</p><p className="text-xs text-muted-foreground">{Number(item?.quantity_mtrs || 0).toLocaleString('en-IN')} mtrs</p></div>
             </div>
+            {order.notes && <div className="mt-4 rounded-xl bg-muted p-3 text-xs leading-5 text-muted-foreground"><span className="font-800 text-foreground">Order note:</span> {order.notes}</div>}
 
-            {/* Body */}
-            <div className="px-5 py-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-                <div>
-                  <p className="text-xs text-muted-foreground mb-0.5">Buyer</p>
-                  <p className="text-sm font-700 text-foreground">{order.buyer}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {order.buyerType} · {order.city}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground mb-0.5">Product</p>
-                  <p className="text-sm font-700 text-foreground">{order.product}</p>
-                  <p className="text-xs text-muted-foreground">
-                    Requested: {order.qty} {order.unit}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground mb-0.5">Your Stock</p>
-                  <p className="text-sm font-700 text-foreground">
-                    {order.stock.toLocaleString('en-IN')} {order.unit}
-                  </p>
-                  <p className="text-xs text-success">Sufficient stock available</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground mb-0.5">Order Value</p>
-                  <p className="text-base font-800 text-primary">{order.amount}</p>
-                  <p className="text-xs text-muted-foreground">
-                    ₹{order.price}/mtr × {order.qty}
-                  </p>
-                </div>
-              </div>
+            {['draft', 'quote_sent'].includes(order.status || 'draft') && <div className="mt-5 flex flex-wrap gap-2 border-t border-border pt-4"><button type="button" disabled={isBusy} onClick={() => void runOrderAction(order, { status: 'confirmed' }, 'Order accepted. Buyer can proceed to payment.')} className="flex items-center gap-1.5 rounded-xl bg-success px-4 py-2 text-xs font-800 text-white disabled:opacity-50"><Icon name="CheckIcon" size={14} />Accept</button><button type="button" disabled={isBusy} onClick={() => void sendCounterOffer(order)} className="btn-secondary rounded-xl px-4 py-2 text-xs disabled:opacity-50">Counter Offer</button><button type="button" disabled={isBusy} onClick={() => void rejectOrder(order)} className="rounded-xl border border-error/20 bg-error/10 px-4 py-2 text-xs font-800 text-error disabled:opacity-50">Reject</button></div>}
 
-              {/* Actions for pending */}
-              {order.status === 'pending' && (
-                <div className="flex flex-wrap gap-2 pt-4 border-t border-border">
-                  <button
-                    type="button"
-                    onClick={() => handleAccept(order.id)}
-                    className="flex items-center gap-1.5 bg-success text-white text-xs font-700 px-4 py-2 rounded-xl hover:bg-green-700 transition-colors"
-                  >
-                    <Icon name="CheckIcon" size={14} />
-                    Accept Full Qty ({order.qty} mtrs)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowCounterModal(order.id);
-                      setCounterQty('');
-                      setCounterNote('');
-                    }}
-                    className="flex items-center gap-1.5 bg-amber-500 text-white text-xs font-700 px-4 py-2 rounded-xl hover:bg-amber-600 transition-colors"
-                  >
-                    <Icon name="ArrowsRightLeftIcon" size={14} />
-                    Counter Offer
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowRejectModal(order.id);
-                      setRejectReason('');
-                      setRejectStock('');
-                    }}
-                    className="flex items-center gap-1.5 bg-error/10 border border-error/30 text-error text-xs font-700 px-4 py-2 rounded-xl hover:bg-error hover:text-white transition-all"
-                  >
-                    <Icon name="XMarkIcon" size={14} />
-                    Reject
-                  </button>
-                </div>
-              )}
-
-              {/* Accepted — awaiting payment */}
-              {order.status === 'accepted' && (
-                <div className="flex items-center gap-2 pt-4 border-t border-border">
-                  <Icon name="ClockIcon" size={14} className="text-amber-500" />
-                  <p className="text-xs text-amber-700 font-600">
-                    Awaiting buyer payment (100% prepaid — No COD)
-                  </p>
-                </div>
-              )}
-
-              {['accepted', 'paid', 'shipped', 'delivered'].includes(order.status) &&
-                renderDeliveryPanel(order)}
-            </div>
-          </div>
-        ))}
+            {['confirmed', 'paid'].includes(order.status || '') && <div className="mt-5 border-t border-border pt-4"><h3 className="mb-3 text-xs font-800 uppercase tracking-wide text-muted-foreground">Delivery setup</h3><div className="grid gap-3 sm:grid-cols-2"><label className="text-xs font-700 text-foreground">Delivery Partner<select value={draft.partner} onChange={(event) => updateDelivery(order.id, { partner: event.target.value as DeliveryDraft['partner'] })} className="input-base mt-1 w-full rounded-xl px-3 py-2.5 text-sm"><option value="shiprocket">Shiprocket</option><option value="own">Own Courier</option></select></label>{draft.partner === 'own' && <><label className="text-xs font-700 text-foreground">Courier Name<input value={draft.courierName} onChange={(event) => updateDelivery(order.id, { courierName: event.target.value })} className="input-base mt-1 w-full rounded-xl px-3 py-2.5 text-sm" /></label><label className="text-xs font-700 text-foreground">AWB / Tracking Number<input value={draft.awbNumber} onChange={(event) => updateDelivery(order.id, { awbNumber: event.target.value })} className="input-base mt-1 w-full rounded-xl px-3 py-2.5 text-sm" /></label><label className="text-xs font-700 text-foreground">Tracking URL<input type="url" value={draft.trackingUrl} onChange={(event) => updateDelivery(order.id, { trackingUrl: event.target.value })} className="input-base mt-1 w-full rounded-xl px-3 py-2.5 text-sm" /></label></>}<label className="text-xs font-700 text-foreground">Estimated Delivery<input type="date" value={draft.estimatedDelivery} onChange={(event) => updateDelivery(order.id, { estimatedDelivery: event.target.value })} className="input-base mt-1 w-full rounded-xl px-3 py-2.5 text-sm" /></label></div><div className="mt-4 flex flex-wrap gap-2"><button type="button" disabled={isBusy} onClick={() => void saveDelivery(order)} className="btn-secondary rounded-xl px-4 py-2 text-xs disabled:opacity-50">{draft.saved ? 'Delivery Saved' : 'Save Delivery'}</button><button type="button" disabled={isBusy || !draft.saved} onClick={() => void markShipped(order)} className="btn-primary rounded-xl px-4 py-2 text-xs disabled:opacity-50">Mark Shipped</button></div></div>}
+          </article>;
+        })}
       </div>
-
-      {/* Counter Modal */}
-      {showCounterModal && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-          <div className="bg-card rounded-2xl border border-border p-6 w-full max-w-md">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-800 text-foreground">Counter Offer</h3>
-              <button
-                type="button"
-                onClick={() => setShowCounterModal(null)}
-                className="p-1.5 hover:bg-muted rounded-lg"
-              >
-                <Icon name="XMarkIcon" size={16} className="text-muted-foreground" />
-              </button>
-            </div>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-700 text-foreground mb-1.5">
-                  Available Quantity (mtrs) *
-                </label>
-                <input
-                  type="number"
-                  value={counterQty}
-                  onChange={(e) => setCounterQty(e.target.value)}
-                  placeholder="Enter available quantity"
-                  className="input-base w-full px-4 py-3 text-sm rounded-xl"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-700 text-foreground mb-1.5">
-                  Explanation (optional)
-                </label>
-                <textarea
-                  rows={3}
-                  value={counterNote}
-                  onChange={(e) => setCounterNote(e.target.value)}
-                  placeholder="E.g., Only 200 mtrs available, remaining 100 mtrs on production..."
-                  className="input-base w-full px-4 py-3 text-sm rounded-xl resize-none"
-                />
-              </div>
-            </div>
-            <div className="flex gap-2 mt-5">
-              <button
-                type="button"
-                onClick={() => setShowCounterModal(null)}
-                className="btn-secondary flex-1 py-2.5 text-sm rounded-xl"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleCounter}
-                disabled={!counterQty}
-                className="btn-primary flex-1 py-2.5 text-sm rounded-xl disabled:opacity-50"
-              >
-                Send Counter
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Reject Modal */}
-      {showRejectModal && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-          <div className="bg-card rounded-2xl border border-border p-6 w-full max-w-md">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-800 text-foreground">Reject Order Request</h3>
-              <button
-                type="button"
-                onClick={() => setShowRejectModal(null)}
-                className="p-1.5 hover:bg-muted rounded-lg"
-              >
-                <Icon name="XMarkIcon" size={16} className="text-muted-foreground" />
-              </button>
-            </div>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-700 text-foreground mb-2">
-                  Rejection Reason *
-                </label>
-                <div className="space-y-2">
-                  {rejectionReasons.map((reason) => (
-                    <button
-                      key={reason}
-                      type="button"
-                      onClick={() => setRejectReason(reason)}
-                      className={`w-full text-left px-3 py-2 rounded-xl text-sm transition-all ${
-                        rejectReason === reason
-                          ? 'bg-error/10 border border-error/30 text-error font-600'
-                          : 'bg-muted hover:bg-muted/80 text-foreground'
-                      }`}
-                    >
-                      {reason}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-700 text-foreground mb-1.5">
-                  Actual Available Stock (mtrs)
-                </label>
-                <input
-                  type="number"
-                  value={rejectStock}
-                  onChange={(e) => setRejectStock(e.target.value)}
-                  placeholder="Current available quantity"
-                  className="input-base w-full px-4 py-3 text-sm rounded-xl"
-                />
-              </div>
-            </div>
-            <div className="flex gap-2 mt-5">
-              <button
-                type="button"
-                onClick={() => setShowRejectModal(null)}
-                className="btn-secondary flex-1 py-2.5 text-sm rounded-xl"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleReject}
-                disabled={!rejectReason}
-                className="flex-1 py-2.5 text-sm rounded-xl bg-error text-white font-600 disabled:opacity-50 hover:bg-red-700 transition-colors"
-              >
-                Confirm Rejection
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
