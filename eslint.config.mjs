@@ -10,15 +10,19 @@ const compat = new FlatCompat({
   recommendedConfig: js.configs.recommended,
 });
 
-export default [
+const config = [
   {
-    ignores: ['.next/**', '.open-next/**', 'out/**', 'build/**', 'coverage/**', 'public/**'],
+    ignores: [
+      '.next/**',
+      '.open-next/**',
+      'out/**',
+      'build/**',
+      'coverage/**',
+      'public/**',
+      'next-env.d.ts',
+    ],
   },
-  ...compat.extends(
-    'next/core-web-vitals',
-    'plugin:@typescript-eslint/recommended',
-    'plugin:prettier/recommended'
-  ),
+  ...compat.extends('next/core-web-vitals', 'plugin:@typescript-eslint/recommended'),
   {
     rules: {
       '@typescript-eslint/no-explicit-any': 'warn',
@@ -26,19 +30,11 @@ export default [
         'warn',
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrorsIgnorePattern: '^_' },
       ],
+      '@typescript-eslint/no-require-imports': 'off',
       'no-console': ['warn', { allow: ['warn', 'error', 'info'] }],
       'react/no-unescaped-entities': 'off',
-      'prettier/prettier': [
-        'error',
-        {
-          endOfLine: 'auto',
-          singleQuote: true,
-          semi: true,
-          tabWidth: 2,
-          printWidth: 100,
-          trailingComma: 'es5',
-        },
-      ],
     },
   },
 ];
+
+export default config;
