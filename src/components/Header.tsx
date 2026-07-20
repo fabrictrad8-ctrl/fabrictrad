@@ -6,6 +6,7 @@ import AppLogo from '@/components/ui/AppLogo';
 import Icon from '@/components/ui/AppIcon';
 import { useAuth } from '@/contexts/AuthContext';
 import ProfileMenu from '@/components/ProfileMenu';
+import WishlistMenu from '@/components/WishlistMenu';
 
 const publicNavLinks: { label: string; href: string }[] = [];
 
@@ -40,6 +41,11 @@ export default function Header() {
       ? '/seller-dashboard'
       : '/buyer-dashboard';
   const accountRoleLabel = isAdmin ? 'Admin' : isSeller ? 'Seller' : 'Buyer';
+  const notificationsHref = isAdmin
+    ? '/admin-portal?tab=activity'
+    : isSeller
+      ? '/seller-dashboard?tab=notifications'
+      : '/buyer-dashboard?tab=notifications';
 
   const navLinks = isLoggedIn
     ? isAdmin
@@ -96,7 +102,6 @@ export default function Header() {
         }`}
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
-          {/* Logo */}
           <Link href="/" className="flex items-center gap-2 shrink-0" onClick={closeMobile}>
             <AppLogo size={36} />
             <span className="font-display font-800 text-lg text-secondary hidden sm:block tracking-tight">
@@ -128,7 +133,6 @@ export default function Header() {
             </form>
           )}
 
-          {/* Desktop Nav */}
           <nav className="hidden md:flex items-center gap-1">
             {navLinks?.map((link) => (
               <Link
@@ -141,7 +145,6 @@ export default function Header() {
             ))}
           </nav>
 
-          {/* Desktop Actions */}
           <div className="hidden md:flex items-center gap-2">
             {loading ? (
               <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
@@ -152,6 +155,14 @@ export default function Header() {
                   className="px-3 py-2 text-sm font-600 text-foreground hover:bg-muted rounded-lg transition-colors"
                 >
                   {isAdmin ? 'Admin Portal' : 'My Dashboard'}
+                </Link>
+                {!isSeller && !isAdmin && <WishlistMenu />}
+                <Link
+                  href={notificationsHref}
+                  className="flex h-10 w-10 items-center justify-center rounded-full border border-border bg-card text-muted-foreground shadow-sm transition-colors hover:border-primary/40 hover:text-primary"
+                  aria-label="Open notifications"
+                >
+                  <Icon name="BellIcon" size={18} />
                 </Link>
                 <ProfileMenu />
               </>
@@ -170,7 +181,6 @@ export default function Header() {
             )}
           </div>
 
-          {/* Mobile Hamburger */}
           <button
             className="md:hidden p-2 rounded-lg hover:bg-muted transition-colors"
             onClick={() => setMobileOpen((prev) => !prev)}
@@ -186,7 +196,6 @@ export default function Header() {
         </div>
       </header>
 
-      {/* Mobile Menu */}
       {mobileOpen && (
         <>
           <div
@@ -279,6 +288,14 @@ export default function Header() {
                       <Icon name="UserCircleIcon" size={16} />
                       My Profile
                     </Link>
+                    <Link
+                      href={notificationsHref}
+                      className="btn-secondary w-full px-4 py-3 text-sm rounded-lg text-center flex items-center justify-center gap-2"
+                      onClick={closeMobile}
+                    >
+                      <Icon name="BellIcon" size={16} />
+                      Notifications
+                    </Link>
                     {(isAdmin
                       ? [
                           ['Payments', '/admin-portal?tab=payments'],
@@ -292,6 +309,7 @@ export default function Header() {
                             ['Listings', '/seller-dashboard?tab=inventory'],
                             ['Earnings', '/seller-dashboard?tab=earnings'],
                             ['Buyer Inbox', '/seller-dashboard?tab=inbox'],
+                            ['Billing Uploads', '/seller-dashboard?tab=billing'],
                           ]
                         : [
                             ['Purchases', '/buyer-dashboard?tab=orders'],
