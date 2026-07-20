@@ -1,0 +1,250 @@
+ generated.');
+       }
+-
+       setGeneratedImage(data.image);
+-      setAiAnalysis(data.analysis || '');
+-      incrementDrapeUsage();
+-      setUsageCount((c) => c + 1);
+-      setShowResult(true);
+-      setStep('result');
+-    } catch (error) {
+-      toast.error(
+-        error instanceof Error ? error.message : 'Failed to process images. Please try again.'
+-      );
++      setAnalysis(data.analysis || 'AI preview generated. Confirm colour and scale with a physical sample before bulk production.');
++      setCompare(54);
++    } catch (generationError) {
++      setError(generationError instanceof Error ? generationError.message : 'The drape preview could not be generated.');
+     } finally {
+-      setIsGenerating(false);
++      setGenerating(false);
+     }
+   };
+ 
+-  const handleReset = () => {
+-    setStep('select');
+-    setShowResult(false);
+-    setShowPaywall(false);
+-    setUploadedPhoto(null);
+-    setPhotoSource('model');
+-    setCameraActive(false);
+-    setAiAnalysis('');
+-    setGeneratedImage(null);
+-    if (streamRef.current) {
+-      streamRef.current.getTracks().forEach((t) => t.stop());
+-      streamRef.current = null;
+-    }
+-    setSettings({ opacity: 72, blend: 'multiply', scale: 110, posX: 0, posY: 0, rotation: 0 });
++  const downloadResult = () => {
++    if (!generatedImage) return;
++    const link = document.createElement('a');
++    link.href = generatedImage;
++    link.download = `${product.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-drape.png`;
++    link.click();
+   };
+ 
+-  const blendModes: { value: DrapeSettings['blend']; label: string }[] = [
+-    { value: 'multiply', label: 'Multiply' },
+-    { value: 'overlay', label: 'Overlay' },
+-    { value: 'screen', label: 'Screen' },
+-    { value: 'normal', label: 'Normal' },
+-  ];
++  const reset = () => {
++    setPersonImage(null);
++    setGeneratedImage(null);
++    setAnalysis('');
++    setError('');
++    setSourceMode('model');
++    setSelectedModel(MODEL_OPTIONS[0].id);
++    setSelectedStyle(GARMENT_STYLES[0].id);
++    setFit('Regular');
++    setCompare(54);
++    stopCamera();
++  };
+ 
+   return (
+-    <div className="bg-card rounded-2xl border border-border overflow-hidden">
+-      {/* Header */}
+-      <div className="p-4 border-b border-border bg-gradient-to-r from-primary/5 to-secondary/5">
+-        <div className="flex items-center justify-between">
+-          <div className="flex items-center gap-2">
+-            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+-              <Icon name="SparklesIcon" size={16} className="text-primary" />
+-            </div>
+-            <div>
+-              <h3 className="font-700 text-sm text-foreground">AI Drape-on Visualizer</h3>
+-              <p className="text-xs text-muted-foreground">
+-                OpenAI image generation · On model · Upload photo · Camera selfie
+-              </p>
+-            </div>
++    <div className="overflow-hidden rounded-[2rem] border border-border bg-card card-shadow-lg">
++      <div className="border-b border-border bg-gradient-to-r from-secondary via-navy-light to-secondary px-5 py-6 text-white sm:px-7">
++        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
++          <div>
++            <div className="flex items-center gap-2 text-xs font-800 uppercase tracking-[0.18em] text-gold">
++              <Icon name="SparklesIcon" size={16} /> FabricTrad AI studio
++            </div>
++            <h2 className="mt-2 text-2xl font-800 sm:text-3xl">See this fabric on a real garment</h2>
++            <p className="mt-2 max-w-2xl text-sm leading-6 text-white/75">
++              Choose a garment, use a studio model or your own photo, and generate a realistic sourcing preview before requesting a sample.
++            </p>
+           </div>
+-          <div className="flex items-center gap-2">
+-            {freeRemaining > 0 ? (
+-              <span className="text-xs bg-success/10 text-success border border-success/20 px-2 py-0.5 rounded-full font-600">
+-                {freeRemaining} free today
+-              </span>
+-            ) : (
+-              <span className="text-xs bg-primary/10 text-primary border border-primary/20 px-2 py-0.5 rounded-full font-600">
+-                ₹10/day unlimited
+-              </span>
+-            )}
+-            {showResult && (
+-              <button
+-                onClick={handleReset}
+-                className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded-lg hover:bg-muted transition-colors"
+-              >
+-                Reset
+-              </button>
+-            )}
++          <div className="rounded-2xl border border-white/15 bg-white/10 px-4 py-3 text-xs text-white/80 backdrop-blur">
++            <p className="font-800 text-white">Private by design</p>
++            <p className="mt-1">Images are used only for this preview request.</p>
+           </div>
+         </div>
+-
+-        {/* Step Indicator */}
+-        <div className="flex items-center gap-2 mt-3">
+-          {(['select', 'preview', 'result'] as Step[]).map((s, i) => (
+-            <React.Fragment key={s}>
+-              <button
+-                onClick={() => {
+-                  if (s !== 'result' || showResult) setStep(s);
+-                }}
+-                className={`flex items-center gap-1.5 text-xs font-600 transition-colors ${step === s ? 'text-primary' : 'text-muted-foreground'}`}
+-              >
+-                <span
+-                  className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-800 ${step === s ? 'bg-primary text-white' : 'bg-muted text-muted-foreground'}`}
+-                >
+-                  {i + 1}
+-                </span>
+-                <span className="hidden sm:inline capitalize">
+-                  {s === 'select' ? 'Select' : s === 'preview' ? 'Adjust' : 'AI Result'}
+-                </span>
+-              </button>
+-              {i < 2 && (
+-                <div
+-                  className={`flex-1 h-px ${i < ['select', 'preview', 'result'].indexOf(step) ? 'bg-primary' : 'bg-border'}`}
+-                />
+-              )}
+-            </React.Fragment>
+-          ))}
+-        </div>
+       </div>
+ 
+-      <div className="p-4">
+-        {/* STEP 1: Select Fabric + Model */}
+-        {step === 'select' && (
+-          <div className="space-y-5">
+-            {/* Fabric Selection */}
+-            <div>
+-              <div className="flex items-center gap-2 mb-3">
+-                <div className="w-5 h-5 rounded-full bg-primary text-white text-xs font-800 flex items-center justify-center">
+-                  1
+-                </div>
+-                <p className="text-sm font-700 text-foreground">Choose Fabric View</p>
+-                <span className="text-xs text-muted-foreground">
+-                  (This product's actual fabric)
+-                </span>
+-              </div>
+-              <div className="grid grid-cols-4 gap-2">
+-                {PRODUCT_FABRIC_IMAGES.map((fabric) => (
+-                  <button
+-                    key={fabric.id}
+-                    onClick={() => setSelectedFabricId(fabric.id)}
+-                    className={`relative rounded-xl overflow-hidden border-2 transition-all aspect-square ${selectedFabricId === fabric.id ? 'border-primary shadow-md' : 'border-border hover:border-primary/50'}`}
+-                  >
+-                    <AppImage
+-                      src={fabric.src}
+-                      alt={fabric.alt}
+-                      width={80}
+-                      height={80}
+-                      className="object-cover w-full h-full"
+-                    />
+-
+-                    {selectedFabricId === fabric.id && (
+-                      <div className="absolute inset-0 bg-primary/20 flex items-center justify-center">
+-                        <Icon
+-                          name="CheckCircleIcon"
+-                          size={20}
+-                          className="text-white"
+-                          variant="solid"
+-                        />
+-                      </div>
+-                    )}
+-                    <div className="absolute bottom-0 left-0 right-0 bg-black/50 py-0.5 px-1">
+-                      <p className="text-white text-xs font-600 truncate">{fabric.name}</p>
+-                    </div>
+-                  </button>
+-                ))}
+-              </div>
++      <div className="grid lg:grid-cols-[360px_minmax(0,1fr)]">
++        <aside className="border-b border-border p-5 lg:border-b-0 lg:border-r sm:p-6">
++          <div>
++            <p className="text-xs font-800 uppercase tracking-wider text-muted-foreground">1 · Person</p>
++            <div className="mt-3 grid grid-cols-3 gap-2">
++              {(['model', 'upload', 'camera'] as SourceMode[]).map((mode) => (
++                <button
++                  key={mode}
++                  type="button"
++                  onClick={() => {
++                    setSourceMode(mode);
++                    setError('');
++                    if (mode === 'upload') uploadRef.current?.click();
++                    if (mode === 'camera') void startCamera();
++                    if (mode === 'model') stopCamera();
++                  }}
++                  className={`rounded-xl border px-2 py-3 text-xs font-800 capitalize transition ${sourceMode === mode ? 'border-primary bg-primary text-white' : 'border-border bg-muted text-foreground hover:border-primary/40'}`}
++                >
++                  <Icon name={mode === 'model' ? 'UserIcon' : mode === 'upload' ? 'ArrowUpTrayIcon' : 'CameraIcon'} size={18} className="mx-auto mb-1" />
++                  {mode}
++                </button>
++              ))}
+             </div>
+-
+-            {/* Photo Source Selection */}
+-            <div>
+-              <div className="flex items-center gap-2 mb-3">
+-                <div className="w-5 h-5 rounded-full bg-primary text-white text-xs font-800 flex items-center justify-center">
+-                  2
+-                </div>
+-                <p className="text-sm font-700 text-foreground">Choose Photo Source</p>
+-              </div>
+-
+-              <div className="flex gap-2 mb-3">
+-                {[
+-                  { key: 'model' as PhotoSource, label: 'On Model', icon: 'UserIcon' },
+-                  { key: 'upload' as PhotoSource, label: 'Upload Photo', icon: 'ArrowUpTrayIcon' },
+-                  { key: 'camera' as PhotoSource, label: 'Use Camera', icon: 'CameraIcon' },
+-                ].map((src) => (
+-                  <button
+-                    key={src.key}
+-                    onClick={() => {
+-                      setPhotoSource(src.key);
+-                      if (src.key !== 'camera') handleStopCamera();
+-                      if (src.key !== 'upload' && src.key !== 'camera') setUploadedPhoto(null);
+-                    }}
+-                    className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-600 border transition-all ${
+-                      photoSource === src.key
+-                        ? 'bg-primary text-white border-primary'
+-                        : 'bg-muted border-border text-muted-foreground hover:border-primary/50'
+-                    }`}
+-                  >
+-                    <Icon name={src.icon as 'UserIcon'} size={13} />
+-                    {src.label}
++            <input ref={uploadRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleUpload} />
++            {sourceMode === 'model' && (
++              <div className="mt-3 grid grid-cols-3 gap-2">
++                {MODEL_OPTIONS.map((model) => (
++                  <button key={model.id} type="button" onClick={() => { setSelectedModel(model.id); setPersonImage(null); setGeneratedImage(null); }} className={`overflow-hidden rounded-xl border-2 text-left ${selectedModel === model.id && !personImage ? 'border-primary' : 'border-border'}`}>
++                    <div className="relative asp
