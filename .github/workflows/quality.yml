@@ -24,17 +24,28 @@ jobs:
         with:
           ref: agent/ui-functionality-fixes
           fetch-depth: 0
-      - name: Apply reviewed remaining UI files
+      - name: Assemble final UI patch
+        run: cat .github/patches/plain/part*.patch > /tmp/final-ui.patch
+      - name: Verify final UI patch
         shell: bash
         run: |
           set -euo pipefail
-          cat .github/patches/plain/part*.patch > /tmp/final-ui.patch
-          EXCLUDES=(
-            --exclude=src/app/product-detail/components/SellerCard.tsx
-            --exclude=src/lib/recommendations.ts
-          )
-          git apply --check "${EXCLUDES[@]}" /tmp/final-ui.patch
-          git apply "${EXCLUDES[@]}" /tmp/final-ui.patch
+          git apply --check \
+            --exclude=src/app/product-detail/components/SellerCard.tsx \
+            --exclude=src/lib/recommendations.ts \
+            /tmp/final-ui.patch
+      - name: Apply final UI patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git apply \
+            --exclude=src/app/product-detail/components/SellerCard.tsx \
+            --exclude=src/lib/recommendations.ts \
+            /tmp/final-ui.patch
+      - name: Fix drape event typing
+        shell: bash
+        run: |
+          set -euo pipefail
           python - <<'PY'
           from pathlib import Path
           path = Path('src/app/product-detail/components/FabricDrapeViewer.tsx')
