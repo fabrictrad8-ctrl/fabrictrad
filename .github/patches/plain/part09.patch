@@ -1,0 +1,323 @@
+-6 rounded-2xl border border-border bg-muted/50 p-5">
++                  <div className="flex items-start gap-3">
++                    <Icon name="MapPinIcon" size={20} className="mt-0.5 text-primary" />
++                    <div>
++                      <p className="text-sm font-800 text-foreground">Your operating state</p>
++                      <p className="mt-1 text-sm text-muted-foreground">
++                        {addressForm.state || 'No state selected yet'}{addressForm.city ? ` · ${addressForm.city}` : ''}
++                      </p>
++                      <button type="button" onClick={() => handleProfileTabChange('address')} className="mt-3 text-sm font-800 text-primary hover:underline">
++                        Update {isSeller ? 'pickup' : 'delivery'} state and address
++                      </button>
++                    </div>
++                  </div>
++                </div>
++              </div>
++            )}
++
+             {activeTab === 'activity' && (
+               <div className="space-y-4">
+                 <div className="bg-card rounded-2xl border border-border p-6 card-shadow">
+--- a/src/app/seller-registration/components/SellerRegistrationFlow.tsx
++++ b/src/app/seller-registration/components/SellerRegistrationFlow.tsx
+@@ -4,6 +4,8 @@
+ import Icon from '@/components/ui/AppIcon';
+ import { useAuth } from '@/contexts/AuthContext';
+ import { normalizeEmail, normalizeIndianPhone, validateIndianPhone } from '@/lib/authValidation';
++import { INDIAN_STATES_AND_UTS, SUPPORTED_LANGUAGES, type SupportedLanguageCode } from '@/lib/india';
++import { useAppPreferences } from '@/contexts/AppPreferencesContext';
+ 
+ type Step = 'account' | 'business' | 'gstin' | 'bank' | 'documents' | 'done';
+ 
+@@ -28,6 +30,7 @@
+   bankAccountName: string;
+   bankName: string;
+   moqMetres: MOQOption;
++  preferredLanguage: SupportedLanguageCode;
+ }
+ 
+ interface GstinValidation {
+@@ -72,23 +75,6 @@
+   'Synthetic Blends',
+   'Woollen',
+ ];
+-const INDIAN_STATES = [
+-  'Gujarat',
+-  'Maharashtra',
+-  'Rajasthan',
+-  'Tamil Nadu',
+-  'Karnataka',
+-  'Uttar Pradesh',
+-  'West Bengal',
+-  'Punjab',
+-  'Haryana',
+-  'Madhya Pradesh',
+-  'Telangana',
+-  'Andhra Pradesh',
+-  'Delhi',
+-  'Kerala',
+-  'Bihar',
+-];
+ const MOQ_OPTIONS = [3, 6, 9, 12] as const;
+ type MOQOption = (typeof MOQ_OPTIONS)[number];
+ 
+@@ -162,6 +148,7 @@
+ 
+ export default function SellerRegistrationFlow() {
+   const { signUp, checkEmailUnique, checkPhoneUnique } = useAuth();
++  const { language, setLanguage, t } = useAppPreferences();
+ 
+   const [currentStep, setCurrentStep] = useState<Step>('account');
+   const [sellerId] = useState(`FT-SLR-${Math.floor(100000 + Math.random() * 900000)}`);
+@@ -190,6 +177,7 @@
+     bankAccountName: '',
+     bankName: '',
+     moqMetres: 3,
++    preferredLanguage: language,
+   });
+ 
+   const [gstinValidation, setGstinValidation] = useState<GstinValidation>({
+@@ -282,14 +270,14 @@
+       });
+       return;
+     }
+-    setGstinValidation({ status: 'validating', message: 'Verifying with GST portal…' });
+-    await new Promise((r) => setTimeout(r, 1500));
++    setGstinValidation({ status: 'validating', message: 'Checking GSTIN structure and state code…' });
+     const state = extractStateFromGstin(gstin);
+     const pan = gstin.slice(2, 12);
+     setField('pan', pan);
++    if (state !== 'Unknown State') setField('state', state.replace('Jammu & Kashmir', 'Jammu and Kashmir'));
+     setGstinValidation({
+       status: 'valid',
+-      message: 'GSTIN verified successfully',
++      message: 'GSTIN format accepted. Final verification is completed by the FabricTrad review team.',
+       details: { legalName: form.businessName || 'Business Entity', state, status: 'Active' },
+     });
+   };
+@@ -302,26 +290,28 @@
+       });
+       return;
+     }
+-    setBankVerification({
+-      status: 'verifying',
+-      message: 'Creating Razorpay Route linked account…',
+-    });
+-    await new Promise((r) => setTimeout(r, 2000));
+-    const mockLinkedAccountId = `acc_${Math.random().toString(36).slice(2, 14)}`;
++    const accountNumber = form.bankAccountNumber.replace(/\D/g, '');
++    const ifsc = form.bankIfsc.toUpperCase().trim();
++    if (!/^\d{9,18}$/.test(accountNumber) || !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(ifsc)) {
++      setBankVerification({ status: 'failed', message: 'Enter a valid account number and IFSC code.' });
++      return;
++    }
++    setField('bankAccountNumber', accountNumber);
++    setField('bankIfsc', ifsc);
+     setBankVerification({
+       status: 'verified',
+-      message: 'Bank account verified & linked to Razorpay Route',
+-      linkedAccountId: mockLinkedAccountId,
++      message: 'Bank details accepted securely. Verification and payout linking happen after account review.',
+     });
+   };
+ 
+   const handleFileSelect = async (docKey: string, file: File) => {
+-    setDocuments((prev) => ({ ...prev, [docKey]: { ...prev[docKey], file, status: 'uploading' } }));
+-    await new Promise((r) => setTimeout(r, 1200));
+-    setDocuments((prev) => ({ ...prev, [docKey]: { ...prev[docKey], status: 'uploaded' } }));
+-    setTimeout(() => {
+-      setDocuments((prev) => ({ ...prev, [docKey]: { ...prev[docKey], status: 'approved' } }));
+-    }, 3000);
++    const allowed = file.type.startsWith('image/') || file.type === 'application/pdf';
++    if (!allowed || file.size > 10 * 1024 * 1024) {
++      setError('Documents must be PDF or image files up to 10 MB.');
++      return;
++    }
++    setError('');
++    setDocuments((prev) => ({ ...prev, [docKey]: { ...prev[docKey], file, status: 'uploaded' } }));
+   };
+ 
+   const handleFinalSubmit = async () => {
+@@ -346,6 +336,13 @@
+         fullName: form.ownerName,
+         phone,
+         role: 'seller',
++        businessName: form.businessName,
++        gstin: form.gstin.toUpperCase(),
++        addressLine1: form.address,
++        city: form.city,
++        state: form.state,
++        pincode: form.pincode,
++        preferredLanguage: form.preferredLanguage,
+       });
+       setCurrentStep('done');
+     } catch (e: any) {
+@@ -366,7 +363,7 @@
+           form.password === form.confirmPassword
+         );
+       case 'business':
+-        return !!(form.businessName && form.businessType && form.state && form.city);
++        return !!(form.businessName && form.businessType && form.state && form.city && form.address && /^\d{6}$/.test(form.pincode));
+       case 'gstin':
+         return gstinValidation.status === 'valid';
+       case 'bank':
+@@ -625,14 +622,14 @@
+                     </select>
+                   </div>
+                   <div>
+-                    <label className="block text-sm font-700 text-foreground mb-1.5">State *</label>
++                    <label className="block text-sm font-700 text-foreground mb-1.5">{t('form.state')} *</label>
+                     <select
+                       value={form.state}
+                       onChange={(e) => setField('state', e.target.value)}
+                       className="input-base w-full px-4 py-3 text-sm rounded-xl"
+                     >
+-                      <option value="">Select state</option>
+-                      {INDIAN_STATES.map((s) => (
++                      <option value="">{t('form.selectState')}</option>
++                      {INDIAN_STATES_AND_UTS.map((s) => (
+                         <option key={s} value={s}>
+                           {s}
+                         </option>
+@@ -665,6 +662,42 @@
+                   </div>
+                 </div>
+                 <div>
++                  <label className="block text-sm font-700 text-foreground mb-1.5">Business / Pickup Address *</label>
++                  <textarea
++                    value={form.address}
++                    onChange={(event) => setField('address', event.target.value)}
++                    placeholder="Shop, market, street and area"
++                    rows={3}
++                    className="input-base w-full px-4 py-3 text-sm rounded-xl resize-none"
++                  />
++                </div>
++                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
++                  <div>
++                    <label className="block text-sm font-700 text-foreground mb-1.5">PIN Code *</label>
++                    <input
++                      value={form.pincode}
++                      onChange={(event) => setField('pincode', event.target.value.replace(/\D/g, '').slice(0, 6))}
++                      inputMode="numeric"
++                      placeholder="395002"
++                      className="input-base w-full px-4 py-3 text-sm rounded-xl"
++                    />
++                  </div>
++                  <div>
++                    <label className="block text-sm font-700 text-foreground mb-1.5">{t('form.language')}</label>
++                    <select
++                      value={form.preferredLanguage}
++                      onChange={(event) => {
++                        const next = event.target.value as SupportedLanguageCode;
++                        setField('preferredLanguage', next);
++                        void setLanguage(next);
++                      }}
++                      className="input-base w-full px-4 py-3 text-sm rounded-xl"
++                    >
++                      {SUPPORTED_LANGUAGES.map((item) => <option key={item.code} value={item.code}>{item.label}</option>)}
++                    </select>
++                  </div>
++                </div>
++                <div>
+                   <label className="block text-sm font-700 text-foreground mb-2">
+                     Minimum Order Quantity (MOQ) *
+                   </label>
+--- a/src/lib/recommendations.ts
++++ b/src/lib/recommendations.ts
+@@ -6,7 +6,7 @@
+   full_name?: string;
+   email?: string;
+   phone?: string | null;
+-  business_name?: string;
++  business_name?: string | null;
+   city?: string;
+   state?: string;
+   gstin?: string;
+--- a/src/styles/tailwind.css
++++ b/src/styles/tailwind.css
+@@ -32,6 +32,36 @@
+   --error: #dc2626;
+ }
+ 
++
++
++.dark {
++  --background: #0b1020;
++  --foreground: #f8fafc;
++  --primary: #f28a3a;
++  --primary-foreground: #150a02;
++  --secondary: #9fb4ff;
++  --secondary-foreground: #0b1020;
++  --accent: #f6c66d;
++  --accent-foreground: #17120a;
++  --muted: #151d33;
++  --muted-foreground: #aeb8cc;
++  --card: #11182a;
++  --card-foreground: #f8fafc;
++  --border: #27334d;
++  --input: #19233a;
++  --ring: #f28a3a;
++  --navy: #9fb4ff;
++  --navy-light: #b8c6ff;
++  --saffron: #f28a3a;
++  --saffron-light: #f6a260;
++  --gold: #f6c66d;
++  --cream: #0b1020;
++  --cream-dark: #151d33;
++  --success: #4ade80;
++  --warning: #fbbf24;
++  --error: #fb7185;
++}
++
+ @layer base {
+   * {
+     box-sizing: border-box;
+@@ -39,11 +69,22 @@
+   }
+ 
+   body {
++    min-height: 100vh;
+     background-color: var(--background);
+     color: var(--foreground);
+     font-family: var(--font-sans);
+     -webkit-font-smoothing: antialiased;
+     -moz-osx-font-smoothing: grayscale;
++    transition: background-color 180ms ease, color 180ms ease;
++  }
++
++  button, a, input, select, textarea {
++    -webkit-tap-highlight-color: transparent;
++  }
++
++  button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
++    outline: 2px solid var(--ring);
++    outline-offset: 2px;
+   }
+ 
+   html {
+@@ -587,3 +628,44 @@
+ .delay-500 {
+   animation-delay: 500ms;
+ }
++
++@layer utilities {
++  .nav-blur {
++    background: color-mix(in srgb, var(--background) 82%, transparent);
++    backdrop-filter: blur(18px);
++  }
++
++  .hero-grid {
++    background-image:
++      linear-gradient(color-mix(in srgb, var(--border) 38%, transparent) 1px, transparent 1px),
++      linear-gradient(90deg, color-mix(in srgb, var(--border) 38%, transparent) 1px, transparent 1px);
++    background-size: 44px 44px;
++    mask-image: linear-gradient(to bottom, black, transparent 88%);
++  }
++
++  .text-balance {
++    text-wrap: balance;
++  }
++
++  .glass-card {
++    background: color-mix(in srgb, var(--card) 78%, transparent);
++    border: 1px solid
