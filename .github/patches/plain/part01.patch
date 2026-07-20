@@ -1,0 +1,200 @@
+'UserGroupIcon', 'Buyer and seller access is separated by account role.'],
+-                ['IdentificationIcon', 'Seller GSTIN, store, bank, and documents are verified.'],
+-                ['TruckIcon', 'Orders, payments, and fulfilment stay tied to the right account.'],
+-              ].map(([icon, copy], index) => (
+-                <div
+-                  key={copy}
+-                  className="animate-fade-in-up rounded-2xl border border-border bg-card/78 p-4 text-left shadow-sm backdrop-blur"
+-                  style={{ animationDelay: `${120 + index * 120}ms` }}
+-                >
+-                  <Icon name={icon as 'UserGroupIcon'} size={19} className="mb-3 text-primary" />
+-                  <p className="text-xs font-700 leading-5 text-foreground">{copy}</p>
++          <div className="mt-8 grid gap-3 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
++            {[
++              ['CameraIcon', t('drape.upload')],
++              ['SwatchIcon', t('drape.choose')],
++              ['SparklesIcon', t('drape.preview')],
++            ].map(([icon, label], index) => (
++              <div key={label} className="glass-card rounded-2xl p-4">
++                <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary">
++                  <Icon name={icon as 'CameraIcon'} size={18} />
+                 </div>
+-              ))}
+-            </div>
++                <p className="text-sm font-800 text-foreground">{index + 1}. {label}</p>
++              </div>
++            ))}
+           </div>
+ 
+-          <div className="relative mx-auto h-[420px] w-full max-w-[520px] animate-slide-in-right sm:h-[520px] lg:mx-0">
+-            <div className="absolute left-4 top-2 h-72 w-48 overflow-hidden rounded-[1.25rem] border border-white/60 bg-card shadow-2xl sm:left-8 sm:h-80 sm:w-56">
+-              <div
+-                className="h-full w-full bg-cover bg-center fabric-float-slow"
+-                style={{
+-                  backgroundImage:
+-                    "url('https://images.unsplash.com/photo-1603252109303-2751441dd157?auto=format&fit=crop&w=900&q=80')",
+-                }}
+-              />
+-            </div>
+-            <div className="absolute right-4 top-16 h-64 w-44 overflow-hidden rounded-[1.25rem] border border-white/60 bg-card shadow-xl sm:right-10 sm:h-72 sm:w-52">
+-              <div
+-                className="h-full w-full bg-cover bg-center fabric-float"
+-                style={{
+-                  backgroundImage:
+-                    "url('https://images.unsplash.com/photo-1543087903-1ac2ec7aa8c5?auto=format&fit=crop&w=900&q=80')",
+-                }}
+-              />
++          <Link href="/product-detail#drape-on" className="btn-primary mt-7 inline-flex items-center gap-2 px-6 py-3.5 text-sm">
++            {t('drape.open')}
++            <Icon name="ArrowRightIcon" size={16} />
++          </Link>
++        </div>
++
++        <div className="rounded-[2rem] border border-border bg-card p-3 shadow-2xl sm:p-5">
++          <div className="grid gap-4 xl:grid-cols-[148px_minmax(0,1fr)]">
++            <div className="order-2 space-y-3 xl:order-1">
++              <div>
++                <p className="mb-2 text-xs font-800 uppercase tracking-wider text-muted-foreground">Fabric</p>
++                <div className="grid grid-cols-3 gap-2 xl:grid-cols-1">
++                  {FABRIC_SWATCHES.map((item) => (
++                    <button
++                      type="button"
++                      key={item.id}
++                      onClick={() => setFabric(item)}
++                      className={`overflow-hidden rounded-xl border text-left transition ${fabric.id === item.id ? 'border-primary ring-2 ring-primary/20' : 'border-border hover:border-primary/50'}`}
++                    >
++                      <div className="h-14 bg-cover bg-center" style={{ backgroundImage: `url(${item.image})` }} />
++                      <p className="truncate px-2 py-1.5 text-xs font-700 text-foreground">{item.label}</p>
++                    </button>
++                  ))}
++                </div>
++              </div>
++              <div>
++                <p className="mb-2 text-xs font-800 uppercase tracking-wider text-muted-foreground">Garment</p>
++                <div className="grid grid-cols-3 gap-2 xl:grid-cols-1">
++                  {GARMENTS.map((item) => (
++                    <button
++                      type="button"
++                      key={item.id}
++                      onClick={() => setGarment(item)}
++                      className={`flex items-center justify-center gap-2 rounded-xl border px-3 py-2 text-xs font-800 transition xl:justify-start ${garment.id === item.id ? 'border-secondary bg-secondary text-white' : 'border-border text-foreground hover:bg-muted'}`}
++                    >
++                      <Icon name={item.icon as 'StarIcon'} size={14} />
++                      {item.label}
++                    </button>
++                  ))}
++                </div>
++              </div>
++              <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(event) => handlePhoto(event.target.files?.[0])} />
++              <button type="button" onClick={() => fileRef.current?.click()} className="btn-secondary flex w-full items-center justify-center gap-2 px-3 py-2.5 text-xs">
++                <Icon name="ArrowUpTrayIcon" size={15} />
++                {t('drape.upload')}
++              </button>
+             </div>
+-            <div className="absolute bottom-10 left-8 right-6 rounded-2xl border border-border bg-card/92 p-4 shadow-2xl backdrop-blur sm:left-14 sm:right-16">
+-              <div className="mb-3 flex items-center justify-between">
+-                <div>
+-                  <p className="text-xs font-800 uppercase tracking-widest text-primary">
+-                    Live workflow
+-                  </p>
+-                  <p className="mt-1 text-sm font-800 text-foreground">
+-                    Sourcing to shipping, automated
+-                  </p>
++
++            <div className="order-1 xl:order-2">
++              <div className="relative aspect-[4/5] overflow-hidden rounded-2xl bg-muted">
++                <AppImage src={modelImage} alt="AI fabric drape model preview" fill className="object-cover" />
++                <div className="absolute inset-y-0 left-0 overflow-hidden" style={{ width: `${compare}%` }}>
++                  <div className="absolute inset-0 min-w-[420px] sm:min-w-[520px] xl:min-w-[560px]">
++                    <AppImage src={modelImage} alt="Draped fabric preview" fill className="object-cover" />
++                    <div
++                      className="absolute inset-0 opacity-70 mix-blend-multiply dark:mix-blend-screen"
++                      style={{
++                        backgroundImage: `url(${fabric.image})`,
++                        backgroundSize: garment.id === 'saree' ? '190% auto' : garment.id === 'lehenga' ? '150% auto' : '120% auto',
++                        backgroundPosition: 'center',
++                      }}
++                    />
++                    <div className="absolute inset-0 bg-gradient-to-b from-transparent via-primary/5 to-secondary/25" />
++                  </div>
+                 </div>
+-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-success/10">
+-                  <Icon name="BoltIcon" size={20} className="text-success" />
++                <div className="pointer-events-none absolute inset-y-0 w-0.5 bg-white shadow-xl" style={{ left: `${compare}%` }}>
++                  <div className="absolute left-1/2 top-1/2 flex h-10 w-10 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-4 border-white bg-primary text-white shadow-xl">
++                    <Icon name="ArrowsRightLeftIcon" size={16} />
++                  </div>
+                 </div>
++                <div className="absolute left-3 top-3 rounded-full bg-black/55 px-3 py-1 text-xs font-700 text-white">{t('drape.after')}</div>
++                <div className="absolute right-3 top-3 rounded-full bg-black/55 px-3 py-1 text-xs font-700 text-white">{t('drape.before')}</div>
++                <input
++                  aria-label="Compare original and draped preview"
++                  type="range"
++                  min="12"
++                  max="88"
++                  value={compare}
++                  onChange={(event) => setCompare(Number(event.target.value))}
++                  className="absolute inset-x-4 bottom-4 z-10 accent-primary"
++                />
+               </div>
+-              <div className="space-y-2">
+-                {['GST verification', 'Online payment tracking', 'Seller payout routing'].map(
+-                  (item, index) => (
+-                    <div key={item} className="flex items-center gap-3">
+-                      <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-xs font-800 text-primary">
+-                        {index + 1}
+-                      </div>
+-                      <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
+-                        <div
+-                          className="h-full rounded-full bg-primary fabric-progress"
+-                          style={{ animationDelay: `${index * 420}ms` }}
+-                        />
+-                      </div>
+-                      <span className="w-28 text-xs font-700 text-muted-foreground">{item}</span>
+-                    </div>
+-                  )
+-                )}
++              <div className="mt-3 flex items-center justify-between rounded-xl bg-muted px-4 py-3">
++                <div>
++                  <p className="text-xs font-800 text-foreground">{fabric.label} · {garment.label}</p>
++                  <p className="text-xs text-muted-foreground">Interactive preview · final result uses authenticated AI generation</p>
++                </div>
++                <span className="rounded-full bg-success/10 px-3 py-1 text-xs font-800 text-success">Preview ready</span>
+               </div>
+             </div>
+           </div>
+         </div>
+-      </section>
+-    </main>
++      </div>
++    </section>
+   );
+ }
+ 
+-function SellerHome() {
++function PublicBrandHome() {
++  const { t } = useAppPreferences();
++  const metrics = [
++    ['ShieldCheckIcon', '1,200+', t('hero.verified')],
++    ['SwatchIcon', '18,000+', t('hero.products')],
++    ['MapPinIcon', '36', t('hero.states')],
++    ['LanguageIcon', '10', t('hero.support')],
++  ];
++
+   return (
+     <main className="min-h-screen overflow-hidden bg-background">
+       <Header />
+-      <section className="relative px-4 pb-12 pt-24 sm:px-6 sm:pt-28">
+-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_18%,rgba(200,96,10,0.10),transparent_28%),radial-gradient(circle_at_82%_8%,rgba(31,41,68,0.10),transparent_26%)]" />
+-        <div className="relative mx-auto grid max-w-7xl gap-6 lg:grid-cols-[minmax(0,1fr)_420px]">
+-          <div className="rounded-2xl border border-border bg-card p-6 card-shadow-lg md:p-8">
+-            <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-secondary/20 bg-secondary/10 px-3 py-1 text-xs font-800 uppercase tracking-widest text-secondary">
+-              <span className="h-2 w-2 rounded-full bg-success" />
+-              Seller Workspace
++      <section className="relative flex min-h-[760px] items-center overflow-hidden px-4 pb-20 pt-28 sm:px-6 lg:min-h-screen lg:pt-24">
++        <div className="hero-grid absolute inset-0" />
++        <div className="landing-orb absolute -left-36 top-10 h-[30rem] w-[30rem] rounded-full bg-primary/20" />
++        <div className="landing-orb absolute right-[-12rem] top-16 h-[34rem] w-[34rem] rounded-full bg-secondary/20" />
++        <div className="relative mx-auto grid w-full max-w-7xl items-center gap-14 lg:grid-cols-[1.02fr_0.98fr]">
++          <div className="animate-fade-in-up">
++         
