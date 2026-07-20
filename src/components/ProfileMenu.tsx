@@ -35,6 +35,7 @@ const sellerItems: MenuItem[] = [
   },
   { label: 'Listings', href: '/seller-dashboard?tab=inventory', icon: 'ArchiveBoxIcon' },
   { label: 'Earnings', href: '/seller-dashboard?tab=earnings', icon: 'BanknotesIcon' },
+  { label: 'Billing Uploads', href: '/seller-dashboard?tab=billing', icon: 'DocumentArrowUpIcon' },
   {
     label: 'Buyer Inbox',
     href: '/seller-dashboard?tab=inbox',
