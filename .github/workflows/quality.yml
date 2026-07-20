@@ -48,24 +48,20 @@ jobs:
           set -euo pipefail
           python - <<'PY'
           from pathlib import Path
-          import re
 
           home = Path('src/app/components/HomeExperience.tsx')
           text = home.read_text()
           marker = "import TrustSection from '@/app/components/TrustSection';"
           modern_import = "import ModernLandingPage from '@/app/components/ModernLandingPage';"
           if modern_import not in text:
+              if marker not in text:
+                  raise RuntimeError('Could not locate the landing-page import section')
               text = text.replace(marker, marker + "\n" + modern_import)
-          replacement = "function PublicBrandHome() {\n  return <ModernLandingPage />;\n}\n\nfunction SellerHome()"
-          text, count = re.subn(
-              r"function PublicBrandHome\(\) \{.*?\n\}\n\nfunction SellerHome\(\)",
-              replacement,
-              text,
-              count=1,
-              flags=re.S,
-          )
-          if count != 1:
-              raise RuntimeError('Could not replace the legacy public landing page')
+          old_route = "  if (!user || !profile) return <PublicBrandHome />;"
+          new_route = "  if (!user || !profile) return <ModernLandingPage />;"
+          if old_route not in text and new_route not in text:
+              raise RuntimeError('Could not locate the public landing-page route')
+          text = text.replace(old_route, new_route)
           home.write_text(text)
 
           buyer = Path('src/app/buyer-registration/components/BuyerRegistrationFlow.tsx')
