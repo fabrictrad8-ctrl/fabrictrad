@@ -1,61 +1,43 @@
-'use client';
-import React, { Suspense, useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
+import React, { Suspense } from 'react';
+import { redirect } from 'next/navigation';
+import { createClient } from '@/lib/supabase/server';
 import AdminPortalLayout from '@/app/admin-portal/components/AdminPortalLayout';
 
-export default function AdminPortalPage() {
-  const router = useRouter();
-  const supabase = createClient();
-  const [authorized, setAuthorized] = useState(false);
-  const [checking, setChecking] = useState(true);
+function AdminLoading() {
+  return (
+    <div
+      className="min-h-screen flex items-center justify-center"
+      style={{ background: 'var(--foreground)' }}
+    >
+      <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
+}
 
-  useEffect(() => {
-    supabase?.auth?.getSession()?.then(({ data: { session } }) => {
-      if (!session?.user) {
-        router?.replace('/admin-login');
-        return;
-      }
-      supabase
-        ?.from('user_profiles')
-        ?.select('role')
-        ?.eq('id', session?.user?.id)
-        ?.maybeSingle()
-        ?.then(({ data }) => {
-          if (data?.role === 'super_admin' || data?.role === 'admin_staff') {
-            setAuthorized(true);
-          } else {
-            router?.replace('/admin-login');
-          }
-          setChecking(false);
-        });
-    });
-  }, []);
+export default async function AdminPortalPage() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  if (checking) {
-    return (
-      <div
-        className="min-h-screen flex items-center justify-center"
-        style={{ background: 'var(--foreground)' }}
-      >
-        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
+  if (!user) redirect('/admin-login');
+
+  const { data: profile, error } = await supabase
+    .from('user_profiles')
+    .select('role, is_active')
+    .eq('id', user.id)
+    .maybeSingle();
+
+  if (
+    error ||
+    !profile?.is_active ||
+    (profile.role !== 'super_admin' && profile.role !== 'admin_staff')
+  ) {
+    redirect('/admin-login');
   }
 
-  if (!authorized) return null;
-
   return (
-    <Suspense
-      fallback={
-        <div
-          className="min-h-screen flex items-center justify-center"
-          style={{ background: 'var(--foreground)' }}
-        >
-          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-        </div>
-      }
-    >
+    <Suspense fallback={<AdminLoading />}>
       <AdminPortalLayout />
     </Suspense>
   );
