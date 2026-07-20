@@ -1,14 +1,16 @@
-# Node modules
+# Dependencies
 node_modules/
-package-lock.json
+
+# Environment files (commit only the documented example)
+.env
+.env.*
+!.env.example
 
 # Next.js build output
 .next/
 .next.*/
 .open-next/
 out/
-
-# Production build
 build/
 
 # Logs
@@ -21,19 +23,12 @@ pnpm-debug.log*
 .DS_Store
 Thumbs.db
 
-# Vercel deployment
+# Hosting and local tooling
 .vercel/
-
-# Optional: if using TypeScript
+.wrangler/
 *.tsbuildinfo
-
-# Optional: if using testing tools
 coverage/
 jest-test-results.json
-
-# Optional: if using IDEs
 .vscode/
 .idea/
-
-# Optional: if using TurboRepo or monorepo
 turbo/
