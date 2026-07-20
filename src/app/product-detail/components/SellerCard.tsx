@@ -1,117 +1,67 @@
 'use client';
-import React, { useState } from 'react';
+
+import { useState } from 'react';
 import Link from 'next/link';
-import AppImage from '@/components/ui/AppImage';
 import Icon from '@/components/ui/AppIcon';
 import InWebsiteChat from '@/app/components/InWebsiteChat';
-
-// Aggregate rating data — in production this comes from seller_reviews table
-const SELLER_RATING = 4.8;
-const SELLER_REVIEW_COUNT = 127;
+import { useProduct } from '@/lib/hooks/useProduct';
 
 export default function SellerCard() {
   const [showChat, setShowChat] = useState(false);
+  const { product } = useProduct();
+  const ratingLabel = product.reviews ? product.rating.toFixed(1) : 'New';
 
   return (
     <>
-      <div className="bg-card rounded-2xl border border-border p-5">
-        <p className="text-xs font-700 text-muted-foreground uppercase tracking-wider mb-3">
-          Sold By
-        </p>
-
-        <div className="flex items-start gap-3 mb-4">
-          <div className="w-12 h-12 rounded-xl overflow-hidden bg-muted shrink-0">
-            <AppImage
-              src="https://img.rocket.new/generatedImages/rocket_gen_img_14df8d316-1784314860425.png"
-              alt="Surat Textile Mills office building exterior, modern commercial building"
-              width={48}
-              height={48}
-              className="object-cover"
-            />
+      <div className="rounded-2xl border border-border bg-card p-5">
+        <p className="mb-3 text-xs font-700 uppercase tracking-wider text-muted-foreground">Sold By</p>
+        <div className="mb-4 flex items-start gap-3">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-secondary/10 text-sm font-800 text-secondary">
+            {product.seller.split(/\s+/).slice(0, 2).map((word) => word[0]).join('').toUpperCase()}
           </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <p className="text-sm font-800 text-foreground">Surat Textile Mills Pvt Ltd</p>
-              <span className="badge-verified">Verified</span>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <p className="text-sm font-800 text-foreground">{product.seller}</p>
+              {product.verified && <span className="badge-verified">Verified</span>}
             </div>
-            <p className="text-xs text-muted-foreground mt-0.5">Surat, Gujarat · Manufacturer</p>
-            {/* Aggregate Rating */}
-            <div className="flex items-center gap-1.5 mt-1.5">
-              <div className="flex items-center gap-0.5">
-                {[1, 2, 3, 4, 5].map((s) => (
-                  <Icon
-                    key={s}
-                    name="StarIcon"
-                    size={11}
-                    className={s <= Math.floor(SELLER_RATING) ? 'text-amber-400' : 'text-amber-200'}
-                    variant="solid"
-                  />
-                ))}
-              </div>
-              <span className="text-xs font-800 text-foreground">{SELLER_RATING}</span>
-              <span className="text-xs text-muted-foreground">({SELLER_REVIEW_COUNT} reviews)</span>
+            <p className="mt-0.5 text-xs text-muted-foreground">{product.city}</p>
+            <div className="mt-1.5 flex items-center gap-1.5">
+              {product.reviews > 0 ? (
+                <>
+                  <div className="flex items-center gap-0.5">{[1, 2, 3, 4, 5].map((star) => <Icon key={star} name="StarIcon" size={11} className={star <= Math.round(product.rating) ? 'text-amber-400' : 'text-amber-200'} variant="solid" />)}</div>
+                  <span className="text-xs font-800 text-foreground">{ratingLabel}</span>
+                  <span className="text-xs text-muted-foreground">({product.reviews} reviews)</span>
+                </>
+              ) : (
+                <span className="text-xs font-700 text-secondary">New seller listing</span>
+              )}
             </div>
           </div>
         </div>
 
-        {/* Seller Stats */}
-        <div className="grid grid-cols-3 gap-2 mb-4">
+        <div className="mb-4 grid grid-cols-3 gap-2">
           {[
-            { label: 'Response', value: '< 2 hrs', icon: 'ClockIcon' },
-            { label: 'Acceptance', value: '94%', icon: 'CheckCircleIcon' },
-            { label: 'Rating', value: `${SELLER_RATING} ★`, icon: 'StarIcon' },
-          ].map((stat) => (
-            <div key={stat.label} className="bg-muted rounded-xl p-2 text-center">
-              <Icon
-                name={stat.icon as 'ClockIcon'}
-                size={14}
-                className="text-primary mx-auto mb-1"
-              />
-              <p className="text-xs font-800 text-foreground">{stat.value}</p>
-              <p className="text-xs text-muted-foreground">{stat.label}</p>
-            </div>
-          ))}
+            { label: 'Dispatch', value: `${product.dispatchDays}d`, icon: 'ClockIcon' },
+            { label: 'Stock', value: product.available.toLocaleString('en-IN'), icon: 'ArchiveBoxIcon' },
+            { label: 'Rating', value: ratingLabel, icon: 'StarIcon' },
+          ].map((stat) => <div key={stat.label} className="rounded-xl bg-muted p-2 text-center"><Icon name={stat.icon} size={14} className="mx-auto mb-1 text-primary" /><p className="text-xs font-800 text-foreground">{stat.value}</p><p className="text-xs text-muted-foreground">{stat.label}</p></div>)}
         </div>
 
-        {/* GST Info */}
-        <div className="flex items-center gap-2 mb-4 p-2.5 bg-muted rounded-xl">
-          <Icon name="DocumentTextIcon" size={14} className="text-primary shrink-0" />
-          <div>
-            <p className="text-xs font-700 text-foreground">GSTIN: 24AAAPL****Z1</p>
-            <p className="text-xs text-muted-foreground">GST Verified · PAN Verified</p>
-          </div>
+        <div className="mb-4 flex items-center gap-2 rounded-xl bg-muted p-2.5">
+          <Icon name="DocumentTextIcon" size={14} className="shrink-0 text-primary" />
+          <div><p className="text-xs font-700 text-foreground">GST-ready marketplace listing</p><p className="text-xs text-muted-foreground">Seller identity is protected until an order is confirmed.</p></div>
         </div>
 
-        {/* Chat with Seller */}
-        <button
-          onClick={() => setShowChat(true)}
-          className="btn-primary w-full py-2.5 text-xs rounded-xl flex items-center justify-center gap-2 mb-2"
-        >
-          <Icon name="ChatBubbleLeftRightIcon" size={14} />
-          Chat with Seller
-        </button>
-
-        <div className="flex items-center gap-1.5 justify-center mb-3">
-          <Icon name="ShieldCheckIcon" size={11} className="text-success" />
-          <p className="text-xs text-muted-foreground">No phone/email sharing · In-website only</p>
-        </div>
-
-        <Link
-          href="/marketplace"
-          className="btn-secondary w-full py-2.5 text-xs rounded-xl flex items-center justify-center gap-2"
-        >
-          <Icon name="BuildingStorefrontIcon" size={14} />
-          View Seller Store
-        </Link>
+        <button type="button" onClick={() => setShowChat(true)} className="btn-primary mb-2 flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-xs"><Icon name="ChatBubbleLeftRightIcon" size={14} />Chat with Seller</button>
+        <div className="mb-3 flex items-center justify-center gap-1.5"><Icon name="ShieldCheckIcon" size={11} className="text-success" /><p className="text-xs text-muted-foreground">Secure in-website messaging</p></div>
+        <Link href={`/marketplace?search=${encodeURIComponent(product.seller)}`} className="btn-secondary flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-xs"><Icon name="BuildingStorefrontIcon" size={14} />View Seller Products</Link>
       </div>
 
-      {/* In-Website Chat */}
       {showChat && (
         <InWebsiteChat
-          contextId="product-detail-surat-textile"
-          contextTitle="Pure Dyeable Soft Nett Fabric"
-          otherPartyName="Surat Textile Mills"
-          otherPartyAvatar="https://img.rocket.new/generatedImages/rocket_gen_img_14df8d316-1784314860425.png"
+          contextId={`product-${product.id}`}
+          contextTitle={product.name}
+          otherPartyName={product.seller}
           currentUserRole="buyer"
           onClose={() => setShowChat(false)}
         />
