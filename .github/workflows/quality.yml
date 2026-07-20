@@ -42,7 +42,7 @@ jobs:
             git apply --include="$path" /tmp/final-ui.patch
           done
 
-      - name: Connect redesigned public landing page
+      - name: Connect landing page and apply compiler fixes
         shell: bash
         run: |
           set -euo pipefail
@@ -63,6 +63,25 @@ jobs:
               raise RuntimeError('Could not locate the public landing-page route')
           text = text.replace(old_route, new_route)
           home.write_text(text)
+
+          recommendations = Path('src/lib/recommendations.ts')
+          text = recommendations.read_text()
+          text = text.replace('  city?: string;\n', '  city?: string | null;\n')
+          text = text.replace('  state?: string;\n', '  state?: string | null;\n')
+          text = text.replace('  gstin?: string;\n', '  gstin?: string | null;\n')
+          recommendations.write_text(text)
+
+          drape = Path('src/app/product-detail/components/ModernFabricDrapeViewer.tsx')
+          text = drape.read_text()
+          text = text.replace(
+              'const [modelId, setModelId] = useState(models[0].id);',
+              "const [modelId, setModelId] = useState<(typeof models)[number]['id']>(models[0].id);",
+          )
+          text = text.replace(
+              'const [garmentId, setGarmentId] = useState(garments[0].id);',
+              "const [garmentId, setGarmentId] = useState<(typeof garments)[number]['id']>(garments[0].id);",
+          )
+          drape.write_text(text)
           PY
 
       - uses: actions/setup-node@v4
