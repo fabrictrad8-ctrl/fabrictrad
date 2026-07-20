@@ -6,7 +6,7 @@ type AccountProfile = {
   full_name?: string;
   email?: string;
   phone?: string | null;
-  business_name?: string;
+  business_name?: string | null;
   city?: string;
   state?: string;
   gstin?: string;
