@@ -3,6 +3,7 @@ import type { Metadata, Viewport } from 'next';
 import { Plus_Jakarta_Sans } from 'next/font/google';
 import '../styles/tailwind.css';
 import { AuthProvider } from '@/contexts/AuthContext';
+import AppClientEnhancements from '@/components/AppClientEnhancements';
 
 const plusJakartaSans = Plus_Jakarta_Sans({
   subsets: ['latin'],
@@ -34,7 +35,10 @@ export default function RootLayout({
   return (
     <html lang="en" className={plusJakartaSans.variable}>
       <body className={plusJakartaSans.className}>
-        <AuthProvider>{children}</AuthProvider>
+        <AuthProvider>
+          <AppClientEnhancements />
+          {children}
+        </AuthProvider>
       </body>
     </html>
   );
