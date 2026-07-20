@@ -1,0 +1,64 @@
+name: Verify live FabricTrad deployment
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  verify-live-site:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Wait for the production domain to serve the new landing page
+        shell: bash
+        run: |
+          set -uo pipefail
+          mkdir -p live-check
+          success=0
+          for attempt in $(seq 1 30); do
+            echo "Attempt ${attempt}/30"
+            curl -L --connect-timeout 15 --max-time 45 --retry 2 --retry-all-errors \
+              -D live-check/custom-headers.txt \
+              -o live-check/custom.html \
+              -w 'custom_http=%{http_code}\ncustom_url=%{url_effective}\n' \
+              https://fabrictrad.com/ | tee live-check/custom-status.txt
+
+            if grep -q 'Trusted across textile hubs' live-check/custom.html; then
+              echo 'The custom domain is serving the redesigned FabricTrad landing page.'
+              success=1
+              break
+            fi
+
+            echo 'New landing-page marker is not live yet; waiting 20 seconds.'
+            sleep 20
+          done
+
+          curl -L --connect-timeout 15 --max-time 45 --retry 2 --retry-all-errors \
+            -D live-check/netlify-headers.txt \
+            -o live-check/netlify.html \
+            -w 'netlify_http=%{http_code}\nnetlify_url=%{url_effective}\n' \
+            https://luxury-longma-ea8445.netlify.app/ | tee live-check/netlify-status.txt || true
+
+          if grep -q 'Trusted across textile hubs' live-check/netlify.html; then
+            echo 'The Netlify project domain is serving the redesigned landing page.' | tee live-check/netlify-marker.txt
+          else
+            echo 'The Netlify project domain does not currently contain the redesigned marker.' | tee live-check/netlify-marker.txt
+          fi
+
+          if [ "$success" -ne 1 ]; then
+            echo 'The custom domain did not update within the verification window.'
+            exit 1
+          fi
+
+      - name: Upload live verification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fabrictrad-live-verification
+          path: live-check
+          if-no-files-found: error
+          retention-days: 7
