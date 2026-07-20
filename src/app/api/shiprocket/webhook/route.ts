@@ -1,207 +1,137 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
+import { createAdminClient } from '@/lib/supabase/admin';
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const SUPABASE_SERVICE_KEY =
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+type JsonObject = Record<string, unknown>;
 
-async function supabaseQuery(path: string, method: string, body?: unknown) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
-    method,
-    headers: {
-      'Content-Type': 'application/json',
-      apikey: SUPABASE_SERVICE_KEY,
-      Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
-      Prefer: method === 'POST' ? 'return=representation' : 'return=minimal',
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Supabase ${method} ${path} failed: ${err}`);
+const normalizeStatus = (status: string) => {
+  const value = status.toUpperCase();
+  if (value === 'PICKED UP') return 'picked_up';
+  if (value === 'IN TRANSIT') return 'in_transit';
+  if (value === 'OUT FOR DELIVERY') return 'out_for_delivery';
+  if (value === 'DELIVERED') return 'delivered';
+  if (
+    value.includes('FAILED') ||
+    value === 'UNDELIVERED' ||
+    value.includes('RTO') ||
+    value === 'CANCELLED' ||
+    value === 'EXCEPTION'
+  ) {
+    return 'failed';
   }
-  return res.status === 204 ? null : res.json();
-}
+  return 'pending';
+};
 
-// ─── Exponential backoff retry ───────────────────────────────────────────────
-async function withRetry<T>(fn: () => Promise<T>, maxAttempts = 4, baseDelayMs = 200): Promise<T> {
-  let lastError: unknown;
-  for (let attempt = 0; attempt < maxAttempts; attempt++) {
-    try {
-      return await fn();
-    } catch (err) {
-      lastError = err;
-      if (attempt < maxAttempts - 1) {
-        const delay = baseDelayMs * Math.pow(2, attempt) + Math.random() * 100;
-        await new Promise((r) => setTimeout(r, delay));
-      }
-    }
+const safeEqual = (left: string, right: string) => {
+  const a = Buffer.from(left);
+  const b = Buffer.from(right);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+};
+
+export async function POST(request: NextRequest) {
+  const expectedToken = process.env.SHIPROCKET_WEBHOOK_TOKEN;
+  if (!expectedToken || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    return NextResponse.json({ error: 'Webhook is not configured.' }, { status: 503 });
   }
-  throw lastError;
-}
 
-// ─── Dead-letter queue ───────────────────────────────────────────────────────
-async function sendToDeadLetterQueue(
-  idempotencyKey: string,
-  eventType: string,
-  payload: unknown,
-  error: string
-) {
+  const bearer = request.headers.get('authorization')?.replace(/^Bearer\s+/i, '') || '';
+  const suppliedToken = request.headers.get('x-api-key') || request.headers.get('x-shiprocket-token') || bearer;
+  if (!safeEqual(expectedToken, suppliedToken)) {
+    return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
+  }
+
+  let body: JsonObject;
   try {
-    await supabaseQuery('webhook_dead_letter_queue', 'POST', {
-      idempotency_key: idempotencyKey,
-      source: 'shiprocket',
-      event_type: eventType,
-      payload,
-      error_message: error,
-      retry_count: 0,
-      next_retry_at: new Date(Date.now() + 60_000).toISOString(),
-      created_at: new Date().toISOString(),
-    });
-  } catch (dlqErr) {
-    console.error('[Shiprocket Webhook] DLQ write failed:', dlqErr);
-  }
-}
-
-// ─── Idempotency ─────────────────────────────────────────────────────────────
-async function isAlreadyProcessed(idempotencyKey: string): Promise<boolean> {
-  try {
-    const rows = await supabaseQuery(
-      `webhook_events?idempotency_key=eq.${encodeURIComponent(idempotencyKey)}&select=id`,
-      'GET'
-    );
-    return Array.isArray(rows) && rows.length > 0;
+    body = (await request.json()) as JsonObject;
   } catch {
-    return false;
+    return NextResponse.json({ error: 'Invalid JSON.' }, { status: 400 });
   }
-}
 
-async function markProcessed(idempotencyKey: string, eventType: string, payload: unknown) {
+  const awb = String(body.awb || body.awb_code || '');
+  const shipmentId = String(body.shipment_id || '');
+  const rawStatus = String(body.current_status || body.status || '');
+  if ((!awb && !shipmentId) || !rawStatus) {
+    return NextResponse.json({ error: 'Shipment identifier and status are required.' }, { status: 400 });
+  }
+
+  const eventTimestamp = String(body.timestamp || body.updated_at || new Date().toISOString());
+  const idempotencyKey = `srkt_${crypto
+    .createHash('sha256')
+    .update(`${awb}|${shipmentId}|${rawStatus}|${eventTimestamp}`)
+    .digest('hex')}`;
+  const admin = createAdminClient();
+
+  const { data: previous } = await admin
+    .from('webhook_events')
+    .select('id')
+    .eq('idempotency_key', idempotencyKey)
+    .maybeSingle();
+  if (previous) return NextResponse.json({ received: true, duplicate: true });
+
   try {
-    await supabaseQuery('webhook_events', 'POST', {
+    let query = admin.from('seller_shipments').select('*');
+    query = awb ? query.eq('awb_number', awb) : query.eq('shiprocket_shipment_id', shipmentId);
+    const { data: shipment, error: shipmentError } = await query.maybeSingle();
+    if (shipmentError || !shipment) throw new Error('Shipment record not found.');
+
+    const status = normalizeStatus(rawStatus);
+    const oldEvents = Array.isArray(shipment.tracking_events) ? shipment.tracking_events : [];
+    const event = {
+      status,
+      raw_status: rawStatus,
+      location: body.location || body.current_location || null,
+      timestamp: eventTimestamp,
+      awb: awb || shipment.awb_number || null,
+    };
+
+    const { error: updateError } = await admin
+      .from('seller_shipments')
+      .update({
+        status,
+        awb_number: awb || shipment.awb_number,
+        tracking_events: [...oldEvents.slice(-99), event],
+        last_tracked_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', shipment.id);
+    if (updateError) throw updateError;
+
+    if (status === 'delivered') {
+      await admin
+        .from('bulk_orders')
+        .update({ status: 'delivered', updated_at: new Date().toISOString() })
+        .eq('id', shipment.order_id)
+        .in('status', ['paid', 'shipped', 'delivered']);
+    } else if (['picked_up', 'in_transit', 'out_for_delivery'].includes(status)) {
+      await admin
+        .from('bulk_orders')
+        .update({ status: 'shipped', updated_at: new Date().toISOString() })
+        .eq('id', shipment.order_id)
+        .in('status', ['paid', 'shipped']);
+    }
+
+    const { error: eventError } = await admin.from('webhook_events').insert({
       idempotency_key: idempotencyKey,
       source: 'shiprocket',
-      event_type: eventType,
-      payload,
+      event_type: rawStatus,
+      payload: body,
       processed_at: new Date().toISOString(),
     });
-  } catch (err) {
-    console.error('[Shiprocket Webhook] markProcessed failed:', err);
-  }
-}
+    if (eventError && eventError.code !== '23505') throw eventError;
 
-// ─── Status normalizer ───────────────────────────────────────────────────────
-function normalizeStatus(shiprocketStatus: string): string {
-  const statusMap: Record<string, string> = {
-    NEW: 'Order Created',
-    'PICKUP PENDING': 'Pickup Scheduled',
-    'PICKUP QUEUED': 'Pickup Scheduled',
-    'PICKED UP': 'Picked Up',
-    'IN TRANSIT': 'In Transit',
-    'OUT FOR DELIVERY': 'Out for Delivery',
-    DELIVERED: 'Delivered',
-    'DELIVERY FAILED': 'Delivery Attempt Failed',
-    UNDELIVERED: 'Delivery Attempt Failed',
-    DELAYED: 'Delayed',
-    RETURNED: 'Returned to Origin',
-    'RTO INITIATED': 'Returned to Origin',
-    'RTO DELIVERED': 'Returned to Origin',
-    CANCELLED: 'Cancelled',
-    EXCEPTION: 'Exception',
-  };
-  return statusMap[shiprocketStatus?.toUpperCase()] || shiprocketStatus;
-}
-
-// ─── Business logic ───────────────────────────────────────────────────────────
-async function processTrackingUpdate(body: Record<string, unknown>) {
-  const awb = body.awb as string;
-  const currentStatus = body.current_status as string;
-  const shipmentId = body.shipment_id as string;
-  const orderId = body.order_id as string;
-  const location = body.location as string;
-  const scans = body.scans;
-  const normalizedStatus = normalizeStatus(currentStatus || '');
-
-  // Update shipments table
-  await withRetry(() =>
-    supabaseQuery(`shipments?shiprocket_shipment_id=eq.${shipmentId}`, 'PATCH', {
-      status: normalizedStatus,
-      raw_status: currentStatus,
-      current_location: location,
-      updated_at: new Date().toISOString(),
-    })
-  );
-
-  // Insert tracking event (idempotent via unique constraint on awb + status + timestamp)
-  await withRetry(() =>
-    supabaseQuery('shipment_tracking_events', 'POST', {
-      awb,
-      shipment_id: shipmentId,
-      order_id: orderId,
-      raw_status: currentStatus,
-      normalized_status: normalizedStatus,
-      location,
-      scans: scans ? JSON.stringify(scans) : null,
-      event_at: new Date().toISOString(),
-    })
-  );
-
-  // Trigger buyer notification via Supabase Edge Function
-  try {
-    const edgeFnUrl = `${SUPABASE_URL}/functions/v1/shiprocket-tracking-email`;
-    await fetch(edgeFnUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
-      },
-      body: JSON.stringify({ awb, orderId, normalizedStatus, location }),
+    return NextResponse.json({ received: true, status });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Webhook processing failed.';
+    console.error('Shiprocket webhook failed:', message);
+    await admin.from('webhook_dead_letter_queue').insert({
+      idempotency_key: idempotencyKey,
+      source: 'shiprocket',
+      event_type: rawStatus,
+      payload: body,
+      error_message: message.slice(0, 2000),
+      retry_count: 0,
+      next_retry_at: new Date(Date.now() + 60_000).toISOString(),
     });
-  } catch (emailErr) {
-    console.warn('[Shiprocket Webhook] Email notification failed (non-fatal):', emailErr);
-  }
-
-  console.log(`[Shiprocket Webhook] ✅ AWB: ${awb} → ${normalizedStatus}`);
-}
-
-// ─── Main handler ─────────────────────────────────────────────────────────────
-export async function POST(request: NextRequest) {
-  let body: Record<string, unknown>;
-  const rawBody = await request.text();
-
-  try {
-    body = JSON.parse(rawBody);
-  } catch {
-    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
-  }
-
-  const awb = body.awb as string;
-  const currentStatus = body.current_status as string;
-  const shipmentId = body.shipment_id as string;
-
-  // Build idempotency key from AWB + status + timestamp
-  const eventHash = crypto
-    .createHash('sha256')
-    .update(`${awb}_${currentStatus}_${shipmentId}_${body.timestamp || Date.now()}`)
-    .digest('hex')
-    .slice(0, 32);
-  const idempotencyKey = `srkt_${eventHash}`;
-
-  // Idempotency check
-  const alreadyDone = await isAlreadyProcessed(idempotencyKey);
-  if (alreadyDone) {
-    console.log(`[Shiprocket Webhook] ⏭ Duplicate event skipped: ${idempotencyKey}`);
-    return NextResponse.json({ received: true, duplicate: true });
-  }
-
-  try {
-    await processTrackingUpdate(body);
-    await markProcessed(idempotencyKey, currentStatus, body);
-    return NextResponse.json({ received: true, status: normalizeStatus(currentStatus) });
-  } catch (error: unknown) {
-    const errMsg = error instanceof Error ? error.message : String(error);
-    console.error(`[Shiprocket Webhook] ❌ All retries exhausted:`, errMsg);
-    await sendToDeadLetterQueue(idempotencyKey, currentStatus, body, errMsg);
-    return NextResponse.json({ received: true, queued_for_retry: true });
+    return NextResponse.json({ error: 'Webhook processing failed.' }, { status: 500 });
   }
 }
