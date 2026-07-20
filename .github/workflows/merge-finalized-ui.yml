@@ -1,0 +1,54 @@
+name: Merge validated FabricTrad UI
+
+on:
+  workflow_run:
+    workflows:
+      - Finalize FabricTrad UI overhaul
+    types:
+      - completed
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: read
+
+jobs:
+  merge:
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Merge validated pull request
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh pr merge 3 \
+            --repo fabrictrad8-ctrl/fabrictrad \
+            --squash \
+            --admin \
+            --subject "Complete responsive UI, regional onboarding and AI Drape Studio (#3)" \
+            --body "Validated with TypeScript, ESLint and a full Next.js production build."
+
+      - name: Remove one-time workflows
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Commit workflow cleanup
+        shell: bash
+        run: |
+          set -euo pipefail
+          git pull --ff-only origin main
+          rm -f .github/workflows/finalize-ui-overhaul.yml
+          rm -f .github/workflows/merge-finalized-ui.yml
+          git config user.name "FabricTrad Automation"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m "Remove completed UI delivery workflows"
+          git push origin HEAD:main
