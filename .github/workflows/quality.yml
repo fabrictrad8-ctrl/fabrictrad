@@ -30,8 +30,15 @@ jobs:
         run: |
           set -euo pipefail
           base64 --decode .github/patches/final-ui.patch.gz.b64 | gzip --decompress > /tmp/final-ui.patch
-          git apply --check /tmp/final-ui.patch
-          git apply /tmp/final-ui.patch
+          EXCLUDES=(
+            --exclude=.github/workflows/quality.yml
+            --exclude=src/app/layout.tsx
+            --exclude=src/components/AppClientEnhancements.tsx
+            --exclude=src/components/Header.tsx
+            --exclude=src/contexts/AuthContext.tsx
+          )
+          git apply --check "${EXCLUDES[@]}" /tmp/final-ui.patch
+          git apply "${EXCLUDES[@]}" /tmp/final-ui.patch
           rm -f .github/patches/final-ui.patch.gz.b64 .github/workflows/apply-final-ui.yml
           cat > .github/workflows/quality.yml <<'YAML'
           name: Quality and security checks
