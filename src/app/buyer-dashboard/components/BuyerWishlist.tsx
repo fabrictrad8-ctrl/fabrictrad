@@ -1,77 +1,84 @@
-import React from 'react';
+'use client';
+
 import Link from 'next/link';
+import toast from 'react-hot-toast';
 import AppImage from '@/components/ui/AppImage';
 import Icon from '@/components/ui/AppIcon';
-
-const wishlistItems: {
-  id: string;
-  name: string;
-  seller: string;
-  price: number;
-  moq: number;
-  unit: string;
-  image: string;
-  alt: string;
-  inStock: boolean;
-}[] = [];
+import { productDetailHref } from '@/lib/catalog';
+import { useWishlist } from '@/lib/hooks/useWishlist';
 
 export default function BuyerWishlist() {
+  const { items, loading, remove } = useWishlist();
+
   return (
     <div>
-      <h1 className="text-xl font-800 text-foreground mb-6">Wishlist</h1>
-      {wishlistItems.length === 0 && (
-        <div className="bg-card rounded-2xl border border-border px-5 py-12 text-center">
-          <Icon name="HeartIcon" size={34} className="mx-auto mb-3 text-muted-foreground" />
-          <p className="text-sm font-800 text-foreground">No wishlist items for this account</p>
-          <p className="text-xs text-muted-foreground mt-1">
-            Products saved by this buyer will appear here and will not be shared with other users.
-          </p>
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-800 text-foreground">Wishlist</h1>
+          <p className="mt-1 text-xs text-muted-foreground">Products saved by this buyer account.</p>
+        </div>
+        {items.length > 0 && (
+          <Link href="/marketplace" className="btn-secondary rounded-xl px-4 py-2 text-xs">
+            Continue Browsing
+          </Link>
+        )}
+      </div>
+
+      {loading && (
+        <div className="rounded-2xl border border-border bg-card px-5 py-12 text-center">
+          <span className="mx-auto block h-7 w-7 animate-spin rounded-full border-2 border-primary border-t-transparent" />
         </div>
       )}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {wishlistItems?.map((item) => (
-          <div
-            key={item?.id}
-            className="bg-card rounded-2xl border border-border overflow-hidden product-card"
-          >
-            <div className="relative aspect-square bg-muted">
-              <AppImage
-                src={item?.image}
-                alt={item?.alt}
-                fill
-                sizes="(max-width: 640px) 100vw, 33vw"
-                className="object-cover"
-              />
-              {!item?.inStock && (
-                <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                  <span className="bg-white text-foreground text-xs font-700 px-3 py-1.5 rounded-full">
-                    Out of Stock
-                  </span>
-                </div>
-              )}
-              <button className="absolute top-2 right-2 w-8 h-8 bg-white/80 rounded-full flex items-center justify-center">
-                <Icon name="HeartIcon" size={16} className="text-error" variant="solid" />
-              </button>
-            </div>
-            <div className="p-4">
-              <p className="text-xs text-muted-foreground mb-1">{item?.seller}</p>
-              <h3 className="text-sm font-700 text-foreground mb-2">{item?.name}</h3>
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-base font-800 text-primary">
-                  ₹{item?.price?.toLocaleString('en-IN')}
-                  <span className="text-xs text-muted-foreground font-400">/{item?.unit}</span>
-                </span>
-                <span className="badge-moq">MOQ:{item?.moq}</span>
+
+      {!loading && items.length === 0 && (
+        <div className="rounded-2xl border border-border bg-card px-5 py-12 text-center">
+          <Icon name="HeartIcon" size={34} className="mx-auto mb-3 text-muted-foreground" />
+          <p className="text-sm font-800 text-foreground">Your wishlist is empty</p>
+          <p className="mx-auto mt-1 max-w-md text-xs leading-5 text-muted-foreground">
+            Save products from the marketplace using the heart button. They will appear in the header popup and here.
+          </p>
+          <Link href="/marketplace" className="btn-primary mt-4 inline-flex rounded-xl px-4 py-2 text-xs">
+            Explore Marketplace
+          </Link>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {items.map((item) => {
+          const inStock = item.available >= item.moq;
+          return (
+            <article key={item.id} className="overflow-hidden rounded-2xl border border-border bg-card product-card">
+              <div className="relative aspect-square bg-muted">
+                <Link href={productDetailHref(item)}>
+                  <AppImage src={item.image} alt={item.alt} fill sizes="(max-width: 640px) 100vw, 33vw" className="object-cover" />
+                </Link>
+                {!inStock && <div className="absolute inset-0 flex items-center justify-center bg-black/45"><span className="rounded-full bg-white px-3 py-1.5 text-xs font-700 text-foreground">Below MOQ stock</span></div>}
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await remove(item.id);
+                    toast.success('Removed from wishlist');
+                  }}
+                  className="absolute right-2 top-2 flex h-9 w-9 items-center justify-center rounded-full bg-white/90 text-error shadow-sm hover:bg-white"
+                  aria-label={`Remove ${item.name} from wishlist`}
+                >
+                  <Icon name="HeartIcon" size={17} variant="solid" />
+                </button>
               </div>
-              <Link
-                href="/product-detail"
-                className={`w-full py-2 text-xs rounded-xl block text-center font-600 transition-all ${item?.inStock ? 'btn-primary' : 'bg-muted text-muted-foreground cursor-not-allowed'}`}
-              >
-                {item?.inStock ? 'Request Order' : 'Notify When Available'}
-              </Link>
-            </div>
-          </div>
-        ))}
+              <div className="p-4">
+                <p className="mb-1 truncate text-xs text-muted-foreground">{item.seller}</p>
+                <h3 className="mb-2 line-clamp-2 text-sm font-700 text-foreground">{item.name}</h3>
+                <div className="mb-3 flex items-end justify-between gap-2">
+                  <span className="text-base font-800 text-primary">₹{item.price.toLocaleString('en-IN')}<span className="text-xs font-400 text-muted-foreground">/{item.unit}</span></span>
+                  <span className="badge-moq">MOQ {item.moq}</span>
+                </div>
+                <Link href={productDetailHref(item)} className={`block w-full rounded-xl py-2 text-center text-xs font-700 ${inStock ? 'btn-primary' : 'btn-secondary'}`}>
+                  {inStock ? 'View & Request' : 'View Availability'}
+                </Link>
+              </div>
+            </article>
+          );
+        })}
       </div>
     </div>
   );
