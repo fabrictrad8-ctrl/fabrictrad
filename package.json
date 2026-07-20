@@ -45,11 +45,13 @@
     "dev": "next dev -p 3000",
     "build": "next build",
     "start": "next start -p ${PORT:-3000}",
-    "lint": "next lint",
-    "lint:fix": "next lint --fix",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
     "format": "prettier --write \"src/**/*.{ts,tsx,css,md,json}\"",
+    "format:check": "prettier --check \"src/**/*.{ts,tsx,css,md,json}\"",
     "serve": "next start -p ${PORT:-3000}",
     "type-check": "tsc --noEmit",
+    "check": "npm run type-check && npm run lint && npm run build",
     "build:sites": "opennextjs-cloudflare build && node scripts/patch-opennext-worker.mjs"
   },
   "dependencies": {
@@ -70,6 +72,7 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
+    "@eslint/js": "^9.0.0",
     "@netlify/plugin-nextjs": "^5.11.1",
     "@opennextjs/cloudflare": "^1.20.1",
     "@types/node": "^20",
