@@ -42,7 +42,7 @@ jobs:
             git apply --include="$path" /tmp/final-ui.patch
           done
 
-      - name: Connect redesigned landing page and repair assembled types
+      - name: Connect redesigned public landing page
         shell: bash
         run: |
           set -euo pipefail
@@ -63,22 +63,6 @@ jobs:
               raise RuntimeError('Could not locate the public landing-page route')
           text = text.replace(old_route, new_route)
           home.write_text(text)
-
-          buyer = Path('src/app/buyer-registration/components/BuyerRegistrationFlow.tsx')
-          text = buyer.read_text()
-          text = text.replace('const { data, error } = await signUp({', 'const data = await signUp({')
-          text = text.replace('      if (error) throw error;\n', '')
-          buyer.write_text(text)
-
-          profile = Path('src/app/profile/ProfilePageClient.tsx')
-          text = profile.read_text()
-          anchor = "  buyer: { label: 'Buyer', icon: 'ShoppingBagIcon', color: 'text-primary' },"
-          addition = "\n  admin_staff: { label: 'Admin Staff', icon: 'ShieldCheckIcon', color: 'text-error' },"
-          if 'admin_staff:' not in text:
-              if anchor not in text:
-                  raise RuntimeError('Could not locate the profile role label map')
-              text = text.replace(anchor, anchor + addition)
-          profile.write_text(text)
           PY
 
       - uses: actions/setup-node@v4
