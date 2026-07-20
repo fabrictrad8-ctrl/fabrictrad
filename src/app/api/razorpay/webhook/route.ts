@@ -1,283 +1,174 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
+import { createAdminClient } from '@/lib/supabase/admin';
 
-// ─── Supabase REST helper (no SDK dependency) ───────────────────────────────
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const SUPABASE_SERVICE_KEY =
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+type JsonObject = Record<string, unknown>;
 
-async function supabaseQuery(path: string, method: string, body?: unknown) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
-    method,
-    headers: {
-      'Content-Type': 'application/json',
-      apikey: SUPABASE_SERVICE_KEY,
-      Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
-      Prefer: method === 'POST' ? 'return=representation' : 'return=minimal',
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Supabase ${method} ${path} failed: ${err}`);
-  }
-  return res.status === 204 ? null : res.json();
-}
+const entityFrom = (event: JsonObject, name: string): JsonObject => {
+  const payload = event.payload as JsonObject | undefined;
+  const wrapper = payload?.[name] as JsonObject | undefined;
+  return (wrapper?.entity as JsonObject | undefined) || wrapper || {};
+};
 
-// ─── Exponential backoff retry ───────────────────────────────────────────────
-async function withRetry<T>(fn: () => Promise<T>, maxAttempts = 4, baseDelayMs = 200): Promise<T> {
-  let lastError: unknown;
-  for (let attempt = 0; attempt < maxAttempts; attempt++) {
-    try {
-      return await fn();
-    } catch (err) {
-      lastError = err;
-      if (attempt < maxAttempts - 1) {
-        const delay = baseDelayMs * Math.pow(2, attempt) + Math.random() * 100;
-        await new Promise((r) => setTimeout(r, delay));
-      }
-    }
-  }
-  throw lastError;
-}
-
-// ─── Dead-letter queue: persist failed events ────────────────────────────────
-async function sendToDeadLetterQueue(
-  idempotencyKey: string,
+async function recordDeadLetter(
+  key: string,
   eventType: string,
   payload: unknown,
-  error: string
+  errorMessage: string
 ) {
   try {
-    await supabaseQuery('webhook_dead_letter_queue', 'POST', {
-      idempotency_key: idempotencyKey,
+    await createAdminClient().from('webhook_dead_letter_queue').insert({
+      idempotency_key: key,
       source: 'razorpay',
-      event_type: eventType,
+      event_type: eventType || 'unknown',
       payload,
-      error_message: error,
+      error_message: errorMessage.slice(0, 2000),
       retry_count: 0,
       next_retry_at: new Date(Date.now() + 60_000).toISOString(),
-      created_at: new Date().toISOString(),
     });
-  } catch (dlqErr) {
-    console.error('[Razorpay Webhook] DLQ write failed:', dlqErr);
+  } catch (error) {
+    console.error('Unable to record Razorpay dead letter:', error);
   }
 }
 
-// ─── Idempotency check ───────────────────────────────────────────────────────
-async function isAlreadyProcessed(idempotencyKey: string): Promise<boolean> {
+export async function POST(request: NextRequest) {
+  const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
+  if (!webhookSecret || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    return NextResponse.json({ error: 'Webhook is not configured.' }, { status: 503 });
+  }
+
+  const rawBody = await request.text();
+  const signature = request.headers.get('x-razorpay-signature') || '';
+  const expected = crypto.createHmac('sha256', webhookSecret).update(rawBody).digest();
+  const supplied = Buffer.from(signature, 'hex');
+
+  if (supplied.length !== expected.length || !crypto.timingSafeEqual(expected, supplied)) {
+    return NextResponse.json({ error: 'Invalid signature.' }, { status: 400 });
+  }
+
+  let event: JsonObject;
   try {
-    const rows = await supabaseQuery(
-      `webhook_events?idempotency_key=eq.${encodeURIComponent(idempotencyKey)}&select=id`,
-      'GET'
-    );
-    return Array.isArray(rows) && rows.length > 0;
+    event = JSON.parse(rawBody) as JsonObject;
   } catch {
-    return false; // fail open — process the event
+    return NextResponse.json({ error: 'Invalid JSON.' }, { status: 400 });
   }
-}
 
-async function markProcessed(idempotencyKey: string, eventType: string, payload: unknown) {
+  const eventType = typeof event.event === 'string' ? event.event : 'unknown';
+  const eventId =
+    (typeof event.id === 'string' && event.id) ||
+    crypto.createHash('sha256').update(rawBody).digest('hex');
+  const idempotencyKey = `rzp_${eventId}`;
+  const admin = createAdminClient();
+
+  const { data: prior } = await admin
+    .from('webhook_events')
+    .select('id')
+    .eq('idempotency_key', idempotencyKey)
+    .maybeSingle();
+  if (prior) return NextResponse.json({ received: true, duplicate: true });
+
   try {
-    await supabaseQuery('webhook_events', 'POST', {
+    if (eventType === 'payment.captured') {
+      const entity = entityFrom(event, 'payment');
+      const razorpayOrderId = String(entity.order_id || '');
+      const razorpayPaymentId = String(entity.id || '');
+      if (!razorpayOrderId || !razorpayPaymentId) throw new Error('Payment identifiers missing.');
+
+      const { data: payment, error: paymentLookupError } = await admin
+        .from('bulk_order_payments')
+        .select(
+          'id,bulk_order_id,amount,platform_commission,razorpay_fee,gst_on_commission,seller_payable'
+        )
+        .eq('razorpay_order_id', razorpayOrderId)
+        .maybeSingle();
+      if (paymentLookupError || !payment) throw new Error('FabricTrad payment record not found.');
+
+      const capturedAt = new Date().toISOString();
+      const { error: updatePaymentError } = await admin
+        .from('bulk_order_payments')
+        .update({
+          razorpay_payment_id: razorpayPaymentId,
+          status: 'captured',
+          captured_at: capturedAt,
+          updated_at: capturedAt,
+        })
+        .eq('id', payment.id);
+      if (updatePaymentError) throw updatePaymentError;
+
+      const { data: order, error: orderError } = await admin
+        .from('bulk_orders')
+        .update({ status: 'paid', updated_at: capturedAt })
+        .eq('id', payment.bulk_order_id)
+        .in('status', ['confirmed', 'paid'])
+        .select('id,seller_id,gst_total')
+        .single();
+      if (orderError || !order) throw new Error('Unable to mark bulk order paid.');
+
+      const { error: splitError } = await admin.from('taxation_splits').upsert(
+        {
+          order_id: order.id,
+          transaction_id: razorpayPaymentId,
+          gross_amount: payment.amount,
+          gst_amount: Number(order.gst_total || 0),
+          gst_rate: Number(order.gst_total || 0) > 0 ? 5 : 0,
+          platform_fee: Number(payment.platform_commission || 0),
+          seller_payout: Number(payment.seller_payable || 0),
+          status: 'processed',
+          split_at: capturedAt,
+        },
+        { onConflict: 'transaction_id' }
+      );
+      if (splitError) throw splitError;
+    } else if (eventType === 'payment.failed') {
+      const entity = entityFrom(event, 'payment');
+      const razorpayOrderId = String(entity.order_id || '');
+      if (!razorpayOrderId) throw new Error('Payment order identifier missing.');
+      const { error } = await admin
+        .from('bulk_order_payments')
+        .update({
+          status: 'failed',
+          razorpay_payment_id: entity.id ? String(entity.id) : null,
+          failure_reason: String(entity.error_description || 'Payment failed').slice(0, 1000),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('razorpay_order_id', razorpayOrderId);
+      if (error) throw error;
+    } else if (eventType === 'refund.processed') {
+      const entity = entityFrom(event, 'refund');
+      const paymentId = String(entity.payment_id || '');
+      if (!paymentId) throw new Error('Refund payment identifier missing.');
+      const { error } = await admin
+        .from('bulk_order_payments')
+        .update({ status: 'refunded', updated_at: new Date().toISOString() })
+        .eq('razorpay_payment_id', paymentId);
+      if (error) throw error;
+    } else if (eventType === 'transfer.processed') {
+      const entity = entityFrom(event, 'transfer');
+      const transferId = String(entity.id || '');
+      const source = String(entity.source || '');
+      if (transferId && source) {
+        await admin
+          .from('bulk_order_payments')
+          .update({ razorpay_transfer_id: transferId, updated_at: new Date().toISOString() })
+          .eq('razorpay_order_id', source);
+      }
+    }
+
+    const { error: eventError } = await admin.from('webhook_events').insert({
       idempotency_key: idempotencyKey,
       source: 'razorpay',
       event_type: eventType,
-      payload,
+      payload: event,
       processed_at: new Date().toISOString(),
     });
-  } catch (err) {
-    console.error('[Razorpay Webhook] markProcessed failed:', err);
-  }
-}
+    if (eventError && eventError.code !== '23505') throw eventError;
 
-// ─── Business logic handlers ─────────────────────────────────────────────────
-async function handlePaymentCaptured(paymentEntity: Record<string, unknown>) {
-  const orderId = paymentEntity?.order_id as string;
-  const paymentId = paymentEntity?.id as string;
-  const amount = (paymentEntity?.amount as number) / 100;
-
-  await withRetry(() =>
-    supabaseQuery(`orders?razorpay_order_id=eq.${orderId}`, 'PATCH', {
-      payment_status: 'paid',
-      razorpay_payment_id: paymentId,
-      paid_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    })
-  );
-
-  await withRetry(() =>
-    supabaseQuery('payment_ledger', 'POST', {
-      razorpay_payment_id: paymentId,
-      razorpay_order_id: orderId,
-      amount,
-      event_type: 'payment.captured',
-      status: 'captured',
-      recorded_at: new Date().toISOString(),
-    })
-  );
-
-  console.log(`[Razorpay Webhook] ✅ payment.captured: ${paymentId} for order ${orderId}`);
-}
-
-async function handlePaymentFailed(paymentEntity: Record<string, unknown>) {
-  const orderId = paymentEntity?.order_id as string;
-  const paymentId = paymentEntity?.id as string;
-  const errorDesc = (paymentEntity?.error_description as string) || 'Payment failed';
-
-  await withRetry(() =>
-    supabaseQuery(`orders?razorpay_order_id=eq.${orderId}`, 'PATCH', {
-      payment_status: 'failed',
-      failure_reason: errorDesc,
-      updated_at: new Date().toISOString(),
-    })
-  );
-
-  console.log(`[Razorpay Webhook] ❌ payment.failed: ${paymentId} — ${errorDesc}`);
-}
-
-async function handleRefundProcessed(refundEntity: Record<string, unknown>) {
-  const refundId = refundEntity?.id as string;
-  const paymentId = refundEntity?.payment_id as string;
-  const amount = (refundEntity?.amount as number) / 100;
-
-  await withRetry(() =>
-    supabaseQuery('payment_ledger', 'POST', {
-      razorpay_payment_id: paymentId,
-      razorpay_refund_id: refundId,
-      amount,
-      event_type: 'refund.processed',
-      status: 'refunded',
-      recorded_at: new Date().toISOString(),
-    })
-  );
-
-  console.log(`[Razorpay Webhook] 🔄 refund.processed: ${refundId}`);
-}
-
-async function handleTransferProcessed(transferEntity: Record<string, unknown>) {
-  const transferId = transferEntity?.id as string;
-  const linkedAccountId = transferEntity?.recipient as string;
-  const amount = (transferEntity?.amount as number) / 100;
-
-  await withRetry(() =>
-    supabaseQuery(`seller_profiles?razorpay_linked_account_id=eq.${linkedAccountId}`, 'PATCH', {
-      last_transfer_id: transferId,
-      last_transfer_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    })
-  );
-
-  await withRetry(() =>
-    supabaseQuery('payment_ledger', 'POST', {
-      razorpay_transfer_id: transferId,
-      amount,
-      event_type: 'transfer.processed',
-      status: 'transferred',
-      recorded_at: new Date().toISOString(),
-    })
-  );
-
-  console.log(`[Razorpay Webhook] 💸 transfer.processed: ${transferId} → ${linkedAccountId}`);
-}
-
-// ─── Main handler ─────────────────────────────────────────────────────────────
-export async function POST(request: NextRequest) {
-  const body = await request.text();
-  const signature = request.headers.get('x-razorpay-signature') || '';
-  const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET || '';
-
-  // 1. Verify signature
-  if (webhookSecret) {
-    const expectedSig = crypto.createHmac('sha256', webhookSecret).update(body).digest('hex');
-    try {
-      if (!crypto.timingSafeEqual(Buffer.from(expectedSig), Buffer.from(signature))) {
-        return NextResponse.json({ error: 'Invalid signature' }, { status: 400 });
-      }
-    } catch {
-      return NextResponse.json({ error: 'Signature comparison failed' }, { status: 400 });
-    }
-  }
-
-  let event: Record<string, unknown>;
-  try {
-    event = JSON.parse(body);
-  } catch {
-    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
-  }
-
-  const eventType = event.event as string;
-  const paymentEntity = (event?.payload as Record<string, unknown>)?.payment as Record<
-    string,
-    unknown
-  >;
-  const refundEntity = (event?.payload as Record<string, unknown>)?.refund as Record<
-    string,
-    unknown
-  >;
-  const transferEntity = (event?.payload as Record<string, unknown>)?.transfer as Record<
-    string,
-    unknown
-  >;
-
-  // 2. Build idempotency key from event ID or content hash
-  const eventId =
-    (event.id as string) || crypto.createHash('sha256').update(body).digest('hex').slice(0, 32);
-  const idempotencyKey = `rzp_${eventId}`;
-
-  // 3. Idempotency check — skip if already processed
-  const alreadyDone = await isAlreadyProcessed(idempotencyKey);
-  if (alreadyDone) {
-    console.log(`[Razorpay Webhook] ⏭ Duplicate event skipped: ${idempotencyKey}`);
-    return NextResponse.json({ received: true, duplicate: true });
-  }
-
-  // 4. Process event with retry + DLQ fallback
-  try {
-    switch (eventType) {
-      case 'payment.captured':
-        await withRetry(() =>
-          handlePaymentCaptured(
-            (paymentEntity?.entity as Record<string, unknown>) || paymentEntity || {}
-          )
-        );
-        break;
-      case 'payment.failed':
-        await withRetry(() =>
-          handlePaymentFailed(
-            (paymentEntity?.entity as Record<string, unknown>) || paymentEntity || {}
-          )
-        );
-        break;
-      case 'refund.processed':
-        await withRetry(() =>
-          handleRefundProcessed(
-            (refundEntity?.entity as Record<string, unknown>) || refundEntity || {}
-          )
-        );
-        break;
-      case 'transfer.processed':
-        await withRetry(() =>
-          handleTransferProcessed(
-            (transferEntity?.entity as Record<string, unknown>) || transferEntity || {}
-          )
-        );
-        break;
-      default:
-        console.log(`[Razorpay Webhook] ℹ Unhandled event: ${eventType}`);
-    }
-
-    // 5. Mark as processed (idempotency record)
-    await markProcessed(idempotencyKey, eventType, event);
     return NextResponse.json({ received: true });
-  } catch (error: unknown) {
-    const errMsg = error instanceof Error ? error.message : String(error);
-    console.error(`[Razorpay Webhook] ❌ All retries exhausted for ${eventType}:`, errMsg);
-
-    // 6. Send to dead-letter queue
-    await sendToDeadLetterQueue(idempotencyKey, eventType, event, errMsg);
-
-    // Return 200 to prevent Razorpay from retrying (we handle retries ourselves)
-    return NextResponse.json({ received: true, queued_for_retry: true });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Webhook processing failed.';
+    console.error(`Razorpay webhook failed for ${eventType}:`, message);
+    await recordDeadLetter(idempotencyKey, eventType, event, message);
+    // A non-2xx response lets Razorpay retry. The DLQ remains a secondary safety net.
+    return NextResponse.json({ error: 'Webhook processing failed.' }, { status: 500 });
   }
 }
