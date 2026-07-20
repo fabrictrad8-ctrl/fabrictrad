@@ -20,6 +20,7 @@ export interface UserProfile {
   is_active: boolean;
   avatar_url: string | null;
   preferred_language?: string | null;
+  preferred_theme?: 'light' | 'dark' | 'system' | null;
   business_name?: string | null;
   gstin?: string | null;
   city?: string | null;
@@ -121,6 +122,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         address_line1: role === 'seller' ? 'Demo Textile Market, Ring Road' : 'Demo Sourcing Office',
         pincode: role === 'seller' ? '395002' : '400001',
         preferred_language: 'en',
+        preferred_theme: 'system',
       } as UserProfile,
     };
   };
@@ -191,6 +193,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           avatar_url: metadata?.avatarUrl || '',
           phone: metadata?.phone || '',
           role: metadata?.role || 'buyer',
+          business_name: metadata?.businessName || '',
+          gstin: metadata?.gstin || '',
+          address_line1: metadata?.addressLine1 || '',
+          address_line2: metadata?.addressLine2 || '',
+          city: metadata?.city || '',
+          state: metadata?.state || '',
+          pincode: metadata?.pincode || '',
+          preferred_language: metadata?.preferredLanguage || 'en',
+          preferred_theme: metadata?.preferredTheme || 'system',
         },
         emailRedirectTo: `${getAuthRedirectBase()}/auth/callback`,
       },
