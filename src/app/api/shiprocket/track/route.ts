@@ -1,82 +1,84 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 
-const SHIPROCKET_EMAIL = process.env.SHIPROCKET_EMAIL || '';
-const SHIPROCKET_PASSWORD = process.env.SHIPROCKET_PASSWORD || '';
 const SHIPROCKET_API = 'https://apiv2.shiprocket.in/v1/external';
 
-async function getShiprocketToken(): Promise<string> {
-  const res = await fetch(`${SHIPROCKET_API}/auth/login`, {
+async function getToken() {
+  const email = process.env.SHIPROCKET_EMAIL;
+  const password = process.env.SHIPROCKET_PASSWORD;
+  if (!email || !password) return null;
+  const response = await fetch(`${SHIPROCKET_API}/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email: SHIPROCKET_EMAIL, password: SHIPROCKET_PASSWORD }),
+    body: JSON.stringify({ email, password }),
+    cache: 'no-store',
+    signal: AbortSignal.timeout(15_000),
   });
-  const data = await res.json();
-  if (!data.token) throw new Error('Shiprocket auth failed');
-  return data.token;
+  const data = await response.json().catch(() => ({}));
+  return response.ok && data.token ? String(data.token) : null;
 }
 
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
-    const awb = searchParams.get('awb');
-    const shipmentId = searchParams.get('shipment_id');
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ success: false, error: 'Authentication required.' }, { status: 401 });
 
-    if (!awb && !shipmentId) {
-      return NextResponse.json(
-        { success: false, error: 'AWB or shipment_id required' },
-        { status: 400 }
-      );
+    const orderId = new URL(request.url).searchParams.get('order_id');
+    if (!orderId) {
+      return NextResponse.json({ success: false, error: 'order_id is required.' }, { status: 400 });
     }
 
-    if (!SHIPROCKET_EMAIL || !SHIPROCKET_PASSWORD) {
-      // Dev mock tracking data
-      return NextResponse.json({
-        success: true,
-        mock: true,
-        tracking: {
-          awb,
-          status: 'In Transit',
-          location: 'Mumbai Hub',
-          estimatedDelivery: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(),
-          events: [
-            {
-              time: new Date().toISOString(),
-              status: 'In Transit',
-              location: 'Mumbai Hub',
-              description: 'Shipment in transit',
-            },
-            {
-              time: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-              status: 'Picked Up',
-              location: 'Surat',
-              description: 'Shipment picked up from seller',
-            },
-            {
-              time: new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString(),
-              status: 'Order Created',
-              location: 'Surat',
-              description: 'Shiprocket order created',
-            },
-          ],
-        },
-      });
+    const admin = createAdminClient();
+    const { data: shipment } = await admin
+      .from('seller_shipments')
+      .select('*')
+      .eq('order_id', orderId)
+      .maybeSingle();
+    if (!shipment) return NextResponse.json({ success: false, error: 'Shipment not found.' }, { status: 404 });
+
+    const { data: seller } = await admin
+      .from('seller_profiles')
+      .select('user_id')
+      .eq('id', shipment.seller_id)
+      .maybeSingle();
+    const { data: profile } = await admin
+      .from('user_profiles')
+      .select('role')
+      .eq('id', user.id)
+      .maybeSingle();
+
+    const authorized =
+      shipment.buyer_id === user.id ||
+      seller?.user_id === user.id ||
+      profile?.role === 'super_admin' ||
+      profile?.role === 'admin_staff';
+    if (!authorized) return NextResponse.json({ success: false, error: 'Shipment not found.' }, { status: 404 });
+
+    const token = await getToken();
+    if (!token || (!shipment.awb_number && !shipment.shiprocket_shipment_id)) {
+      return NextResponse.json({ success: true, tracking: shipment, live: false });
     }
 
-    const token = await getShiprocketToken();
-    const endpoint = awb
-      ? `${SHIPROCKET_API}/courier/track/awb/${awb}`
-      : `${SHIPROCKET_API}/courier/track/shipment/${shipmentId}`;
-
-    const res = await fetch(endpoint, {
+    const endpoint = shipment.awb_number
+      ? `${SHIPROCKET_API}/courier/track/awb/${encodeURIComponent(shipment.awb_number)}`
+      : `${SHIPROCKET_API}/courier/track/shipment/${encodeURIComponent(shipment.shiprocket_shipment_id)}`;
+    const response = await fetch(endpoint, {
       headers: { Authorization: `Bearer ${token}` },
+      cache: 'no-store',
+      signal: AbortSignal.timeout(15_000),
     });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      return NextResponse.json({ success: true, tracking: shipment, live: false });
+    }
 
-    const data = await res.json();
-
-    return NextResponse.json({ success: true, tracking: data });
-  } catch (error: unknown) {
-    console.error('[Shiprocket] Tracking error:', error);
-    const message = error instanceof Error ? error.message : 'Tracking fetch failed';
-    return NextResponse.json({ success: false, error: message }, { status: 500 });
+    return NextResponse.json({ success: true, tracking: data, stored: shipment, live: true });
+  } catch (error) {
+    console.error('Shiprocket tracking failed:', error);
+    return NextResponse.json({ success: false, error: 'Tracking lookup failed.' }, { status: 500 });
   }
 }

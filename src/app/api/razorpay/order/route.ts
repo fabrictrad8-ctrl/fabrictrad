@@ -1,78 +1,150 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Razorpay from 'razorpay';
+import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 
-const razorpay = new Razorpay({
-  key_id: process.env.RAZORPAY_KEY_ID!,
-  key_secret: process.env.RAZORPAY_KEY_SECRET!,
-});
+const money = (value: number) => Math.round(value * 100) / 100;
 
 export async function POST(request: NextRequest) {
   try {
-    const {
-      amount,
-      currency = 'INR',
-      receipt,
-      orderId,
-      sellerLinkedAccountId,
-      sellerAmount,
-      demoAccount,
-    } = await request.json();
-
-    if (demoAccount) {
+    const keyId = process.env.RAZORPAY_KEY_ID;
+    const keySecret = process.env.RAZORPAY_KEY_SECRET;
+    if (!keyId || !keySecret) {
       return NextResponse.json(
-        {
-          success: false,
-          error: 'Demo accounts cannot create real Razorpay orders.',
-        },
-        { status: 403 }
+        { success: false, error: 'Payment service is not configured.' },
+        { status: 503 }
       );
     }
 
-    if (!amount || amount <= 0) {
-      return NextResponse.json({ success: false, error: 'Invalid amount' }, { status: 400 });
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ success: false, error: 'Authentication required.' }, { status: 401 });
     }
 
-    // Build transfers for Razorpay Route if seller linked account exists
-    const transfers =
-      sellerLinkedAccountId && sellerAmount
-        ? [
-            {
-              account: sellerLinkedAccountId,
-              amount: Math.round(sellerAmount * 100), // in paisa
-              currency: 'INR',
-              notes: {
-                order_id: orderId || receipt || '',
-                description: 'Seller payout after commission deduction',
-              },
-              on_hold: 0,
-            },
-          ]
-        : undefined;
+    const body = (await request.json()) as { orderId?: string };
+    if (!body.orderId) {
+      return NextResponse.json(
+        { success: false, error: 'A confirmed FabricTrad order is required.' },
+        { status: 400 }
+      );
+    }
 
-    const orderPayload: Record<string, unknown> = {
-      amount: Math.round(amount * 100), // in paisa
-      currency,
-      receipt: receipt || `FT-ORD-${Date.now()}`,
+    const admin = createAdminClient();
+    const { data: order, error: orderError } = await admin
+      .from('bulk_orders')
+      .select('id,buyer_id,seller_id,status,net_total')
+      .eq('id', body.orderId)
+      .eq('buyer_id', user.id)
+      .maybeSingle();
+
+    if (orderError || !order) {
+      return NextResponse.json({ success: false, error: 'Order not found.' }, { status: 404 });
+    }
+    if (order.status !== 'confirmed') {
+      return NextResponse.json(
+        { success: false, error: 'Only seller-confirmed orders can be paid.' },
+        { status: 409 }
+      );
+    }
+
+    const amount = money(Number(order.net_total));
+    if (!Number.isFinite(amount) || amount <= 0) {
+      return NextResponse.json({ success: false, error: 'Order total is invalid.' }, { status: 409 });
+    }
+
+    const { data: existing } = await admin
+      .from('bulk_order_payments')
+      .select('razorpay_order_id,amount,currency,status')
+      .eq('bulk_order_id', order.id)
+      .in('status', ['initiated', 'authorized'])
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (existing) {
+      return NextResponse.json({
+        success: true,
+        orderId: existing.razorpay_order_id,
+        amount: Math.round(Number(existing.amount) * 100),
+        currency: existing.currency,
+        keyId,
+      });
+    }
+
+    const { data: seller } = await admin
+      .from('seller_profiles')
+      .select('razorpay_linked_account_id,settlement_eligible')
+      .eq('id', order.seller_id)
+      .maybeSingle();
+
+    const commissionRate = Number(process.env.PLATFORM_COMMISSION_RATE || 0.1);
+    const processingRate = Number(process.env.PAYMENT_PROCESSING_RATE || 0.02);
+    const platformCommission = money(amount * commissionRate);
+    const razorpayFee = money(amount * processingRate);
+    const gstOnCommission = money(platformCommission * 0.18);
+    const sellerPayable = money(
+      Math.max(amount - platformCommission - razorpayFee - gstOnCommission, 0)
+    );
+
+    const payload: Record<string, unknown> = {
+      amount: Math.round(amount * 100),
+      currency: 'INR',
+      receipt: `FTB-${order.id.replace(/-/g, '').slice(0, 24)}`,
+      notes: { fabrictrad_bulk_order_id: order.id },
     };
 
-    if (transfers) {
-      orderPayload.transfers = transfers;
+    if (seller?.settlement_eligible && seller.razorpay_linked_account_id && sellerPayable > 0) {
+      payload.transfers = [
+        {
+          account: seller.razorpay_linked_account_id,
+          amount: Math.round(sellerPayable * 100),
+          currency: 'INR',
+          notes: { fabrictrad_bulk_order_id: order.id },
+          on_hold: 0,
+        },
+      ];
     }
 
-    const order = await razorpay.orders.create(
-      orderPayload as unknown as Parameters<typeof razorpay.orders.create>[0]
+    const razorpay = new Razorpay({ key_id: keyId, key_secret: keySecret });
+    const razorpayOrder = await razorpay.orders.create(
+      payload as unknown as Parameters<typeof razorpay.orders.create>[0]
     );
+
+    const { error: paymentError } = await admin.from('bulk_order_payments').insert({
+      bulk_order_id: order.id,
+      razorpay_order_id: razorpayOrder.id,
+      amount,
+      currency: 'INR',
+      status: 'initiated',
+      platform_commission: platformCommission,
+      razorpay_fee: razorpayFee,
+      gst_on_commission: gstOnCommission,
+      seller_payable: sellerPayable,
+    });
+
+    if (paymentError) {
+      console.error('Failed to persist Razorpay order:', paymentError.message);
+      return NextResponse.json(
+        { success: false, error: 'Unable to initialize payment safely.' },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json({
       success: true,
-      orderId: order.id,
-      amount: order.amount,
-      currency: order.currency,
-      keyId: process.env.RAZORPAY_KEY_ID,
+      orderId: razorpayOrder.id,
+      amount: razorpayOrder.amount,
+      currency: razorpayOrder.currency,
+      keyId,
     });
-  } catch (error: unknown) {
+  } catch (error) {
     console.error('Razorpay order creation failed:', error);
-    const message = error instanceof Error ? error.message : 'Failed to create order';
-    return NextResponse.json({ success: false, error: message }, { status: 500 });
+    return NextResponse.json(
+      { success: false, error: 'Unable to create payment order.' },
+      { status: 500 }
+    );
   }
 }
