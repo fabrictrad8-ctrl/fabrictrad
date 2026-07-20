@@ -1,10 +1,17 @@
 name: Apply, validate and publish UI overhaul
 
 on:
+  pull_request:
+    branches:
+      - main
   push:
     branches:
       - agent/ui-functionality-fixes
   workflow_dispatch:
+
+concurrency:
+  group: fabrictrad-ui-finalizer
+  cancel-in-progress: true
 
 permissions:
   contents: write
