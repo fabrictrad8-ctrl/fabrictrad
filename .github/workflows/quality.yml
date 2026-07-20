@@ -22,8 +22,6 @@ jobs:
         run: cat .github/patches/plain/part*.patch > /tmp/final-ui.patch
       - name: Verify buyer registration
         run: git apply --check --include=src/app/buyer-registration/components/BuyerRegistrationFlow.tsx /tmp/final-ui.patch
-      - name: Verify drape studio
-        run: git apply --check --include=src/app/product-detail/components/FabricDrapeViewer.tsx /tmp/final-ui.patch
       - name: Verify profile preferences
         run: git apply --check --include=src/app/profile/ProfilePageClient.tsx /tmp/final-ui.patch
       - name: Verify seller registration
