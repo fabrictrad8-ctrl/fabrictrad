@@ -3,7 +3,8 @@ import { completion } from '@rocketnew/llm-sdk';
 import { createClient } from '@/lib/supabase/server';
 
 type Provider = 'OPEN_AI' | 'ANTHROPIC' | 'GEMINI' | 'PERPLEXITY';
-type ChatMessage = { role?: string; content?: unknown };
+type ChatRole = 'function' | 'system' | 'user' | 'assistant' | 'tool' | 'developer';
+type ChatMessage = { role: ChatRole; content: string };
 
 const API_KEYS: Record<Provider, string | undefined> = {
   OPEN_AI: process.env.OPENAI_API_KEY,
@@ -19,8 +20,27 @@ const DEFAULT_MODELS: Record<Provider, string[]> = {
   PERPLEXITY: ['sonar', 'sonar-pro'],
 };
 
+const CHAT_ROLES = new Set<ChatRole>([
+  'function',
+  'system',
+  'user',
+  'assistant',
+  'tool',
+  'developer',
+]);
+
 const isProvider = (value: unknown): value is Provider =>
   value === 'OPEN_AI' || value === 'ANTHROPIC' || value === 'GEMINI' || value === 'PERPLEXITY';
+
+const isChatMessage = (value: unknown): value is ChatMessage => {
+  if (!value || typeof value !== 'object') return false;
+  const message = value as Record<string, unknown>;
+  return (
+    typeof message.role === 'string' &&
+    CHAT_ROLES.has(message.role as ChatRole) &&
+    typeof message.content === 'string'
+  );
+};
 
 const getAllowedModels = (provider: Provider) => {
   const configured = process.env[`ALLOWED_${provider}_MODELS`]
@@ -28,11 +48,6 @@ const getAllowedModels = (provider: Provider) => {
     .map((model) => model.trim())
     .filter(Boolean);
   return configured?.length ? configured : DEFAULT_MODELS[provider];
-};
-
-const messageSize = (message: ChatMessage) => {
-  if (typeof message.content === 'string') return message.content.length;
-  return JSON.stringify(message.content ?? '').length;
 };
 
 export async function POST(request: NextRequest) {
@@ -74,12 +89,20 @@ export async function POST(request: NextRequest) {
     if (typeof body.model !== 'string' || !getAllowedModels(body.provider).includes(body.model)) {
       return NextResponse.json({ error: 'Unsupported AI model.' }, { status: 400 });
     }
-    if (!Array.isArray(body.messages) || body.messages.length < 1 || body.messages.length > 20) {
-      return NextResponse.json({ error: 'Messages must contain between 1 and 20 entries.' }, { status: 400 });
+    if (
+      !Array.isArray(body.messages) ||
+      body.messages.length < 1 ||
+      body.messages.length > 20 ||
+      !body.messages.every(isChatMessage)
+    ) {
+      return NextResponse.json(
+        { error: 'Messages must contain between 1 and 20 valid text entries.' },
+        { status: 400 }
+      );
     }
 
-    const messages = body.messages as ChatMessage[];
-    const totalCharacters = messages.reduce((total, message) => total + messageSize(message), 0);
+    const messages = body.messages;
+    const totalCharacters = messages.reduce((total, message) => total + message.content.length, 0);
     if (totalCharacters > 20_000) {
       return NextResponse.json({ error: 'Conversation is too large.' }, { status: 413 });
     }
