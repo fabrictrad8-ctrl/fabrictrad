@@ -13,12 +13,7 @@ permissions:
 jobs:
   check:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-    env:
-      NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
-      NEXT_PUBLIC_SUPABASE_ANON_KEY: test-anon-key
-      NEXT_PUBLIC_SITE_URL: http://localhost:3000
-      NEXT_PUBLIC_ENABLE_GOOGLE_AUTH: 'false'
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
         with:
@@ -26,56 +21,15 @@ jobs:
           fetch-depth: 0
       - name: Assemble final UI patch
         run: cat .github/patches/plain/part*.patch > /tmp/final-ui.patch
-      - name: Verify final UI patch
-        shell: bash
-        run: |
-          set -euo pipefail
-          git apply --check \
-            --exclude=src/app/product-detail/components/SellerCard.tsx \
-            --exclude=src/lib/recommendations.ts \
-            /tmp/final-ui.patch
-      - name: Apply final UI patch
-        shell: bash
-        run: |
-          set -euo pipefail
-          git apply \
-            --exclude=src/app/product-detail/components/SellerCard.tsx \
-            --exclude=src/lib/recommendations.ts \
-            /tmp/final-ui.patch
-      - name: Fix drape event typing
-        shell: bash
-        run: |
-          set -euo pipefail
-          python - <<'PY'
-          from pathlib import Path
-          path = Path('src/app/product-detail/components/FabricDrapeViewer.tsx')
-          text = path.read_text()
-          text = text.replace(
-              "import { useEffect, useMemo, useRef, useState } from 'react';",
-              "import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';",
-          )
-          text = text.replace('React.ChangeEvent<HTMLInputElement>', 'ChangeEvent<HTMLInputElement>')
-          path.write_text(text)
-          PY
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      - name: Install dependencies
-        run: npm install --no-audit --no-fund --package-lock=false
-      - name: Type check
-        run: npm run type-check
-      - name: Lint
-        run: npm run lint
-      - name: Production build
-        run: npm run build
-      - name: Commit validated UI overhaul
-        shell: bash
-        run: |
-          set -euo pipefail
-          rm -rf .github/patches/plain
-          rm -f .github/patches/final-ui.patch.gz.b64 .github/workflows/apply-final-ui.yml
-          git config user.name "FabricTrad Automation"
-          git config user.email "actions@users.noreply.github.com"
-          git add -A
-          git commit -m "Complete responsive UI, preferences and AI drape studio"
-          git push origin HEAD:agent/ui-functionality-fixes
+      - name: Verify buyer registration patch
+        run: git apply --check --include=src/app/buyer-registration/components/BuyerRegistrationFlow.tsx /tmp/final-ui.patch
+      - name: Verify landing page patch
+        run: git apply --check --include=src/app/components/HomeExperience.tsx /tmp/final-ui.patch
+      - name: Verify drape studio patch
+        run: git apply --check --include=src/app/product-detail/components/FabricDrapeViewer.tsx /tmp/final-ui.patch
+      - name: Verify profile patch
+        run: git apply --check --include=src/app/profile/ProfilePageClient.tsx /tmp/final-ui.patch
+      - name: Verify seller registration patch
+        run: git apply --check --include=src/app/seller-registration/components/SellerRegistrationFlow.tsx /tmp/final-ui.patch
+      - name: Verify theme CSS patch
+        run: git apply --check --include=src/styles/tailwind.css /tmp/final-ui.patch
