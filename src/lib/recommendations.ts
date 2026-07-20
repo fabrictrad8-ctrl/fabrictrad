@@ -7,9 +7,9 @@ type AccountProfile = {
   email?: string;
   phone?: string | null;
   business_name?: string | null;
-  city?: string;
-  state?: string;
-  gstin?: string;
+  city?: string | null;
+  state?: string | null;
+  gstin?: string | null;
 } | null;
 
 type AccountUser = {
@@ -22,7 +22,7 @@ export type RecommendationProduct = {
   name: string;
   seller?: string;
   sellerCity?: string;
-  city?: string;
+  city?: string | null;
   price: number;
   moq: number;
   rating: number;

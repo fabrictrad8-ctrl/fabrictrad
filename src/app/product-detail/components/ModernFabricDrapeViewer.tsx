@@ -37,8 +37,8 @@ function readImage(file: File) {
 export default function ModernFabricDrapeViewer() {
   const { product } = useProduct();
   const { user } = useAuth();
-  const [modelId, setModelId] = useState(models[0].id);
-  const [garmentId, setGarmentId] = useState(garments[0].id);
+  const [modelId, setModelId] = useState<(typeof models)[number]['id']>(models[0].id);
+  const [garmentId, setGarmentId] = useState<(typeof garments)[number]['id']>(garments[0].id);
   const [fit, setFit] = useState<(typeof fits)[number]>('Regular');
   const [personImage, setPersonImage] = useState<string | null>(null);
   const [result, setResult] = useState<string | null>(null);

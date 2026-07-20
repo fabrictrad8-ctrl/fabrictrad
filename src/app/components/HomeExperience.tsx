@@ -10,6 +10,7 @@ import CategorySection from '@/app/components/CategorySection';
 import FeaturedProducts from '@/app/components/FeaturedProducts';
 import HowItWorks from '@/app/components/HowItWorks';
 import TrustSection from '@/app/components/TrustSection';
+import ModernLandingPage from '@/app/components/ModernLandingPage';
 
 function PublicBrandHome() {
   const englishTagline =
@@ -288,7 +289,7 @@ export default function HomeExperience() {
     );
   }
 
-  if (!user || !profile) return <PublicBrandHome />;
+  if (!user || !profile) return <ModernLandingPage />;
 
   if (profile.role === 'seller') return <SellerHome />;
   if (profile.role === 'admin_staff' || profile.role === 'super_admin') return <AdminHome />;

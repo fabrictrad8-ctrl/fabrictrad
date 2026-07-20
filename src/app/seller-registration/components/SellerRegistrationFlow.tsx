@@ -4,6 +4,8 @@ import Link from 'next/link';
 import Icon from '@/components/ui/AppIcon';
 import { useAuth } from '@/contexts/AuthContext';
 import { normalizeEmail, normalizeIndianPhone, validateIndianPhone } from '@/lib/authValidation';
+import { INDIAN_STATES_AND_UTS, SUPPORTED_LANGUAGES, type SupportedLanguageCode } from '@/lib/india';
+import { useAppPreferences } from '@/contexts/AppPreferencesContext';
 
 type Step = 'account' | 'business' | 'gstin' | 'bank' | 'documents' | 'done';
 
@@ -28,6 +30,7 @@ interface SellerForm {
   bankAccountName: string;
   bankName: string;
   moqMetres: MOQOption;
+  preferredLanguage: SupportedLanguageCode;
 }
 
 interface GstinValidation {
@@ -71,23 +74,6 @@ const CATEGORIES = [
   'Handloom',
   'Synthetic Blends',
   'Woollen',
-];
-const INDIAN_STATES = [
-  'Gujarat',
-  'Maharashtra',
-  'Rajasthan',
-  'Tamil Nadu',
-  'Karnataka',
-  'Uttar Pradesh',
-  'West Bengal',
-  'Punjab',
-  'Haryana',
-  'Madhya Pradesh',
-  'Telangana',
-  'Andhra Pradesh',
-  'Delhi',
-  'Kerala',
-  'Bihar',
 ];
 const MOQ_OPTIONS = [3, 6, 9, 12] as const;
 type MOQOption = (typeof MOQ_OPTIONS)[number];
@@ -162,6 +148,7 @@ function extractStateFromGstin(gstin: string): string {
 
 export default function SellerRegistrationFlow() {
   const { signUp, checkEmailUnique, checkPhoneUnique } = useAuth();
+  const { language, setLanguage, t } = useAppPreferences();
 
   const [currentStep, setCurrentStep] = useState<Step>('account');
   const [sellerId] = useState(`FT-SLR-${Math.floor(100000 + Math.random() * 900000)}`);
@@ -190,6 +177,7 @@ export default function SellerRegistrationFlow() {
     bankAccountName: '',
     bankName: '',
     moqMetres: 3,
+    preferredLanguage: language,
   });
 
   const [gstinValidation, setGstinValidation] = useState<GstinValidation>({
@@ -282,14 +270,14 @@ export default function SellerRegistrationFlow() {
       });
       return;
     }
-    setGstinValidation({ status: 'validating', message: 'Verifying with GST portal…' });
-    await new Promise((r) => setTimeout(r, 1500));
+    setGstinValidation({ status: 'validating', message: 'Checking GSTIN structure and state code…' });
     const state = extractStateFromGstin(gstin);
     const pan = gstin.slice(2, 12);
     setField('pan', pan);
+    if (state !== 'Unknown State') setField('state', state.replace('Jammu & Kashmir', 'Jammu and Kashmir'));
     setGstinValidation({
       status: 'valid',
-      message: 'GSTIN verified successfully',
+      message: 'GSTIN format accepted. Final verification is completed by the FabricTrad review team.',
       details: { legalName: form.businessName || 'Business Entity', state, status: 'Active' },
     });
   };
@@ -302,26 +290,28 @@ export default function SellerRegistrationFlow() {
       });
       return;
     }
-    setBankVerification({
-      status: 'verifying',
-      message: 'Creating Razorpay Route linked account…',
-    });
-    await new Promise((r) => setTimeout(r, 2000));
-    const mockLinkedAccountId = `acc_${Math.random().toString(36).slice(2, 14)}`;
+    const accountNumber = form.bankAccountNumber.replace(/\D/g, '');
+    const ifsc = form.bankIfsc.toUpperCase().trim();
+    if (!/^\d{9,18}$/.test(accountNumber) || !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(ifsc)) {
+      setBankVerification({ status: 'failed', message: 'Enter a valid account number and IFSC code.' });
+      return;
+    }
+    setField('bankAccountNumber', accountNumber);
+    setField('bankIfsc', ifsc);
     setBankVerification({
       status: 'verified',
-      message: 'Bank account verified & linked to Razorpay Route',
-      linkedAccountId: mockLinkedAccountId,
+      message: 'Bank details accepted securely. Verification and payout linking happen after account review.',
     });
   };
 
   const handleFileSelect = async (docKey: string, file: File) => {
-    setDocuments((prev) => ({ ...prev, [docKey]: { ...prev[docKey], file, status: 'uploading' } }));
-    await new Promise((r) => setTimeout(r, 1200));
-    setDocuments((prev) => ({ ...prev, [docKey]: { ...prev[docKey], status: 'uploaded' } }));
-    setTimeout(() => {
-      setDocuments((prev) => ({ ...prev, [docKey]: { ...prev[docKey], status: 'approved' } }));
-    }, 3000);
+    const allowed = file.type.startsWith('image/') || file.type === 'application/pdf';
+    if (!allowed || file.size > 10 * 1024 * 1024) {
+      setError('Documents must be PDF or image files up to 10 MB.');
+      return;
+    }
+    setError('');
+    setDocuments((prev) => ({ ...prev, [docKey]: { ...prev[docKey], file, status: 'uploaded' } }));
   };
 
   const handleFinalSubmit = async () => {
@@ -346,6 +336,13 @@ export default function SellerRegistrationFlow() {
         fullName: form.ownerName,
         phone,
         role: 'seller',
+        businessName: form.businessName,
+        gstin: form.gstin.toUpperCase(),
+        addressLine1: form.address,
+        city: form.city,
+        state: form.state,
+        pincode: form.pincode,
+        preferredLanguage: form.preferredLanguage,
       });
       setCurrentStep('done');
     } catch (e: any) {
@@ -366,7 +363,7 @@ export default function SellerRegistrationFlow() {
           form.password === form.confirmPassword
         );
       case 'business':
-        return !!(form.businessName && form.businessType && form.state && form.city);
+        return !!(form.businessName && form.businessType && form.state && form.city && form.address && /^\d{6}$/.test(form.pincode));
       case 'gstin':
         return gstinValidation.status === 'valid';
       case 'bank':
@@ -625,14 +622,14 @@ export default function SellerRegistrationFlow() {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-700 text-foreground mb-1.5">State *</label>
+                    <label className="block text-sm font-700 text-foreground mb-1.5">{t('form.state')} *</label>
                     <select
                       value={form.state}
                       onChange={(e) => setField('state', e.target.value)}
                       className="input-base w-full px-4 py-3 text-sm rounded-xl"
                     >
-                      <option value="">Select state</option>
-                      {INDIAN_STATES.map((s) => (
+                      <option value="">{t('form.selectState')}</option>
+                      {INDIAN_STATES_AND_UTS.map((s) => (
                         <option key={s} value={s}>
                           {s}
                         </option>
@@ -662,6 +659,42 @@ export default function SellerRegistrationFlow() {
                       placeholder="50,000"
                       className="input-base w-full px-4 py-3 text-sm rounded-xl"
                     />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-700 text-foreground mb-1.5">Business / Pickup Address *</label>
+                  <textarea
+                    value={form.address}
+                    onChange={(event) => setField('address', event.target.value)}
+                    placeholder="Shop, market, street and area"
+                    rows={3}
+                    className="input-base w-full px-4 py-3 text-sm rounded-xl resize-none"
+                  />
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-700 text-foreground mb-1.5">PIN Code *</label>
+                    <input
+                      value={form.pincode}
+                      onChange={(event) => setField('pincode', event.target.value.replace(/\D/g, '').slice(0, 6))}
+                      inputMode="numeric"
+                      placeholder="395002"
+                      className="input-base w-full px-4 py-3 text-sm rounded-xl"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-700 text-foreground mb-1.5">{t('form.language')}</label>
+                    <select
+                      value={form.preferredLanguage}
+                      onChange={(event) => {
+                        const next = event.target.value as SupportedLanguageCode;
+                        setField('preferredLanguage', next);
+                        void setLanguage(next);
+                      }}
+                      className="input-base w-full px-4 py-3 text-sm rounded-xl"
+                    >
+                      {SUPPORTED_LANGUAGES.map((item) => <option key={item.code} value={item.code}>{item.label}</option>)}
+                    </select>
                   </div>
                 </div>
                 <div>
