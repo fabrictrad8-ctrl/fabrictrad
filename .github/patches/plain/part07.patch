@@ -1,0 +1,215 @@
+l p-3">
+-                <div className="flex items-center justify-between mb-2">
+-                  <p className="text-xs font-700 text-foreground">Opacity</p>
+-                  <span className="text-xs font-800 text-primary">{settings.opacity}%</span>
+-                </div>
+-                <input
+-                  type="range"
+-                  min={20}
+-                  max={100}
+-                  value={settings.opacity}
+-                  onChange={(e) => setSettings((s) => ({ ...s, opacity: Number(e.target.value) }))}
+-                  className="w-full accent-primary"
+-                />
+-              </div>
+-
+-              <div className="bg-muted rounded-xl p-3">
+-                <div className="flex items-center justify-between mb-2">
+-                  <p className="text-xs font-700 text-foreground">Scale</p>
+-                  <span className="text-xs font-800 text-primary">{settings.scale}%</span>
+-                </div>
+-                <input
+-                  type="range"
+-                  min={60}
+-                  max={180}
+-                  value={settings.scale}
+-                  onChange={(e) => setSettings((s) => ({ ...s, scale: Number(e.target.value) }))}
+-                  className="w-full accent-primary"
+-                />
+-              </div>
+-
+-              <div className="bg-muted rounded-xl p-3">
+-                <div className="flex items-center justify-between mb-2">
+-                  <p className="text-xs font-700 text-foreground">Rotation</p>
+-                  <span className="text-xs font-800 text-primary">{settings.rotation}°</span>
+-                </div>
+-                <input
+-                  type="range"
+-                  min={-45}
+-                  max={45}
+-                  value={settings.rotation}
+-                  onChange={(e) => setSettings((s) => ({ ...s, rotation: Number(e.target.value) }))}
+-                  className="w-full accent-primary"
+-                />
+-              </div>
+-
+-              <div className="bg-muted rounded-xl p-3">
+-                <p className="text-xs font-700 text-foreground mb-2">Blend Mode</p>
+-                <div className="grid grid-cols-2 gap-1">
+-                  {blendModes.map((bm) => (
+-                    <button
+-                      key={bm.value}
+-                      onClick={() => setSettings((s) => ({ ...s, blend: bm.value }))}
+-                      className={`text-xs py-1 rounded-lg font-600 transition-all ${settings.blend === bm.value ? 'bg-primary text-white' : 'bg-card border border-border text-muted-foreground hover:border-primary'}`}
+-                    >
+-                      {bm.label}
+-                    </button>
+-                  ))}
+-                </div>
+-              </div>
+-            </div>
+-
+-            {/* AI Info Banner */}
+-            <div className="flex items-center gap-2 p-3 bg-primary/5 border border-primary/20 rounded-xl">
+-              <Icon name="SparklesIcon" size={14} className="text-primary shrink-0" />
+-              <p className="text-xs text-muted-foreground">
+-                <span className="font-700 text-primary">OpenAI</span> will use both images to
+-                generate a realistic drape preview
+-              </p>
++            <label className="mt-4 block text-xs font-800 text-muted-foreground">Fit</label>
++            <div className="mt-2 flex gap-2">
++              {FIT_OPTIONS.map((item) => <button key={item} type="button" onClick={() => { setFit(item); setGeneratedImage(null); }} className={`flex-1 rounded-xl border py-2 text-xs font-800 ${fit === item ? 'border-secondary bg-secondary text-white' : 'border-border text-foreground'}`}>{item}</button>)}
+             </div>
++          </div>
+ 
+-            <div className="flex gap-2">
+-              <button
+-                onClick={() => setStep('select')}
+-                className="btn-secondary flex-1 py-2.5 text-sm rounded-xl"
+-              >
+-                ← Back
+-              </button>
+-              <button
+-                onClick={() => handleGenerate(false)}
+-                disabled={isGenerating}
+-                className="btn-primary flex-1 py-2.5 text-sm rounded-xl flex items-center justify-center gap-2 disabled:opacity-70"
+-              >
+-                {isGenerating ? (
+-                  <>
+-                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+-                    AI Generating...
+-                  </>
+-                ) : (
+-                  <>
+-                    <Icon name="SparklesIcon" size={15} />
+-                    Generate AI Drape
+-                  </>
+-                )}
+-              </button>
++          <div className="mt-6 rounded-2xl bg-muted p-4">
++            <div className="flex items-center gap-3">
++              <div className="relative h-14 w-14 overflow-hidden rounded-xl border border-border"><AppImage src={fabricImage} alt={product.name} fill className="object-cover" /></div>
++              <div className="min-w-0"><p className="truncate text-sm font-800 text-foreground">{product.name}</p><p className="mt-1 text-xs text-muted-foreground">{product.gsm ? `${product.gsm} GSM · ` : ''}{product.work}</p></div>
+             </div>
+           </div>
+-        )}
+ 
+-        {/* STEP 3: AI Result */}
+-        {step === 'result' && showResult && (
+-          <div className="space-y-4">
+-            <div className="relative rounded-2xl overflow-hidden bg-muted">
+-              {generatedImage ? (
+-                <AppImage
+-                  src={generatedImage}
+-                  alt="AI generated fabric drape result"
+-                  width={400}
+-                  height={600}
+-                  className="w-full object-cover"
+-                  style={{ maxHeight: 520 }}
+-                />
+-              ) : (
+-                <>
+-                  <AppImage
+-                    src={modelSrc}
+-                    alt={uploadedPhoto ? 'Your photo with fabric draped on it' : selectedPose.alt}
+-                    width={400}
+-                    height={500}
+-                    className="w-full object-cover"
+-                    style={{ maxHeight: 420 }}
+-                  />
+-
+-                  <div
+-                    style={{
+-                      position: 'absolute',
+-                      inset: 0,
+-                      transform: `translate(${settings.posX}px, ${settings.posY}px) scale(${settings.scale / 100}) rotate(${settings.rotation}deg)`,
+-                      opacity: settings.opacity / 100,
+-                      mixBlendMode: settings.blend,
+-                    }}
+-                  >
+-                    <AppImage
+-                      src={selectedFabric.src}
+-                      alt={`${selectedFabric.alt} final drape result`}
+-                      width={400}
+-                      height={500}
+-                      className="w-full h-full object-cover"
+-                    />
++          <button type="button" onClick={generateDrape} disabled={generating} className="btn-primary mt-5 flex w-full items-center justify-center gap-2 rounded-xl py-3.5 disabled:cursor-not-allowed disabled:opacity-60">
++            {generating ? <><span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />Generating realistic drape…</> : <><Icon name="SparklesIcon" size={18} />Generate AI drape</>}
++          </button>
++          {!user && <p className="mt-3 text-center text-xs text-muted-foreground"><Link href="/login" className="font-800 text-primary hover:underline">Sign in</Link> to use secure AI generation.</p>}
++          <button type="button" onClick={reset} className="mt-2 w-full rounded-xl px-4 py-2.5 text-xs font-800 text-muted-foreground hover:bg-muted hover:text-foreground">Reset studio</button>
++          {error && <div className="mt-4 rounded-xl border border-error/20 bg-error/10 p-3 text-xs font-700 text-error">{error}</div>}
++        </aside>
++
++        <section className="min-w-0 bg-muted/40 p-4 sm:p-6">
++          {cameraActive ? (
++            <div className="mx-auto max-w-2xl overflow-hidden rounded-3xl border border-border bg-black">
++              <video ref={videoRef} playsInline muted className="aspect-[4/5] w-full scale-x-[-1] object-cover" />
++              <div className="flex gap-3 bg-card p-4"><button type="button" onClick={captureCamera} className="btn-primary flex-1 py-3">Capture photo</button><button type="button" onClick={stopCamera} className="btn-secondary px-5 py-3">Cancel</button></div>
++              <canvas ref={canvasRef} className="hidden" />
++            </div>
++          ) : (
++            <div className="mx-auto max-w-3xl">
++              <div className="relative overflow-hidden rounded-3xl border border-border bg-card shadow-2xl" style={{ aspectRatio: '4 / 5' }}>
++                <AppImage src={basePersonImage} alt="Person selected for virtual drape" fill className="object-cover" />
++
++                {!generatedImage && (
++                  <div className="pointer-events-none absolute inset-0 flex items-center justify-center overflow-hidden">
++                    <div className="relative h-[72%] w-[58%] overflow-hidden rounded-[45%_45%_18%_18%]" style={{ opacity: fabricOpacity / 100, transform: `scale(${fabricScale / 100})`, mixBlendMode: resolvedTheme === 'dark' ? 'screen' : 'multiply' }}>
++                      <AppImage src={fabricImage} alt="Selected fabric preview" fill className="object-cover" />
++                    </div>
++                    <div className="absolute bottom-4 left-4 right-4 rounded-xl bg-black/55 p-3 text-xs text-white backdrop-blur"><span className="font-800">Positioning preview:</span> generate AI drape for realistic seams, folds and anatomy.</div>
+                   </div>
+-                </>
+-              )}
+-
+-              <div className="absolute top-3 left-3 bg-success text-white text-xs font-700 px-2.5 py-1 rounded-full flex items-center gap-1">
+-                <Icon name="SparklesIcon" size={12} />
+-                AI Generated Drape
+-              </div>
+-            </div>
++                )}
+ 
+-            {/* AI Analysis */}
+-            {aiAnalysis && (
+-              <div className="p-4 bg-gradient-to-br from-primary/5 to-secondary/5 border border-primary/20 rounded-2xl">
+-                <div className="flex items-center gap-2 mb-2">
+-                  <div className="w-6 h-6 rounded-lg bg-primary/10 flex items-center justify-center">
+-                    <Icon name="SparklesIcon" size={13} className="text-primary" />
++                {generatedImage && (
++                  <div className="absolute inset-0 overflow-hidden" style={{ width: `${compare}%` }}>
++                    <div className="relative h-full" style={{ width: `${10000 / compare}%` }}><AppImage src={generatedImage} alt="Generated AI fabric drape" fill className="object-cover" /></div>
+                   </div>
+-                  <p className="text-xs font-700 text-primary">AI Drape Analysis</p>
+-                  <span className="text-xs text-muted-foreground ml-auto">OpenAI</span>
+-                </div>
+-                <p className="text-sm text-foreground leading-relaxed">{aiAnalysis}</p>
+-              </div>
+-            )}
+-
+-            <div className="flex items-center gap-3 p-3 bg-muted rounded-xl">
+-              <div className="w-12 h-12 rounded-lg overflow-hidden shrink-0">
+-                <AppImage
+-                  src={selectedFabric.src}
+-                  alt={selectedFabric.alt}
+-                  width={48}
+-                  height={48}
+-                  className="object-cover w-full h-full"
+-                />
+-              </div>
+-              <div className="flex-1">
+-                <p className="text-xs font-700 text-foreground">Pure Dyeable Soft Nett Fabric</p>
+-                <p className="text-xs text-muted-foreground">
+-                  Surat Textile Mills · {selectedFabric.name} view
+-     
