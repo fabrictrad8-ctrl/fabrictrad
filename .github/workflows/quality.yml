@@ -25,22 +25,26 @@ jobs:
           ref: agent/ui-functionality-fixes
           fetch-depth: 0
       - name: Apply reviewed UI bundle
+        id: applybundle
         if: hashFiles('.github/patches/final-ui.patch.gz.b64') != ''
+        continue-on-error: true
         shell: bash
         run: |
-          set -euo pipefail
-          base64 --decode .github/patches/final-ui.patch.gz.b64 | gzip --decompress > /tmp/final-ui.patch
-          EXCLUDES=(
-            --exclude=.github/workflows/quality.yml
-            --exclude=src/app/layout.tsx
-            --exclude=src/components/AppClientEnhancements.tsx
-            --exclude=src/components/Header.tsx
-            --exclude=src/contexts/AuthContext.tsx
-          )
-          git apply --check "${EXCLUDES[@]}" /tmp/final-ui.patch
-          git apply "${EXCLUDES[@]}" /tmp/final-ui.patch
-          rm -f .github/patches/final-ui.patch.gz.b64 .github/workflows/apply-final-ui.yml
-          cat > .github/workflows/quality.yml <<'YAML'
+          set -o pipefail
+          {
+            set -euo pipefail
+            base64 --decode .github/patches/final-ui.patch.gz.b64 | gzip --decompress > /tmp/final-ui.patch
+            EXCLUDES=(
+              --exclude=.github/workflows/quality.yml
+              --exclude=src/app/layout.tsx
+              --exclude=src/components/AppClientEnhancements.tsx
+              --exclude=src/components/Header.tsx
+              --exclude=src/contexts/AuthContext.tsx
+            )
+            git apply --check "${EXCLUDES[@]}" /tmp/final-ui.patch
+            git apply "${EXCLUDES[@]}" /tmp/final-ui.patch
+            rm -f .github/patches/final-ui.patch.gz.b64 .github/workflows/apply-final-ui.yml
+            cat > .github/workflows/quality.yml <<'YAML'
           name: Quality and security checks
 
           on:
@@ -76,11 +80,22 @@ jobs:
                 - name: Production build
                   run: npm run build
           YAML
-          git config user.name "FabricTrad Automation"
-          git config user.email "actions@users.noreply.github.com"
-          git add -A
-          git commit -m "Complete responsive UI, preferences and AI drape studio"
-          git push origin HEAD:agent/ui-functionality-fixes
+            git config user.name "FabricTrad Automation"
+            git config user.email "actions@users.noreply.github.com"
+            git add -A
+            git commit -m "Complete responsive UI, preferences and AI drape studio"
+            git push origin HEAD:agent/ui-functionality-fixes
+          } 2>&1 | tee apply-bundle.log
+      - name: Upload apply diagnostics
+        if: always() && steps.applybundle.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-apply-log
+          path: apply-bundle.log
+          if-no-files-found: error
+      - name: Stop after apply failure
+        if: steps.applybundle.outcome == 'failure'
+        run: exit 1
       - uses: actions/setup-node@v4
         with:
           node-version: 22
