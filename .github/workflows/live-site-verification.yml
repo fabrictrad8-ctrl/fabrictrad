@@ -9,6 +9,33 @@ permissions:
   contents: read
 
 jobs:
+  inspect-cloudflare-deployment:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Capture deployment files and references
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p cloudflare-inspection
+          find . -maxdepth 4 -type f \
+            -not -path './.git/*' \
+            -not -path './node_modules/*' \
+            | sort > cloudflare-inspection/repo-files.txt
+          grep -RInE 'wrangler|cloudflare|opennext|arati-cookie|CLOUDFLARE|build:sites' . \
+            --exclude-dir=.git --exclude-dir=node_modules \
+            > cloudflare-inspection/references.txt || true
+          cp wrangler.jsonc cloudflare-inspection/wrangler.jsonc
+          cp open-next.config.ts cloudflare-inspection/open-next.config.ts
+          cp package.json cloudflare-inspection/package.json
+      - name: Upload Cloudflare inspection
+        uses: actions/upload-artifact@v4
+        with:
+          name: fabrictrad-cloudflare-inspection-${{ github.run_id }}
+          path: cloudflare-inspection
+          if-no-files-found: error
+
   verify-live-site:
     runs-on: ubuntu-latest
     timeout-minutes: 5
