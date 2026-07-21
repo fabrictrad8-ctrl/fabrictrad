@@ -9,31 +9,32 @@ permissions:
   contents: read
 
 jobs:
-  inspect-cloudflare-deployment:
+  check-cloudflare-credentials:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 5
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
     steps:
-      - uses: actions/checkout@v4
-      - name: Capture deployment files and references
+      - name: Record credential availability without revealing values
         shell: bash
         run: |
-          set -euo pipefail
-          mkdir -p cloudflare-inspection
-          find . -maxdepth 4 -type f \
-            -not -path './.git/*' \
-            -not -path './node_modules/*' \
-            | sort > cloudflare-inspection/repo-files.txt
-          grep -RInE 'wrangler|cloudflare|opennext|arati-cookie|CLOUDFLARE|build:sites' . \
-            --exclude-dir=.git --exclude-dir=node_modules \
-            > cloudflare-inspection/references.txt || true
-          cp wrangler.jsonc cloudflare-inspection/wrangler.jsonc
-          cp open-next.config.ts cloudflare-inspection/open-next.config.ts
-          cp package.json cloudflare-inspection/package.json
-      - name: Upload Cloudflare inspection
+          mkdir -p cloudflare-credentials
+          if [ -n "$CLOUDFLARE_API_TOKEN" ]; then
+            echo 'api_token_present=yes' >> cloudflare-credentials/status.txt
+          else
+            echo 'api_token_present=no' >> cloudflare-credentials/status.txt
+          fi
+          if [ -n "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo 'account_id_present=yes' >> cloudflare-credentials/status.txt
+          else
+            echo 'account_id_present=no' >> cloudflare-credentials/status.txt
+          fi
+      - name: Upload credential status
         uses: actions/upload-artifact@v4
         with:
-          name: fabrictrad-cloudflare-inspection-${{ github.run_id }}
-          path: cloudflare-inspection
+          name: fabrictrad-cloudflare-credential-status-${{ github.run_id }}
+          path: cloudflare-credentials/status.txt
           if-no-files-found: error
 
   verify-live-site:
@@ -45,27 +46,22 @@ jobs:
         run: |
           set -uo pipefail
           mkdir -p live-check
-
           curl -L --connect-timeout 15 --max-time 60 --retry 2 --retry-all-errors \
             -D live-check/custom-headers.txt \
             -o live-check/custom.html \
             -w 'custom_http=%{http_code}\ncustom_url=%{url_effective}\n' \
             https://fabrictrad.com/ | tee live-check/custom-status.txt || true
-
           curl -L --connect-timeout 15 --max-time 60 --retry 2 --retry-all-errors \
             -D live-check/netlify-headers.txt \
             -o live-check/netlify.html \
             -w 'netlify_http=%{http_code}\nnetlify_url=%{url_effective}\n' \
             https://luxury-longma-ea8445.netlify.app/ | tee live-check/netlify-status.txt || true
-
           grep -q 'Trusted across textile hubs' live-check/custom.html \
             && echo 'custom_marker=redesigned' \
             || echo 'custom_marker=stale' | tee live-check/custom-marker.txt
-
           grep -q 'Trusted across textile hubs' live-check/netlify.html \
             && echo 'netlify_marker=redesigned' \
             || echo 'netlify_marker=stale' | tee live-check/netlify-marker.txt
-
       - name: Upload live verification evidence
         if: always()
         uses: actions/upload-artifact@v4
