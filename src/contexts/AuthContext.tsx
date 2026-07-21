@@ -61,6 +61,13 @@ type IdentityConflict = {
   phone_role?: string | null;
 };
 
+type DemoRole = 'buyer' | 'seller';
+
+type DemoSessionResponse = {
+  role?: DemoRole;
+  error?: string;
+};
+
 const getAuthRedirectBase = () => {
   if (process.env.NEXT_PUBLIC_SITE_URL) {
     return process.env.NEXT_PUBLIC_SITE_URL.replace(/\/$/, '');
@@ -77,6 +84,42 @@ const setOAuthRoleCookie = (role: 'buyer' | 'seller') => {
   document.cookie = `fabrictrad_oauth_role=${role}; Path=/; Max-Age=600; SameSite=Lax${secure}`;
 };
 
+const readDemoSession = async (): Promise<DemoRole | null> => {
+  try {
+    const response = await fetch('/api/auth/demo-session', {
+      method: 'GET',
+      cache: 'no-store',
+      credentials: 'same-origin',
+    });
+    if (!response.ok) return null;
+    const payload = (await response.json()) as DemoSessionResponse;
+    return payload.role === 'buyer' || payload.role === 'seller' ? payload.role : null;
+  } catch {
+    return null;
+  }
+};
+
+const createDemoSessionCookie = async (email: string, password: string): Promise<DemoRole> => {
+  const response = await fetch('/api/auth/demo-session', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'same-origin',
+    body: JSON.stringify({ email, password }),
+  });
+  const payload = (await response.json().catch(() => ({}))) as DemoSessionResponse;
+  if (!response.ok || (payload.role !== 'buyer' && payload.role !== 'seller')) {
+    throw new Error(payload.error || 'Unable to start the demo session.');
+  }
+  return payload.role;
+};
+
+const clearDemoSessionCookie = async () => {
+  await fetch('/api/auth/demo-session', {
+    method: 'DELETE',
+    credentials: 'same-origin',
+  }).catch(() => undefined);
+};
+
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) throw new Error('useAuth must be used within AuthProvider');
@@ -90,9 +133,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [loading, setLoading] = useState(true);
   const [profileLoading, setProfileLoading] = useState(false);
   const [isDemoAccount, setIsDemoAccount] = useState(false);
-  const supabase = createClient();
+  const [supabase] = useState(() => createClient());
 
-  const buildDemoSession = (role: 'buyer' | 'seller') => {
+  const buildDemoSession = (role: DemoRole) => {
     const account = getDemoAccountByEmail(
       role === 'buyer' ? 'demo.buyer@fabrictrad.com' : 'demo.seller@fabrictrad.com'
     );
@@ -127,10 +170,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     };
   };
 
-  const applyDemoSession = (role: 'buyer' | 'seller') => {
+  const applyDemoSession = (role: DemoRole) => {
     const demoSession = buildDemoSession(role);
     if (!demoSession) return false;
-    localStorage.setItem(DEMO_SESSION_STORAGE_KEY, role);
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(DEMO_SESSION_STORAGE_KEY, role);
+    }
     setSession(null);
     setUser(demoSession.user);
     setProfile(demoSession.profile);
@@ -154,31 +199,58 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   useEffect(() => {
-    const storedDemoRole = typeof window !== 'undefined'
-      ? localStorage.getItem(DEMO_SESSION_STORAGE_KEY)
-      : null;
-    if (storedDemoRole === 'buyer' || storedDemoRole === 'seller') {
-      applyDemoSession(storedDemoRole);
-      return;
-    }
+    let cancelled = false;
+    let unsubscribe: (() => void) | undefined;
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) void loadProfile(session.user.id);
-      setLoading(false);
-    });
+    const initializeAuth = async () => {
+      const demoRole = await readDemoSession();
+      if (cancelled) return;
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      setSession(nextSession);
-      setUser(nextSession?.user ?? null);
+      if (demoRole) {
+        applyDemoSession(demoRole);
+        return;
+      }
+
+      if (typeof window !== 'undefined') {
+        window.localStorage.removeItem(DEMO_SESSION_STORAGE_KEY);
+      }
+
+      const {
+        data: { session: initialSession },
+      } = await supabase.auth.getSession();
+      if (cancelled) return;
+
+      setSession(initialSession);
+      setUser(initialSession?.user ?? null);
       setIsDemoAccount(false);
-      if (nextSession?.user) void loadProfile(nextSession.user.id);
-      else setProfile(null);
-      setLoading(false);
-    });
-    return () => subscription.unsubscribe();
-  }, []);
+      if (initialSession?.user) {
+        await loadProfile(initialSession.user.id);
+      } else {
+        setProfile(null);
+      }
+      if (!cancelled) setLoading(false);
+
+      const {
+        data: { subscription },
+      } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+        if (cancelled) return;
+        setSession(nextSession);
+        setUser(nextSession?.user ?? null);
+        setIsDemoAccount(false);
+        if (nextSession?.user) void loadProfile(nextSession.user.id);
+        else setProfile(null);
+        setLoading(false);
+      });
+      unsubscribe = () => subscription.unsubscribe();
+    };
+
+    void initializeAuth();
+
+    return () => {
+      cancelled = true;
+      unsubscribe?.();
+    };
+  }, [supabase]);
 
   const signUp = async (email: string, password: string, metadata: any = {}) => {
     if (getDemoAccountByEmail(email)) {
@@ -211,18 +283,51 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const signIn = async (email: string, password: string) => {
-    const demoAccount = validateDemoCredentials(email, password);
+    const normalizedEmail = normalizeEmail(email);
+    const demoAccount = validateDemoCredentials(normalizedEmail, password);
+
     if (demoAccount) {
       await supabase.auth.signOut().catch(() => undefined);
-      applyDemoSession(demoAccount.role);
-      return { user: buildDemoSession(demoAccount.role)?.user, session: null };
+      const role = await createDemoSessionCookie(normalizedEmail, password);
+      applyDemoSession(role);
+      const demoSession = buildDemoSession(role);
+      return {
+        user: demoSession?.user ?? null,
+        session: null,
+        role,
+        isDemo: true,
+      };
     }
-    if (getDemoAccountByEmail(email)) {
+
+    if (getDemoAccountByEmail(normalizedEmail)) {
       throw new Error('Invalid demo password. Use the demo credentials shown on this page.');
     }
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+
+    await clearDemoSessionCookie();
+    if (typeof window !== 'undefined') {
+      window.localStorage.removeItem(DEMO_SESSION_STORAGE_KEY);
+    }
+
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: normalizedEmail,
+      password,
+    });
     if (error) throw error;
-    return data;
+
+    let role = data.user?.app_metadata?.role || data.user?.user_metadata?.role || null;
+    if (data.user) {
+      const { data: profileData } = await supabase
+        .from('user_profiles')
+        .select('*')
+        .eq('id', data.user.id)
+        .maybeSingle();
+      if (profileData) {
+        setProfile(profileData as UserProfile);
+        role = profileData.role;
+      }
+    }
+
+    return { ...data, role, isDemo: false };
   };
 
   const signInWithGoogle = async (role: 'buyer' | 'seller' = 'buyer') => {
@@ -231,6 +336,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     if (!statusResponse.ok) {
       const status = await statusResponse.json().catch(() => null);
       throw new Error(status?.message || 'Google sign-in is not fully configured.');
+    }
+    await clearDemoSessionCookie();
+    if (typeof window !== 'undefined') {
+      window.localStorage.removeItem(DEMO_SESSION_STORAGE_KEY);
     }
     setOAuthRoleCookie(role);
     const { data, error } = await supabase.auth.signInWithOAuth({
@@ -245,8 +354,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const sendEmailOtp = async (email: string) => {
+    await clearDemoSessionCookie();
     const { data, error } = await supabase.auth.signInWithOtp({
-      email,
+      email: normalizeEmail(email),
       options: { shouldCreateUser: true, emailRedirectTo: `${getAuthRedirectBase()}/auth/callback` },
     });
     if (error) throw error;
@@ -254,13 +364,20 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const verifyEmailOtp = async (email: string, token: string) => {
-    const { data, error } = await supabase.auth.verifyOtp({ email, token, type: 'email' });
+    const { data, error } = await supabase.auth.verifyOtp({
+      email: normalizeEmail(email),
+      token,
+      type: 'email',
+    });
     if (error) throw error;
     return data;
   };
 
   const signOut = async () => {
-    if (typeof window !== 'undefined') localStorage.removeItem(DEMO_SESSION_STORAGE_KEY);
+    await clearDemoSessionCookie();
+    if (typeof window !== 'undefined') {
+      window.localStorage.removeItem(DEMO_SESSION_STORAGE_KEY);
+    }
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
     setProfile(null);
@@ -271,12 +388,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const getCurrentUser = async () => {
     if (isDemoAccount) return user;
-    const { data: { user: currentUser }, error } = await supabase.auth.getUser();
+    const {
+      data: { user: currentUser },
+      error,
+    } = await supabase.auth.getUser();
     if (error) throw error;
     return currentUser;
   };
 
-  const isEmailVerified = () => isDemoAccount || user?.email_confirmed_at !== null;
+  const isEmailVerified = () => isDemoAccount || Boolean(user?.email_confirmed_at);
 
   const getUserProfile = async (): Promise<UserProfile | null> => {
     if (!user) return null;
@@ -297,7 +417,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const updatePhone = async (phone: string) => {
     if (!user) throw new Error('Not authenticated');
     if (isDemoAccount) {
-      setProfile((current) => current ? { ...current, phone } : current);
+      setProfile((current) => (current ? { ...current, phone } : current));
       return;
     }
     const { error } = await supabase

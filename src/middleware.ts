@@ -2,6 +2,8 @@ import { createServerClient } from '@supabase/ssr';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
+const DEMO_COOKIE_NAME = 'fabrictrad_demo_role';
+
 const PUBLIC_PATHS = new Set([
   '/',
   '/login',
@@ -23,6 +25,26 @@ const withRefreshedCookies = (target: NextResponse, source: NextResponse) => {
   return target;
 };
 
+const redirectToRoleHome = (request: NextRequest, role: string) => {
+  const destinationUrl = request.nextUrl.clone();
+  destinationUrl.pathname = roleDestination(role);
+  destinationUrl.search = '';
+  return NextResponse.redirect(destinationUrl);
+};
+
+const isRoleMismatch = (pathname: string, role: string) => {
+  const isAdminRoute = pathname.startsWith('/admin-portal');
+  const isSellerRoute = pathname.startsWith('/seller-dashboard');
+  const isBuyerRoute =
+    pathname.startsWith('/buyer-dashboard') || pathname.startsWith('/buyer-requirements');
+
+  return (
+    (isAdminRoute && role !== 'admin_staff' && role !== 'super_admin') ||
+    (isSellerRoute && role !== 'seller') ||
+    (isBuyerRoute && role !== 'buyer')
+  );
+};
+
 export async function middleware(request: NextRequest) {
   const { pathname, searchParams } = request.nextUrl;
 
@@ -30,6 +52,26 @@ export async function middleware(request: NextRequest) {
     const callbackUrl = request.nextUrl.clone();
     callbackUrl.pathname = '/auth/callback';
     return NextResponse.redirect(callbackUrl);
+  }
+
+  const demoCookieValue = request.cookies.get(DEMO_COOKIE_NAME)?.value;
+  const demoRole =
+    demoCookieValue === 'buyer' || demoCookieValue === 'seller' ? demoCookieValue : null;
+
+  if (demoRole) {
+    if (pathname === '/' || pathname === '/login') {
+      return redirectToRoleHome(request, demoRole);
+    }
+
+    if (PUBLIC_PATHS.has(pathname)) {
+      return NextResponse.next({ request });
+    }
+
+    if (isRoleMismatch(pathname, demoRole)) {
+      return redirectToRoleHome(request, demoRole);
+    }
+
+    return NextResponse.next({ request });
   }
 
   let response = NextResponse.next({ request });
@@ -68,28 +110,23 @@ export async function middleware(request: NextRequest) {
 
   const { data: profile } = await supabase
     .from('user_profiles')
-    .select('role')
+    .select('role, is_active')
     .eq('id', user.id)
     .maybeSingle();
 
-  const role = profile?.role || user.app_metadata?.role || user.user_metadata?.role;
-  const destination = roleDestination(role);
+  if (profile?.is_active === false) {
+    const loginUrl = request.nextUrl.clone();
+    loginUrl.pathname = '/login';
+    loginUrl.search = '';
+    loginUrl.searchParams.set('error', 'account_inactive');
+    return withRefreshedCookies(NextResponse.redirect(loginUrl), response);
+  }
 
-  const isAdminRoute = pathname.startsWith('/admin-portal');
-  const isSellerRoute = pathname.startsWith('/seller-dashboard');
-  const isBuyerRoute =
-    pathname.startsWith('/buyer-dashboard') || pathname.startsWith('/buyer-requirements');
+  const role = profile?.role || user.app_metadata?.role || user.user_metadata?.role || 'buyer';
 
-  const roleMismatch =
-    (isAdminRoute && role !== 'admin_staff' && role !== 'super_admin') ||
-    (isSellerRoute && role !== 'seller') ||
-    (isBuyerRoute && role !== 'buyer');
-
-  if (roleMismatch) {
-    const destinationUrl = request.nextUrl.clone();
-    destinationUrl.pathname = destination;
-    destinationUrl.search = '';
-    return withRefreshedCookies(NextResponse.redirect(destinationUrl), response);
+  if (isRoleMismatch(pathname, role)) {
+    const target = redirectToRoleHome(request, role);
+    return withRefreshedCookies(target, response);
   }
 
   return response;
