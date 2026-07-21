@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import AppLogo from '@/components/ui/AppLogo';
 import Icon from '@/components/ui/AppIcon';
-import BuyerDashboardLayout from '@/app/buyer-dashboard/components/BuyerDashboardLayout';
+import ModernBuyerDashboardLayout from '@/app/buyer-dashboard/components/ModernBuyerDashboardLayout';
 
 function DashboardRouteState({
   title,
@@ -144,7 +144,7 @@ export default function BuyerDashboardPage() {
         </div>
       }
     >
-      <BuyerDashboardLayout />
+      <ModernBuyerDashboardLayout />
     </Suspense>
   );
 }
