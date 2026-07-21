@@ -10,6 +10,9 @@ const noStoreJson = (body: Record<string, unknown>, status = 200) =>
     headers: { 'Cache-Control': 'no-store, max-age=0' },
   });
 
+const isSecureRequest = (request: NextRequest) =>
+  request.nextUrl.protocol === 'https:' || request.headers.get('x-forwarded-proto') === 'https';
+
 export async function GET(request: NextRequest) {
   const role = request.cookies.get(DEMO_COOKIE_NAME)?.value;
   if (role !== 'buyer' && role !== 'seller') {
@@ -38,7 +41,7 @@ export async function POST(request: NextRequest) {
   const response = noStoreJson({ role: account.role });
   response.cookies.set(DEMO_COOKIE_NAME, account.role, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
+    secure: isSecureRequest(request),
     sameSite: 'lax',
     path: '/',
     maxAge: DEMO_SESSION_MAX_AGE_SECONDS,
@@ -46,11 +49,11 @@ export async function POST(request: NextRequest) {
   return response;
 }
 
-export async function DELETE() {
+export async function DELETE(request: NextRequest) {
   const response = noStoreJson({ cleared: true });
   response.cookies.set(DEMO_COOKIE_NAME, '', {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
+    secure: isSecureRequest(request),
     sameSite: 'lax',
     path: '/',
     maxAge: 0,
