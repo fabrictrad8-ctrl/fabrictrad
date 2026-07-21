@@ -1,0 +1,109 @@
+name: Live role authentication smoke tests
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  live-auth:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        base_url:
+          - https://fabrictrad.com
+          - https://www.fabrictrad.com
+    steps:
+      - name: Wait for the new Worker deployment
+        shell: bash
+        env:
+          BASE_URL: ${{ matrix.base_url }}
+        run: |
+          set -euo pipefail
+          deployed=false
+          for attempt in $(seq 1 40); do
+            status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+              --output /tmp/deploy-check.json --write-out '%{http_code}' \
+              --header 'Content-Type: application/json' \
+              --data '{"email":"demo.buyer@fabrictrad.com","password":"FabricDemo@2026"}' \
+              "$BASE_URL/api/auth/demo-session" || true)
+            if [ "$status" = "200" ] && grep -q '"role":"buyer"' /tmp/deploy-check.json; then
+              deployed=true
+              break
+            fi
+            echo "Attempt $attempt: $BASE_URL returned $status; waiting for Cloudflare deployment"
+            sleep 15
+          done
+          if [ "$deployed" != "true" ]; then
+            echo "The production domain did not serve the new demo-session endpoint in time."
+            cat /tmp/deploy-check.json 2>/dev/null || true
+            exit 1
+          fi
+
+      - name: Verify buyer, seller and admin route isolation
+        shell: bash
+        env:
+          BASE_URL: ${{ matrix.base_url }}
+        run: |
+          set -euo pipefail
+
+          buyer_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+            --output /tmp/buyer-session.json --write-out '%{http_code}' \
+            --cookie-jar /tmp/buyer.cookies --header 'Content-Type: application/json' \
+            --data '{"email":"demo.buyer@fabrictrad.com","password":"FabricDemo@2026"}' \
+            "$BASE_URL/api/auth/demo-session")
+          test "$buyer_status" = "200"
+          grep -q '"role":"buyer"' /tmp/buyer-session.json
+
+          buyer_dashboard_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+            --output /tmp/buyer-dashboard.html --write-out '%{http_code}' \
+            --cookie /tmp/buyer.cookies --max-redirs 0 "$BASE_URL/buyer-dashboard")
+          test "$buyer_dashboard_status" = "200"
+
+          buyer_to_seller_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+            --dump-header /tmp/buyer-to-seller.headers --output /dev/null --write-out '%{http_code}' \
+            --cookie /tmp/buyer.cookies --max-redirs 0 "$BASE_URL/seller-dashboard")
+          test "$buyer_to_seller_status" = "307" -o "$buyer_to_seller_status" = "308"
+          grep -qi '^location: .*buyer-dashboard' /tmp/buyer-to-seller.headers
+
+          seller_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+            --output /tmp/seller-session.json --write-out '%{http_code}' \
+            --cookie-jar /tmp/seller.cookies --header 'Content-Type: application/json' \
+            --data '{"email":"demo.seller@fabrictrad.com","password":"FabricDemo@2026"}' \
+            "$BASE_URL/api/auth/demo-session")
+          test "$seller_status" = "200"
+          grep -q '"role":"seller"' /tmp/seller-session.json
+
+          seller_dashboard_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+            --output /tmp/seller-dashboard.html --write-out '%{http_code}' \
+            --cookie /tmp/seller.cookies --max-redirs 0 "$BASE_URL/seller-dashboard")
+          test "$seller_dashboard_status" = "200"
+
+          seller_to_buyer_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+            --dump-header /tmp/seller-to-buyer.headers --output /dev/null --write-out '%{http_code}' \
+            --cookie /tmp/seller.cookies --max-redirs 0 "$BASE_URL/buyer-dashboard")
+          test "$seller_to_buyer_status" = "307" -o "$seller_to_buyer_status" = "308"
+          grep -qi '^location: .*seller-dashboard' /tmp/seller-to-buyer.headers
+
+          public_marketplace_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+            --dump-header /tmp/public-marketplace.headers --output /dev/null --write-out '%{http_code}' \
+            --max-redirs 0 "$BASE_URL/marketplace")
+          test "$public_marketplace_status" = "307" -o "$public_marketplace_status" = "308"
+          grep -qi '^location: .*login' /tmp/public-marketplace.headers
+
+          admin_login_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+            --output /tmp/admin-login.html --write-out '%{http_code}' "$BASE_URL/admin-login")
+          test "$admin_login_status" = "200"
+
+          invalid_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+            --output /tmp/invalid-demo.json --write-out '%{http_code}' \
+            --header 'Content-Type: application/json' \
+            --data '{"email":"demo.buyer@fabrictrad.com","password":"incorrect"}' \
+            "$BASE_URL/api/auth/demo-session")
+          test "$invalid_status" = "401"
