@@ -32,3 +32,77 @@ jobs:
         run: npm run lint
       - name: Production build
         run: npm run build
+      - name: Authentication route smoke tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run start > /tmp/fabrictrad-server.log 2>&1 &
+          server_pid=$!
+          cleanup() {
+            kill "$server_pid" 2>/dev/null || true
+            wait "$server_pid" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+
+          ready=false
+          for _ in $(seq 1 40); do
+            if curl --fail --silent --show-error http://127.0.0.1:3000/login > /dev/null; then
+              ready=true
+              break
+            fi
+            sleep 1
+          done
+          if [ "$ready" != "true" ]; then
+            cat /tmp/fabrictrad-server.log
+            exit 1
+          fi
+
+          buyer_status=$(curl --silent --show-error --output /tmp/buyer-session.json \
+            --write-out '%{http_code}' --cookie-jar /tmp/buyer.cookies \
+            --header 'Content-Type: application/json' \
+            --data '{"email":"demo.buyer@fabrictrad.com","password":"FabricDemo@2026"}' \
+            http://127.0.0.1:3000/api/auth/demo-session)
+          test "$buyer_status" = "200"
+          grep -q '"role":"buyer"' /tmp/buyer-session.json
+          grep -q 'fabrictrad_demo_role' /tmp/buyer.cookies
+
+          buyer_dashboard_status=$(curl --silent --show-error --output /tmp/buyer-dashboard.html \
+            --write-out '%{http_code}' --cookie /tmp/buyer.cookies --max-redirs 0 \
+            http://127.0.0.1:3000/buyer-dashboard)
+          test "$buyer_dashboard_status" = "200"
+
+          buyer_to_seller_status=$(curl --silent --show-error --dump-header /tmp/buyer-to-seller.headers \
+            --output /dev/null --write-out '%{http_code}' --cookie /tmp/buyer.cookies --max-redirs 0 \
+            http://127.0.0.1:3000/seller-dashboard)
+          test "$buyer_to_seller_status" = "307" -o "$buyer_to_seller_status" = "308"
+          grep -qi '^location: .*buyer-dashboard' /tmp/buyer-to-seller.headers
+
+          invalid_status=$(curl --silent --show-error --output /tmp/invalid-demo.json \
+            --write-out '%{http_code}' --header 'Content-Type: application/json' \
+            --data '{"email":"demo.buyer@fabrictrad.com","password":"wrong-password"}' \
+            http://127.0.0.1:3000/api/auth/demo-session)
+          test "$invalid_status" = "401"
+
+          seller_status=$(curl --silent --show-error --output /tmp/seller-session.json \
+            --write-out '%{http_code}' --cookie-jar /tmp/seller.cookies \
+            --header 'Content-Type: application/json' \
+            --data '{"email":"demo.seller@fabrictrad.com","password":"FabricDemo@2026"}' \
+            http://127.0.0.1:3000/api/auth/demo-session)
+          test "$seller_status" = "200"
+          grep -q '"role":"seller"' /tmp/seller-session.json
+
+          seller_dashboard_status=$(curl --silent --show-error --output /tmp/seller-dashboard.html \
+            --write-out '%{http_code}' --cookie /tmp/seller.cookies --max-redirs 0 \
+            http://127.0.0.1:3000/seller-dashboard)
+          test "$seller_dashboard_status" = "200"
+
+          seller_to_buyer_status=$(curl --silent --show-error --dump-header /tmp/seller-to-buyer.headers \
+            --output /dev/null --write-out '%{http_code}' --cookie /tmp/seller.cookies --max-redirs 0 \
+            http://127.0.0.1:3000/buyer-dashboard)
+          test "$seller_to_buyer_status" = "307" -o "$seller_to_buyer_status" = "308"
+          grep -qi '^location: .*seller-dashboard' /tmp/seller-to-buyer.headers
+
+          clear_status=$(curl --silent --show-error --output /tmp/clear-demo.json \
+            --write-out '%{http_code}' --cookie /tmp/buyer.cookies \
+            --request DELETE http://127.0.0.1:3000/api/auth/demo-session)
+          test "$clear_status" = "200"
