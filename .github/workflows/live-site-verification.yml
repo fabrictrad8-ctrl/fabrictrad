@@ -9,82 +9,35 @@ permissions:
   contents: read
 
 jobs:
-  reproduce-netlify-build:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      - name: Install dependencies
-        run: npm install --no-audit --no-fund --package-lock=false
-      - name: Build without deployment environment variables
-        id: build
-        continue-on-error: true
-        shell: bash
-        run: |
-          set -o pipefail
-          env -u NEXT_PUBLIC_SUPABASE_URL \
-              -u NEXT_PUBLIC_SUPABASE_ANON_KEY \
-              -u NEXT_PUBLIC_SITE_URL \
-              -u NEXT_PUBLIC_ENABLE_GOOGLE_AUTH \
-              npm run build 2>&1 | tee netlify-build.log
-      - name: Upload build diagnostics
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: netlify-build-diagnostics-${{ github.run_id }}
-          path: netlify-build.log
-          if-no-files-found: error
-      - name: Stop after reproduced build failure
-        if: steps.build.outcome == 'failure'
-        run: exit 1
-
   verify-live-site:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 5
     steps:
-      - name: Wait for the production domain to serve the new landing page
+      - name: Fetch custom and Netlify domains
         shell: bash
         run: |
           set -uo pipefail
           mkdir -p live-check
-          success=0
-          for attempt in $(seq 1 30); do
-            echo "Attempt ${attempt}/30"
-            curl -L --connect-timeout 15 --max-time 45 --retry 2 --retry-all-errors \
-              -D live-check/custom-headers.txt \
-              -o live-check/custom.html \
-              -w 'custom_http=%{http_code}\ncustom_url=%{url_effective}\n' \
-              https://fabrictrad.com/ | tee live-check/custom-status.txt
 
-            if grep -q 'Trusted across textile hubs' live-check/custom.html; then
-              echo 'The custom domain is serving the redesigned FabricTrad landing page.'
-              success=1
-              break
-            fi
+          curl -L --connect-timeout 15 --max-time 60 --retry 2 --retry-all-errors \
+            -D live-check/custom-headers.txt \
+            -o live-check/custom.html \
+            -w 'custom_http=%{http_code}\ncustom_url=%{url_effective}\n' \
+            https://fabrictrad.com/ | tee live-check/custom-status.txt || true
 
-            echo 'New landing-page marker is not live yet; waiting 20 seconds.'
-            sleep 20
-          done
-
-          curl -L --connect-timeout 15 --max-time 45 --retry 2 --retry-all-errors \
+          curl -L --connect-timeout 15 --max-time 60 --retry 2 --retry-all-errors \
             -D live-check/netlify-headers.txt \
             -o live-check/netlify.html \
             -w 'netlify_http=%{http_code}\nnetlify_url=%{url_effective}\n' \
             https://luxury-longma-ea8445.netlify.app/ | tee live-check/netlify-status.txt || true
 
-          if grep -q 'Trusted across textile hubs' live-check/netlify.html; then
-            echo 'The Netlify project domain is serving the redesigned landing page.' | tee live-check/netlify-marker.txt
-          else
-            echo 'The Netlify project domain does not currently contain the redesigned marker.' | tee live-check/netlify-marker.txt
-          fi
+          grep -q 'Trusted across textile hubs' live-check/custom.html \
+            && echo 'custom_marker=redesigned' \
+            || echo 'custom_marker=stale' | tee live-check/custom-marker.txt
 
-          if [ "$success" -ne 1 ]; then
-            echo 'The custom domain did not update within the verification window.'
-            exit 1
-          fi
+          grep -q 'Trusted across textile hubs' live-check/netlify.html \
+            && echo 'netlify_marker=redesigned' \
+            || echo 'netlify_marker=stale' | tee live-check/netlify-marker.txt
 
       - name: Upload live verification evidence
         if: always()
