@@ -1,0 +1,5 @@
+FabricTrad release: auth-gated-public-v1
+Expected public behavior:
+- Logged-out visitors see the informational landing page only.
+- Marketplace, AI drape tools, dashboards, products, vendors and operational pages require authentication.
+- Buyers, sellers and admins are routed to their respective workspaces after login.
