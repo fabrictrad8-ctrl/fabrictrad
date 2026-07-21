@@ -1,0 +1,13 @@
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+[build.environment]
+  NODE_VERSION = "22"
+  NEXT_PUBLIC_SUPABASE_URL = "https://rdhfwlzhcvwjhkxhhpoo.supabase.co"
+  NEXT_PUBLIC_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJkaGZ3bHpoY3Z3amhreGhocG9vIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQxMzMwNjMsImV4cCI6MjA5OTcwOTA2M30.jLF4AD-joIbRslei-T55lwZBdRpntrsU-hjyHCZXgVc"
+  NEXT_PUBLIC_SITE_URL = "https://fabrictrad.com"
+  NEXT_PUBLIC_ENABLE_GOOGLE_AUTH = "true"
+
+# NEXT_PUBLIC_* values are intentionally browser-visible. Keep service-role,
+# payment, shipping and AI provider secrets in Netlify's Environment variables UI.
