@@ -14,10 +14,19 @@ const PUBLIC_PATHS = new Set([
   '/auth/callback',
 ]);
 
+const AUTH_ENTRY_PATHS = new Set([
+  '/',
+  '/login',
+  '/register',
+  '/buyer-registration',
+  '/seller-registration',
+  '/admin-login',
+]);
+
 const roleDestination = (role?: string | null) => {
   if (role === 'seller') return '/seller-dashboard';
   if (role === 'admin_staff' || role === 'super_admin') return '/admin-portal';
-  return '/buyer-dashboard';
+  return '/marketplace';
 };
 
 const withRefreshedCookies = (target: NextResponse, source: NextResponse) => {
@@ -59,7 +68,7 @@ export async function middleware(request: NextRequest) {
     demoCookieValue === 'buyer' || demoCookieValue === 'seller' ? demoCookieValue : null;
 
   if (demoRole) {
-    if (pathname === '/' || pathname === '/login') {
+    if (AUTH_ENTRY_PATHS.has(pathname)) {
       return redirectToRoleHome(request, demoRole);
     }
 
@@ -96,11 +105,11 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (PUBLIC_PATHS.has(pathname)) {
-    return response;
-  }
-
   if (!user) {
+    if (PUBLIC_PATHS.has(pathname)) {
+      return response;
+    }
+
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = '/login';
     loginUrl.search = '';
@@ -123,6 +132,15 @@ export async function middleware(request: NextRequest) {
   }
 
   const role = profile?.role || user.app_metadata?.role || user.user_metadata?.role || 'buyer';
+
+  if (AUTH_ENTRY_PATHS.has(pathname)) {
+    const target = redirectToRoleHome(request, role);
+    return withRefreshedCookies(target, response);
+  }
+
+  if (PUBLIC_PATHS.has(pathname)) {
+    return response;
+  }
 
   if (isRoleMismatch(pathname, role)) {
     const target = redirectToRoleHome(request, role);
