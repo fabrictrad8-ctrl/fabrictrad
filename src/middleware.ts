@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 const ADMIN_EMAIL = 'fabrictrad8@gmail.com';
+const DEMO_COOKIE_NAME = 'fabrictrad_demo_role';
 
 const PUBLIC_PATHS = new Set([
   '/',
@@ -59,6 +60,26 @@ export async function middleware(request: NextRequest) {
     const callbackUrl = request.nextUrl.clone();
     callbackUrl.pathname = '/auth/callback';
     return NextResponse.redirect(callbackUrl);
+  }
+
+  const demoCookieValue = request.cookies.get(DEMO_COOKIE_NAME)?.value;
+  const demoRole =
+    demoCookieValue === 'buyer' || demoCookieValue === 'seller' ? demoCookieValue : null;
+
+  if (demoRole) {
+    if (AUTH_ENTRY_PATHS.has(pathname)) {
+      return redirectToRoleHome(request, demoRole);
+    }
+
+    if (PUBLIC_PATHS.has(pathname)) {
+      return NextResponse.next({ request });
+    }
+
+    if (isRoleMismatch(pathname, demoRole)) {
+      return redirectToRoleHome(request, demoRole);
+    }
+
+    return NextResponse.next({ request });
   }
 
   let response = NextResponse.next({ request });
