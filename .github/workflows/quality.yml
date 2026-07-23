@@ -40,9 +40,17 @@ jobs:
           set -euo pipefail
 
           login_source='src/app/login/EmailOtpLoginClient.tsx'
+          callback_source='src/app/auth/callback/route.ts'
+          middleware_source='src/middleware.ts'
+          logo_source='src/components/ui/AppLogo.tsx'
+
           grep -q 'Forgot password?' "$login_source"
           grep -q 'Continue with Google' "$login_source"
           grep -q 'current-password' "$login_source"
+          grep -Fq "return '/marketplace';" "$login_source"
+          grep -Fq 'return `${origin}/marketplace`;' "$callback_source"
+          grep -Fq "return '/marketplace';" "$middleware_source"
+          grep -Fq "? '/marketplace'" "$logo_source"
           if grep -qi 'Explore a demo' "$login_source"; then
             echo 'Public demo access must not be rendered.'
             exit 1
