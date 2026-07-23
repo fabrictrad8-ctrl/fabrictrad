@@ -46,7 +46,9 @@ export async function GET(request: NextRequest) {
   const code = searchParams.get('code');
   const providerError = searchParams.get('error');
   const errorDescription = searchParams.get('error_description');
-  const requestedRole = getRequestedRole(request, searchParams.get('role'));
+  const roleParam = searchParams.get('role');
+  const roleCookie = request.cookies.get('fabrictrad_oauth_role')?.value;
+  const requestedRole = getRequestedRole(request, roleParam);
 
   if (providerError) {
     return redirectAfterAuth(loginErrorUrl(origin, errorDescription || providerError));
@@ -99,6 +101,17 @@ export async function GET(request: NextRequest) {
   }
 
   const resolvedRole = isUserRole(profile.role) ? profile.role : requestedRole;
+  const hasGoogleIdentity =
+    user.app_metadata?.provider === 'google' ||
+    user.identities?.some((identity) => identity.provider === 'google') === true;
+  const isGoogleCallback =
+    hasGoogleIdentity &&
+    (roleParam === 'buyer' || roleParam === 'seller' || roleCookie === 'buyer' || roleCookie === 'seller');
+
+  if (isGoogleCallback && resolvedRole !== 'buyer') {
+    await supabase.auth.signOut();
+    return redirectAfterAuth(loginErrorUrl(origin, 'google_buyer_only'));
+  }
 
   if (!profile.phone && resolvedRole !== 'admin_staff' && resolvedRole !== 'super_admin') {
     return redirectAfterAuth(`${origin}/auth/phone?role=${resolvedRole}`);
