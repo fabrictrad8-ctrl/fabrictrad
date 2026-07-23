@@ -22,8 +22,8 @@ const capabilities = [
   },
   {
     icon: 'SparklesIcon',
-    title: 'AI-assisted decisions',
-    copy: 'Authenticated users can access fabric visualisation and workflow tools inside their workspace.',
+    title: 'Better buying decisions',
+    copy: 'Authenticated buyers can use fabric visualisation and colour-draping tools inside their workspace.',
   },
 ];
 
@@ -78,7 +78,7 @@ export default function PublicAccessLanding() {
             </div>
 
             <p className="mt-5 text-xs leading-5 text-muted-foreground">
-              Marketplace listings, AI tools, dashboards, orders, requirements and seller information are available only after authentication.
+              Marketplace listings, colour-draping tools, dashboards, orders, requirements and seller information are available only after authentication.
             </p>
           </div>
 
@@ -87,7 +87,7 @@ export default function PublicAccessLanding() {
               <div className="flex items-center justify-between border-b border-border pb-5">
                 <div>
                   <p className="text-xs font-800 uppercase tracking-[0.16em] text-primary">Role-based access</p>
-                  <h2 className="mt-2 text-2xl font-800">One platform, three protected workspaces</h2>
+                  <h2 className="mt-2 text-2xl font-800">Two private business workspaces</h2>
                 </div>
                 <Icon name="LockClosedIcon" size={28} className="text-success" />
               </div>
@@ -95,7 +95,6 @@ export default function PublicAccessLanding() {
                 {[
                   ['ShoppingBagIcon', 'Buyer workspace', 'Sourcing, requirements, orders and shipment tracking'],
                   ['BuildingStorefrontIcon', 'Seller workspace', 'Listings, inventory, fulfilment, documents and payouts'],
-                  ['ShieldCheckIcon', 'Admin workspace', 'Verification, platform operations, payments and monitoring'],
                 ].map(([icon, title, copy]) => (
                   <div key={title} className="flex gap-4 rounded-2xl border border-border bg-card p-4">
                     <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
@@ -107,6 +106,14 @@ export default function PublicAccessLanding() {
                     </div>
                   </div>
                 ))}
+              </div>
+              <div className="mt-5 rounded-2xl border border-success/20 bg-success/5 p-4">
+                <div className="flex items-start gap-3">
+                  <Icon name="EnvelopeIcon" size={18} className="mt-0.5 shrink-0 text-success" />
+                  <p className="text-xs leading-5 text-muted-foreground">
+                    Sign-in codes are delivered only to registered account emails, so access stays tied to the business inbox.
+                  </p>
+                </div>
               </div>
             </div>
           </div>
