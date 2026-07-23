@@ -57,6 +57,10 @@ jobs:
             exit 1
           fi
 
+          echo '--- Login markers ---'
+          grep -o 'Sign in to FabricTrad' /tmp/login.html | head -1 || true
+          grep -oi 'Explore a demo' /tmp/login.html | head -1 || true
+          grep -oi 'Admin portal' /tmp/login.html | head -1 || true
           grep -q 'Sign in to FabricTrad' /tmp/login.html
           if grep -qi 'Explore a demo' /tmp/login.html; then
             echo 'Public demo access must not be rendered.'
@@ -70,6 +74,8 @@ jobs:
           invalid_otp_status=$(curl --silent --show-error --output /tmp/invalid-otp.json \
             --write-out '%{http_code}' --header 'Content-Type: application/json' \
             --data '{}' http://127.0.0.1:3000/api/auth/email-otp/request)
+          echo "invalid_otp_status=$invalid_otp_status"
+          cat /tmp/invalid-otp.json
           test "$invalid_otp_status" = "400"
           grep -q 'Email is required' /tmp/invalid-otp.json
 
@@ -77,4 +83,6 @@ jobs:
             --write-out '%{http_code}' --header 'Content-Type: application/json' \
             --data '{"email":"demo.buyer@fabrictrad.com","password":"FabricDemo@2026"}' \
             http://127.0.0.1:3000/api/auth/demo-session)
+          echo "disabled_demo_status=$disabled_demo_status"
+          cat /tmp/disabled-demo.txt
           test "$disabled_demo_status" = "404"
