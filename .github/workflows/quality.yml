@@ -21,6 +21,10 @@ jobs:
       NEXT_PUBLIC_SITE_URL: http://localhost:3000
       NEXT_PUBLIC_ENABLE_GOOGLE_AUTH: 'false'
       ADMIN_EMAIL: fabrictrad8@gmail.com
+      OPENAI_API_KEY: test-openai-image-key
+      OPENAI_DRAPE_IMAGE_MODEL: gpt-image-2
+      OPENAI_DRAPE_IMAGE_SIZE: 1024x1536
+      OPENAI_DRAPE_IMAGE_QUALITY: medium
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -34,7 +38,7 @@ jobs:
         run: npm run lint
       - name: Production build
         run: npm run build
-      - name: Authentication source and route smoke tests
+      - name: Authentication and AI drape source checks
         shell: bash
         run: |
           set -euo pipefail
@@ -45,6 +49,9 @@ jobs:
           callback_source='src/app/auth/callback/route.ts'
           middleware_source='src/middleware.ts'
           logo_source='src/components/ui/AppLogo.tsx'
+          drape_ui_source='src/app/product-detail/components/VirtualColourDrapeStudio.tsx'
+          drape_route_source='src/app/api/ai/drape-on/route.ts'
+          deploy_source='.github/workflows/deploy-cloudflare.yml'
 
           grep -q 'Forgot password?' "$login_source"
           grep -q 'Continue with Google' "$login_source"
@@ -59,6 +66,35 @@ jobs:
           grep -Fq "return '/marketplace';" "$middleware_source"
           grep -Fq ": '/marketplace'" "$logo_source"
 
+          grep -Fq "fetch('/api/ai/drape-on'" "$drape_ui_source"
+          grep -Fq 'Generate AI drape' "$drape_ui_source"
+          grep -Fq 'Your uploaded photo' "$drape_ui_source"
+          grep -Fq 'Choose the garment' "$drape_ui_source"
+          grep -Fq 'AI-generated garment using the selected fabric' "$drape_ui_source"
+          grep -Fq "'gpt-image-2'" "$drape_route_source"
+          grep -Fq "form.append('image[]', person.blob" "$drape_route_source"
+          grep -Fq "form.append('image[]', fabric.blob" "$drape_route_source"
+          grep -Fq 'flat colour block' "$drape_route_source"
+          grep -Fq "const DEMO_COOKIE_NAME = 'fabrictrad_demo_role';" "$drape_route_source"
+          grep -Fq 'OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}' "$deploy_source"
+          grep -Fq 'Verify live AI drape-on configuration' "$deploy_source"
+
+          if grep -q 'clipPath' "$drape_ui_source"; then
+            echo 'The AI drape studio still contains the old polygon overlay.'
+            exit 1
+          fi
+          if grep -q 'photoFilter' "$drape_ui_source"; then
+            echo 'The AI drape studio still contains the old colour-filter simulation.'
+            exit 1
+          fi
+          if grep -qi 'Your photo is not sent for AI generation' "$drape_ui_source"; then
+            echo 'The AI drape studio still claims images are not sent to the generator.'
+            exit 1
+          fi
+          if grep -qi 'Click a fabric or shade to drape it' "$drape_ui_source"; then
+            echo 'The old colour-comparison tool is still being rendered as drape-on.'
+            exit 1
+          fi
           if grep -qi 'Password reset codes are sent only' "$login_source"; then
             echo 'The removed password-reset notice was restored unexpectedly.'
             exit 1
@@ -92,6 +128,12 @@ jobs:
             cat /tmp/fabrictrad-server.log
             exit 1
           fi
+
+          ai_status=$(curl --silent --show-error --output /tmp/ai-drape-status.json \
+            --write-out '%{http_code}' http://127.0.0.1:3000/api/ai/drape-on)
+          test "$ai_status" = "200"
+          grep -q '"configured":true' /tmp/ai-drape-status.json
+          grep -q 'gpt-image-2' /tmp/ai-drape-status.json
 
           invalid_otp_status=$(curl --silent --show-error --output /tmp/invalid-otp.json \
             --write-out '%{http_code}' --header 'Content-Type: application/json' \
