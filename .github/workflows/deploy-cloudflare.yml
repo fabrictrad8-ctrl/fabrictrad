@@ -16,13 +16,19 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 45
     env:
       NEXT_PUBLIC_SUPABASE_URL: https://rdhfwlzhcvwjhkxhhpoo.supabase.co
-      NEXT_PUBLIC_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJkaGZ3bHpoY3Z3amhreGhocG9vIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQxMzMwNjMsImV4cCI6MjA5OTcwOTA2M30.jLF4AD-joIbRslei-T55lwZBdRpntrsU-hjyHCZXgVc
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJIUzI1NiIsInJlZiI6InJkaGZ3bHpoY3Z3amhreGhocG9vIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQxMzMwNjMsImV4cCI6MjA5OTcwOTA2M30.jLF4AD-joIbRslei-T55lwZBdRpntrsU-hjyHCZXgVc
       NEXT_PUBLIC_SITE_URL: https://fabrictrad.com
       NEXT_PUBLIC_ENABLE_GOOGLE_AUTH: 'true'
       ADMIN_EMAIL: fabrictrad8@gmail.com
+      OPENAI_DRAPE_IMAGE_MODEL: gpt-image-2
+      OPENAI_DRAPE_IMAGE_SIZE: 1024x1536
+      OPENAI_DRAPE_IMAGE_QUALITY: medium
+      AI_DRAPE_DAILY_LIMIT: '10'
+      AI_DRAPE_DEMO_DAILY_LIMIT: '2'
+      AI_DRAPE_FALLBACK_DAILY_LIMIT: '3'
     steps:
       - uses: actions/checkout@v4
 
@@ -53,9 +59,54 @@ jobs:
       - name: Build Cloudflare Worker
         run: npm run build:sites
 
+      - name: Sync OpenAI image-generation secret
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          if [ -n "$OPENAI_API_KEY" ]; then
+            printf '%s' "$OPENAI_API_KEY" | npx wrangler secret put OPENAI_API_KEY --config wrangler.jsonc
+            echo 'OpenAI image-generation secret synced to the FabricTrad Worker.'
+          else
+            echo '::warning::The GitHub OPENAI_API_KEY secret is not set. Keeping any OPENAI_API_KEY already stored on the Cloudflare Worker.'
+          fi
+
       - name: Deploy existing Worker
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: deploy --config wrangler.jsonc
+
+      - name: Verify live AI drape-on configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          ready=false
+
+          for attempt in $(seq 1 36); do
+            status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+              --output /tmp/ai-drape-status.json --write-out '%{http_code}' \
+              'https://fabrictrad.com/api/ai/drape-on' || true)
+
+            if [ "$status" = '200' ] \
+              && grep -q '"configured":true' /tmp/ai-drape-status.json \
+              && grep -q 'gpt-image-2' /tmp/ai-drape-status.json; then
+              ready=true
+              break
+            fi
+
+            echo "Attempt $attempt: waiting for the real AI drape-on release"
+            cat /tmp/ai-drape-status.json 2>/dev/null || true
+            sleep 10
+          done
+
+          if [ "$ready" != 'true' ]; then
+            echo '::error::The website deployed, but the live AI drape-on endpoint is not configured with GPT Image 2.'
+            cat /tmp/ai-drape-status.json 2>/dev/null || true
+            exit 1
+          fi
+
+          echo 'Live FabricTrad AI drape-on endpoint is configured and ready.'
