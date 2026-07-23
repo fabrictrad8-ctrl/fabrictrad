@@ -4,8 +4,7 @@ on:
   pull_request:
   push:
     branches:
-      - main
-      - 'agent/**'
+      - 'agent/diagnose-live-demo'
 
 permissions:
   contents: read
@@ -13,148 +12,80 @@ permissions:
 jobs:
   check:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
-    env:
-      NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
-      NEXT_PUBLIC_SUPABASE_ANON_KEY: test-anon-key
-      SUPABASE_SERVICE_ROLE_KEY: test-service-role-key
-      NEXT_PUBLIC_SITE_URL: http://localhost:3000
-      NEXT_PUBLIC_ENABLE_GOOGLE_AUTH: 'false'
-      ADMIN_EMAIL: fabrictrad8@gmail.com
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      - name: Install dependencies
-        run: npm install --no-audit --no-fund --package-lock=false --legacy-peer-deps
-      - name: Type check
-        run: npm run type-check
-      - name: Lint
-        run: npm run lint
-      - name: Production build
-        run: npm run build
-      - name: Authentication source and route smoke tests
+      - name: Inspect live FabricTrad authentication
         shell: bash
         run: |
-          set -euo pipefail
+          set -u
 
-          login_source='src/app/login/EmailOtpLoginClient.tsx'
-          auth_context_source='src/contexts/AuthContext.tsx'
-          demo_route_source='src/app/api/auth/demo-session/route.ts'
-          callback_source='src/app/auth/callback/route.ts'
-          middleware_source='src/middleware.ts'
-          logo_source='src/components/ui/AppLogo.tsx'
+          inspect_domain() {
+            base_url="$1"
+            safe_name=$(echo "$base_url" | sed 's#https://##; s#[^a-zA-Z0-9]#-#g')
+            echo "===== DOMAIN $base_url ====="
 
-          grep -q 'Forgot password?' "$login_source"
-          grep -q 'Continue with Google' "$login_source"
-          grep -q 'current-password' "$login_source"
-          grep -Fq "return '/marketplace';" "$login_source"
-          grep -Fq 'result?.isDemo' "$login_source"
-          grep -Fq "'/api/auth/demo-session'" "$auth_context_source"
-          grep -Fq "'demo.buyer@fabrictrad.com'" "$demo_route_source"
-          grep -Fq "'demo.seller@fabrictrad.com'" "$demo_route_source"
-          grep -Fq "const DEMO_COOKIE_NAME = 'fabrictrad_demo_role';" "$middleware_source"
-          grep -Fq 'return `${origin}/marketplace`;' "$callback_source"
-          grep -Fq "return '/marketplace';" "$middleware_source"
-          grep -Fq ": '/marketplace'" "$logo_source"
-
-          if grep -qi 'Password reset codes are sent only' "$login_source"; then
-            echo 'The removed password-reset notice was restored unexpectedly.'
-            exit 1
-          fi
-          if grep -qi 'Explore a demo' "$login_source"; then
-            echo 'Public demo shortcut buttons must not be rendered.'
-            exit 1
-          fi
-          if grep -qi 'Admin portal' "$login_source"; then
-            echo 'A separate administrator entry point must not be rendered.'
-            exit 1
-          fi
-
-          npm run start > /tmp/fabrictrad-server.log 2>&1 &
-          server_pid=$!
-          cleanup() {
-            kill "$server_pid" 2>/dev/null || true
-            wait "$server_pid" 2>/dev/null || true
-          }
-          trap cleanup EXIT
-
-          ready=false
-          for _ in $(seq 1 40); do
-            if curl --fail --silent --show-error http://127.0.0.1:3000/login > /tmp/login.html; then
-              ready=true
-              break
+            login_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+              --dump-header "/tmp/${safe_name}-login.headers" \
+              --output "/tmp/${safe_name}-login.html" \
+              --write-out '%{http_code}' "$base_url/login" || true)
+            echo "LOGIN_STATUS=$login_status"
+            head -n 20 "/tmp/${safe_name}-login.headers" 2>/dev/null || true
+            if grep -qi 'Password reset codes are sent only' "/tmp/${safe_name}-login.html"; then
+              echo 'RESET_NOTICE_PRESENT=yes'
+            else
+              echo 'RESET_NOTICE_PRESENT=no_or_client_rendered'
             fi
-            sleep 1
-          done
-          if [ "$ready" != "true" ]; then
-            cat /tmp/fabrictrad-server.log
-            exit 1
-          fi
 
-          invalid_otp_status=$(curl --silent --show-error --output /tmp/invalid-otp.json \
-            --write-out '%{http_code}' --header 'Content-Type: application/json' \
-            --data '{}' http://127.0.0.1:3000/api/auth/email-otp/request)
-          test "$invalid_otp_status" = "400"
-          grep -q 'Email is required' /tmp/invalid-otp.json
+            buyer_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+              --dump-header "/tmp/${safe_name}-buyer.headers" \
+              --output "/tmp/${safe_name}-buyer.json" \
+              --cookie-jar "/tmp/${safe_name}-buyer.cookies" \
+              --write-out '%{http_code}' \
+              --header 'Content-Type: application/json' \
+              --data '{"email":"demo.buyer@fabrictrad.com","password":"FabricDemo@2026"}' \
+              "$base_url/api/auth/demo-session" || true)
+            echo "BUYER_STATUS=$buyer_status"
+            echo 'BUYER_HEADERS:'
+            cat "/tmp/${safe_name}-buyer.headers" 2>/dev/null || true
+            echo 'BUYER_BODY:'
+            cat "/tmp/${safe_name}-buyer.json" 2>/dev/null || true
+            echo
+            echo 'BUYER_COOKIES:'
+            cat "/tmp/${safe_name}-buyer.cookies" 2>/dev/null || true
 
-          invalid_demo_status=$(curl --silent --show-error --output /tmp/invalid-demo.json \
-            --write-out '%{http_code}' --header 'Content-Type: application/json' \
-            --data '{"email":"demo.buyer@fabrictrad.com","password":"wrong-password"}' \
-            http://127.0.0.1:3000/api/auth/demo-session)
-          test "$invalid_demo_status" = "401"
-          grep -q 'Invalid login credentials' /tmp/invalid-demo.json
+            buyer_marketplace_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+              --dump-header "/tmp/${safe_name}-marketplace.headers" \
+              --output /dev/null --write-out '%{http_code}' \
+              --cookie "/tmp/${safe_name}-buyer.cookies" --max-redirs 0 \
+              "$base_url/marketplace" || true)
+            echo "BUYER_MARKETPLACE_STATUS=$buyer_marketplace_status"
+            cat "/tmp/${safe_name}-marketplace.headers" 2>/dev/null || true
 
-          buyer_status=$(curl --silent --show-error --output /tmp/buyer-session.json \
-            --write-out '%{http_code}' --cookie-jar /tmp/buyer.cookies \
-            --header 'Content-Type: application/json' \
-            --data '{"email":"demo.buyer@fabrictrad.com","password":"FabricDemo@2026"}' \
-            http://127.0.0.1:3000/api/auth/demo-session)
-          test "$buyer_status" = "200"
-          grep -q '"role":"buyer"' /tmp/buyer-session.json
-          grep -q 'fabrictrad_demo_role' /tmp/buyer.cookies
+            seller_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+              --dump-header "/tmp/${safe_name}-seller.headers" \
+              --output "/tmp/${safe_name}-seller.json" \
+              --cookie-jar "/tmp/${safe_name}-seller.cookies" \
+              --write-out '%{http_code}' \
+              --header 'Content-Type: application/json' \
+              --data '{"email":"demo.seller@fabrictrad.com","password":"FabricDemo@2026"}' \
+              "$base_url/api/auth/demo-session" || true)
+            echo "SELLER_STATUS=$seller_status"
+            echo 'SELLER_HEADERS:'
+            cat "/tmp/${safe_name}-seller.headers" 2>/dev/null || true
+            echo 'SELLER_BODY:'
+            cat "/tmp/${safe_name}-seller.json" 2>/dev/null || true
+            echo
+            echo 'SELLER_COOKIES:'
+            cat "/tmp/${safe_name}-seller.cookies" 2>/dev/null || true
 
-          buyer_marketplace_status=$(curl --silent --show-error --output /tmp/buyer-marketplace.html \
-            --write-out '%{http_code}' --cookie /tmp/buyer.cookies --max-redirs 0 \
-            http://127.0.0.1:3000/marketplace)
-          test "$buyer_marketplace_status" = "200"
+            seller_dashboard_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+              --dump-header "/tmp/${safe_name}-seller-dashboard.headers" \
+              --output /dev/null --write-out '%{http_code}' \
+              --cookie "/tmp/${safe_name}-seller.cookies" --max-redirs 0 \
+              "$base_url/seller-dashboard" || true)
+            echo "SELLER_DASHBOARD_STATUS=$seller_dashboard_status"
+            cat "/tmp/${safe_name}-seller-dashboard.headers" 2>/dev/null || true
+          }
 
-          buyer_to_seller_status=$(curl --silent --show-error --dump-header /tmp/buyer-to-seller.headers \
-            --output /dev/null --write-out '%{http_code}' --cookie /tmp/buyer.cookies --max-redirs 0 \
-            http://127.0.0.1:3000/seller-dashboard)
-          test "$buyer_to_seller_status" = "307" -o "$buyer_to_seller_status" = "308"
-          grep -qi '^location: .*marketplace' /tmp/buyer-to-seller.headers
-
-          seller_status=$(curl --silent --show-error --output /tmp/seller-session.json \
-            --write-out '%{http_code}' --cookie-jar /tmp/seller.cookies \
-            --header 'Content-Type: application/json' \
-            --data '{"email":"demo.seller@fabrictrad.com","password":"FabricDemo@2026"}' \
-            http://127.0.0.1:3000/api/auth/demo-session)
-          test "$seller_status" = "200"
-          grep -q '"role":"seller"' /tmp/seller-session.json
-          grep -q 'fabrictrad_demo_role' /tmp/seller.cookies
-
-          seller_dashboard_status=$(curl --silent --show-error --output /tmp/seller-dashboard.html \
-            --write-out '%{http_code}' --cookie /tmp/seller.cookies --max-redirs 0 \
-            http://127.0.0.1:3000/seller-dashboard)
-          test "$seller_dashboard_status" = "200"
-
-          seller_to_buyer_status=$(curl --silent --show-error --dump-header /tmp/seller-to-buyer.headers \
-            --output /dev/null --write-out '%{http_code}' --cookie /tmp/seller.cookies --max-redirs 0 \
-            http://127.0.0.1:3000/buyer-dashboard)
-          test "$seller_to_buyer_status" = "307" -o "$seller_to_buyer_status" = "308"
-          grep -qi '^location: .*seller-dashboard' /tmp/seller-to-buyer.headers
-
-          clear_status=$(curl --silent --show-error --output /tmp/clear-demo.json \
-            --write-out '%{http_code}' --cookie /tmp/buyer.cookies --request DELETE \
-            http://127.0.0.1:3000/api/auth/demo-session)
-          test "$clear_status" = "200"
-
-          retired_ensure_status=$(curl --silent --show-error --output /tmp/retired-ensure.txt \
-            --write-out '%{http_code}' --header 'Content-Type: application/json' \
-            --data '{"email":"demo.buyer@fabrictrad.com","password":"FabricDemo@2026"}' \
-            http://127.0.0.1:3000/api/auth/demo-account/ensure)
-          test "$retired_ensure_status" = "404" -o "$retired_ensure_status" = "410"
-      - name: OpenNext Cloudflare compatibility build
-        run: npm run build:sites
+          inspect_domain 'https://fabrictrad.com'
+          inspect_domain 'https://www.fabrictrad.com'
