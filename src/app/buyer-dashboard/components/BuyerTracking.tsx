@@ -1,9 +1,14 @@
 import React from 'react';
 import Icon from '@/components/ui/AppIcon';
-import { useAuth } from '@/contexts/AuthContext';
-import { DEMO_SHIPMENTS } from '@/lib/demoAccounts';
 
-const shipments: {
+type ShipmentTimelineEvent = {
+  event: string;
+  time: string;
+  done: boolean;
+  active?: boolean;
+};
+
+type BuyerShipment = {
   orderId: string;
   shipmentId: string;
   awb: string;
@@ -15,18 +20,17 @@ const shipments: {
   edd: string;
   lastUpdate: string;
   trackingUrl?: string;
-  timeline: { event: string; time: string; done: boolean; active?: boolean }[];
-}[] = [];
+  timeline: ShipmentTimelineEvent[];
+};
+
+const shipments: BuyerShipment[] = [];
 
 export default function BuyerTracking() {
-  const { isDemoAccount } = useAuth();
-  const visibleShipments = isDemoAccount ? DEMO_SHIPMENTS : shipments;
-
   return (
     <div>
       <h1 className="text-xl font-800 text-foreground mb-6">Track Shipments</h1>
       <div className="space-y-5">
-        {visibleShipments.length === 0 && (
+        {shipments.length === 0 && (
           <div className="bg-card rounded-2xl border border-border px-5 py-12 text-center">
             <Icon name="TruckIcon" size={34} className="mx-auto mb-3 text-muted-foreground" />
             <p className="text-sm font-800 text-foreground">No shipments for this account</p>
@@ -35,32 +39,31 @@ export default function BuyerTracking() {
             </p>
           </div>
         )}
-        {visibleShipments?.map((shipment) => (
+        {shipments.map((shipment) => (
           <div
-            key={shipment?.shipmentId}
+            key={shipment.shipmentId}
             className="bg-card rounded-2xl border border-border overflow-hidden"
           >
-            {/* Header */}
             <div className="px-5 py-4 border-b border-border bg-muted/30">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="mono-id">{shipment?.orderId}</span>
+                    <span className="mono-id">{shipment.orderId}</span>
                     <span className="text-xs bg-purple-100 text-purple-700 font-700 px-2.5 py-0.5 rounded-full">
-                      {shipment?.statusLabel}
+                      {shipment.statusLabel}
                     </span>
                   </div>
-                  <p className="text-sm font-700 text-foreground">{shipment?.product}</p>
-                  <p className="text-xs text-muted-foreground">{shipment?.seller}</p>
+                  <p className="text-sm font-700 text-foreground">{shipment.product}</p>
+                  <p className="text-xs text-muted-foreground">{shipment.seller}</p>
                 </div>
                 <div className="text-left sm:text-right">
                   <div className="flex items-center gap-1.5 mb-1">
                     <Icon name="TruckIcon" size={14} className="text-muted-foreground" />
-                    <span className="text-xs font-600 text-foreground">{shipment?.courier}</span>
+                    <span className="text-xs font-600 text-foreground">{shipment.courier}</span>
                   </div>
-                  <p className="text-xs text-muted-foreground">AWB: {shipment?.awb}</p>
-                  <p className="text-xs font-700 text-primary">EDD: {shipment?.edd}</p>
-                  {shipment?.trackingUrl && (
+                  <p className="text-xs text-muted-foreground">AWB: {shipment.awb}</p>
+                  <p className="text-xs font-700 text-primary">EDD: {shipment.edd}</p>
+                  {shipment.trackingUrl && (
                     <a
                       href={shipment.trackingUrl}
                       target="_blank"
@@ -75,46 +78,47 @@ export default function BuyerTracking() {
               </div>
             </div>
 
-            {/* Timeline */}
             <div className="p-5">
               <p className="text-xs font-700 text-muted-foreground uppercase tracking-wider mb-4">
                 Shipment Timeline
               </p>
               <div className="space-y-0">
-                {shipment?.timeline?.map((event, i) => (
-                  <div key={event?.event} className="flex gap-4">
+                {shipment.timeline.map((timelineEvent, index) => (
+                  <div key={`${timelineEvent.event}-${timelineEvent.time}`} className="flex gap-4">
                     <div className="flex flex-col items-center">
                       <div
                         className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
-                          event?.active
+                          timelineEvent.active
                             ? 'tracking-step-active'
-                            : event?.done
+                            : timelineEvent.done
                               ? 'tracking-step-done'
                               : 'tracking-step-pending'
                         }`}
                       >
-                        {event?.done && !event?.active ? (
+                        {timelineEvent.done && !timelineEvent.active ? (
                           <Icon name="CheckIcon" size={14} />
                         ) : (
-                          <span className="text-xs font-700">{i + 1}</span>
+                          <span className="text-xs font-700">{index + 1}</span>
                         )}
                       </div>
-                      {i < shipment?.timeline?.length - 1 && (
-                        <div className={`w-0.5 h-8 ${event?.done ? 'bg-success' : 'bg-border'}`} />
+                      {index < shipment.timeline.length - 1 && (
+                        <div
+                          className={`w-0.5 h-8 ${timelineEvent.done ? 'bg-success' : 'bg-border'}`}
+                        />
                       )}
                     </div>
                     <div className="pb-4 flex-1">
                       <p
-                        className={`text-sm font-700 ${event?.active ? 'text-primary' : event?.done ? 'text-foreground' : 'text-muted-foreground'}`}
+                        className={`text-sm font-700 ${timelineEvent.active ? 'text-primary' : timelineEvent.done ? 'text-foreground' : 'text-muted-foreground'}`}
                       >
-                        {event?.event}
-                        {event?.active && (
+                        {timelineEvent.event}
+                        {timelineEvent.active && (
                           <span className="ml-2 text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">
                             Current
                           </span>
                         )}
                       </p>
-                      <p className="text-xs text-muted-foreground">{event?.time}</p>
+                      <p className="text-xs text-muted-foreground">{timelineEvent.time}</p>
                     </div>
                   </div>
                 ))}
@@ -122,14 +126,14 @@ export default function BuyerTracking() {
 
               <div className="mt-2 p-3 bg-muted rounded-xl flex items-center gap-2">
                 <Icon name="MapPinIcon" size={14} className="text-muted-foreground" />
-                <p className="text-xs text-muted-foreground">Last update: {shipment?.lastUpdate}</p>
+                <p className="text-xs text-muted-foreground">Last update: {shipment.lastUpdate}</p>
               </div>
 
-              {shipment?.trackingUrl && (
+              {shipment.trackingUrl && (
                 <div className="mt-3 rounded-xl border border-secondary/20 bg-secondary/5 p-3">
                   <p className="text-xs font-800 text-secondary">Seller-managed delivery</p>
                   <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                    This order uses the seller's own delivery partner instead of Shiprocket. The
+                    This order uses the seller&apos;s own delivery partner instead of Shiprocket. The
                     seller is responsible for maintaining the tracking number, live tracking link,
                     delivery status, and buyer updates.
                   </p>
