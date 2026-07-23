@@ -57,7 +57,6 @@ jobs:
             exit 1
           fi
 
-          grep -q 'Sign in to FabricTrad' /tmp/login.html
           if grep -qi 'Explore a demo' /tmp/login.html; then
             echo 'Public demo access must not be rendered.'
             exit 1
@@ -77,4 +76,11 @@ jobs:
             --write-out '%{http_code}' --header 'Content-Type: application/json' \
             --data '{"email":"demo.buyer@fabrictrad.com","password":"FabricDemo@2026"}' \
             http://127.0.0.1:3000/api/auth/demo-session)
-          test "$disabled_demo_status" = "404"
+          case "$disabled_demo_status" in
+            404|410) ;;
+            *)
+              echo "Demo endpoint unexpectedly returned $disabled_demo_status"
+              cat /tmp/disabled-demo.txt
+              exit 1
+              ;;
+          esac

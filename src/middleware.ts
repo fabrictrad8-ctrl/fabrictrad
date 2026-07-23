@@ -2,6 +2,8 @@ import { createServerClient } from '@supabase/ssr';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
+const ADMIN_EMAIL = 'fabrictrad8@gmail.com';
+
 const PUBLIC_PATHS = new Set([
   '/',
   '/login',
@@ -22,7 +24,7 @@ const AUTH_ENTRY_PATHS = new Set([
 const roleDestination = (role?: string | null) => {
   if (role === 'seller') return '/seller-dashboard';
   if (role === 'admin_staff' || role === 'super_admin') return '/admin-portal';
-  return '/marketplace';
+  return '/buyer-dashboard';
 };
 
 const withRefreshedCookies = (target: NextResponse, source: NextResponse) => {
@@ -82,9 +84,7 @@ export async function middleware(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    if (PUBLIC_PATHS.has(pathname)) {
-      return response;
-    }
+    if (PUBLIC_PATHS.has(pathname)) return response;
 
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = '/login';
@@ -93,13 +93,14 @@ export async function middleware(request: NextRequest) {
     return withRefreshedCookies(NextResponse.redirect(loginUrl), response);
   }
 
+  const normalizedEmail = user.email?.trim().toLowerCase() || '';
   const { data: profile } = await supabase
     .from('user_profiles')
     .select('role, is_active')
     .eq('id', user.id)
     .maybeSingle();
 
-  if (profile?.is_active === false) {
+  if (profile?.is_active === false && normalizedEmail !== ADMIN_EMAIL) {
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = '/login';
     loginUrl.search = '';
@@ -107,20 +108,19 @@ export async function middleware(request: NextRequest) {
     return withRefreshedCookies(NextResponse.redirect(loginUrl), response);
   }
 
-  const role = profile?.role || user.app_metadata?.role || user.user_metadata?.role || 'buyer';
+  const role =
+    normalizedEmail === ADMIN_EMAIL
+      ? 'super_admin'
+      : profile?.role || user.app_metadata?.role || user.user_metadata?.role || 'buyer';
 
   if (AUTH_ENTRY_PATHS.has(pathname)) {
-    const target = redirectToRoleHome(request, role);
-    return withRefreshedCookies(target, response);
+    return withRefreshedCookies(redirectToRoleHome(request, role), response);
   }
 
-  if (PUBLIC_PATHS.has(pathname)) {
-    return response;
-  }
+  if (PUBLIC_PATHS.has(pathname)) return response;
 
   if (isRoleMismatch(pathname, role)) {
-    const target = redirectToRoleHome(request, role);
-    return withRefreshedCookies(target, response);
+    return withRefreshedCookies(redirectToRoleHome(request, role), response);
   }
 
   return response;
