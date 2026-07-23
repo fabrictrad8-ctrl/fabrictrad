@@ -4,6 +4,7 @@ import { Plus_Jakarta_Sans } from 'next/font/google';
 import '../styles/tailwind.css';
 import { AuthProvider } from '@/contexts/AuthContext';
 import AppClientEnhancements from '@/components/AppClientEnhancements';
+import LogoutButton from '@/components/auth/LogoutButton';
 import { AppPreferencesProvider } from '@/contexts/AppPreferencesContext';
 
 const plusJakartaSans = Plus_Jakarta_Sans({
@@ -47,6 +48,7 @@ export default function RootLayout({
           <AppPreferencesProvider>
             <AppClientEnhancements />
             {children}
+            <LogoutButton />
           </AppPreferencesProvider>
         </AuthProvider>
       </body>
