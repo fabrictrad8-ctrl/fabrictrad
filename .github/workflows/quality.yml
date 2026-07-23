@@ -1,6 +1,7 @@
 name: Verify live AI drape-on
 
 on:
+  pull_request:
   push:
     branches:
       - 'agent/verify-live-ai-drape'
