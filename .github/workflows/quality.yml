@@ -10,6 +10,30 @@ permissions:
   contents: read
 
 jobs:
+  secrets:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Report configured provider secret names
+        shell: bash
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPEN_AI_API_KEY: ${{ secrets.OPEN_AI_API_KEY }}
+          OPENAI_KEY: ${{ secrets.OPENAI_KEY }}
+          AI_API_KEY: ${{ secrets.AI_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          ROCKET_API_KEY: ${{ secrets.ROCKET_API_KEY }}
+          ROCKETNEW_API_KEY: ${{ secrets.ROCKETNEW_API_KEY }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          for name in OPENAI_API_KEY OPEN_AI_API_KEY OPENAI_KEY AI_API_KEY GEMINI_API_KEY GOOGLE_API_KEY ROCKET_API_KEY ROCKETNEW_API_KEY CLOUDFLARE_API_TOKEN; do
+            if [ -n "${!name}" ]; then
+              echo "$name=present"
+            else
+              echo "$name=missing"
+            fi
+          done
   verify:
     runs-on: ubuntu-latest
     timeout-minutes: 5
