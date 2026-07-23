@@ -1,1 +1,1 @@
-export { default } from './VerifiedEmailLoginClient';
+export { default } from './EmailOtpLoginClient';
