@@ -1,496 +1,165 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import AppLogo from '@/components/ui/AppLogo';
 import Icon from '@/components/ui/AppIcon';
 import { useAuth } from '@/contexts/AuthContext';
 
+const ADMIN_EMAIL = 'fabrictrad8@gmail.com';
 type LoginRole = 'buyer' | 'seller';
-type LoginMethod = 'password' | 'otp';
-type AccountRole = LoginRole | 'admin_staff' | 'super_admin';
+type LoginStep = 'email' | 'otp';
 
-type SignInResult = {
-  role?: AccountRole | null;
-  user?: {
-    app_metadata?: { role?: AccountRole };
-    user_metadata?: { role?: AccountRole };
-  } | null;
-};
-
-const destinationForRole = (role?: AccountRole | null) => {
-  if (role === 'seller') return '/seller-dashboard';
-  if (role === 'admin_staff' || role === 'super_admin') return '/admin-portal';
-  return '/marketplace';
-};
-
-const demoCredentials: Record<LoginRole, { email: string; password: string }> = {
-  buyer: {
-    email: 'demo.buyer@fabrictrad.com',
-    password: 'FabricDemo@2026',
-  },
-  seller: {
-    email: 'demo.seller@fabrictrad.com',
-    password: 'FabricDemo@2026',
-  },
-};
+const normalizeEmail = (value: string) => value.trim().toLowerCase();
 
 export default function LoginPageClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const {
-    signIn,
-    signInWithGoogle,
-    googleAuthEnabled,
-    sendEmailOtp,
-    verifyEmailOtp,
-    user,
-    profile,
-    loading,
-  } = useAuth();
+  const { sendEmailOtp, verifyEmailOtp, user, profile, loading } = useAuth();
 
   const [role, setRole] = useState<LoginRole>('buyer');
-  const [method, setMethod] = useState<LoginMethod>('password');
+  const [step, setStep] = useState<LoginStep>('email');
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
-  const [otpSent, setOtpSent] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
-  const [info, setInfo] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
+
+  const registrationHref = role === 'seller' ? '/seller-registration' : '/buyer-registration';
+  const destination = useMemo(() => {
+    if (normalizeEmail(user?.email || '') === ADMIN_EMAIL) return '/admin-portal';
+    if (profile?.role === 'super_admin' || profile?.role === 'admin_staff') return '/admin-portal';
+    if (profile?.role === 'seller') return '/seller-dashboard';
+    return '/buyer-dashboard';
+  }, [profile?.role, user?.email]);
 
   useEffect(() => {
-    const requestedRole = searchParams.get('role');
-    if (requestedRole === 'seller') setRole('seller');
-
-    const authError = searchParams.get('error');
-    if (authError === 'account_inactive') {
-      setError('This account is inactive. Please contact FabricTrad support.');
-    } else if (authError === 'auth_failed') {
-      setError('Authentication failed. Please try again.');
-    } else if (authError === 'profile_setup_failed') {
-      setError('Your account was authenticated, but its profile could not be completed.');
-    }
+    const selectedRole = searchParams.get('role');
+    if (selectedRole === 'seller') setRole('seller');
+    const prefilledEmail = searchParams.get('email');
+    if (prefilledEmail) setEmail(prefilledEmail);
+    const queryError = searchParams.get('error');
+    if (queryError === 'account_inactive') setError('This account is currently inactive. Contact FabricTrad support.');
+    else if (queryError) setError(queryError.replace(/_/g, ' '));
   }, [searchParams]);
 
   useEffect(() => {
-    if (loading || !user || !profile) return;
+    if (!loading && user && profile) router.replace(destination);
+  }, [destination, loading, profile, router, user]);
 
-    if (!profile.phone && profile.role !== 'admin_staff' && profile.role !== 'super_admin') {
-      router.replace(`/auth/phone?role=${profile.role}`);
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const timer = window.setInterval(() => setCooldown((value) => Math.max(0, value - 1)), 1000);
+    return () => window.clearInterval(timer);
+  }, [cooldown]);
+
+  const requestOtp = async () => {
+    const normalized = normalizeEmail(email);
+    if (!/^\S+@\S+\.\S+$/.test(normalized)) {
+      setError('Enter the email address registered with your FabricTrad account.');
       return;
     }
-
-    router.replace(destinationForRole(profile.role));
-  }, [loading, profile, router, user]);
-
-  const chooseRole = (nextRole: LoginRole) => {
-    if (submitting) return;
-    setRole(nextRole);
     setError('');
-    setInfo('');
-  };
-
-  const fillDemoCredentials = (demoRole: LoginRole) => {
-    const demo = demoCredentials[demoRole];
-    setRole(demoRole);
-    setMethod('password');
-    setOtpSent(false);
-    setEmail(demo.email);
-    setPassword(demo.password);
-    setError('');
-    setInfo(`${demoRole === 'buyer' ? 'Buyer' : 'Seller'} demo credentials are ready.`);
-  };
-
-  const handlePasswordLogin = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setError('');
-    setInfo('');
     setSubmitting(true);
-
     try {
-      const result = (await signIn(email, password)) as SignInResult;
-      const authenticatedRole =
-        result.role || result.user?.app_metadata?.role || result.user?.user_metadata?.role || role;
-
-      router.replace(destinationForRole(authenticatedRole));
-      router.refresh();
+      await sendEmailOtp(normalized);
+      setEmail(normalized);
+      setOtp(['', '', '', '', '', '']);
+      setStep('otp');
+      setCooldown(60);
+      window.setTimeout(() => document.getElementById('otp-0')?.focus(), 50);
     } catch (caughtError: unknown) {
-      setError(caughtError instanceof Error ? caughtError.message : 'Invalid email or password.');
-      setSubmitting(false);
-    }
-  };
-
-  const handleGoogleLogin = async () => {
-    setError('');
-    setInfo('');
-    setSubmitting(true);
-
-    try {
-      await signInWithGoogle(role);
-    } catch (caughtError: unknown) {
-      setError(caughtError instanceof Error ? caughtError.message : 'Google sign-in failed.');
-      setSubmitting(false);
-    }
-  };
-
-  const handleSendOtp = async () => {
-    if (!email.trim()) {
-      setError('Enter your email address first.');
-      return;
-    }
-
-    setError('');
-    setInfo('');
-    setSubmitting(true);
-
-    try {
-      await sendEmailOtp(email);
-      setOtpSent(true);
-      setInfo(`A six-digit sign-in code was sent to ${email.trim()}.`);
-    } catch (caughtError: unknown) {
-      setError(caughtError instanceof Error ? caughtError.message : 'Unable to send the sign-in code.');
+      setError(caughtError instanceof Error ? caughtError.message : 'Unable to send the verification code.');
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleOtpChange = (index: number, value: string) => {
-    const digit = value.replace(/\D/g, '').slice(-1);
-    setOtp((current) => current.map((item, itemIndex) => (itemIndex === index ? digit : item)));
-
-    if (digit && index < 5) {
-      document.getElementById(`login-otp-${index + 1}`)?.focus();
-    }
-  };
-
-  const handleOtpKeyDown = (index: number, event: React.KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === 'Backspace' && !otp[index] && index > 0) {
-      document.getElementById(`login-otp-${index - 1}`)?.focus();
-    }
-  };
-
-  const handleVerifyOtp = async () => {
+  const verifyOtp = async () => {
     const token = otp.join('');
     if (token.length !== 6) {
-      setError('Enter the complete six-digit code.');
+      setError('Enter the complete six-digit code from your email.');
       return;
     }
-
     setError('');
     setSubmitting(true);
-
     try {
-      const result = await verifyEmailOtp(email, token);
-      const authenticatedRole =
-        (result?.user?.app_metadata?.role as AccountRole | undefined) ||
-        (result?.user?.user_metadata?.role as AccountRole | undefined) ||
-        role;
-      router.replace(destinationForRole(authenticatedRole));
+      await verifyEmailOtp(email, token);
+      router.replace('/auth/route');
       router.refresh();
     } catch (caughtError: unknown) {
-      setError(caughtError instanceof Error ? caughtError.message : 'The code is invalid or expired.');
+      setError(caughtError instanceof Error ? caughtError.message : 'The code is invalid or has expired.');
       setSubmitting(false);
     }
   };
 
+  const updateOtp = (index: number, value: string) => {
+    const digit = value.replace(/\D/g, '').slice(-1);
+    setOtp((current) => current.map((item, itemIndex) => (itemIndex === index ? digit : item)));
+    if (digit && index < 5) document.getElementById(`otp-${index + 1}`)?.focus();
+  };
+
+  const handleOtpKeyDown = (index: number, event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Backspace' && !otp[index] && index > 0) {
+      document.getElementById(`otp-${index - 1}`)?.focus();
+    }
+    if (event.key === 'Enter') void verifyOtp();
+  };
+
   if (loading) {
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-[#09111f]">
-        <div className="h-9 w-9 animate-spin rounded-full border-2 border-orange-500 border-t-transparent" />
-      </main>
-    );
+    return <main className="flex min-h-screen items-center justify-center bg-[#0a101a]"><span className="h-8 w-8 animate-spin rounded-full border-2 border-orange-500 border-t-transparent" /></main>;
   }
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[#09111f] px-4 py-10 text-slate-100">
-      <div
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_16%_8%,rgba(218,119,48,0.18),transparent_30%),radial-gradient(circle_at_88%_18%,rgba(64,84,130,0.28),transparent_34%)]"
-        aria-hidden="true"
-      />
-      <div
-        className="pointer-events-none absolute inset-0 opacity-[0.13] [background-image:linear-gradient(rgba(255,255,255,0.07)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.07)_1px,transparent_1px)] [background-size:44px_44px]"
-        aria-hidden="true"
-      />
+    <main className="relative min-h-screen overflow-hidden bg-[#0a101a] px-4 py-10 text-slate-100">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_15%_10%,rgba(196,91,24,0.20),transparent_34%),radial-gradient(circle_at_88%_15%,rgba(77,99,150,0.22),transparent_32%)]" aria-hidden="true" />
+      <div className="pointer-events-none absolute inset-0 opacity-[0.12] [background-image:linear-gradient(rgba(255,255,255,0.08)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.08)_1px,transparent_1px)] [background-size:42px_42px]" aria-hidden="true" />
 
-      <div className="relative z-10 mx-auto grid min-h-[calc(100vh-5rem)] w-full max-w-5xl items-center gap-10 lg:grid-cols-[0.9fr_1.1fr]">
-        <section className="hidden lg:block">
-          <Link href="/" className="inline-flex items-center gap-3" aria-label="FabricTrad home">
-            <AppLogo size={44} />
-            <span className="text-2xl font-800 tracking-tight text-white">FabricTrad</span>
-          </Link>
-          <p className="mt-8 text-xs font-800 uppercase tracking-[0.18em] text-orange-300">
-            Private B2B textile commerce
-          </p>
-          <h1 className="mt-4 max-w-xl text-5xl font-800 leading-[1.02] tracking-[-0.04em] text-white">
-            Sign in and continue directly to your workspace.
-          </h1>
-          <p className="mt-6 max-w-lg text-base leading-7 text-slate-400">
-            Buyers enter the marketplace, sellers enter store operations, and administrators enter the protected platform console.
-          </p>
-          <div className="mt-8 space-y-3 text-sm text-slate-300">
-            {[
-              ['ShoppingBagIcon', 'Buyer', 'Marketplace, sourcing, orders and shipment tracking'],
-              ['BuildingStorefrontIcon', 'Seller', 'Inventory, quotations, fulfilment and payouts'],
-              ['ShieldCheckIcon', 'Admin', 'Verification, payments and platform operations'],
-            ].map(([icon, title, copy]) => (
-              <div key={title} className="flex items-start gap-3">
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-orange-300">
-                  <Icon name={icon as 'ShoppingBagIcon'} size={17} />
-                </span>
-                <span>
-                  <strong className="block text-white">{title}</strong>
-                  <span className="text-xs leading-5 text-slate-400">{copy}</span>
-                </span>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section className="mx-auto w-full max-w-md">
-          <div className="mb-6 text-center lg:hidden">
-            <Link href="/" className="inline-flex items-center gap-2.5">
-              <AppLogo size={38} />
-              <span className="text-xl font-800 text-white">FabricTrad</span>
-            </Link>
-          </div>
-
-          <div className="rounded-[1.75rem] border border-white/10 bg-[#101a2a]/95 p-6 shadow-2xl shadow-black/35 backdrop-blur-xl sm:p-7">
+      <div className="relative z-10 mx-auto flex min-h-[calc(100vh-5rem)] max-w-6xl items-center justify-center">
+        <section className="grid w-full overflow-hidden rounded-[2rem] border border-white/10 bg-[#0d1726]/95 shadow-2xl shadow-black/35 backdrop-blur-xl lg:grid-cols-[1.05fr_0.95fr]">
+          <div className="hidden min-h-[650px] border-r border-white/10 bg-[linear-gradient(145deg,rgba(200,96,10,0.18),rgba(12,24,42,0.92))] p-10 lg:flex lg:flex-col lg:justify-between">
+            <Link href="/" className="inline-flex items-center gap-3" aria-label="FabricTrad home"><AppLogo size={42} /><span className="text-xl font-800 tracking-tight text-white">FabricTrad</span></Link>
             <div>
-              <p className="text-xs font-800 uppercase tracking-[0.16em] text-orange-300">Welcome back</p>
-              <h2 className="mt-2 text-3xl font-800 tracking-tight text-white">Sign in to FabricTrad</h2>
-              <p className="mt-2 text-sm leading-6 text-slate-400">
-                Your account role determines the workspace you enter.
-              </p>
+              <span className="inline-flex items-center gap-2 rounded-full border border-emerald-300/20 bg-emerald-400/10 px-3 py-1.5 text-xs font-800 text-emerald-200"><Icon name="ShieldCheckIcon" size={15} /> Secure email verification</span>
+              <h1 className="mt-6 max-w-xl text-5xl font-800 leading-[1.02] tracking-[-0.04em] text-white">Your workspace opens only after your email is verified.</h1>
+              <p className="mt-5 max-w-lg text-base leading-7 text-slate-300">FabricTrad uses one-time codes instead of public demo access. Your registered account decides which private workspace you enter.</p>
             </div>
-
-            <div className="mt-6 grid grid-cols-2 rounded-xl border border-white/10 bg-black/10 p-1">
-              <button
-                type="button"
-                onClick={() => chooseRole('buyer')}
-                className={`rounded-lg px-3 py-2.5 text-sm font-700 transition ${
-                  role === 'buyer' ? 'bg-orange-600 text-white shadow' : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                Buyer
-              </button>
-              <button
-                type="button"
-                onClick={() => chooseRole('seller')}
-                className={`rounded-lg px-3 py-2.5 text-sm font-700 transition ${
-                  role === 'seller' ? 'bg-indigo-400 text-slate-950 shadow' : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                Seller
-              </button>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-4"><Icon name="LockClosedIcon" size={19} className="text-orange-300" /><p className="mt-3 text-sm font-800 text-white">No shared passwords</p><p className="mt-1 text-xs leading-5 text-slate-400">Access requires the inbox connected to the account.</p></div>
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-4"><Icon name="UserCircleIcon" size={19} className="text-blue-300" /><p className="mt-3 text-sm font-800 text-white">Role-correct routing</p><p className="mt-1 text-xs leading-5 text-slate-400">Verified users are sent to their assigned workspace automatically.</p></div>
             </div>
+          </div>
 
-            <div className="mt-4 grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setMethod('password');
-                  setOtpSent(false);
-                  setError('');
-                  setInfo('');
-                }}
-                className={`rounded-xl border px-3 py-2.5 text-xs font-700 transition ${
-                  method === 'password'
-                    ? 'border-orange-400/40 bg-orange-400/10 text-orange-200'
-                    : 'border-white/10 text-slate-400 hover:text-white'
-                }`}
-              >
-                Password
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setMethod('otp');
-                  setError('');
-                  setInfo('');
-                }}
-                className={`rounded-xl border px-3 py-2.5 text-xs font-700 transition ${
-                  method === 'otp'
-                    ? 'border-orange-400/40 bg-orange-400/10 text-orange-200'
-                    : 'border-white/10 text-slate-400 hover:text-white'
-                }`}
-              >
-                Email code
-              </button>
-            </div>
+          <div className="flex min-h-[650px] items-center p-6 sm:p-10 lg:p-12">
+            <div className="mx-auto w-full max-w-md">
+              <Link href="/" className="mb-8 inline-flex items-center gap-2.5 lg:hidden"><AppLogo size={36} /><span className="text-lg font-800 text-white">FabricTrad</span></Link>
+              <p className="text-xs font-800 uppercase tracking-[0.18em] text-orange-300">Secure account access</p>
+              <h2 className="mt-3 text-3xl font-800 tracking-tight text-white">{step === 'email' ? 'Sign in with email OTP' : 'Enter your verification code'}</h2>
+              <p className="mt-2 text-sm leading-6 text-slate-400">{step === 'email' ? 'Choose your account type and use the email registered with FabricTrad.' : `We sent a six-digit code to ${email}.`}</p>
 
-            {error && (
-              <div className="mt-4 flex items-start gap-2 rounded-xl border border-red-300/20 bg-red-400/10 p-3" role="alert">
-                <Icon name="ExclamationTriangleIcon" size={15} className="mt-0.5 shrink-0 text-red-200" />
-                <p className="text-xs leading-5 text-red-100">{error}</p>
-              </div>
-            )}
+              {step === 'email' && <div className="mt-7 grid grid-cols-2 rounded-xl border border-white/10 bg-black/15 p-1">
+                <button type="button" onClick={() => setRole('buyer')} className={`rounded-lg px-3 py-2.5 text-sm font-800 transition ${role === 'buyer' ? 'bg-orange-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}>Buyer</button>
+                <button type="button" onClick={() => setRole('seller')} className={`rounded-lg px-3 py-2.5 text-sm font-800 transition ${role === 'seller' ? 'bg-slate-700 text-white shadow' : 'text-slate-400 hover:text-white'}`}>Seller</button>
+              </div>}
 
-            {info && !error && (
-              <div className="mt-4 flex items-start gap-2 rounded-xl border border-emerald-300/20 bg-emerald-400/10 p-3" role="status">
-                <Icon name="CheckCircleIcon" size={15} className="mt-0.5 shrink-0 text-emerald-200" />
-                <p className="text-xs leading-5 text-emerald-100">{info}</p>
-              </div>
-            )}
+              {error && <div className="mt-5 flex items-start gap-3 rounded-xl border border-red-300/20 bg-red-400/10 p-3.5" role="alert"><Icon name="ExclamationTriangleIcon" size={16} className="mt-0.5 shrink-0 text-red-200" /><p className="text-xs leading-5 text-red-100">{error}</p></div>}
 
-            {method === 'password' ? (
-              <form onSubmit={handlePasswordLogin} className="mt-5 space-y-4">
-                <div>
-                  <label htmlFor="login-email" className="mb-1.5 block text-sm font-700 text-slate-200">
-                    Email
-                  </label>
-                  <input
-                    id="login-email"
-                    type="email"
-                    autoComplete="username"
-                    value={email}
-                    onChange={(event) => setEmail(event.target.value)}
-                    required
-                    placeholder={role === 'buyer' ? 'buyer@company.com' : 'seller@company.com'}
-                    className="w-full rounded-xl border border-white/15 bg-[#0c1625] px-4 py-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-orange-400 focus:ring-2 focus:ring-orange-400/20"
-                  />
+              {step === 'email' ? (
+                <div className="mt-6 space-y-4">
+                  <label className="block"><span className="mb-1.5 block text-sm font-700 text-slate-200">Registered email</span><input type="email" value={email} onChange={(event) => setEmail(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') void requestOtp(); }} autoComplete="email" placeholder="name@company.com" className="w-full rounded-xl border border-white/15 bg-[#111f32] px-4 py-3.5 text-sm text-white outline-none placeholder:text-slate-500 focus:border-orange-400 focus:ring-2 focus:ring-orange-400/20" /></label>
+                  <button type="button" onClick={() => void requestOtp()} disabled={submitting} className="flex w-full items-center justify-center gap-2 rounded-xl bg-orange-600 px-4 py-3.5 text-sm font-800 text-white transition hover:bg-orange-500 disabled:cursor-not-allowed disabled:opacity-60">{submitting ? <><span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" /> Sending code…</> : <>Send verification code <Icon name="ArrowRightIcon" size={16} /></>}</button>
+                  <p className="text-center text-xs leading-5 text-slate-500">Only an existing FabricTrad account or the authorised business administrator can complete sign-in.</p>
                 </div>
-
-                <div>
-                  <label htmlFor="login-password" className="mb-1.5 block text-sm font-700 text-slate-200">
-                    Password
-                  </label>
-                  <div className="relative">
-                    <input
-                      id="login-password"
-                      type={showPassword ? 'text' : 'password'}
-                      autoComplete="current-password"
-                      value={password}
-                      onChange={(event) => setPassword(event.target.value)}
-                      required
-                      placeholder="Enter your password"
-                      className="w-full rounded-xl border border-white/15 bg-[#0c1625] px-4 py-3 pr-11 text-sm text-white outline-none placeholder:text-slate-600 focus:border-orange-400 focus:ring-2 focus:ring-orange-400/20"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword((visible) => !visible)}
-                      aria-label={showPassword ? 'Hide password' : 'Show password'}
-                      className="absolute right-3 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-slate-500 hover:bg-white/5 hover:text-white"
-                    >
-                      <Icon name={showPassword ? 'EyeSlashIcon' : 'EyeIcon'} size={17} />
-                    </button>
-                  </div>
+              ) : (
+                <div className="mt-7">
+                  <div className="flex justify-between gap-2">{otp.map((digit, index) => <input key={index} id={`otp-${index}`} inputMode="numeric" autoComplete={index === 0 ? 'one-time-code' : 'off'} value={digit} onChange={(event) => updateOtp(index, event.target.value)} onKeyDown={(event) => handleOtpKeyDown(index, event)} maxLength={1} aria-label={`OTP digit ${index + 1}`} className="h-14 min-w-0 flex-1 rounded-xl border border-white/15 bg-[#111f32] text-center text-xl font-800 text-white outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-400/20" />)}</div>
+                  <button type="button" onClick={() => void verifyOtp()} disabled={submitting || otp.join('').length !== 6} className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-orange-600 px-4 py-3.5 text-sm font-800 text-white transition hover:bg-orange-500 disabled:cursor-not-allowed disabled:opacity-50">{submitting ? <><span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" /> Verifying…</> : <>Verify and continue <Icon name="ArrowRightIcon" size={16} /></>}</button>
+                  <div className="mt-4 flex items-center justify-between text-xs"><button type="button" onClick={() => { setStep('email'); setOtp(['', '', '', '', '', '']); setError(''); }} className="font-700 text-slate-400 hover:text-white">Change email</button><button type="button" onClick={() => void requestOtp()} disabled={cooldown > 0 || submitting} className="font-700 text-orange-300 disabled:text-slate-600">{cooldown > 0 ? `Resend in ${cooldown}s` : 'Resend code'}</button></div>
                 </div>
+              )}
 
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="flex w-full items-center justify-center rounded-xl bg-orange-600 px-4 py-3.5 text-sm font-800 text-white transition hover:bg-orange-500 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {submitting ? 'Signing in…' : role === 'buyer' ? 'Enter marketplace' : 'Enter seller workspace'}
-                </button>
-              </form>
-            ) : (
-              <div className="mt-5 space-y-4">
-                <div>
-                  <label htmlFor="otp-email" className="mb-1.5 block text-sm font-700 text-slate-200">
-                    Email
-                  </label>
-                  <input
-                    id="otp-email"
-                    type="email"
-                    autoComplete="email"
-                    value={email}
-                    onChange={(event) => setEmail(event.target.value)}
-                    placeholder="you@company.com"
-                    className="w-full rounded-xl border border-white/15 bg-[#0c1625] px-4 py-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-orange-400 focus:ring-2 focus:ring-orange-400/20"
-                  />
-                </div>
-
-                {!otpSent ? (
-                  <button
-                    type="button"
-                    onClick={handleSendOtp}
-                    disabled={submitting}
-                    className="w-full rounded-xl bg-orange-600 px-4 py-3.5 text-sm font-800 text-white transition hover:bg-orange-500 disabled:opacity-60"
-                  >
-                    {submitting ? 'Sending code…' : 'Send sign-in code'}
-                  </button>
-                ) : (
-                  <>
-                    <div className="flex justify-between gap-2">
-                      {otp.map((digit, index) => (
-                        <input
-                          key={index}
-                          id={`login-otp-${index}`}
-                          type="text"
-                          inputMode="numeric"
-                          maxLength={1}
-                          value={digit}
-                          onChange={(event) => handleOtpChange(index, event.target.value)}
-                          onKeyDown={(event) => handleOtpKeyDown(index, event)}
-                          aria-label={`Digit ${index + 1}`}
-                          className="h-12 min-w-0 flex-1 rounded-xl border border-white/15 bg-[#0c1625] text-center text-lg font-800 text-white outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-400/20"
-                        />
-                      ))}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={handleVerifyOtp}
-                      disabled={submitting || otp.join('').length !== 6}
-                      className="w-full rounded-xl bg-orange-600 px-4 py-3.5 text-sm font-800 text-white transition hover:bg-orange-500 disabled:opacity-60"
-                    >
-                      {submitting ? 'Verifying…' : 'Verify and continue'}
-                    </button>
-                  </>
-                )}
-              </div>
-            )}
-
-            {googleAuthEnabled && role === 'buyer' && (
-              <>
-                <div className="my-5 flex items-center gap-3">
-                  <span className="h-px flex-1 bg-white/10" />
-                  <span className="text-xs text-slate-500">or</span>
-                  <span className="h-px flex-1 bg-white/10" />
-                </div>
-                <button
-                  type="button"
-                  onClick={handleGoogleLogin}
-                  disabled={submitting}
-                  className="flex w-full items-center justify-center gap-2 rounded-xl border border-white/15 px-4 py-3 text-sm font-700 text-slate-200 transition hover:bg-white/5 disabled:opacity-60"
-                >
-                  Continue with Google
-                </button>
-              </>
-            )}
-
-            <div className="mt-6 rounded-2xl border border-white/10 bg-black/10 p-4">
-              <p className="text-xs font-800 uppercase tracking-[0.14em] text-slate-400">Explore a demo</p>
-              <div className="mt-3 grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => fillDemoCredentials('buyer')}
-                  className="rounded-xl border border-orange-300/20 bg-orange-400/10 px-3 py-2.5 text-xs font-700 text-orange-100 hover:bg-orange-400/15"
-                >
-                  Buyer demo
-                </button>
-                <button
-                  type="button"
-                  onClick={() => fillDemoCredentials('seller')}
-                  className="rounded-xl border border-indigo-300/20 bg-indigo-400/10 px-3 py-2.5 text-xs font-700 text-indigo-100 hover:bg-indigo-400/15"
-                >
-                  Seller demo
-                </button>
-              </div>
-            </div>
-
-            <div className="mt-6 border-t border-white/10 pt-5 text-center text-xs text-slate-500">
-              New to FabricTrad?{' '}
-              <Link href={role === 'buyer' ? '/buyer-registration' : '/seller-registration'} className="font-700 text-orange-300 hover:text-orange-200">
-                Create {role} account
-              </Link>
-              <span className="mx-2">·</span>
-              <Link href="/admin-login" className="font-700 text-slate-300 hover:text-white">
-                Admin portal
-              </Link>
+              <div className="mt-8 border-t border-white/10 pt-6 text-center text-xs text-slate-500">Need an account? <Link href={registrationHref} className="font-800 text-orange-300 hover:text-orange-200">Create a {role} account</Link></div>
             </div>
           </div>
         </section>
