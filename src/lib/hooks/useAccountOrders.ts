@@ -158,11 +158,20 @@ export function useSellerBulkOrders() {
       if (patch.notes !== undefined) allowedPatch.notes = patch.notes;
 
       const supabase = createClient();
+      const { data: sellerProfile, error: sellerError } = await supabase
+        .from('seller_profiles')
+        .select('id')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      if (sellerError || !sellerProfile?.id) {
+        throw new Error(sellerError?.message || 'Seller profile is not available.');
+      }
+
       const { error: updateError } = await supabase
         .from('bulk_orders')
         .update(allowedPatch)
         .eq('id', orderId)
-        .eq('seller_id', sellerProfileIdPlaceholder(user.id));
+        .eq('seller_id', sellerProfile.id);
       if (updateError) throw updateError;
       await loadOrders();
     },
@@ -170,8 +179,4 @@ export function useSellerBulkOrders() {
   );
 
   return { orders, loading, error, refresh: loadOrders, updateOrder };
-}
-
-function sellerProfileIdPlaceholder(_userId: string) {
-  return _userId;
 }
