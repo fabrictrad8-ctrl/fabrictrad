@@ -2,15 +2,12 @@ import { createServerClient } from '@supabase/ssr';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-const DEMO_COOKIE_NAME = 'fabrictrad_demo_role';
-
 const PUBLIC_PATHS = new Set([
   '/',
   '/login',
   '/register',
   '/buyer-registration',
   '/seller-registration',
-  '/admin-login',
   '/auth/callback',
 ]);
 
@@ -20,7 +17,6 @@ const AUTH_ENTRY_PATHS = new Set([
   '/register',
   '/buyer-registration',
   '/seller-registration',
-  '/admin-login',
 ]);
 
 const roleDestination = (role?: string | null) => {
@@ -61,26 +57,6 @@ export async function middleware(request: NextRequest) {
     const callbackUrl = request.nextUrl.clone();
     callbackUrl.pathname = '/auth/callback';
     return NextResponse.redirect(callbackUrl);
-  }
-
-  const demoCookieValue = request.cookies.get(DEMO_COOKIE_NAME)?.value;
-  const demoRole =
-    demoCookieValue === 'buyer' || demoCookieValue === 'seller' ? demoCookieValue : null;
-
-  if (demoRole) {
-    if (AUTH_ENTRY_PATHS.has(pathname)) {
-      return redirectToRoleHome(request, demoRole);
-    }
-
-    if (PUBLIC_PATHS.has(pathname)) {
-      return NextResponse.next({ request });
-    }
-
-    if (isRoleMismatch(pathname, demoRole)) {
-      return redirectToRoleHome(request, demoRole);
-    }
-
-    return NextResponse.next({ request });
   }
 
   let response = NextResponse.next({ request });
