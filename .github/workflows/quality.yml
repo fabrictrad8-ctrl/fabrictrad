@@ -38,3 +38,26 @@ jobs:
           seller=$(curl -sS -c /tmp/seller.cookies -o /tmp/seller.json -w '%{http_code}' -H 'Content-Type: application/json' --data '{"email":"demo.seller@fabrictrad.com","password":"FabricDemo@2026"}' "$base/api/auth/demo-session" || true)
           dashboard=$(curl -sS -b /tmp/seller.cookies -o /dev/null -w '%{http_code}' --max-redirs 0 "$base/seller-dashboard" || true)
           echo "LOGIN=$login BUYER=$buyer BUYER_BODY=$(cat /tmp/buyer.json 2>/dev/null || true) BUYER_COOKIE=$(grep -c fabrictrad_demo_role /tmp/buyer.cookies 2>/dev/null || true) MARKETPLACE=$marketplace SELLER=$seller SELLER_BODY=$(cat /tmp/seller.json 2>/dev/null || true) SELLER_COOKIE=$(grep -c fabrictrad_demo_role /tmp/seller.cookies 2>/dev/null || true) DASHBOARD=$dashboard"
+  notice:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Inspect deployed login JavaScript
+        shell: bash
+        run: |
+          for base in https://fabrictrad.com https://www.fabrictrad.com; do
+            curl -sS "$base/login" -o /tmp/login.html
+            : > /tmp/login-assets.js
+            grep -oE 'src="[^"]+\.js[^"]*"' /tmp/login.html | sed 's/^src="//; s/"$//' | sort -u | while read -r asset; do
+              case "$asset" in
+                http*) url="$asset" ;;
+                *) url="$base$asset" ;;
+              esac
+              curl -sS "$url" >> /tmp/login-assets.js || true
+            done
+            if grep -qi 'Password reset codes are sent only' /tmp/login.html /tmp/login-assets.js; then
+              echo "$base RESET_NOTICE_PRESENT=yes"
+            else
+              echo "$base RESET_NOTICE_PRESENT=no"
+            fi
+          done
