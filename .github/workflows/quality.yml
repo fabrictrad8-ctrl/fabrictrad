@@ -13,12 +13,14 @@ permissions:
 jobs:
   check:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 35
     env:
       NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
       NEXT_PUBLIC_SUPABASE_ANON_KEY: test-anon-key
+      SUPABASE_SERVICE_ROLE_KEY: test-service-role-key
       NEXT_PUBLIC_SITE_URL: http://localhost:3000
       NEXT_PUBLIC_ENABLE_GOOGLE_AUTH: 'false'
+      ADMIN_EMAIL: fabrictrad8@gmail.com
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -48,3 +50,21 @@ jobs:
         run: npm run lint
       - name: Production build
         run: npm run build
+      - name: OpenNext Cloudflare build
+        id: cloudflare_build
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run build:sites 2>&1 | tee cloudflare-build.log
+      - name: Upload Cloudflare build diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cloudflare-build-diagnostics
+          path: cloudflare-build.log
+          if-no-files-found: error
+          retention-days: 1
+      - name: Stop after failed Cloudflare build
+        if: steps.cloudflare_build.outcome != 'success'
+        run: exit 1
