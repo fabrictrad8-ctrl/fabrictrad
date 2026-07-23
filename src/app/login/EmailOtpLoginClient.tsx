@@ -4,7 +4,6 @@ import { useEffect, useState, type FormEvent, type KeyboardEvent } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import AppLogo from '@/components/ui/AppLogo';
-import Icon from '@/components/ui/AppIcon';
 import { useAuth } from '@/contexts/AuthContext';
 
 type LoginRole = 'buyer' | 'seller';
@@ -43,6 +42,8 @@ function GoogleMark() {
   );
 }
 
+const emptyOtp = () => ['', '', '', '', '', ''];
+
 export default function EmailOtpLoginClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -64,7 +65,7 @@ export default function EmailOtpLoginClient() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [otp, setOtp] = useState(['', '', '', '', '', '']);
+  const [otp, setOtp] = useState(emptyOtp);
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showNewPassword, setShowNewPassword] = useState(false);
@@ -75,14 +76,13 @@ export default function EmailOtpLoginClient() {
 
   useEffect(() => {
     if (searchParams.get('role') === 'seller') setRole('seller');
-
     const authError = searchParams.get('error');
     if (authError === 'account_inactive') {
       setError('This account is inactive. Please contact FabricTrad support.');
     } else if (authError === 'account_not_found') {
       setError('This Google account is not linked to an active FabricTrad buyer account.');
     } else if (authError === 'google_buyer_only') {
-      setError('Google sign-in is available for buyer accounts only. Sellers should use email and password.');
+      setError('Google sign-in is available for buyer accounts only.');
     } else if (authError) {
       setError('Authentication failed. Please try again.');
     }
@@ -102,12 +102,6 @@ export default function EmailOtpLoginClient() {
     setInfo('');
   };
 
-  const chooseRole = (nextRole: LoginRole) => {
-    if (submitting || googleSubmitting) return;
-    setRole(nextRole);
-    clearMessages();
-  };
-
   const handlePasswordLogin = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const normalizedEmail = email.trim().toLowerCase();
@@ -121,10 +115,11 @@ export default function EmailOtpLoginClient() {
     try {
       const result = await signIn(normalizedEmail, password);
       const fallback =
+        (result?.role as AccountRole | undefined) ||
         (result?.user?.app_metadata?.role as AccountRole | undefined) ||
         (result?.user?.user_metadata?.role as AccountRole | undefined) ||
         role;
-      const accountRole = await resolveRole(fallback);
+      const accountRole = result?.isDemo ? fallback : await resolveRole(fallback);
       router.replace(destinationForRole(accountRole));
       router.refresh();
     } catch (caughtError: unknown) {
@@ -133,7 +128,7 @@ export default function EmailOtpLoginClient() {
     }
   };
 
-  const signInWithGoogleAccount = async () => {
+  const handleGoogleLogin = async () => {
     clearMessages();
     setGoogleSubmitting(true);
     try {
@@ -147,7 +142,7 @@ export default function EmailOtpLoginClient() {
   const openForgotPassword = () => {
     setMode('forgot');
     setResetStep('request');
-    setOtp(['', '', '', '', '', '']);
+    setOtp(emptyOtp());
     setNewPassword('');
     setConfirmPassword('');
     clearMessages();
@@ -156,7 +151,7 @@ export default function EmailOtpLoginClient() {
   const returnToLogin = () => {
     setMode('login');
     setResetStep('request');
-    setOtp(['', '', '', '', '', '']);
+    setOtp(emptyOtp());
     setNewPassword('');
     setConfirmPassword('');
     clearMessages();
@@ -182,7 +177,7 @@ export default function EmailOtpLoginClient() {
       if (!response.ok) throw new Error(payload.error || 'Unable to send the reset code.');
 
       setEmail(normalizedEmail);
-      setOtp(['', '', '', '', '', '']);
+      setOtp(emptyOtp());
       setResetStep('verify');
       setInfo(`A six-digit password reset code was sent to ${normalizedEmail}.`);
       window.setTimeout(() => document.getElementById('reset-otp-0')?.focus(), 50);
@@ -246,7 +241,7 @@ export default function EmailOtpLoginClient() {
       setPassword('');
       setNewPassword('');
       setConfirmPassword('');
-      setOtp(['', '', '', '', '', '']);
+      setOtp(emptyOtp());
       setInfo('Password updated successfully. Sign in with your new password.');
     } catch (caughtError: unknown) {
       setError(caughtError instanceof Error ? caughtError.message : 'Unable to update the password.');
@@ -257,18 +252,18 @@ export default function EmailOtpLoginClient() {
 
   if (loading) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[#09111f]">
+      <main className="flex min-h-screen items-center justify-center bg-[#0d1117]">
         <div className="h-9 w-9 animate-spin rounded-full border-2 border-orange-500 border-t-transparent" />
       </main>
     );
   }
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[#09111f] px-4 py-10 text-slate-100">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_16%_8%,rgba(218,119,48,0.18),transparent_30%),radial-gradient(circle_at_88%_18%,rgba(64,84,130,0.28),transparent_34%)]" aria-hidden="true" />
-      <div className="pointer-events-none absolute inset-0 opacity-[0.13] [background-image:linear-gradient(rgba(255,255,255,0.07)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.07)_1px,transparent_1px)] [background-size:44px_44px]" aria-hidden="true" />
+    <main className="relative min-h-screen overflow-hidden bg-[#0d1117] px-4 py-8 text-slate-100">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_10%,rgba(202,91,47,0.17),transparent_32%),radial-gradient(circle_at_86%_18%,rgba(62,77,111,0.22),transparent_35%)]" />
+      <div className="pointer-events-none absolute inset-0 opacity-[0.12] [background-image:linear-gradient(rgba(255,255,255,0.06)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.06)_1px,transparent_1px)] [background-size:44px_44px]" />
 
-      <div className="relative z-10 mx-auto grid min-h-[calc(100vh-5rem)] w-full max-w-5xl items-center gap-10 lg:grid-cols-[0.9fr_1.1fr]">
+      <div className="relative z-10 mx-auto grid min-h-[calc(100vh-4rem)] w-full max-w-5xl items-center gap-10 lg:grid-cols-[0.9fr_1.1fr]">
         <section className="hidden lg:block">
           <Link href="/" className="inline-flex items-center gap-3" aria-label="FabricTrad home">
             <AppLogo size={44} />
@@ -279,14 +274,8 @@ export default function EmailOtpLoginClient() {
             Secure access to your FabricTrad workspace.
           </h1>
           <p className="mt-6 max-w-lg text-base leading-7 text-slate-400">
-            Buyers and sellers sign in with their registered email and password. Buyer accounts may also continue with Google.
+            Buyers and sellers can manage sourcing, products, orders and business operations from one focused workspace.
           </p>
-          <div className="mt-8 flex max-w-lg items-start gap-3 rounded-2xl border border-emerald-300/15 bg-emerald-300/5 p-4">
-            <Icon name="ShieldCheckIcon" size={18} className="mt-0.5 shrink-0 text-emerald-300" />
-            <p className="text-xs leading-5 text-slate-400">
-              Password reset codes are sent only when Forgot password is used. Existing passwords are never emailed or exposed.
-            </p>
-          </div>
         </section>
 
         <section className="mx-auto w-full max-w-md">
@@ -297,7 +286,7 @@ export default function EmailOtpLoginClient() {
             </Link>
           </div>
 
-          <div className="rounded-[1.75rem] border border-white/10 bg-[#101a2a]/95 p-6 shadow-2xl shadow-black/35 backdrop-blur-xl sm:p-7">
+          <div className="rounded-[1.75rem] border border-white/10 bg-[#151a21]/95 p-6 shadow-2xl shadow-black/35 backdrop-blur-xl sm:p-7">
             <p className="text-xs font-800 uppercase tracking-[0.16em] text-orange-300">
               {mode === 'login' ? 'Welcome back' : 'Account recovery'}
             </p>
@@ -316,106 +305,214 @@ export default function EmailOtpLoginClient() {
 
             {mode === 'login' && (
               <div className="mt-6 grid grid-cols-2 rounded-xl border border-white/10 bg-black/10 p-1">
-                <button type="button" onClick={() => chooseRole('buyer')} className={`rounded-lg px-3 py-2.5 text-sm font-700 transition ${role === 'buyer' ? 'bg-orange-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}>Buyer</button>
-                <button type="button" onClick={() => chooseRole('seller')} className={`rounded-lg px-3 py-2.5 text-sm font-700 transition ${role === 'seller' ? 'bg-indigo-400 text-slate-950 shadow' : 'text-slate-400 hover:text-white'}`}>Seller</button>
+                {(['buyer', 'seller'] as LoginRole[]).map((item) => (
+                  <button
+                    key={item}
+                    type="button"
+                    onClick={() => {
+                      if (submitting || googleSubmitting) return;
+                      setRole(item);
+                      clearMessages();
+                    }}
+                    className={`rounded-lg px-4 py-2.5 text-sm font-700 capitalize transition ${
+                      role === item ? 'bg-[#c65330] text-white shadow-lg' : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    {item}
+                  </button>
+                ))}
               </div>
             )}
 
             {error && (
-              <div className="mt-4 flex items-start gap-2 rounded-xl border border-red-300/20 bg-red-400/10 p-3" role="alert">
-                <Icon name="ExclamationTriangleIcon" size={15} className="mt-0.5 shrink-0 text-red-200" />
-                <p className="text-xs leading-5 text-red-100">{error}</p>
+              <div role="alert" className="mt-4 rounded-xl border border-rose-300/20 bg-rose-300/10 px-4 py-3 text-sm text-rose-200">
+                {error}
               </div>
             )}
-            {info && !error && (
-              <div className="mt-4 flex items-start gap-2 rounded-xl border border-emerald-300/20 bg-emerald-400/10 p-3" role="status">
-                <Icon name="CheckCircleIcon" size={15} className="mt-0.5 shrink-0 text-emerald-200" />
-                <p className="text-xs leading-5 text-emerald-100">{info}</p>
+            {info && (
+              <div className="mt-4 rounded-xl border border-emerald-300/20 bg-emerald-300/10 px-4 py-3 text-sm text-emerald-200">
+                {info}
               </div>
             )}
 
             {mode === 'login' ? (
-              <>
-                <form onSubmit={handlePasswordLogin} className="mt-5 space-y-4">
-                  <div>
-                    <label htmlFor="login-email" className="mb-1.5 block text-sm font-700 text-slate-200">Email</label>
-                    <input id="login-email" type="email" autoComplete="username" value={email} onChange={(event) => setEmail(event.target.value)} required placeholder="you@company.com" className="w-full rounded-xl border border-white/15 bg-[#0c1625] px-4 py-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-orange-400 focus:ring-2 focus:ring-orange-400/20" />
-                  </div>
-                  <div>
-                    <div className="mb-1.5 flex items-center justify-between gap-3">
-                      <label htmlFor="login-password" className="text-sm font-700 text-slate-200">Password</label>
-                      <button type="button" onClick={openForgotPassword} className="text-xs font-700 text-orange-300 hover:text-orange-200">Forgot password?</button>
-                    </div>
-                    <div className="relative">
-                      <input id="login-password" type={showPassword ? 'text' : 'password'} autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required placeholder="Enter your password" className="w-full rounded-xl border border-white/15 bg-[#0c1625] px-4 py-3 pr-11 text-sm text-white outline-none placeholder:text-slate-600 focus:border-orange-400 focus:ring-2 focus:ring-orange-400/20" />
-                      <button type="button" onClick={() => setShowPassword((visible) => !visible)} aria-label={showPassword ? 'Hide password' : 'Show password'} className="absolute right-3 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-slate-500 hover:bg-white/5 hover:text-white">
-                        <Icon name={showPassword ? 'EyeSlashIcon' : 'EyeIcon'} size={17} />
-                      </button>
-                    </div>
-                  </div>
-                  <button type="submit" disabled={submitting || googleSubmitting} className="flex w-full items-center justify-center rounded-xl bg-orange-600 px-4 py-3.5 text-sm font-800 text-white transition hover:bg-orange-500 disabled:cursor-not-allowed disabled:opacity-60">
-                    {submitting ? 'Signing in…' : role === 'buyer' ? 'Enter marketplace' : 'Enter seller workspace'}
-                  </button>
-                </form>
+              <form className="mt-6 space-y-5" onSubmit={handlePasswordLogin}>
+                <label className="block text-sm text-slate-300">
+                  Email
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                    autoComplete="email"
+                    className="mt-2 w-full rounded-xl border border-white/10 bg-[#252d3a] px-4 py-3.5 text-white outline-none transition placeholder:text-slate-500 focus:border-orange-400/60 focus:ring-2 focus:ring-orange-400/10"
+                    placeholder={role === 'seller' ? 'seller@business.com' : 'buyer@business.com'}
+                  />
+                </label>
 
-                {googleAuthEnabled && role === 'buyer' && (
+                <label className="block text-sm text-slate-300">
+                  <span className="flex items-center justify-between gap-4">
+                    <span>Password</span>
+                    <button type="button" onClick={openForgotPassword} className="text-xs font-700 text-orange-300 hover:text-orange-200">
+                      Forgot password?
+                    </button>
+                  </span>
+                  <span className="relative mt-2 block">
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      value={password}
+                      onChange={(event) => setPassword(event.target.value)}
+                      autoComplete="current-password"
+                      className="w-full rounded-xl border border-white/10 bg-[#252d3a] px-4 py-3.5 pr-16 text-white outline-none transition placeholder:text-slate-500 focus:border-orange-400/60 focus:ring-2 focus:ring-orange-400/10"
+                      placeholder="Enter your password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((current) => !current)}
+                      className="absolute inset-y-0 right-0 px-4 text-xs font-700 text-slate-400 hover:text-white"
+                    >
+                      {showPassword ? 'Hide' : 'Show'}
+                    </button>
+                  </span>
+                </label>
+
+                <button
+                  type="submit"
+                  disabled={submitting || googleSubmitting}
+                  className="w-full rounded-xl bg-[#c65330] px-4 py-3.5 font-700 text-white transition hover:bg-[#d45c36] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {submitting ? 'Signing in…' : role === 'seller' ? 'Enter seller workspace' : 'Enter marketplace'}
+                </button>
+
+                {role === 'buyer' && (
                   <>
-                    <div className="my-5 flex items-center gap-3"><span className="h-px flex-1 bg-white/10" /><span className="text-xs text-slate-500">or</span><span className="h-px flex-1 bg-white/10" /></div>
-                    <button type="button" onClick={signInWithGoogleAccount} disabled={submitting || googleSubmitting} className="flex w-full items-center justify-center gap-3 rounded-xl border border-white/15 bg-white px-4 py-3.5 text-sm font-800 text-slate-800 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60">
-                      {googleSubmitting ? <span className="h-5 w-5 animate-spin rounded-full border-2 border-slate-400 border-t-slate-800" /> : <GoogleMark />}
+                    <div className="flex items-center gap-3 text-xs text-slate-500">
+                      <span className="h-px flex-1 bg-white/10" />
+                      <span>or</span>
+                      <span className="h-px flex-1 bg-white/10" />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleGoogleLogin}
+                      disabled={submitting || googleSubmitting}
+                      aria-disabled={!googleAuthEnabled}
+                      className="flex w-full items-center justify-center gap-3 rounded-xl bg-white px-4 py-3.5 font-700 text-slate-800 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      <GoogleMark />
                       {googleSubmitting ? 'Opening Google…' : 'Continue with Google'}
                     </button>
                   </>
                 )}
-
-                <div className="mt-6 border-t border-white/10 pt-5 text-center text-xs text-slate-500">
-                  New to FabricTrad?{' '}
-                  <Link href={role === 'buyer' ? '/buyer-registration' : '/seller-registration'} className="font-700 text-orange-300 hover:text-orange-200">Create {role} account</Link>
-                </div>
-              </>
+              </form>
             ) : (
-              <div className="mt-5 space-y-4">
+              <div className="mt-6">
                 {resetStep === 'request' && (
-                  <>
-                    <div>
-                      <label htmlFor="reset-email" className="mb-1.5 block text-sm font-700 text-slate-200">Registered email</label>
-                      <input id="reset-email" type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@company.com" className="w-full rounded-xl border border-white/15 bg-[#0c1625] px-4 py-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-orange-400 focus:ring-2 focus:ring-orange-400/20" />
-                    </div>
-                    <button type="button" onClick={sendResetCode} disabled={submitting} className="w-full rounded-xl bg-orange-600 px-4 py-3.5 text-sm font-800 text-white transition hover:bg-orange-500 disabled:opacity-60">{submitting ? 'Sending code…' : 'Send reset code'}</button>
-                  </>
+                  <div className="space-y-5">
+                    <label className="block text-sm text-slate-300">
+                      Registered email
+                      <input
+                        type="email"
+                        value={email}
+                        onChange={(event) => setEmail(event.target.value)}
+                        autoComplete="email"
+                        className="mt-2 w-full rounded-xl border border-white/10 bg-[#252d3a] px-4 py-3.5 text-white outline-none focus:border-orange-400/60"
+                        placeholder="name@business.com"
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      onClick={sendResetCode}
+                      disabled={submitting}
+                      className="w-full rounded-xl bg-[#c65330] px-4 py-3.5 font-700 text-white disabled:opacity-60"
+                    >
+                      {submitting ? 'Sending code…' : 'Send reset code'}
+                    </button>
+                  </div>
                 )}
 
                 {resetStep === 'verify' && (
-                  <>
-                    <div className="flex justify-between gap-2">
+                  <div className="space-y-5">
+                    <div className="grid grid-cols-6 gap-2">
                       {otp.map((digit, index) => (
-                        <input key={index} id={`reset-otp-${index}`} type="text" inputMode="numeric" maxLength={1} value={digit} onChange={(event) => changeOtp(index, event.target.value)} onKeyDown={(event) => handleOtpKey(index, event)} aria-label={`Digit ${index + 1}`} className="h-12 min-w-0 flex-1 rounded-xl border border-white/15 bg-[#0c1625] text-center text-lg font-800 text-white outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-400/20" />
+                        <input
+                          key={index}
+                          id={`reset-otp-${index}`}
+                          value={digit}
+                          onChange={(event) => changeOtp(index, event.target.value)}
+                          onKeyDown={(event) => handleOtpKey(index, event)}
+                          inputMode="numeric"
+                          maxLength={1}
+                          aria-label={`Code digit ${index + 1}`}
+                          className="h-12 min-w-0 rounded-lg border border-white/10 bg-[#252d3a] text-center text-lg font-800 text-white outline-none focus:border-orange-400/60"
+                        />
                       ))}
                     </div>
-                    <button type="button" onClick={verifyResetCode} disabled={submitting || otp.join('').length !== 6} className="w-full rounded-xl bg-orange-600 px-4 py-3.5 text-sm font-800 text-white transition hover:bg-orange-500 disabled:opacity-60">{submitting ? 'Verifying…' : 'Verify code'}</button>
-                    <button type="button" onClick={sendResetCode} disabled={submitting} className="w-full rounded-xl py-2 text-xs font-700 text-slate-400 hover:bg-white/5 hover:text-white disabled:opacity-60">Resend code</button>
-                  </>
+                    <button
+                      type="button"
+                      onClick={verifyResetCode}
+                      disabled={submitting}
+                      className="w-full rounded-xl bg-[#c65330] px-4 py-3.5 font-700 text-white disabled:opacity-60"
+                    >
+                      {submitting ? 'Verifying…' : 'Verify code'}
+                    </button>
+                  </div>
                 )}
 
                 {resetStep === 'new-password' && (
-                  <form onSubmit={saveNewPassword} className="space-y-4">
-                    <div>
-                      <label htmlFor="new-password" className="mb-1.5 block text-sm font-700 text-slate-200">New password</label>
-                      <div className="relative">
-                        <input id="new-password" type={showNewPassword ? 'text' : 'password'} autoComplete="new-password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} required minLength={8} placeholder="At least 8 characters" className="w-full rounded-xl border border-white/15 bg-[#0c1625] px-4 py-3 pr-11 text-sm text-white outline-none placeholder:text-slate-600 focus:border-orange-400 focus:ring-2 focus:ring-orange-400/20" />
-                        <button type="button" onClick={() => setShowNewPassword((visible) => !visible)} aria-label={showNewPassword ? 'Hide new password' : 'Show new password'} className="absolute right-3 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-slate-500 hover:bg-white/5 hover:text-white"><Icon name={showNewPassword ? 'EyeSlashIcon' : 'EyeIcon'} size={17} /></button>
-                      </div>
-                    </div>
-                    <div>
-                      <label htmlFor="confirm-password" className="mb-1.5 block text-sm font-700 text-slate-200">Confirm new password</label>
-                      <input id="confirm-password" type="password" autoComplete="new-password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} required minLength={8} placeholder="Repeat your new password" className="w-full rounded-xl border border-white/15 bg-[#0c1625] px-4 py-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-orange-400 focus:ring-2 focus:ring-orange-400/20" />
-                    </div>
-                    <button type="submit" disabled={submitting} className="w-full rounded-xl bg-orange-600 px-4 py-3.5 text-sm font-800 text-white transition hover:bg-orange-500 disabled:opacity-60">{submitting ? 'Updating password…' : 'Set new password'}</button>
+                  <form className="space-y-5" onSubmit={saveNewPassword}>
+                    <label className="block text-sm text-slate-300">
+                      New password
+                      <span className="relative mt-2 block">
+                        <input
+                          type={showNewPassword ? 'text' : 'password'}
+                          value={newPassword}
+                          onChange={(event) => setNewPassword(event.target.value)}
+                          autoComplete="new-password"
+                          className="w-full rounded-xl border border-white/10 bg-[#252d3a] px-4 py-3.5 pr-16 text-white outline-none focus:border-orange-400/60"
+                          placeholder="At least 8 characters"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowNewPassword((current) => !current)}
+                          className="absolute inset-y-0 right-0 px-4 text-xs font-700 text-slate-400 hover:text-white"
+                        >
+                          {showNewPassword ? 'Hide' : 'Show'}
+                        </button>
+                      </span>
+                    </label>
+                    <label className="block text-sm text-slate-300">
+                      Confirm new password
+                      <input
+                        type="password"
+                        value={confirmPassword}
+                        onChange={(event) => setConfirmPassword(event.target.value)}
+                        autoComplete="new-password"
+                        className="mt-2 w-full rounded-xl border border-white/10 bg-[#252d3a] px-4 py-3.5 text-white outline-none focus:border-orange-400/60"
+                        placeholder="Repeat your new password"
+                      />
+                    </label>
+                    <button
+                      type="submit"
+                      disabled={submitting}
+                      className="w-full rounded-xl bg-[#c65330] px-4 py-3.5 font-700 text-white disabled:opacity-60"
+                    >
+                      {submitting ? 'Updating password…' : 'Save new password'}
+                    </button>
                   </form>
                 )}
 
-                <button type="button" onClick={returnToLogin} disabled={submitting} className="w-full rounded-xl border border-white/10 px-4 py-3 text-sm font-700 text-slate-300 hover:bg-white/5 hover:text-white disabled:opacity-60">Back to sign in</button>
+                <button type="button" onClick={returnToLogin} className="mt-5 w-full text-sm font-700 text-orange-300 hover:text-orange-200">
+                  Back to sign in
+                </button>
               </div>
+            )}
+
+            {mode === 'login' && (
+              <p className="mt-6 border-t border-white/10 pt-5 text-center text-xs text-slate-500">
+                New to FabricTrad?{' '}
+                <Link href={role === 'seller' ? '/seller-registration' : '/buyer-registration'} className="font-700 text-orange-300 hover:text-orange-200">
+                  Create {role} account
+                </Link>
+              </p>
             )}
           </div>
         </section>
