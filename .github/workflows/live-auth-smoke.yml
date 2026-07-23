@@ -34,7 +34,7 @@ jobs:
 
               if [ "$login_status" = "200" ] \
                 && grep -q 'Sign in to FabricTrad' "/tmp/${safe_name}-login.html" \
-                && grep -q 'Email code' "/tmp/${safe_name}-login.html" \
+                && grep -q 'Send sign-in code' "/tmp/${safe_name}-login.html" \
                 && ! grep -qi 'Explore a demo' "/tmp/${safe_name}-login.html"; then
                 deployed=true
                 break
