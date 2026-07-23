@@ -1,6 +1,8 @@
 'use client';
 
 import React, { memo, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '@/contexts/AuthContext';
 import AppIcon from './AppIcon';
 import AppImage from './AppImage';
 
@@ -19,16 +21,42 @@ const AppLogo = memo(function AppLogo({
   className = '',
   onClick,
 }: AppLogoProps) {
+  const router = useRouter();
+  const { user, profile } = useAuth();
+  const authenticatedHome =
+    user && profile
+      ? profile.role === 'seller'
+        ? '/seller-dashboard'
+        : profile.role === 'admin_staff' || profile.role === 'super_admin'
+          ? '/admin-portal'
+          : '/marketplace'
+      : null;
+
   // Memoize className calculation
   const containerClassName = useMemo(() => {
     const classes = ['flex items-center'];
-    if (onClick) classes.push('cursor-pointer hover:opacity-80 transition-opacity');
+    if (onClick || authenticatedHome) classes.push('cursor-pointer hover:opacity-80 transition-opacity');
     if (className) classes.push(className);
     return classes.join(' ');
-  }, [onClick, className]);
+  }, [authenticatedHome, onClick, className]);
+
+  const handleClick = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (onClick) {
+      onClick();
+      return;
+    }
+
+    if (authenticatedHome) {
+      event.preventDefault();
+      router.push(authenticatedHome);
+    }
+  };
 
   return (
-    <div className={containerClassName} onClick={onClick}>
+    <div
+      className={containerClassName}
+      onClick={onClick || authenticatedHome ? handleClick : undefined}
+    >
       {/* Show image if src provided, otherwise show icon */}
       {src ? (
         <AppImage

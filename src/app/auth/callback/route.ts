@@ -38,7 +38,7 @@ const loginErrorUrl = (origin: string, code: string) => {
 const destinationForRole = (origin: string, role: UserRole) => {
   if (role === 'seller') return `${origin}/seller-dashboard`;
   if (role === 'admin_staff' || role === 'super_admin') return `${origin}/admin-portal`;
-  return `${origin}/buyer-dashboard`;
+  return `${origin}/marketplace`;
 };
 
 export async function GET(request: NextRequest) {
