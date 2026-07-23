@@ -22,8 +22,8 @@ const capabilities = [
   },
   {
     icon: 'SparklesIcon',
-    title: 'Better buying decisions',
-    copy: 'Authenticated buyers can use fabric visualisation and colour-draping tools inside their workspace.',
+    title: 'Visual sourcing tools',
+    copy: 'Authenticated users can use private colour-draping and workflow tools inside their workspace.',
   },
 ];
 
@@ -37,12 +37,8 @@ export default function PublicAccessLanding() {
             <span className="text-lg font-800 tracking-tight text-secondary">FabricTrad</span>
           </Link>
           <div className="ml-auto flex items-center gap-2">
-            <Link href="/login" className="rounded-xl px-4 py-2.5 text-sm font-800 text-foreground transition hover:bg-muted">
-              Sign in
-            </Link>
-            <Link href="/register" className="btn-primary rounded-xl px-4 py-2.5 text-sm">
-              Create account
-            </Link>
+            <Link href="/login" className="rounded-xl px-4 py-2.5 text-sm font-800 text-foreground transition hover:bg-muted">Sign in</Link>
+            <Link href="/register" className="btn-primary rounded-xl px-4 py-2.5 text-sm">Create account</Link>
           </div>
         </div>
       </header>
@@ -54,41 +50,21 @@ export default function PublicAccessLanding() {
 
         <div className="relative mx-auto grid max-w-7xl items-center gap-12 lg:grid-cols-[1.05fr_0.95fr]">
           <div className="max-w-3xl animate-fade-in-up">
-            <div className="inline-flex items-center gap-2 rounded-full border border-success/25 bg-success/10 px-4 py-2 text-xs font-800 uppercase tracking-[0.16em] text-success">
-              <span className="h-2 w-2 rounded-full bg-success" />
-              India&apos;s account-based B2B textile network
-            </div>
-            <h1 className="mt-7 text-balance text-5xl font-800 leading-[0.98] tracking-[-0.045em] sm:text-6xl lg:text-7xl">
-              Textile sourcing, trade and fulfilment in one trusted system.
-            </h1>
-            <p className="mt-7 max-w-2xl text-base leading-7 text-muted-foreground sm:text-lg sm:leading-8">
-              FabricTrad connects business buyers with verified textile manufacturers and wholesalers. Registered users receive a private workspace designed for their role, account and orders.
-            </p>
-
+            <div className="inline-flex items-center gap-2 rounded-full border border-success/25 bg-success/10 px-4 py-2 text-xs font-800 uppercase tracking-[0.16em] text-success"><span className="h-2 w-2 rounded-full bg-success" /> India&apos;s account-based B2B textile network</div>
+            <h1 className="mt-7 text-balance text-5xl font-800 leading-[0.98] tracking-[-0.045em] sm:text-6xl lg:text-7xl">Textile sourcing, trade and fulfilment in one trusted system.</h1>
+            <p className="mt-7 max-w-2xl text-base leading-7 text-muted-foreground sm:text-lg sm:leading-8">FabricTrad connects business buyers with verified textile manufacturers and wholesalers. Registered users receive a private workspace designed for their role, account and orders.</p>
             <div className="mt-9 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-              <Link href="/login" className="btn-primary inline-flex items-center justify-center gap-2 rounded-xl px-7 py-4 text-sm">
-                Sign in to FabricTrad <Icon name="ArrowRightIcon" size={17} />
-              </Link>
-              <Link href="/buyer-registration" className="btn-secondary inline-flex items-center justify-center gap-2 rounded-xl px-7 py-4 text-sm">
-                <Icon name="ShoppingBagIcon" size={17} /> Create buyer account
-              </Link>
-              <Link href="/seller-registration" className="btn-navy inline-flex items-center justify-center gap-2 rounded-xl px-7 py-4 text-sm">
-                <Icon name="BuildingStorefrontIcon" size={17} /> Create seller account
-              </Link>
+              <Link href="/login" className="btn-primary inline-flex items-center justify-center gap-2 rounded-xl px-7 py-4 text-sm">Sign in to FabricTrad <Icon name="ArrowRightIcon" size={17} /></Link>
+              <Link href="/buyer-registration" className="btn-secondary inline-flex items-center justify-center gap-2 rounded-xl px-7 py-4 text-sm"><Icon name="ShoppingBagIcon" size={17} /> Create buyer account</Link>
+              <Link href="/seller-registration" className="btn-navy inline-flex items-center justify-center gap-2 rounded-xl px-7 py-4 text-sm"><Icon name="BuildingStorefrontIcon" size={17} /> Create seller account</Link>
             </div>
-
-            <p className="mt-5 text-xs leading-5 text-muted-foreground">
-              Marketplace listings, colour-draping tools, dashboards, orders, requirements and seller information are available only after authentication.
-            </p>
+            <p className="mt-5 text-xs leading-5 text-muted-foreground">Marketplace listings, visual tools, dashboards, orders, requirements and seller information are available only after authentication.</p>
           </div>
 
           <div className="relative mx-auto w-full max-w-[580px] animate-slide-in-right">
             <div className="glass-card rounded-[2rem] border border-border p-5 shadow-2xl sm:p-7">
               <div className="flex items-center justify-between border-b border-border pb-5">
-                <div>
-                  <p className="text-xs font-800 uppercase tracking-[0.16em] text-primary">Role-based access</p>
-                  <h2 className="mt-2 text-2xl font-800">Two private business workspaces</h2>
-                </div>
+                <div><p className="text-xs font-800 uppercase tracking-[0.16em] text-primary">Role-based access</p><h2 className="mt-2 text-2xl font-800">Two private business workspaces</h2></div>
                 <Icon name="LockClosedIcon" size={28} className="text-success" />
               </div>
               <div className="mt-5 space-y-3">
@@ -97,23 +73,10 @@ export default function PublicAccessLanding() {
                   ['BuildingStorefrontIcon', 'Seller workspace', 'Listings, inventory, fulfilment, documents and payouts'],
                 ].map(([icon, title, copy]) => (
                   <div key={title} className="flex gap-4 rounded-2xl border border-border bg-card p-4">
-                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                      <Icon name={icon as 'ShoppingBagIcon'} size={20} />
-                    </div>
-                    <div>
-                      <p className="text-sm font-800">{title}</p>
-                      <p className="mt-1 text-xs leading-5 text-muted-foreground">{copy}</p>
-                    </div>
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary"><Icon name={icon as 'ShoppingBagIcon'} size={20} /></div>
+                    <div><p className="text-sm font-800">{title}</p><p className="mt-1 text-xs leading-5 text-muted-foreground">{copy}</p></div>
                   </div>
                 ))}
-              </div>
-              <div className="mt-5 rounded-2xl border border-success/20 bg-success/5 p-4">
-                <div className="flex items-start gap-3">
-                  <Icon name="EnvelopeIcon" size={18} className="mt-0.5 shrink-0 text-success" />
-                  <p className="text-xs leading-5 text-muted-foreground">
-                    Sign-in codes are delivered only to registered account emails, so access stays tied to the business inbox.
-                  </p>
-                </div>
               </div>
             </div>
           </div>
@@ -122,24 +85,8 @@ export default function PublicAccessLanding() {
 
       <section className="border-y border-border bg-card px-4 py-16 sm:px-6">
         <div className="mx-auto max-w-7xl">
-          <div className="max-w-2xl">
-            <p className="text-xs font-800 uppercase tracking-[0.16em] text-primary">What FabricTrad does</p>
-            <h2 className="mt-3 text-3xl font-800 tracking-tight sm:text-4xl">A private operating layer for textile commerce</h2>
-            <p className="mt-4 text-sm leading-6 text-muted-foreground sm:text-base">
-              Public visitors can understand the service here. Product data and operational tools remain inside authenticated, role-specific accounts.
-            </p>
-          </div>
-          <div className="mt-9 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {capabilities.map((item) => (
-              <article key={item.title} className="rounded-2xl border border-border bg-background p-5 shadow-sm">
-                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                  <Icon name={item.icon as 'ShieldCheckIcon'} size={21} />
-                </div>
-                <h3 className="mt-4 text-base font-800">{item.title}</h3>
-                <p className="mt-2 text-sm leading-6 text-muted-foreground">{item.copy}</p>
-              </article>
-            ))}
-          </div>
+          <div className="max-w-2xl"><p className="text-xs font-800 uppercase tracking-[0.16em] text-primary">What FabricTrad does</p><h2 className="mt-3 text-3xl font-800 tracking-tight sm:text-4xl">A private operating layer for textile commerce</h2><p className="mt-4 text-sm leading-6 text-muted-foreground sm:text-base">Public visitors can understand the service here. Product data and operational tools remain inside authenticated, role-specific accounts.</p></div>
+          <div className="mt-9 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{capabilities.map((item) => <article key={item.title} className="rounded-2xl border border-border bg-background p-5 shadow-sm"><div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-primary"><Icon name={item.icon as 'ShieldCheckIcon'} size={21} /></div><h3 className="mt-4 text-base font-800">{item.title}</h3><p className="mt-2 text-sm leading-6 text-muted-foreground">{item.copy}</p></article>)}</div>
         </div>
       </section>
 
@@ -147,14 +94,8 @@ export default function PublicAccessLanding() {
         <div className="mx-auto max-w-5xl rounded-[2rem] border border-border bg-secondary px-6 py-10 text-center text-white shadow-2xl sm:px-10">
           <Icon name="UserGroupIcon" size={30} className="mx-auto text-gold" />
           <h2 className="mt-4 text-3xl font-800">Choose the account that matches your business.</h2>
-          <p className="mx-auto mt-3 max-w-2xl text-sm leading-6 text-white/75 sm:text-base">
-            Buyers and sellers receive separate registration, verification and workspaces. Existing users can sign in to continue.
-          </p>
-          <div className="mt-7 flex flex-col justify-center gap-3 sm:flex-row">
-            <Link href="/login" className="rounded-xl bg-white px-6 py-3.5 text-sm font-800 text-secondary">Sign in</Link>
-            <Link href="/buyer-registration" className="rounded-xl border border-white/25 bg-white/10 px-6 py-3.5 text-sm font-800 text-white">Register as buyer</Link>
-            <Link href="/seller-registration" className="rounded-xl border border-white/25 bg-white/10 px-6 py-3.5 text-sm font-800 text-white">Register as seller</Link>
-          </div>
+          <p className="mx-auto mt-3 max-w-2xl text-sm leading-6 text-white/75 sm:text-base">Buyers and sellers receive separate registration, verification and workspaces. Existing users can sign in with a code sent to their registered email.</p>
+          <div className="mt-7 flex flex-col justify-center gap-3 sm:flex-row"><Link href="/login" className="rounded-xl bg-white px-6 py-3.5 text-sm font-800 text-secondary">Sign in</Link><Link href="/buyer-registration" className="rounded-xl border border-white/25 bg-white/10 px-6 py-3.5 text-sm font-800 text-white">Register as buyer</Link><Link href="/seller-registration" className="rounded-xl border border-white/25 bg-white/10 px-6 py-3.5 text-sm font-800 text-white">Register as seller</Link></div>
         </div>
       </section>
     </main>
