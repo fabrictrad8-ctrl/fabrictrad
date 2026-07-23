@@ -40,6 +40,8 @@ jobs:
           set -euo pipefail
 
           login_source='src/app/login/EmailOtpLoginClient.tsx'
+          auth_context_source='src/contexts/AuthContext.tsx'
+          demo_account_source='src/app/api/auth/demo-account/ensure/route.ts'
           callback_source='src/app/auth/callback/route.ts'
           middleware_source='src/middleware.ts'
           logo_source='src/components/ui/AppLogo.tsx'
@@ -51,6 +53,11 @@ jobs:
           grep -Fq 'return `${origin}/marketplace`;' "$callback_source"
           grep -Fq "return '/marketplace';" "$middleware_source"
           grep -Fq ": '/marketplace'" "$logo_source"
+          grep -Fq "'/api/auth/demo-account/ensure'" "$auth_context_source"
+          grep -Fq "'demo.buyer@fabrictrad.com'" "$demo_account_source"
+          grep -Fq "'demo.seller@fabrictrad.com'" "$demo_account_source"
+          grep -Fq "role: 'buyer'" "$demo_account_source"
+          grep -Fq "role: 'seller'" "$demo_account_source"
           if grep -qi 'Explore a demo' "$login_source"; then
             echo 'Public demo access must not be rendered.'
             exit 1
@@ -91,14 +98,27 @@ jobs:
           test "$invalid_otp_status" = "400"
           grep -q 'Email is required' /tmp/invalid-otp.json
 
-          disabled_demo_status=$(curl --silent --show-error --output /tmp/disabled-demo.txt \
+          missing_demo_status=$(curl --silent --show-error --output /tmp/missing-demo.json \
+            --write-out '%{http_code}' --header 'Content-Type: application/json' \
+            --data '{}' http://127.0.0.1:3000/api/auth/demo-account/ensure)
+          test "$missing_demo_status" = "400"
+          grep -q 'Email and password are required' /tmp/missing-demo.json
+
+          invalid_demo_status=$(curl --silent --show-error --output /tmp/invalid-demo.json \
+            --write-out '%{http_code}' --header 'Content-Type: application/json' \
+            --data '{"email":"demo.buyer@fabrictrad.com","password":"wrong-password"}' \
+            http://127.0.0.1:3000/api/auth/demo-account/ensure)
+          test "$invalid_demo_status" = "401"
+          grep -q 'Invalid login credentials' /tmp/invalid-demo.json
+
+          disabled_legacy_demo_status=$(curl --silent --show-error --output /tmp/disabled-demo.txt \
             --write-out '%{http_code}' --header 'Content-Type: application/json' \
             --data '{"email":"demo.buyer@fabrictrad.com","password":"FabricDemo@2026"}' \
             http://127.0.0.1:3000/api/auth/demo-session)
-          case "$disabled_demo_status" in
+          case "$disabled_legacy_demo_status" in
             404|410) ;;
             *)
-              echo "Demo endpoint unexpectedly returned $disabled_demo_status"
+              echo "Legacy demo endpoint unexpectedly returned $disabled_legacy_demo_status"
               cat /tmp/disabled-demo.txt
               exit 1
               ;;
