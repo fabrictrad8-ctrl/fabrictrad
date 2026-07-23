@@ -61,3 +61,19 @@ jobs:
               echo "$base RESET_NOTICE_PRESENT=no"
             fi
           done
+  auxiliary:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Inspect remaining live checks
+        shell: bash
+        run: |
+          for base in https://fabrictrad.com https://www.fabrictrad.com; do
+            public=$(curl -sS -D /tmp/public.headers -o /dev/null -w '%{http_code}' --max-redirs 0 "$base/marketplace" || true)
+            public_location=$(grep -i '^location:' /tmp/public.headers | tr -d '\r\n' || true)
+            admin=$(curl -sS -D /tmp/admin.headers -o /dev/null -w '%{http_code}' --max-redirs 0 "$base/admin-login" || true)
+            admin_location=$(grep -i '^location:' /tmp/admin.headers | tr -d '\r\n' || true)
+            google=$(curl -sS -o /tmp/google.json -w '%{http_code}' "$base/api/auth/google/status" || true)
+            home=$(curl -sS -o /dev/null -w '%{http_code}' "$base/" || true)
+            echo "$base HOME=$home PUBLIC_MARKETPLACE=$public $public_location ADMIN_LOGIN=$admin $admin_location GOOGLE=$google GOOGLE_BODY=$(cat /tmp/google.json 2>/dev/null || true)"
+          done
