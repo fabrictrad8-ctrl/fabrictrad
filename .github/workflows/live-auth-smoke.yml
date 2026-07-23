@@ -1,4 +1,4 @@
-name: Live role authentication smoke tests
+name: Live verified-email authentication smoke tests
 
 on:
   push:
@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - name: Verify production domains and role isolation
+      - name: Verify production domains and protected entry points
         id: smoke
         continue-on-error: true
         shell: bash
@@ -28,64 +28,40 @@ jobs:
             deployed=false
 
             for attempt in $(seq 1 40); do
-              status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
-                --output "/tmp/${safe_name}-deploy.json" --write-out '%{http_code}' \
-                --header 'Content-Type: application/json' \
-                --data '{"email":"demo.buyer@fabrictrad.com","password":"FabricDemo@2026"}' \
-                "$base_url/api/auth/demo-session" || true)
-              if [ "$status" = "200" ] && grep -q '"role":"buyer"' "/tmp/${safe_name}-deploy.json"; then
+              login_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+                --output "/tmp/${safe_name}-login.html" --write-out '%{http_code}' \
+                "$base_url/login" || true)
+
+              if [ "$login_status" = "200" ] \
+                && grep -q 'Sign in to FabricTrad' "/tmp/${safe_name}-login.html" \
+                && grep -q 'Email code' "/tmp/${safe_name}-login.html" \
+                && ! grep -qi 'Explore a demo' "/tmp/${safe_name}-login.html"; then
                 deployed=true
                 break
               fi
-              echo "Attempt $attempt: $base_url returned $status; waiting for Cloudflare deployment"
+
+              echo "Attempt $attempt: $base_url has not served the verified-email login yet"
               sleep 15
             done
 
             if [ "$deployed" != "true" ]; then
-              echo "$base_url did not serve the new demo-session endpoint in time."
-              cat "/tmp/${safe_name}-deploy.json" 2>/dev/null || true
+              echo "$base_url did not serve the updated login in time."
+              cat "/tmp/${safe_name}-login.html" 2>/dev/null || true
               return 1
             fi
 
-            buyer_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
-              --output "/tmp/${safe_name}-buyer-session.json" --write-out '%{http_code}' \
-              --cookie-jar "/tmp/${safe_name}-buyer.cookies" --header 'Content-Type: application/json' \
-              --data '{"email":"demo.buyer@fabrictrad.com","password":"FabricDemo@2026"}' \
-              "$base_url/api/auth/demo-session")
-            test "$buyer_status" = "200"
-            grep -q '"role":"buyer"' "/tmp/${safe_name}-buyer-session.json"
+            if grep -qi 'Admin portal' "/tmp/${safe_name}-login.html"; then
+              echo "$base_url still exposes a separate administrator entry point."
+              return 1
+            fi
 
-            buyer_dashboard_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
-              --output "/tmp/${safe_name}-buyer-dashboard.html" --write-out '%{http_code}' \
-              --cookie "/tmp/${safe_name}-buyer.cookies" --max-redirs 0 "$base_url/buyer-dashboard")
-            test "$buyer_dashboard_status" = "200"
-
-            buyer_to_seller_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
-              --dump-header "/tmp/${safe_name}-buyer-to-seller.headers" --output /dev/null \
-              --write-out '%{http_code}' --cookie "/tmp/${safe_name}-buyer.cookies" --max-redirs 0 \
-              "$base_url/seller-dashboard")
-            test "$buyer_to_seller_status" = "307" -o "$buyer_to_seller_status" = "308"
-            grep -qi '^location: .*buyer-dashboard' "/tmp/${safe_name}-buyer-to-seller.headers"
-
-            seller_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
-              --output "/tmp/${safe_name}-seller-session.json" --write-out '%{http_code}' \
-              --cookie-jar "/tmp/${safe_name}-seller.cookies" --header 'Content-Type: application/json' \
-              --data '{"email":"demo.seller@fabrictrad.com","password":"FabricDemo@2026"}' \
-              "$base_url/api/auth/demo-session")
-            test "$seller_status" = "200"
-            grep -q '"role":"seller"' "/tmp/${safe_name}-seller-session.json"
-
-            seller_dashboard_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
-              --output "/tmp/${safe_name}-seller-dashboard.html" --write-out '%{http_code}' \
-              --cookie "/tmp/${safe_name}-seller.cookies" --max-redirs 0 "$base_url/seller-dashboard")
-            test "$seller_dashboard_status" = "200"
-
-            seller_to_buyer_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
-              --dump-header "/tmp/${safe_name}-seller-to-buyer.headers" --output /dev/null \
-              --write-out '%{http_code}' --cookie "/tmp/${safe_name}-seller.cookies" --max-redirs 0 \
-              "$base_url/buyer-dashboard")
-            test "$seller_to_buyer_status" = "307" -o "$seller_to_buyer_status" = "308"
-            grep -qi '^location: .*seller-dashboard' "/tmp/${safe_name}-seller-to-buyer.headers"
+            home_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+              --output "/tmp/${safe_name}-home.html" --write-out '%{http_code}' "$base_url/")
+            test "$home_status" = "200"
+            if grep -qi 'Admin workspace' "/tmp/${safe_name}-home.html"; then
+              echo "$base_url still advertises the administrator workspace publicly."
+              return 1
+            fi
 
             public_marketplace_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
               --dump-header "/tmp/${safe_name}-public-marketplace.headers" --output /dev/null \
@@ -94,18 +70,26 @@ jobs:
             grep -qi '^location: .*login' "/tmp/${safe_name}-public-marketplace.headers"
 
             admin_login_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
-              --output "/tmp/${safe_name}-admin-login.html" --write-out '%{http_code}' \
-              "$base_url/admin-login")
-            test "$admin_login_status" = "200"
+              --dump-header "/tmp/${safe_name}-admin-login.headers" --output /dev/null \
+              --write-out '%{http_code}' --max-redirs 0 "$base_url/admin-login")
+            test "$admin_login_status" = "307" -o "$admin_login_status" = "308"
+            grep -qi '^location: .*login' "/tmp/${safe_name}-admin-login.headers"
 
-            invalid_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
-              --output "/tmp/${safe_name}-invalid-demo.json" --write-out '%{http_code}' \
+            invalid_otp_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+              --output "/tmp/${safe_name}-invalid-otp.json" --write-out '%{http_code}' \
+              --header 'Content-Type: application/json' --data '{}' \
+              "$base_url/api/auth/email-otp/request")
+            test "$invalid_otp_status" = "400"
+            grep -q 'Email is required' "/tmp/${safe_name}-invalid-otp.json"
+
+            disabled_demo_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+              --output "/tmp/${safe_name}-disabled-demo.txt" --write-out '%{http_code}' \
               --header 'Content-Type: application/json' \
-              --data '{"email":"demo.buyer@fabrictrad.com","password":"incorrect"}' \
+              --data '{"email":"demo.buyer@fabrictrad.com","password":"FabricDemo@2026"}' \
               "$base_url/api/auth/demo-session")
-            test "$invalid_status" = "401"
+            test "$disabled_demo_status" = "404"
 
-            echo "$base_url passed live authentication checks."
+            echo "$base_url passed verified-email authentication checks."
           }
 
           verify_domain 'https://fabrictrad.com'
@@ -121,10 +105,10 @@ jobs:
           set -euo pipefail
           if [ "$SMOKE_OUTCOME" = "success" ]; then
             state=success
-            description='Both production domains passed buyer, seller and admin route checks'
+            description='Both production domains passed verified-email access checks'
           else
             state=failure
-            description='A production domain or role authentication check failed'
+            description='A production domain or verified-email access check failed'
           fi
           payload=$(printf '{"state":"%s","context":"fabrictrad/live-auth","description":"%s"}' "$state" "$description")
           curl --fail --silent --show-error \
