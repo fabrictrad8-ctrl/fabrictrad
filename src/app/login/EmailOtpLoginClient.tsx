@@ -30,25 +30,59 @@ async function resolveRole(fallback: AccountRole): Promise<AccountRole> {
   return payload.role || fallback;
 }
 
+function GoogleMark() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className="h-5 w-5">
+      <path
+        fill="#4285F4"
+        d="M21.8 12.2c0-.7-.1-1.4-.2-2H12v3.8h5.5a4.7 4.7 0 0 1-2 3.1v2.5h3.2c1.9-1.7 3.1-4.3 3.1-7.4Z"
+      />
+      <path
+        fill="#34A853"
+        d="M12 22c2.7 0 5-.9 6.7-2.4l-3.2-2.5c-.9.6-2 1-3.5 1a5.9 5.9 0 0 1-5.5-4.1H3.2v2.6A10 10 0 0 0 12 22Z"
+      />
+      <path
+        fill="#FBBC05"
+        d="M6.5 14a6 6 0 0 1 0-3.8V7.6H3.2a10 10 0 0 0 0 9l3.3-2.6Z"
+      />
+      <path
+        fill="#EA4335"
+        d="M12 6.1c1.6 0 3 .5 4.1 1.6l3.1-3A10 10 0 0 0 3.2 7.6l3.3 2.6A5.9 5.9 0 0 1 12 6.1Z"
+      />
+    </svg>
+  );
+}
+
 export default function EmailOtpLoginClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { verifyEmailOtp, user, profile, loading } = useAuth();
+  const {
+    verifyEmailOtp,
+    signInWithGoogle,
+    googleAuthEnabled,
+    user,
+    profile,
+    loading,
+  } = useAuth();
   const [role, setRole] = useState<LoginRole>('buyer');
   const [email, setEmail] = useState('');
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [otpSent, setOtpSent] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [googleSubmitting, setGoogleSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
 
   useEffect(() => {
     if (searchParams.get('role') === 'seller') setRole('seller');
+
     const authError = searchParams.get('error');
     if (authError === 'account_inactive') {
       setError('This account is inactive. Please contact FabricTrad support.');
+    } else if (authError === 'account_not_found') {
+      setError('This Google account is not linked to a registered FabricTrad account.');
     } else if (authError) {
-      setError('Authentication failed. Please request a new email code.');
+      setError('Authentication failed. Please try again.');
     }
   }, [searchParams]);
 
@@ -68,7 +102,7 @@ export default function EmailOtpLoginClient() {
   };
 
   const chooseRole = (nextRole: LoginRole) => {
-    if (submitting) return;
+    if (submitting || googleSubmitting) return;
     setRole(nextRole);
     resetCode();
     setError('');
@@ -103,6 +137,18 @@ export default function EmailOtpLoginClient() {
       setError(caughtError instanceof Error ? caughtError.message : 'Unable to send the sign-in code.');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const signInWithGoogleAccount = async () => {
+    setError('');
+    setInfo('');
+    setGoogleSubmitting(true);
+    try {
+      await signInWithGoogle(role);
+    } catch (caughtError: unknown) {
+      setError(caughtError instanceof Error ? caughtError.message : 'Google sign-in failed.');
+      setGoogleSubmitting(false);
     }
   };
 
@@ -153,8 +199,14 @@ export default function EmailOtpLoginClient() {
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-[#09111f] px-4 py-10 text-slate-100">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_16%_8%,rgba(218,119,48,0.18),transparent_30%),radial-gradient(circle_at_88%_18%,rgba(64,84,130,0.28),transparent_34%)]" aria-hidden="true" />
-      <div className="pointer-events-none absolute inset-0 opacity-[0.13] [background-image:linear-gradient(rgba(255,255,255,0.07)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.07)_1px,transparent_1px)] [background-size:44px_44px]" aria-hidden="true" />
+      <div
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_16%_8%,rgba(218,119,48,0.18),transparent_30%),radial-gradient(circle_at_88%_18%,rgba(64,84,130,0.28),transparent_34%)]"
+        aria-hidden="true"
+      />
+      <div
+        className="pointer-events-none absolute inset-0 opacity-[0.13] [background-image:linear-gradient(rgba(255,255,255,0.07)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.07)_1px,transparent_1px)] [background-size:44px_44px]"
+        aria-hidden="true"
+      />
 
       <div className="relative z-10 mx-auto grid min-h-[calc(100vh-5rem)] w-full max-w-5xl items-center gap-10 lg:grid-cols-[0.9fr_1.1fr]">
         <section className="hidden lg:block">
@@ -162,12 +214,14 @@ export default function EmailOtpLoginClient() {
             <AppLogo size={44} />
             <span className="text-2xl font-800 tracking-tight text-white">FabricTrad</span>
           </Link>
-          <p className="mt-8 text-xs font-800 uppercase tracking-[0.18em] text-orange-300">Private B2B textile commerce</p>
+          <p className="mt-8 text-xs font-800 uppercase tracking-[0.18em] text-orange-300">
+            Private B2B textile commerce
+          </p>
           <h1 className="mt-4 max-w-xl text-5xl font-800 leading-[1.02] tracking-[-0.04em] text-white">
             Secure access through your verified business email.
           </h1>
           <p className="mt-6 max-w-lg text-base leading-7 text-slate-400">
-            Select buyer or seller, enter the email linked to your account and use the one-time code delivered to that inbox.
+            Use an email code or continue with the Google account linked to your registered FabricTrad profile.
           </p>
 
           <div className="mt-8 space-y-3">
@@ -190,7 +244,7 @@ export default function EmailOtpLoginClient() {
           <div className="mt-8 flex max-w-lg items-start gap-3 rounded-2xl border border-emerald-300/15 bg-emerald-300/5 p-4">
             <Icon name="ShieldCheckIcon" size={18} className="mt-0.5 shrink-0 text-emerald-300" />
             <p className="text-xs leading-5 text-slate-400">
-              Access requires control of the registered inbox. The correct workspace is opened automatically after verification.
+              Both methods verify control of the registered inbox. Your saved account role decides which workspace opens.
             </p>
           </div>
         </section>
@@ -206,11 +260,29 @@ export default function EmailOtpLoginClient() {
           <div className="rounded-[1.75rem] border border-white/10 bg-[#101a2a]/95 p-6 shadow-2xl shadow-black/35 backdrop-blur-xl sm:p-7">
             <p className="text-xs font-800 uppercase tracking-[0.16em] text-orange-300">Welcome back</p>
             <h2 className="mt-2 text-3xl font-800 tracking-tight text-white">Sign in to FabricTrad</h2>
-            <p className="mt-2 text-sm leading-6 text-slate-400">A secure code will be sent to the email registered with your account.</p>
+            <p className="mt-2 text-sm leading-6 text-slate-400">
+              Use your registered email or the Google account linked to it.
+            </p>
 
             <div className="mt-6 grid grid-cols-2 rounded-xl border border-white/10 bg-black/10 p-1">
-              <button type="button" onClick={() => chooseRole('buyer')} className={`rounded-lg px-3 py-2.5 text-sm font-700 transition ${role === 'buyer' ? 'bg-orange-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}>Buyer</button>
-              <button type="button" onClick={() => chooseRole('seller')} className={`rounded-lg px-3 py-2.5 text-sm font-700 transition ${role === 'seller' ? 'bg-indigo-400 text-slate-950 shadow' : 'text-slate-400 hover:text-white'}`}>Seller</button>
+              <button
+                type="button"
+                onClick={() => chooseRole('buyer')}
+                className={`rounded-lg px-3 py-2.5 text-sm font-700 transition ${
+                  role === 'buyer' ? 'bg-orange-600 text-white shadow' : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                Buyer
+              </button>
+              <button
+                type="button"
+                onClick={() => chooseRole('seller')}
+                className={`rounded-lg px-3 py-2.5 text-sm font-700 transition ${
+                  role === 'seller' ? 'bg-indigo-400 text-slate-950 shadow' : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                Seller
+              </button>
             </div>
 
             {error && (
@@ -228,7 +300,9 @@ export default function EmailOtpLoginClient() {
 
             <div className="mt-5 space-y-4">
               <div>
-                <label htmlFor="login-email" className="mb-1.5 block text-sm font-700 text-slate-200">Account email</label>
+                <label htmlFor="login-email" className="mb-1.5 block text-sm font-700 text-slate-200">
+                  Account email
+                </label>
                 <input
                   id="login-email"
                   type="email"
@@ -244,7 +318,12 @@ export default function EmailOtpLoginClient() {
               </div>
 
               {!otpSent ? (
-                <button type="button" onClick={sendOtp} disabled={submitting} className="w-full rounded-xl bg-orange-600 px-4 py-3.5 text-sm font-800 text-white transition hover:bg-orange-500 disabled:opacity-60">
+                <button
+                  type="button"
+                  onClick={sendOtp}
+                  disabled={submitting || googleSubmitting}
+                  className="w-full rounded-xl bg-orange-600 px-4 py-3.5 text-sm font-800 text-white transition hover:bg-orange-500 disabled:opacity-60"
+                >
                   {submitting ? 'Sending code…' : 'Send sign-in code'}
                 </button>
               ) : (
@@ -268,17 +347,57 @@ export default function EmailOtpLoginClient() {
                       ))}
                     </div>
                   </div>
-                  <button type="button" onClick={verifyOtp} disabled={submitting || otp.join('').length !== 6} className="w-full rounded-xl bg-orange-600 px-4 py-3.5 text-sm font-800 text-white transition hover:bg-orange-500 disabled:opacity-60">
+                  <button
+                    type="button"
+                    onClick={verifyOtp}
+                    disabled={submitting || googleSubmitting || otp.join('').length !== 6}
+                    className="w-full rounded-xl bg-orange-600 px-4 py-3.5 text-sm font-800 text-white transition hover:bg-orange-500 disabled:opacity-60"
+                  >
                     {submitting ? 'Verifying…' : 'Verify and continue'}
                   </button>
-                  <button type="button" onClick={sendOtp} disabled={submitting} className="w-full rounded-xl py-2 text-xs font-700 text-slate-400 hover:bg-white/5 hover:text-white disabled:opacity-60">Resend code</button>
+                  <button
+                    type="button"
+                    onClick={sendOtp}
+                    disabled={submitting || googleSubmitting}
+                    className="w-full rounded-xl py-2 text-xs font-700 text-slate-400 hover:bg-white/5 hover:text-white disabled:opacity-60"
+                  >
+                    Resend code
+                  </button>
                 </>
               )}
             </div>
 
+            {googleAuthEnabled && (
+              <>
+                <div className="my-5 flex items-center gap-3">
+                  <span className="h-px flex-1 bg-white/10" />
+                  <span className="text-xs text-slate-500">or</span>
+                  <span className="h-px flex-1 bg-white/10" />
+                </div>
+                <button
+                  type="button"
+                  onClick={signInWithGoogleAccount}
+                  disabled={submitting || googleSubmitting}
+                  className="flex w-full items-center justify-center gap-3 rounded-xl border border-white/15 bg-white px-4 py-3.5 text-sm font-800 text-slate-800 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {googleSubmitting ? (
+                    <span className="h-5 w-5 animate-spin rounded-full border-2 border-slate-400 border-t-slate-800" />
+                  ) : (
+                    <GoogleMark />
+                  )}
+                  {googleSubmitting ? 'Opening Google…' : 'Continue with Google'}
+                </button>
+              </>
+            )}
+
             <div className="mt-6 border-t border-white/10 pt-5 text-center text-xs text-slate-500">
               New to FabricTrad?{' '}
-              <Link href={role === 'buyer' ? '/buyer-registration' : '/seller-registration'} className="font-700 text-orange-300 hover:text-orange-200">Create {role} account</Link>
+              <Link
+                href={role === 'buyer' ? '/buyer-registration' : '/seller-registration'}
+                className="font-700 text-orange-300 hover:text-orange-200"
+              >
+                Create {role} account
+              </Link>
             </div>
           </div>
         </section>
