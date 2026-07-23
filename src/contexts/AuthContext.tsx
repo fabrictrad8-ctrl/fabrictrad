@@ -1,14 +1,8 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { createClient } from '../lib/supabase/client';
 import { normalizeEmail, normalizeIndianPhone } from '@/lib/authValidation';
-import {
-  DEMO_SESSION_STORAGE_KEY,
-  getDemoAccountByEmail,
-  getDemoUserId,
-  validateDemoCredentials,
-} from '@/lib/demoAccounts';
 
 export interface UserProfile {
   id: string;
@@ -61,13 +55,6 @@ type IdentityConflict = {
   phone_role?: string | null;
 };
 
-type DemoRole = 'buyer' | 'seller';
-
-type DemoSessionResponse = {
-  role?: DemoRole;
-  error?: string;
-};
-
 const getAuthRedirectBase = () => {
   if (process.env.NEXT_PUBLIC_SITE_URL) {
     return process.env.NEXT_PUBLIC_SITE_URL.replace(/\/$/, '');
@@ -84,42 +71,6 @@ const setOAuthRoleCookie = (role: 'buyer' | 'seller') => {
   document.cookie = `fabrictrad_oauth_role=${role}; Path=/; Max-Age=600; SameSite=Lax${secure}`;
 };
 
-const readDemoSession = async (): Promise<DemoRole | null> => {
-  try {
-    const response = await fetch('/api/auth/demo-session', {
-      method: 'GET',
-      cache: 'no-store',
-      credentials: 'same-origin',
-    });
-    if (!response.ok) return null;
-    const payload = (await response.json()) as DemoSessionResponse;
-    return payload.role === 'buyer' || payload.role === 'seller' ? payload.role : null;
-  } catch {
-    return null;
-  }
-};
-
-const createDemoSessionCookie = async (email: string, password: string): Promise<DemoRole> => {
-  const response = await fetch('/api/auth/demo-session', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'same-origin',
-    body: JSON.stringify({ email, password }),
-  });
-  const payload = (await response.json().catch(() => ({}))) as DemoSessionResponse;
-  if (!response.ok || (payload.role !== 'buyer' && payload.role !== 'seller')) {
-    throw new Error(payload.error || 'Unable to start the demo session.');
-  }
-  return payload.role;
-};
-
-const clearDemoSessionCookie = async () => {
-  await fetch('/api/auth/demo-session', {
-    method: 'DELETE',
-    credentials: 'same-origin',
-  }).catch(() => undefined);
-};
-
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) throw new Error('useAuth must be used within AuthProvider');
@@ -132,89 +83,32 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [profileLoading, setProfileLoading] = useState(false);
-  const [isDemoAccount, setIsDemoAccount] = useState(false);
   const [supabase] = useState(() => createClient());
 
-  const buildDemoSession = (role: DemoRole) => {
-    const account = getDemoAccountByEmail(
-      role === 'buyer' ? 'demo.buyer@fabrictrad.com' : 'demo.seller@fabrictrad.com'
-    );
-    if (!account) return null;
-    const id = getDemoUserId(role);
-    return {
-      user: {
-        id,
-        email: account.email,
-        email_confirmed_at: new Date().toISOString(),
-        user_metadata: { full_name: account.fullName, role, demo: true },
-        app_metadata: { role, demo: true },
-      },
-      profile: {
-        id,
-        email: account.email,
-        full_name: account.fullName,
-        phone: account.phone,
-        phone_verified: true,
-        role,
-        is_active: true,
-        avatar_url: null,
-        business_name: account.company,
-        gstin: role === 'seller' ? '27ABCDE1234F1Z5' : '24ABCDE1234F1Z5',
-        city: role === 'seller' ? 'Surat' : 'Mumbai',
-        state: role === 'seller' ? 'Gujarat' : 'Maharashtra',
-        address_line1: role === 'seller' ? 'Demo Textile Market, Ring Road' : 'Demo Sourcing Office',
-        pincode: role === 'seller' ? '395002' : '400001',
-        preferred_language: 'en',
-        preferred_theme: 'system',
-      } as UserProfile,
-    };
-  };
-
-  const applyDemoSession = (role: DemoRole) => {
-    const demoSession = buildDemoSession(role);
-    if (!demoSession) return false;
-    if (typeof window !== 'undefined') {
-      window.localStorage.setItem(DEMO_SESSION_STORAGE_KEY, role);
-    }
-    setSession(null);
-    setUser(demoSession.user);
-    setProfile(demoSession.profile);
-    setIsDemoAccount(true);
-    setLoading(false);
-    return true;
-  };
-
-  const loadProfile = async (userId: string) => {
-    setProfileLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from('user_profiles')
-        .select('*')
-        .eq('id', userId)
-        .maybeSingle();
-      if (!error && data) setProfile(data as UserProfile);
-    } finally {
-      setProfileLoading(false);
-    }
-  };
+  const loadProfile = useCallback(
+    async (userId: string) => {
+      setProfileLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from('user_profiles')
+          .select('*')
+          .eq('id', userId)
+          .maybeSingle();
+        if (error) throw error;
+        const nextProfile = (data as UserProfile | null) ?? null;
+        setProfile(nextProfile);
+        return nextProfile;
+      } finally {
+        setProfileLoading(false);
+      }
+    },
+    [supabase]
+  );
 
   useEffect(() => {
     let cancelled = false;
-    let unsubscribe: (() => void) | undefined;
 
-    const initializeAuth = async () => {
-      const demoRole = await readDemoSession();
-      if (cancelled) return;
-
-      if (demoRole) {
-        applyDemoSession(demoRole);
-        return;
-      }
-
-      if (typeof window !== 'undefined') {
-        window.localStorage.removeItem(DEMO_SESSION_STORAGE_KEY);
-      }
-
+    const initialize = async () => {
       const {
         data: { session: initialSession },
       } = await supabase.auth.getSession();
@@ -222,42 +116,39 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
       setSession(initialSession);
       setUser(initialSession?.user ?? null);
-      setIsDemoAccount(false);
       if (initialSession?.user) {
-        await loadProfile(initialSession.user.id);
+        await loadProfile(initialSession.user.id).catch(() => setProfile(null));
       } else {
         setProfile(null);
       }
       if (!cancelled) setLoading(false);
-
-      const {
-        data: { subscription },
-      } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-        if (cancelled) return;
-        setSession(nextSession);
-        setUser(nextSession?.user ?? null);
-        setIsDemoAccount(false);
-        if (nextSession?.user) void loadProfile(nextSession.user.id);
-        else setProfile(null);
-        setLoading(false);
-      });
-      unsubscribe = () => subscription.unsubscribe();
     };
 
-    void initializeAuth();
+    void initialize();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      if (cancelled) return;
+      setSession(nextSession);
+      setUser(nextSession?.user ?? null);
+      if (nextSession?.user) {
+        void loadProfile(nextSession.user.id).catch(() => setProfile(null));
+      } else {
+        setProfile(null);
+      }
+      setLoading(false);
+    });
 
     return () => {
       cancelled = true;
-      unsubscribe?.();
+      subscription.unsubscribe();
     };
-  }, [supabase]);
+  }, [loadProfile, supabase]);
 
   const signUp = async (email: string, password: string, metadata: any = {}) => {
-    if (getDemoAccountByEmail(email)) {
-      throw new Error('Demo accounts are built into FabricTrad. Please sign in with the demo password.');
-    }
     const { data, error } = await supabase.auth.signUp({
-      email,
+      email: normalizeEmail(email),
       password,
       options: {
         data: {
@@ -283,63 +174,21 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const signIn = async (email: string, password: string) => {
-    const normalizedEmail = normalizeEmail(email);
-    const demoAccount = validateDemoCredentials(normalizedEmail, password);
-
-    if (demoAccount) {
-      await supabase.auth.signOut().catch(() => undefined);
-      const role = await createDemoSessionCookie(normalizedEmail, password);
-      applyDemoSession(role);
-      const demoSession = buildDemoSession(role);
-      return {
-        user: demoSession?.user ?? null,
-        session: null,
-        role,
-        isDemo: true,
-      };
-    }
-
-    if (getDemoAccountByEmail(normalizedEmail)) {
-      throw new Error('Invalid demo password. Use the demo credentials shown on this page.');
-    }
-
-    await clearDemoSessionCookie();
-    if (typeof window !== 'undefined') {
-      window.localStorage.removeItem(DEMO_SESSION_STORAGE_KEY);
-    }
-
     const { data, error } = await supabase.auth.signInWithPassword({
-      email: normalizedEmail,
+      email: normalizeEmail(email),
       password,
     });
     if (error) throw error;
-
-    let role = data.user?.app_metadata?.role || data.user?.user_metadata?.role || null;
-    if (data.user) {
-      const { data: profileData } = await supabase
-        .from('user_profiles')
-        .select('*')
-        .eq('id', data.user.id)
-        .maybeSingle();
-      if (profileData) {
-        setProfile(profileData as UserProfile);
-        role = profileData.role;
-      }
-    }
-
-    return { ...data, role, isDemo: false };
+    if (data.user) await loadProfile(data.user.id);
+    return data;
   };
 
   const signInWithGoogle = async (role: 'buyer' | 'seller' = 'buyer') => {
-    if (!googleAuthEnabled) throw new Error('Google sign-in is not configured. Please use email sign-in.');
+    if (!googleAuthEnabled) throw new Error('Google sign-in is not configured. Please use email OTP.');
     const statusResponse = await fetch('/api/auth/google/status', { cache: 'no-store' });
     if (!statusResponse.ok) {
       const status = await statusResponse.json().catch(() => null);
       throw new Error(status?.message || 'Google sign-in is not fully configured.');
-    }
-    await clearDemoSessionCookie();
-    if (typeof window !== 'undefined') {
-      window.localStorage.removeItem(DEMO_SESSION_STORAGE_KEY);
     }
     setOAuthRoleCookie(role);
     const { data, error } = await supabase.auth.signInWithOAuth({
@@ -354,10 +203,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const sendEmailOtp = async (email: string) => {
-    await clearDemoSessionCookie();
     const { data, error } = await supabase.auth.signInWithOtp({
       email: normalizeEmail(email),
-      options: { shouldCreateUser: true, emailRedirectTo: `${getAuthRedirectBase()}/auth/callback` },
+      options: {
+        shouldCreateUser: false,
+        emailRedirectTo: `${getAuthRedirectBase()}/auth/callback`,
+      },
     });
     if (error) throw error;
     return data;
@@ -370,24 +221,19 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       type: 'email',
     });
     if (error) throw error;
+    if (data.user) await loadProfile(data.user.id).catch(() => setProfile(null));
     return data;
   };
 
   const signOut = async () => {
-    await clearDemoSessionCookie();
-    if (typeof window !== 'undefined') {
-      window.localStorage.removeItem(DEMO_SESSION_STORAGE_KEY);
-    }
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
     setProfile(null);
     setUser(null);
     setSession(null);
-    setIsDemoAccount(false);
   };
 
   const getCurrentUser = async () => {
-    if (isDemoAccount) return user;
     const {
       data: { user: currentUser },
       error,
@@ -396,33 +242,23 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     return currentUser;
   };
 
-  const isEmailVerified = () => isDemoAccount || Boolean(user?.email_confirmed_at);
+  const isEmailVerified = () => Boolean(user?.email_confirmed_at);
 
   const getUserProfile = async (): Promise<UserProfile | null> => {
     if (!user) return null;
-    if (isDemoAccount) return profile;
-    const { data, error } = await supabase
-      .from('user_profiles')
-      .select('*')
-      .eq('id', user.id)
-      .single();
-    if (error) throw error;
-    return data as UserProfile;
+    return loadProfile(user.id);
   };
 
   const refreshProfile = async () => {
-    if (user && !isDemoAccount) await loadProfile(user.id);
+    if (user) await loadProfile(user.id);
   };
 
   const updatePhone = async (phone: string) => {
     if (!user) throw new Error('Not authenticated');
-    if (isDemoAccount) {
-      setProfile((current) => (current ? { ...current, phone } : current));
-      return;
-    }
+    const normalizedPhone = normalizeIndianPhone(phone);
     const { error } = await supabase
       .from('user_profiles')
-      .update({ phone, updated_at: new Date().toISOString() })
+      .update({ phone: normalizedPhone, updated_at: new Date().toISOString() })
       .eq('id', user.id);
     if (error) throw error;
     await loadProfile(user.id);
@@ -466,7 +302,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     profile,
     loading,
     profileLoading,
-    isDemoAccount,
+    isDemoAccount: false,
     googleAuthEnabled,
     signUp,
     signIn,
