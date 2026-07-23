@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, type KeyboardEvent } from 'react';
+import { useEffect, useState, type FormEvent, type KeyboardEvent } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import AppLogo from '@/components/ui/AppLogo';
@@ -9,6 +9,8 @@ import { useAuth } from '@/contexts/AuthContext';
 
 type LoginRole = 'buyer' | 'seller';
 type AccountRole = LoginRole | 'admin_staff' | 'super_admin';
+type ScreenMode = 'login' | 'forgot';
+type ResetStep = 'request' | 'verify' | 'new-password';
 
 const destinationForRole = (role?: AccountRole | null) => {
   if (role === 'seller') return '/seller-dashboard';
@@ -33,22 +35,10 @@ async function resolveRole(fallback: AccountRole): Promise<AccountRole> {
 function GoogleMark() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true" className="h-5 w-5">
-      <path
-        fill="#4285F4"
-        d="M21.8 12.2c0-.7-.1-1.4-.2-2H12v3.8h5.5a4.7 4.7 0 0 1-2 3.1v2.5h3.2c1.9-1.7 3.1-4.3 3.1-7.4Z"
-      />
-      <path
-        fill="#34A853"
-        d="M12 22c2.7 0 5-.9 6.7-2.4l-3.2-2.5c-.9.6-2 1-3.5 1a5.9 5.9 0 0 1-5.5-4.1H3.2v2.6A10 10 0 0 0 12 22Z"
-      />
-      <path
-        fill="#FBBC05"
-        d="M6.5 14a6 6 0 0 1 0-3.8V7.6H3.2a10 10 0 0 0 0 9l3.3-2.6Z"
-      />
-      <path
-        fill="#EA4335"
-        d="M12 6.1c1.6 0 3 .5 4.1 1.6l3.1-3A10 10 0 0 0 3.2 7.6l3.3 2.6A5.9 5.9 0 0 1 12 6.1Z"
-      />
+      <path fill="#4285F4" d="M21.8 12.2c0-.7-.1-1.4-.2-2H12v3.8h5.5a4.7 4.7 0 0 1-2 3.1v2.5h3.2c1.9-1.7 3.1-4.3 3.1-7.4Z" />
+      <path fill="#34A853" d="M12 22c2.7 0 5-.9 6.7-2.4l-3.2-2.5c-.9.6-2 1-3.5 1a5.9 5.9 0 0 1-5.5-4.1H3.2v2.6A10 10 0 0 0 12 22Z" />
+      <path fill="#FBBC05" d="M6.5 14a6 6 0 0 1 0-3.8V7.6H3.2a10 10 0 0 0 0 9l3.3-2.6Z" />
+      <path fill="#EA4335" d="M12 6.1c1.6 0 3 .5 4.1 1.6l3.1-3A10 10 0 0 0 3.2 7.6l3.3 2.6A5.9 5.9 0 0 1 12 6.1Z" />
     </svg>
   );
 }
@@ -57,17 +47,27 @@ export default function EmailOtpLoginClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const {
-    verifyEmailOtp,
+    signIn,
     signInWithGoogle,
     googleAuthEnabled,
+    verifyEmailOtp,
+    updatePassword,
+    signOut,
     user,
     profile,
     loading,
   } = useAuth();
+
   const [role, setRole] = useState<LoginRole>('buyer');
+  const [mode, setMode] = useState<ScreenMode>('login');
+  const [resetStep, setResetStep] = useState<ResetStep>('request');
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
-  const [otpSent, setOtpSent] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showNewPassword, setShowNewPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [googleSubmitting, setGoogleSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -80,43 +80,96 @@ export default function EmailOtpLoginClient() {
     if (authError === 'account_inactive') {
       setError('This account is inactive. Please contact FabricTrad support.');
     } else if (authError === 'account_not_found') {
-      setError('This Google account is not linked to a registered FabricTrad account.');
+      setError('This Google account is not linked to an active FabricTrad buyer account.');
+    } else if (authError === 'google_buyer_only') {
+      setError('Google sign-in is available for buyer accounts only. Sellers should use email and password.');
     } else if (authError) {
       setError('Authentication failed. Please try again.');
     }
   }, [searchParams]);
 
   useEffect(() => {
-    if (loading || !user || !profile) return;
+    if (mode !== 'login' || loading || !user || !profile) return;
     if (!profile.phone && profile.role !== 'admin_staff' && profile.role !== 'super_admin') {
       router.replace(`/auth/phone?role=${profile.role}`);
       return;
     }
     router.replace(destinationForRole(profile.role));
-  }, [loading, profile, router, user]);
+  }, [loading, mode, profile, router, user]);
 
-  const resetCode = () => {
-    setOtpSent(false);
-    setOtp(['', '', '', '', '', '']);
+  const clearMessages = () => {
+    setError('');
     setInfo('');
   };
 
   const chooseRole = (nextRole: LoginRole) => {
     if (submitting || googleSubmitting) return;
     setRole(nextRole);
-    resetCode();
-    setError('');
+    clearMessages();
   };
 
-  const sendOtp = async () => {
+  const handlePasswordLogin = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail || !password) {
+      setError('Enter your registered email and password.');
+      return;
+    }
+
+    clearMessages();
+    setSubmitting(true);
+    try {
+      const result = await signIn(normalizedEmail, password);
+      const fallback =
+        (result?.user?.app_metadata?.role as AccountRole | undefined) ||
+        (result?.user?.user_metadata?.role as AccountRole | undefined) ||
+        role;
+      const accountRole = await resolveRole(fallback);
+      router.replace(destinationForRole(accountRole));
+      router.refresh();
+    } catch (caughtError: unknown) {
+      setError(caughtError instanceof Error ? caughtError.message : 'Invalid email or password.');
+      setSubmitting(false);
+    }
+  };
+
+  const signInWithGoogleAccount = async () => {
+    clearMessages();
+    setGoogleSubmitting(true);
+    try {
+      await signInWithGoogle('buyer');
+    } catch (caughtError: unknown) {
+      setError(caughtError instanceof Error ? caughtError.message : 'Google sign-in failed.');
+      setGoogleSubmitting(false);
+    }
+  };
+
+  const openForgotPassword = () => {
+    setMode('forgot');
+    setResetStep('request');
+    setOtp(['', '', '', '', '', '']);
+    setNewPassword('');
+    setConfirmPassword('');
+    clearMessages();
+  };
+
+  const returnToLogin = () => {
+    setMode('login');
+    setResetStep('request');
+    setOtp(['', '', '', '', '', '']);
+    setNewPassword('');
+    setConfirmPassword('');
+    clearMessages();
+  };
+
+  const sendResetCode = async () => {
     const normalizedEmail = email.trim().toLowerCase();
     if (!normalizedEmail) {
       setError('Enter the email address linked to your FabricTrad account.');
       return;
     }
 
-    setError('');
-    setInfo('');
+    clearMessages();
     setSubmitting(true);
     try {
       const response = await fetch('/api/auth/email-otp/request', {
@@ -126,65 +179,78 @@ export default function EmailOtpLoginClient() {
         body: JSON.stringify({ email: normalizedEmail }),
       });
       const payload = (await response.json().catch(() => ({}))) as { error?: string };
-      if (!response.ok) throw new Error(payload.error || 'Unable to send the sign-in code.');
+      if (!response.ok) throw new Error(payload.error || 'Unable to send the reset code.');
 
       setEmail(normalizedEmail);
       setOtp(['', '', '', '', '', '']);
-      setOtpSent(true);
-      setInfo(`A six-digit sign-in code was sent to ${normalizedEmail}.`);
-      window.setTimeout(() => document.getElementById('login-otp-0')?.focus(), 50);
+      setResetStep('verify');
+      setInfo(`A six-digit password reset code was sent to ${normalizedEmail}.`);
+      window.setTimeout(() => document.getElementById('reset-otp-0')?.focus(), 50);
     } catch (caughtError: unknown) {
-      setError(caughtError instanceof Error ? caughtError.message : 'Unable to send the sign-in code.');
+      setError(caughtError instanceof Error ? caughtError.message : 'Unable to send the reset code.');
     } finally {
       setSubmitting(false);
-    }
-  };
-
-  const signInWithGoogleAccount = async () => {
-    setError('');
-    setInfo('');
-    setGoogleSubmitting(true);
-    try {
-      await signInWithGoogle(role);
-    } catch (caughtError: unknown) {
-      setError(caughtError instanceof Error ? caughtError.message : 'Google sign-in failed.');
-      setGoogleSubmitting(false);
     }
   };
 
   const changeOtp = (index: number, value: string) => {
     const digit = value.replace(/\D/g, '').slice(-1);
     setOtp((current) => current.map((item, itemIndex) => (itemIndex === index ? digit : item)));
-    if (digit && index < 5) document.getElementById(`login-otp-${index + 1}`)?.focus();
+    if (digit && index < 5) document.getElementById(`reset-otp-${index + 1}`)?.focus();
   };
 
   const handleOtpKey = (index: number, event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'Backspace' && !otp[index] && index > 0) {
-      document.getElementById(`login-otp-${index - 1}`)?.focus();
+      document.getElementById(`reset-otp-${index - 1}`)?.focus();
     }
   };
 
-  const verifyOtp = async () => {
+  const verifyResetCode = async () => {
     const token = otp.join('');
     if (token.length !== 6) {
       setError('Enter the complete six-digit code.');
       return;
     }
 
-    setError('');
-    setInfo('');
+    clearMessages();
     setSubmitting(true);
     try {
-      const result = await verifyEmailOtp(email, token);
-      const fallback =
-        (result?.user?.app_metadata?.role as AccountRole | undefined) ||
-        (result?.user?.user_metadata?.role as AccountRole | undefined) ||
-        role;
-      const accountRole = await resolveRole(fallback);
-      router.replace(destinationForRole(accountRole));
-      router.refresh();
+      await verifyEmailOtp(email, token);
+      setResetStep('new-password');
+      setInfo('Email verified. Create a new password for your account.');
     } catch (caughtError: unknown) {
       setError(caughtError instanceof Error ? caughtError.message : 'The code is invalid or expired.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const saveNewPassword = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (newPassword.length < 8) {
+      setError('Your new password must contain at least 8 characters.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setError('The two password entries do not match.');
+      return;
+    }
+
+    clearMessages();
+    setSubmitting(true);
+    try {
+      await updatePassword(newPassword);
+      await signOut();
+      setMode('login');
+      setResetStep('request');
+      setPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      setOtp(['', '', '', '', '', '']);
+      setInfo('Password updated successfully. Sign in with your new password.');
+    } catch (caughtError: unknown) {
+      setError(caughtError instanceof Error ? caughtError.message : 'Unable to update the password.');
+    } finally {
       setSubmitting(false);
     }
   };
@@ -199,14 +265,8 @@ export default function EmailOtpLoginClient() {
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-[#09111f] px-4 py-10 text-slate-100">
-      <div
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_16%_8%,rgba(218,119,48,0.18),transparent_30%),radial-gradient(circle_at_88%_18%,rgba(64,84,130,0.28),transparent_34%)]"
-        aria-hidden="true"
-      />
-      <div
-        className="pointer-events-none absolute inset-0 opacity-[0.13] [background-image:linear-gradient(rgba(255,255,255,0.07)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.07)_1px,transparent_1px)] [background-size:44px_44px]"
-        aria-hidden="true"
-      />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_16%_8%,rgba(218,119,48,0.18),transparent_30%),radial-gradient(circle_at_88%_18%,rgba(64,84,130,0.28),transparent_34%)]" aria-hidden="true" />
+      <div className="pointer-events-none absolute inset-0 opacity-[0.13] [background-image:linear-gradient(rgba(255,255,255,0.07)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.07)_1px,transparent_1px)] [background-size:44px_44px]" aria-hidden="true" />
 
       <div className="relative z-10 mx-auto grid min-h-[calc(100vh-5rem)] w-full max-w-5xl items-center gap-10 lg:grid-cols-[0.9fr_1.1fr]">
         <section className="hidden lg:block">
@@ -214,37 +274,17 @@ export default function EmailOtpLoginClient() {
             <AppLogo size={44} />
             <span className="text-2xl font-800 tracking-tight text-white">FabricTrad</span>
           </Link>
-          <p className="mt-8 text-xs font-800 uppercase tracking-[0.18em] text-orange-300">
-            Private B2B textile commerce
-          </p>
+          <p className="mt-8 text-xs font-800 uppercase tracking-[0.18em] text-orange-300">Private B2B textile commerce</p>
           <h1 className="mt-4 max-w-xl text-5xl font-800 leading-[1.02] tracking-[-0.04em] text-white">
-            Secure access through your verified business email.
+            Secure access to your FabricTrad workspace.
           </h1>
           <p className="mt-6 max-w-lg text-base leading-7 text-slate-400">
-            Use an email code or continue with the Google account linked to your registered FabricTrad profile.
+            Buyers and sellers sign in with their registered email and password. Buyer accounts may also continue with Google.
           </p>
-
-          <div className="mt-8 space-y-3">
-            {[
-              ['ShoppingBagIcon', 'Buyer workspace', 'Marketplace, sourcing, orders and shipment tracking'],
-              ['BuildingStorefrontIcon', 'Seller workspace', 'Inventory, quotations, fulfilment and payouts'],
-            ].map(([icon, title, copy]) => (
-              <div key={title} className="flex items-start gap-3 text-sm text-slate-300">
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-orange-300">
-                  <Icon name={icon as 'ShoppingBagIcon'} size={17} />
-                </span>
-                <span>
-                  <strong className="block text-white">{title}</strong>
-                  <span className="text-xs leading-5 text-slate-400">{copy}</span>
-                </span>
-              </div>
-            ))}
-          </div>
-
           <div className="mt-8 flex max-w-lg items-start gap-3 rounded-2xl border border-emerald-300/15 bg-emerald-300/5 p-4">
             <Icon name="ShieldCheckIcon" size={18} className="mt-0.5 shrink-0 text-emerald-300" />
             <p className="text-xs leading-5 text-slate-400">
-              Both methods verify control of the registered inbox. Your saved account role decides which workspace opens.
+              Password reset codes are sent only when Forgot password is used. Existing passwords are never emailed or exposed.
             </p>
           </div>
         </section>
@@ -258,32 +298,28 @@ export default function EmailOtpLoginClient() {
           </div>
 
           <div className="rounded-[1.75rem] border border-white/10 bg-[#101a2a]/95 p-6 shadow-2xl shadow-black/35 backdrop-blur-xl sm:p-7">
-            <p className="text-xs font-800 uppercase tracking-[0.16em] text-orange-300">Welcome back</p>
-            <h2 className="mt-2 text-3xl font-800 tracking-tight text-white">Sign in to FabricTrad</h2>
+            <p className="text-xs font-800 uppercase tracking-[0.16em] text-orange-300">
+              {mode === 'login' ? 'Welcome back' : 'Account recovery'}
+            </p>
+            <h2 className="mt-2 text-3xl font-800 tracking-tight text-white">
+              {mode === 'login' ? 'Sign in to FabricTrad' : 'Reset your password'}
+            </h2>
             <p className="mt-2 text-sm leading-6 text-slate-400">
-              Use your registered email or the Google account linked to it.
+              {mode === 'login'
+                ? 'Use the email and password registered with your account.'
+                : resetStep === 'request'
+                  ? 'We will send a one-time code to your registered email.'
+                  : resetStep === 'verify'
+                    ? 'Enter the six-digit code sent to your email.'
+                    : 'Choose a secure new password for your account.'}
             </p>
 
-            <div className="mt-6 grid grid-cols-2 rounded-xl border border-white/10 bg-black/10 p-1">
-              <button
-                type="button"
-                onClick={() => chooseRole('buyer')}
-                className={`rounded-lg px-3 py-2.5 text-sm font-700 transition ${
-                  role === 'buyer' ? 'bg-orange-600 text-white shadow' : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                Buyer
-              </button>
-              <button
-                type="button"
-                onClick={() => chooseRole('seller')}
-                className={`rounded-lg px-3 py-2.5 text-sm font-700 transition ${
-                  role === 'seller' ? 'bg-indigo-400 text-slate-950 shadow' : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                Seller
-              </button>
-            </div>
+            {mode === 'login' && (
+              <div className="mt-6 grid grid-cols-2 rounded-xl border border-white/10 bg-black/10 p-1">
+                <button type="button" onClick={() => chooseRole('buyer')} className={`rounded-lg px-3 py-2.5 text-sm font-700 transition ${role === 'buyer' ? 'bg-orange-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}>Buyer</button>
+                <button type="button" onClick={() => chooseRole('seller')} className={`rounded-lg px-3 py-2.5 text-sm font-700 transition ${role === 'seller' ? 'bg-indigo-400 text-slate-950 shadow' : 'text-slate-400 hover:text-white'}`}>Seller</button>
+              </div>
+            )}
 
             {error && (
               <div className="mt-4 flex items-start gap-2 rounded-xl border border-red-300/20 bg-red-400/10 p-3" role="alert">
@@ -298,107 +334,89 @@ export default function EmailOtpLoginClient() {
               </div>
             )}
 
-            <div className="mt-5 space-y-4">
-              <div>
-                <label htmlFor="login-email" className="mb-1.5 block text-sm font-700 text-slate-200">
-                  Account email
-                </label>
-                <input
-                  id="login-email"
-                  type="email"
-                  autoComplete="email"
-                  value={email}
-                  onChange={(event) => {
-                    setEmail(event.target.value);
-                    if (otpSent) resetCode();
-                  }}
-                  placeholder="you@company.com"
-                  className="w-full rounded-xl border border-white/15 bg-[#0c1625] px-4 py-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-orange-400 focus:ring-2 focus:ring-orange-400/20"
-                />
-              </div>
-
-              {!otpSent ? (
-                <button
-                  type="button"
-                  onClick={sendOtp}
-                  disabled={submitting || googleSubmitting}
-                  className="w-full rounded-xl bg-orange-600 px-4 py-3.5 text-sm font-800 text-white transition hover:bg-orange-500 disabled:opacity-60"
-                >
-                  {submitting ? 'Sending code…' : 'Send sign-in code'}
-                </button>
-              ) : (
-                <>
+            {mode === 'login' ? (
+              <>
+                <form onSubmit={handlePasswordLogin} className="mt-5 space-y-4">
                   <div>
-                    <p className="mb-2 text-xs font-700 text-slate-300">Enter the six-digit code</p>
-                    <div className="flex justify-between gap-2">
-                      {otp.map((digit, index) => (
-                        <input
-                          key={index}
-                          id={`login-otp-${index}`}
-                          type="text"
-                          inputMode="numeric"
-                          maxLength={1}
-                          value={digit}
-                          onChange={(event) => changeOtp(index, event.target.value)}
-                          onKeyDown={(event) => handleOtpKey(index, event)}
-                          aria-label={`Digit ${index + 1}`}
-                          className="h-12 min-w-0 flex-1 rounded-xl border border-white/15 bg-[#0c1625] text-center text-lg font-800 text-white outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-400/20"
-                        />
-                      ))}
+                    <label htmlFor="login-email" className="mb-1.5 block text-sm font-700 text-slate-200">Email</label>
+                    <input id="login-email" type="email" autoComplete="username" value={email} onChange={(event) => setEmail(event.target.value)} required placeholder="you@company.com" className="w-full rounded-xl border border-white/15 bg-[#0c1625] px-4 py-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-orange-400 focus:ring-2 focus:ring-orange-400/20" />
+                  </div>
+                  <div>
+                    <div className="mb-1.5 flex items-center justify-between gap-3">
+                      <label htmlFor="login-password" className="text-sm font-700 text-slate-200">Password</label>
+                      <button type="button" onClick={openForgotPassword} className="text-xs font-700 text-orange-300 hover:text-orange-200">Forgot password?</button>
+                    </div>
+                    <div className="relative">
+                      <input id="login-password" type={showPassword ? 'text' : 'password'} autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required placeholder="Enter your password" className="w-full rounded-xl border border-white/15 bg-[#0c1625] px-4 py-3 pr-11 text-sm text-white outline-none placeholder:text-slate-600 focus:border-orange-400 focus:ring-2 focus:ring-orange-400/20" />
+                      <button type="button" onClick={() => setShowPassword((visible) => !visible)} aria-label={showPassword ? 'Hide password' : 'Show password'} className="absolute right-3 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-slate-500 hover:bg-white/5 hover:text-white">
+                        <Icon name={showPassword ? 'EyeSlashIcon' : 'EyeIcon'} size={17} />
+                      </button>
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    onClick={verifyOtp}
-                    disabled={submitting || googleSubmitting || otp.join('').length !== 6}
-                    className="w-full rounded-xl bg-orange-600 px-4 py-3.5 text-sm font-800 text-white transition hover:bg-orange-500 disabled:opacity-60"
-                  >
-                    {submitting ? 'Verifying…' : 'Verify and continue'}
+                  <button type="submit" disabled={submitting || googleSubmitting} className="flex w-full items-center justify-center rounded-xl bg-orange-600 px-4 py-3.5 text-sm font-800 text-white transition hover:bg-orange-500 disabled:cursor-not-allowed disabled:opacity-60">
+                    {submitting ? 'Signing in…' : role === 'buyer' ? 'Enter marketplace' : 'Enter seller workspace'}
                   </button>
-                  <button
-                    type="button"
-                    onClick={sendOtp}
-                    disabled={submitting || googleSubmitting}
-                    className="w-full rounded-xl py-2 text-xs font-700 text-slate-400 hover:bg-white/5 hover:text-white disabled:opacity-60"
-                  >
-                    Resend code
-                  </button>
-                </>
-              )}
-            </div>
+                </form>
 
-            {googleAuthEnabled && (
-              <>
-                <div className="my-5 flex items-center gap-3">
-                  <span className="h-px flex-1 bg-white/10" />
-                  <span className="text-xs text-slate-500">or</span>
-                  <span className="h-px flex-1 bg-white/10" />
+                {googleAuthEnabled && role === 'buyer' && (
+                  <>
+                    <div className="my-5 flex items-center gap-3"><span className="h-px flex-1 bg-white/10" /><span className="text-xs text-slate-500">or</span><span className="h-px flex-1 bg-white/10" /></div>
+                    <button type="button" onClick={signInWithGoogleAccount} disabled={submitting || googleSubmitting} className="flex w-full items-center justify-center gap-3 rounded-xl border border-white/15 bg-white px-4 py-3.5 text-sm font-800 text-slate-800 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60">
+                      {googleSubmitting ? <span className="h-5 w-5 animate-spin rounded-full border-2 border-slate-400 border-t-slate-800" /> : <GoogleMark />}
+                      {googleSubmitting ? 'Opening Google…' : 'Continue with Google'}
+                    </button>
+                  </>
+                )}
+
+                <div className="mt-6 border-t border-white/10 pt-5 text-center text-xs text-slate-500">
+                  New to FabricTrad?{' '}
+                  <Link href={role === 'buyer' ? '/buyer-registration' : '/seller-registration'} className="font-700 text-orange-300 hover:text-orange-200">Create {role} account</Link>
                 </div>
-                <button
-                  type="button"
-                  onClick={signInWithGoogleAccount}
-                  disabled={submitting || googleSubmitting}
-                  className="flex w-full items-center justify-center gap-3 rounded-xl border border-white/15 bg-white px-4 py-3.5 text-sm font-800 text-slate-800 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {googleSubmitting ? (
-                    <span className="h-5 w-5 animate-spin rounded-full border-2 border-slate-400 border-t-slate-800" />
-                  ) : (
-                    <GoogleMark />
-                  )}
-                  {googleSubmitting ? 'Opening Google…' : 'Continue with Google'}
-                </button>
               </>
-            )}
+            ) : (
+              <div className="mt-5 space-y-4">
+                {resetStep === 'request' && (
+                  <>
+                    <div>
+                      <label htmlFor="reset-email" className="mb-1.5 block text-sm font-700 text-slate-200">Registered email</label>
+                      <input id="reset-email" type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@company.com" className="w-full rounded-xl border border-white/15 bg-[#0c1625] px-4 py-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-orange-400 focus:ring-2 focus:ring-orange-400/20" />
+                    </div>
+                    <button type="button" onClick={sendResetCode} disabled={submitting} className="w-full rounded-xl bg-orange-600 px-4 py-3.5 text-sm font-800 text-white transition hover:bg-orange-500 disabled:opacity-60">{submitting ? 'Sending code…' : 'Send reset code'}</button>
+                  </>
+                )}
 
-            <div className="mt-6 border-t border-white/10 pt-5 text-center text-xs text-slate-500">
-              New to FabricTrad?{' '}
-              <Link
-                href={role === 'buyer' ? '/buyer-registration' : '/seller-registration'}
-                className="font-700 text-orange-300 hover:text-orange-200"
-              >
-                Create {role} account
-              </Link>
-            </div>
+                {resetStep === 'verify' && (
+                  <>
+                    <div className="flex justify-between gap-2">
+                      {otp.map((digit, index) => (
+                        <input key={index} id={`reset-otp-${index}`} type="text" inputMode="numeric" maxLength={1} value={digit} onChange={(event) => changeOtp(index, event.target.value)} onKeyDown={(event) => handleOtpKey(index, event)} aria-label={`Digit ${index + 1}`} className="h-12 min-w-0 flex-1 rounded-xl border border-white/15 bg-[#0c1625] text-center text-lg font-800 text-white outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-400/20" />
+                      ))}
+                    </div>
+                    <button type="button" onClick={verifyResetCode} disabled={submitting || otp.join('').length !== 6} className="w-full rounded-xl bg-orange-600 px-4 py-3.5 text-sm font-800 text-white transition hover:bg-orange-500 disabled:opacity-60">{submitting ? 'Verifying…' : 'Verify code'}</button>
+                    <button type="button" onClick={sendResetCode} disabled={submitting} className="w-full rounded-xl py-2 text-xs font-700 text-slate-400 hover:bg-white/5 hover:text-white disabled:opacity-60">Resend code</button>
+                  </>
+                )}
+
+                {resetStep === 'new-password' && (
+                  <form onSubmit={saveNewPassword} className="space-y-4">
+                    <div>
+                      <label htmlFor="new-password" className="mb-1.5 block text-sm font-700 text-slate-200">New password</label>
+                      <div className="relative">
+                        <input id="new-password" type={showNewPassword ? 'text' : 'password'} autoComplete="new-password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} required minLength={8} placeholder="At least 8 characters" className="w-full rounded-xl border border-white/15 bg-[#0c1625] px-4 py-3 pr-11 text-sm text-white outline-none placeholder:text-slate-600 focus:border-orange-400 focus:ring-2 focus:ring-orange-400/20" />
+                        <button type="button" onClick={() => setShowNewPassword((visible) => !visible)} aria-label={showNewPassword ? 'Hide new password' : 'Show new password'} className="absolute right-3 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-slate-500 hover:bg-white/5 hover:text-white"><Icon name={showNewPassword ? 'EyeSlashIcon' : 'EyeIcon'} size={17} /></button>
+                      </div>
+                    </div>
+                    <div>
+                      <label htmlFor="confirm-password" className="mb-1.5 block text-sm font-700 text-slate-200">Confirm new password</label>
+                      <input id="confirm-password" type="password" autoComplete="new-password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} required minLength={8} placeholder="Repeat your new password" className="w-full rounded-xl border border-white/15 bg-[#0c1625] px-4 py-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-orange-400 focus:ring-2 focus:ring-orange-400/20" />
+                    </div>
+                    <button type="submit" disabled={submitting} className="w-full rounded-xl bg-orange-600 px-4 py-3.5 text-sm font-800 text-white transition hover:bg-orange-500 disabled:opacity-60">{submitting ? 'Updating password…' : 'Set new password'}</button>
+                  </form>
+                )}
+
+                <button type="button" onClick={returnToLogin} disabled={submitting} className="w-full rounded-xl border border-white/10 px-4 py-3 text-sm font-700 text-slate-300 hover:bg-white/5 hover:text-white disabled:opacity-60">Back to sign in</button>
+              </div>
+            )}
           </div>
         </section>
       </div>
