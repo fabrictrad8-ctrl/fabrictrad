@@ -4,7 +4,9 @@ import type { NextRequest } from 'next/server';
 
 type UserRole = 'buyer' | 'seller' | 'admin_staff' | 'super_admin';
 
-const isUserRole = (role: string | null): role is UserRole =>
+const ADMIN_EMAIL = 'fabrictrad8@gmail.com';
+
+const isUserRole = (role: unknown): role is UserRole =>
   role === 'buyer' || role === 'seller' || role === 'admin_staff' || role === 'super_admin';
 
 const getRequestedRole = (request: NextRequest, roleParam: string | null): 'buyer' | 'seller' => {
@@ -27,115 +29,80 @@ const redirectAfterAuth = (url: string) => {
   return response;
 };
 
-const getOAuthProfileData = (user: any, fallbackRole: 'buyer' | 'seller') => {
-  const metadata = user?.user_metadata || {};
-  const fullName =
-    metadata.full_name ||
-    metadata.name ||
-    [metadata.given_name, metadata.family_name].filter(Boolean).join(' ') ||
-    user?.email?.split('@')[0] ||
-    '';
-  const avatarUrl = metadata.avatar_url || metadata.picture || '';
-
-  return {
-    id: user.id,
-    email: String(user.email || '').toLowerCase(),
-    full_name: fullName,
-    avatar_url: avatarUrl,
-    role: fallbackRole,
-  };
+const loginErrorUrl = (origin: string, code: string) => {
+  const loginUrl = new URL('/login', origin);
+  loginUrl.searchParams.set('error', code);
+  return loginUrl.toString();
 };
 
-const isFreshOAuthUser = (createdAt?: string) => {
-  if (!createdAt) return false;
-  const createdAtMs = Date.parse(createdAt);
-  if (!Number.isFinite(createdAtMs)) return false;
-  return Date.now() - createdAtMs < 10 * 60 * 1000;
+const destinationForRole = (origin: string, role: UserRole) => {
+  if (role === 'seller') return `${origin}/seller-dashboard`;
+  if (role === 'admin_staff' || role === 'super_admin') return `${origin}/admin-portal`;
+  return `${origin}/buyer-dashboard`;
 };
 
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get('code');
-  const error = searchParams.get('error');
+  const providerError = searchParams.get('error');
   const errorDescription = searchParams.get('error_description');
   const requestedRole = getRequestedRole(request, searchParams.get('role'));
 
-  if (error) {
-    const loginUrl = new URL('/login', origin);
-    loginUrl.searchParams.set('error', errorDescription || error);
-    return redirectAfterAuth(loginUrl.toString());
+  if (providerError) {
+    return redirectAfterAuth(loginErrorUrl(origin, errorDescription || providerError));
   }
 
-  if (code) {
-    const supabase = await createClient();
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
-    if (!error) {
-      // After OAuth, check if user needs to add phone number
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (user) {
-        const { data: profile } = await supabase
-          .from('user_profiles')
-          .select('id, email, full_name, avatar_url, phone, role')
-          .eq('id', user.id)
-          .maybeSingle();
-
-        const profileData = getOAuthProfileData(user, requestedRole);
-        let resolvedRole: UserRole = isUserRole(profile?.role) ? profile.role : requestedRole;
-
-        if (!profile) {
-          const { error: insertError } = await supabase.from('user_profiles').insert(profileData);
-          if (insertError) {
-            const loginUrl = new URL('/login', origin);
-            loginUrl.searchParams.set('error', 'profile_setup_failed');
-            return redirectAfterAuth(loginUrl.toString());
-          }
-          resolvedRole = requestedRole;
-        } else {
-          const shouldApplyRequestedRole =
-            !profile.phone &&
-            profile.role === 'buyer' &&
-            requestedRole === 'seller' &&
-            isFreshOAuthUser(user.created_at);
-
-          resolvedRole = shouldApplyRequestedRole ? requestedRole : resolvedRole;
-
-          await supabase
-            .from('user_profiles')
-            .update({
-              email: profileData.email || profile.email,
-              full_name: profile.full_name || profileData.full_name,
-              avatar_url: profile.avatar_url || profileData.avatar_url,
-              role: resolvedRole,
-              updated_at: new Date().toISOString(),
-            })
-            .eq('id', user.id);
-        }
-
-        // If no phone, redirect to phone collection
-        if (!profile?.phone) {
-          return redirectAfterAuth(`${origin}/auth/phone?role=${resolvedRole}`);
-        }
-
-        // Route based on the existing account role. Google login should not create a second
-        // buyer/seller identity for the same email.
-        if (resolvedRole === 'seller') {
-          return redirectAfterAuth(`${origin}/seller-dashboard`);
-        }
-
-        if (resolvedRole === 'super_admin' || resolvedRole === 'admin_staff') {
-          return redirectAfterAuth(`${origin}/admin-portal`);
-        }
-
-        return redirectAfterAuth(`${origin}/buyer-dashboard`);
-      }
-    } else {
-      const loginUrl = new URL('/login', origin);
-      loginUrl.searchParams.set('error', error.message || 'auth_failed');
-      return redirectAfterAuth(loginUrl.toString());
-    }
+  if (!code) {
+    return redirectAfterAuth(loginErrorUrl(origin, 'auth_failed'));
   }
 
-  return redirectAfterAuth(`${origin}/login?error=auth_failed`);
+  const supabase = await createClient();
+  const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+  if (exchangeError) {
+    return redirectAfterAuth(loginErrorUrl(origin, 'auth_failed'));
+  }
+
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+
+  if (userError || !user) {
+    return redirectAfterAuth(loginErrorUrl(origin, 'auth_failed'));
+  }
+
+  const normalizedEmail = user.email?.trim().toLowerCase() || '';
+
+  if (normalizedEmail === ADMIN_EMAIL && user.email_confirmed_at) {
+    return redirectAfterAuth(`${origin}/admin-portal`);
+  }
+
+  const { data: profile, error: profileError } = await supabase
+    .from('user_profiles')
+    .select('id, phone, role, is_active')
+    .eq('id', user.id)
+    .maybeSingle();
+
+  if (profileError) {
+    await supabase.auth.signOut();
+    return redirectAfterAuth(loginErrorUrl(origin, 'auth_failed'));
+  }
+
+  if (!profile) {
+    await supabase.auth.signOut();
+    return redirectAfterAuth(loginErrorUrl(origin, 'account_not_found'));
+  }
+
+  if (profile.is_active === false) {
+    await supabase.auth.signOut();
+    return redirectAfterAuth(loginErrorUrl(origin, 'account_inactive'));
+  }
+
+  const resolvedRole = isUserRole(profile.role) ? profile.role : requestedRole;
+
+  if (!profile.phone && resolvedRole !== 'admin_staff' && resolvedRole !== 'super_admin') {
+    return redirectAfterAuth(`${origin}/auth/phone?role=${resolvedRole}`);
+  }
+
+  return redirectAfterAuth(destinationForRole(origin, resolvedRole));
 }
