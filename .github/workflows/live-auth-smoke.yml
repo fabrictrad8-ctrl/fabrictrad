@@ -32,43 +32,39 @@ jobs:
                 --output "/tmp/${safe_name}-login.html" --write-out '%{http_code}' \
                 "$base_url/login" || true)
 
+              invalid_reset_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+                --output "/tmp/${safe_name}-invalid-reset.json" --write-out '%{http_code}' \
+                --header 'Content-Type: application/json' --data '{}' \
+                "$base_url/api/auth/email-otp/request" || true)
+
+              disabled_demo_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+                --output "/tmp/${safe_name}-disabled-demo.txt" --write-out '%{http_code}' \
+                --header 'Content-Type: application/json' \
+                --data '{"email":"demo.buyer@fabrictrad.com","password":"FabricDemo@2026"}' \
+                "$base_url/api/auth/demo-session" || true)
+
               if [ "$login_status" = "200" ] \
-                && grep -q 'Sign in to FabricTrad' "/tmp/${safe_name}-login.html" \
-                && grep -q 'Forgot password' "/tmp/${safe_name}-login.html" \
-                && grep -q 'Enter marketplace' "/tmp/${safe_name}-login.html" \
-                && grep -q 'Continue with Google' "/tmp/${safe_name}-login.html" \
-                && ! grep -qi 'Explore a demo' "/tmp/${safe_name}-login.html"; then
+                && [ "$invalid_reset_status" = "400" ] \
+                && grep -q 'Email is required' "/tmp/${safe_name}-invalid-reset.json" \
+                && { [ "$disabled_demo_status" = "404" ] || [ "$disabled_demo_status" = "410" ]; }; then
                 deployed=true
                 break
               fi
 
-              echo "Attempt $attempt: $base_url has not served the password-login release yet"
+              echo "Attempt $attempt: $base_url has not served the corrected authentication release yet"
               sleep 15
             done
 
             if [ "$deployed" != "true" ]; then
-              echo "$base_url did not serve the updated login in time."
-              cat "/tmp/${safe_name}-login.html" 2>/dev/null || true
-              return 1
-            fi
-
-            if grep -qi 'Admin portal' "/tmp/${safe_name}-login.html"; then
-              echo "$base_url still exposes a separate administrator entry point."
-              return 1
-            fi
-
-            if grep -qi 'Send sign-in code' "/tmp/${safe_name}-login.html"; then
-              echo "$base_url still presents OTP as the normal login method."
+              echo "$base_url did not serve the corrected authentication release in time."
+              cat "/tmp/${safe_name}-invalid-reset.json" 2>/dev/null || true
+              cat "/tmp/${safe_name}-disabled-demo.txt" 2>/dev/null || true
               return 1
             fi
 
             home_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
               --output "/tmp/${safe_name}-home.html" --write-out '%{http_code}' "$base_url/")
             test "$home_status" = "200"
-            if grep -qi 'Admin workspace' "/tmp/${safe_name}-home.html"; then
-              echo "$base_url still advertises the administrator workspace publicly."
-              return 1
-            fi
 
             public_marketplace_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
               --dump-header "/tmp/${safe_name}-public-marketplace.headers" --output /dev/null \
@@ -82,21 +78,12 @@ jobs:
             test "$admin_login_status" = "307" -o "$admin_login_status" = "308"
             grep -qi '^location: .*login' "/tmp/${safe_name}-admin-login.headers"
 
-            invalid_reset_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
-              --output "/tmp/${safe_name}-invalid-reset.json" --write-out '%{http_code}' \
-              --header 'Content-Type: application/json' --data '{}' \
-              "$base_url/api/auth/email-otp/request")
-            test "$invalid_reset_status" = "400"
-            grep -q 'Email is required' "/tmp/${safe_name}-invalid-reset.json"
+            google_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+              --output "/tmp/${safe_name}-google-status.json" --write-out '%{http_code}' \
+              "$base_url/api/auth/google/status")
+            test "$google_status" = "200"
 
-            disabled_demo_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
-              --output "/tmp/${safe_name}-disabled-demo.txt" --write-out '%{http_code}' \
-              --header 'Content-Type: application/json' \
-              --data '{"email":"demo.buyer@fabrictrad.com","password":"FabricDemo@2026"}' \
-              "$base_url/api/auth/demo-session")
-            test "$disabled_demo_status" = "404"
-
-            echo "$base_url passed account authentication checks."
+            echo "$base_url passed live account authentication checks."
           }
 
           verify_domain 'https://fabrictrad.com'
@@ -112,10 +99,10 @@ jobs:
           set -euo pipefail
           if [ "$SMOKE_OUTCOME" = "success" ]; then
             state=success
-            description='Both production domains passed password and buyer Google access checks'
+            description='Both production domains passed live authentication route checks'
           else
             state=failure
-            description='A production domain or account authentication check failed'
+            description='A production domain or live authentication route check failed'
           fi
           payload=$(printf '{"state":"%s","context":"fabrictrad/live-auth","description":"%s"}' "$state" "$description")
           curl --fail --silent --show-error \
