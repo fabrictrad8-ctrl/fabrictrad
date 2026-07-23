@@ -36,6 +36,7 @@ interface AuthContextType {
   signInWithGoogle: (role?: 'buyer' | 'seller') => Promise<any>;
   sendEmailOtp: (email: string) => Promise<any>;
   verifyEmailOtp: (email: string, token: string) => Promise<any>;
+  updatePassword: (password: string) => Promise<void>;
   signOut: () => Promise<void>;
   getCurrentUser: () => Promise<any>;
   isEmailVerified: () => boolean;
@@ -179,12 +180,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       password,
     });
     if (error) throw error;
-    if (data.user) await loadProfile(data.user.id);
+    if (data.user) await loadProfile(data.user.id).catch(() => setProfile(null));
     return data;
   };
 
   const signInWithGoogle = async (role: 'buyer' | 'seller' = 'buyer') => {
-    if (!googleAuthEnabled) throw new Error('Google sign-in is not configured. Please use email OTP.');
+    if (!googleAuthEnabled) {
+      throw new Error('Google sign-in is not configured. Please use your email and password.');
+    }
     const statusResponse = await fetch('/api/auth/google/status', { cache: 'no-store' });
     if (!statusResponse.ok) {
       const status = await statusResponse.json().catch(() => null);
@@ -223,6 +226,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     if (error) throw error;
     if (data.user) await loadProfile(data.user.id).catch(() => setProfile(null));
     return data;
+  };
+
+  const updatePassword = async (password: string) => {
+    const { error } = await supabase.auth.updateUser({ password });
+    if (error) throw error;
   };
 
   const signOut = async () => {
@@ -309,6 +317,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     signInWithGoogle,
     sendEmailOtp,
     verifyEmailOtp,
+    updatePassword,
     signOut,
     getCurrentUser,
     isEmailVerified,
