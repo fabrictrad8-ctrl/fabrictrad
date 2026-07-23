@@ -1,17 +1,18 @@
 'use client';
+
 import { Suspense } from 'react';
-import LoginPageClient from './LoginPageClient';
+import EmailOtpLoginClient from './EmailOtpLoginClient';
 
 export default function LoginPage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen gradient-hero flex items-center justify-center">
-          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+        <div className="flex min-h-screen items-center justify-center bg-[#09111f]">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-orange-500 border-t-transparent" />
         </div>
       }
     >
-      <LoginPageClient />
+      <EmailOtpLoginClient />
     </Suspense>
   );
 }
