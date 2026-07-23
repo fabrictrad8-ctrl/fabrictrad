@@ -8,7 +8,7 @@ import Icon from '@/components/ui/AppIcon';
 import { useAuth } from '@/contexts/AuthContext';
 
 type LoginRole = 'buyer' | 'seller';
-type LoginMethod = 'password' | 'otp';
+type LoginMethod = 'otp' | 'password';
 type AccountRole = LoginRole | 'admin_staff' | 'super_admin';
 
 type SignInResult = {
@@ -19,21 +19,26 @@ type SignInResult = {
   } | null;
 };
 
+type RoleResponse = {
+  role?: AccountRole;
+  error?: string;
+};
+
 const destinationForRole = (role?: AccountRole | null) => {
   if (role === 'seller') return '/seller-dashboard';
   if (role === 'admin_staff' || role === 'super_admin') return '/admin-portal';
   return '/marketplace';
 };
 
-const demoCredentials: Record<LoginRole, { email: string; password: string }> = {
-  buyer: {
-    email: 'demo.buyer@fabrictrad.com',
-    password: 'FabricDemo@2026',
-  },
-  seller: {
-    email: 'demo.seller@fabrictrad.com',
-    password: 'FabricDemo@2026',
-  },
+const resolveAuthenticatedRole = async (fallbackRole: AccountRole): Promise<AccountRole> => {
+  const response = await fetch('/api/auth/resolve-role', {
+    method: 'POST',
+    credentials: 'same-origin',
+    cache: 'no-store',
+  });
+  const payload = (await response.json().catch(() => ({}))) as RoleResponse;
+  if (!response.ok) throw new Error(payload.error || 'Unable to open this account.');
+  return payload.role || fallbackRole;
 };
 
 export default function LoginPageClient() {
@@ -43,7 +48,6 @@ export default function LoginPageClient() {
     signIn,
     signInWithGoogle,
     googleAuthEnabled,
-    sendEmailOtp,
     verifyEmailOtp,
     user,
     profile,
@@ -51,7 +55,7 @@ export default function LoginPageClient() {
   } = useAuth();
 
   const [role, setRole] = useState<LoginRole>('buyer');
-  const [method, setMethod] = useState<LoginMethod>('password');
+  const [method, setMethod] = useState<LoginMethod>('otp');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
@@ -89,19 +93,24 @@ export default function LoginPageClient() {
   const chooseRole = (nextRole: LoginRole) => {
     if (submitting) return;
     setRole(nextRole);
+    setOtpSent(false);
+    setOtp(['', '', '', '', '', '']);
     setError('');
     setInfo('');
   };
 
-  const fillDemoCredentials = (demoRole: LoginRole) => {
-    const demo = demoCredentials[demoRole];
-    setRole(demoRole);
-    setMethod('password');
+  const switchMethod = (nextMethod: LoginMethod) => {
+    if (submitting) return;
+    setMethod(nextMethod);
     setOtpSent(false);
-    setEmail(demo.email);
-    setPassword(demo.password);
+    setOtp(['', '', '', '', '', '']);
     setError('');
-    setInfo(`${demoRole === 'buyer' ? 'Buyer' : 'Seller'} demo credentials are ready.`);
+    setInfo('');
+  };
+
+  const continueToWorkspace = (authenticatedRole: AccountRole) => {
+    router.replace(destinationForRole(authenticatedRole));
+    router.refresh();
   };
 
   const handlePasswordLogin = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -112,11 +121,10 @@ export default function LoginPageClient() {
 
     try {
       const result = (await signIn(email, password)) as SignInResult;
-      const authenticatedRole =
+      const fallbackRole =
         result.role || result.user?.app_metadata?.role || result.user?.user_metadata?.role || role;
-
-      router.replace(destinationForRole(authenticatedRole));
-      router.refresh();
+      const authenticatedRole = await resolveAuthenticatedRole(fallbackRole);
+      continueToWorkspace(authenticatedRole);
     } catch (caughtError: unknown) {
       setError(caughtError instanceof Error ? caughtError.message : 'Invalid email or password.');
       setSubmitting(false);
@@ -137,8 +145,9 @@ export default function LoginPageClient() {
   };
 
   const handleSendOtp = async () => {
-    if (!email.trim()) {
-      setError('Enter your email address first.');
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail) {
+      setError('Enter the email address linked to your FabricTrad account.');
       return;
     }
 
@@ -147,9 +156,19 @@ export default function LoginPageClient() {
     setSubmitting(true);
 
     try {
-      await sendEmailOtp(email);
+      const response = await fetch('/api/auth/email-otp/request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ email: normalizedEmail }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+      if (!response.ok) throw new Error(payload.error || 'Unable to send the sign-in code.');
+
       setOtpSent(true);
-      setInfo(`A six-digit sign-in code was sent to ${email.trim()}.`);
+      setOtp(['', '', '', '', '', '']);
+      setInfo(`A six-digit sign-in code was sent to ${normalizedEmail}.`);
+      window.setTimeout(() => document.getElementById('login-otp-0')?.focus(), 50);
     } catch (caughtError: unknown) {
       setError(caughtError instanceof Error ? caughtError.message : 'Unable to send the sign-in code.');
     } finally {
@@ -180,16 +199,17 @@ export default function LoginPageClient() {
     }
 
     setError('');
+    setInfo('');
     setSubmitting(true);
 
     try {
-      const result = await verifyEmailOtp(email, token);
-      const authenticatedRole =
+      const result = await verifyEmailOtp(email.trim().toLowerCase(), token);
+      const fallbackRole =
         (result?.user?.app_metadata?.role as AccountRole | undefined) ||
         (result?.user?.user_metadata?.role as AccountRole | undefined) ||
         role;
-      router.replace(destinationForRole(authenticatedRole));
-      router.refresh();
+      const authenticatedRole = await resolveAuthenticatedRole(fallbackRole);
+      continueToWorkspace(authenticatedRole);
     } catch (caughtError: unknown) {
       setError(caughtError instanceof Error ? caughtError.message : 'The code is invalid or expired.');
       setSubmitting(false);
@@ -225,16 +245,15 @@ export default function LoginPageClient() {
             Private B2B textile commerce
           </p>
           <h1 className="mt-4 max-w-xl text-5xl font-800 leading-[1.02] tracking-[-0.04em] text-white">
-            Sign in and continue directly to your workspace.
+            Secure access for verified textile businesses.
           </h1>
           <p className="mt-6 max-w-lg text-base leading-7 text-slate-400">
-            Buyers enter the marketplace, sellers enter store operations, and administrators enter the protected platform console.
+            Use the email linked to your account. Buyers enter sourcing and orders, while sellers enter store operations and fulfilment.
           </p>
           <div className="mt-8 space-y-3 text-sm text-slate-300">
             {[
               ['ShoppingBagIcon', 'Buyer', 'Marketplace, sourcing, orders and shipment tracking'],
               ['BuildingStorefrontIcon', 'Seller', 'Inventory, quotations, fulfilment and payouts'],
-              ['ShieldCheckIcon', 'Admin', 'Verification, payments and platform operations'],
             ].map(([icon, title, copy]) => (
               <div key={title} className="flex items-start gap-3">
                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-orange-300">
@@ -246,6 +265,12 @@ export default function LoginPageClient() {
                 </span>
               </div>
             ))}
+          </div>
+          <div className="mt-8 flex max-w-lg items-start gap-3 rounded-2xl border border-emerald-300/15 bg-emerald-300/5 p-4">
+            <Icon name="ShieldCheckIcon" size={18} className="mt-0.5 shrink-0 text-emerald-300" />
+            <p className="text-xs leading-5 text-slate-400">
+              Email codes are sent only to registered accounts. Access requires control of the account inbox.
+            </p>
           </div>
         </section>
 
@@ -262,7 +287,7 @@ export default function LoginPageClient() {
               <p className="text-xs font-800 uppercase tracking-[0.16em] text-orange-300">Welcome back</p>
               <h2 className="mt-2 text-3xl font-800 tracking-tight text-white">Sign in to FabricTrad</h2>
               <p className="mt-2 text-sm leading-6 text-slate-400">
-                Your account role determines the workspace you enter.
+                Select your account type and use the email linked to your account.
               </p>
             </div>
 
@@ -290,27 +315,7 @@ export default function LoginPageClient() {
             <div className="mt-4 grid grid-cols-2 gap-2">
               <button
                 type="button"
-                onClick={() => {
-                  setMethod('password');
-                  setOtpSent(false);
-                  setError('');
-                  setInfo('');
-                }}
-                className={`rounded-xl border px-3 py-2.5 text-xs font-700 transition ${
-                  method === 'password'
-                    ? 'border-orange-400/40 bg-orange-400/10 text-orange-200'
-                    : 'border-white/10 text-slate-400 hover:text-white'
-                }`}
-              >
-                Password
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setMethod('otp');
-                  setError('');
-                  setInfo('');
-                }}
+                onClick={() => switchMethod('otp')}
                 className={`rounded-xl border px-3 py-2.5 text-xs font-700 transition ${
                   method === 'otp'
                     ? 'border-orange-400/40 bg-orange-400/10 text-orange-200'
@@ -318,6 +323,17 @@ export default function LoginPageClient() {
                 }`}
               >
                 Email code
+              </button>
+              <button
+                type="button"
+                onClick={() => switchMethod('password')}
+                className={`rounded-xl border px-3 py-2.5 text-xs font-700 transition ${
+                  method === 'password'
+                    ? 'border-orange-400/40 bg-orange-400/10 text-orange-200'
+                    : 'border-white/10 text-slate-400 hover:text-white'
+                }`}
+              >
+                Password
               </button>
             </div>
 
@@ -335,7 +351,80 @@ export default function LoginPageClient() {
               </div>
             )}
 
-            {method === 'password' ? (
+            {method === 'otp' ? (
+              <div className="mt-5 space-y-4">
+                <div>
+                  <label htmlFor="otp-email" className="mb-1.5 block text-sm font-700 text-slate-200">
+                    Account email
+                  </label>
+                  <input
+                    id="otp-email"
+                    type="email"
+                    autoComplete="email"
+                    value={email}
+                    onChange={(event) => {
+                      setEmail(event.target.value);
+                      if (otpSent) {
+                        setOtpSent(false);
+                        setOtp(['', '', '', '', '', '']);
+                        setInfo('');
+                      }
+                    }}
+                    placeholder="you@company.com"
+                    className="w-full rounded-xl border border-white/15 bg-[#0c1625] px-4 py-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-orange-400 focus:ring-2 focus:ring-orange-400/20"
+                  />
+                </div>
+
+                {!otpSent ? (
+                  <button
+                    type="button"
+                    onClick={handleSendOtp}
+                    disabled={submitting}
+                    className="w-full rounded-xl bg-orange-600 px-4 py-3.5 text-sm font-800 text-white transition hover:bg-orange-500 disabled:opacity-60"
+                  >
+                    {submitting ? 'Sending code…' : 'Send sign-in code'}
+                  </button>
+                ) : (
+                  <>
+                    <div>
+                      <p className="mb-2 text-xs font-700 text-slate-300">Enter the six-digit code</p>
+                      <div className="flex justify-between gap-2">
+                        {otp.map((digit, index) => (
+                          <input
+                            key={index}
+                            id={`login-otp-${index}`}
+                            type="text"
+                            inputMode="numeric"
+                            maxLength={1}
+                            value={digit}
+                            onChange={(event) => handleOtpChange(index, event.target.value)}
+                            onKeyDown={(event) => handleOtpKeyDown(index, event)}
+                            aria-label={`Digit ${index + 1}`}
+                            className="h-12 min-w-0 flex-1 rounded-xl border border-white/15 bg-[#0c1625] text-center text-lg font-800 text-white outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-400/20"
+                          />
+                        ))}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleVerifyOtp}
+                      disabled={submitting || otp.join('').length !== 6}
+                      className="w-full rounded-xl bg-orange-600 px-4 py-3.5 text-sm font-800 text-white transition hover:bg-orange-500 disabled:opacity-60"
+                    >
+                      {submitting ? 'Verifying…' : 'Verify and continue'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSendOtp}
+                      disabled={submitting}
+                      className="w-full rounded-xl py-2 text-xs font-700 text-slate-400 hover:bg-white/5 hover:text-white disabled:opacity-60"
+                    >
+                      Resend code
+                    </button>
+                  </>
+                )}
+              </div>
+            ) : (
               <form onSubmit={handlePasswordLogin} className="mt-5 space-y-4">
                 <div>
                   <label htmlFor="login-email" className="mb-1.5 block text-sm font-700 text-slate-200">
@@ -387,61 +476,6 @@ export default function LoginPageClient() {
                   {submitting ? 'Signing in…' : role === 'buyer' ? 'Enter marketplace' : 'Enter seller workspace'}
                 </button>
               </form>
-            ) : (
-              <div className="mt-5 space-y-4">
-                <div>
-                  <label htmlFor="otp-email" className="mb-1.5 block text-sm font-700 text-slate-200">
-                    Email
-                  </label>
-                  <input
-                    id="otp-email"
-                    type="email"
-                    autoComplete="email"
-                    value={email}
-                    onChange={(event) => setEmail(event.target.value)}
-                    placeholder="you@company.com"
-                    className="w-full rounded-xl border border-white/15 bg-[#0c1625] px-4 py-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-orange-400 focus:ring-2 focus:ring-orange-400/20"
-                  />
-                </div>
-
-                {!otpSent ? (
-                  <button
-                    type="button"
-                    onClick={handleSendOtp}
-                    disabled={submitting}
-                    className="w-full rounded-xl bg-orange-600 px-4 py-3.5 text-sm font-800 text-white transition hover:bg-orange-500 disabled:opacity-60"
-                  >
-                    {submitting ? 'Sending code…' : 'Send sign-in code'}
-                  </button>
-                ) : (
-                  <>
-                    <div className="flex justify-between gap-2">
-                      {otp.map((digit, index) => (
-                        <input
-                          key={index}
-                          id={`login-otp-${index}`}
-                          type="text"
-                          inputMode="numeric"
-                          maxLength={1}
-                          value={digit}
-                          onChange={(event) => handleOtpChange(index, event.target.value)}
-                          onKeyDown={(event) => handleOtpKeyDown(index, event)}
-                          aria-label={`Digit ${index + 1}`}
-                          className="h-12 min-w-0 flex-1 rounded-xl border border-white/15 bg-[#0c1625] text-center text-lg font-800 text-white outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-400/20"
-                        />
-                      ))}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={handleVerifyOtp}
-                      disabled={submitting || otp.join('').length !== 6}
-                      className="w-full rounded-xl bg-orange-600 px-4 py-3.5 text-sm font-800 text-white transition hover:bg-orange-500 disabled:opacity-60"
-                    >
-                      {submitting ? 'Verifying…' : 'Verify and continue'}
-                    </button>
-                  </>
-                )}
-              </div>
             )}
 
             {googleAuthEnabled && role === 'buyer' && (
@@ -462,34 +496,13 @@ export default function LoginPageClient() {
               </>
             )}
 
-            <div className="mt-6 rounded-2xl border border-white/10 bg-black/10 p-4">
-              <p className="text-xs font-800 uppercase tracking-[0.14em] text-slate-400">Explore a demo</p>
-              <div className="mt-3 grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => fillDemoCredentials('buyer')}
-                  className="rounded-xl border border-orange-300/20 bg-orange-400/10 px-3 py-2.5 text-xs font-700 text-orange-100 hover:bg-orange-400/15"
-                >
-                  Buyer demo
-                </button>
-                <button
-                  type="button"
-                  onClick={() => fillDemoCredentials('seller')}
-                  className="rounded-xl border border-indigo-300/20 bg-indigo-400/10 px-3 py-2.5 text-xs font-700 text-indigo-100 hover:bg-indigo-400/15"
-                >
-                  Seller demo
-                </button>
-              </div>
-            </div>
-
             <div className="mt-6 border-t border-white/10 pt-5 text-center text-xs text-slate-500">
               New to FabricTrad?{' '}
-              <Link href={role === 'buyer' ? '/buyer-registration' : '/seller-registration'} className="font-700 text-orange-300 hover:text-orange-200">
+              <Link
+                href={role === 'buyer' ? '/buyer-registration' : '/seller-registration'}
+                className="font-700 text-orange-300 hover:text-orange-200"
+              >
                 Create {role} account
-              </Link>
-              <span className="mx-2">·</span>
-              <Link href="/admin-login" className="font-700 text-slate-300 hover:text-white">
-                Admin portal
               </Link>
             </div>
           </div>
