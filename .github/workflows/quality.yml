@@ -50,7 +50,7 @@ jobs:
           grep -Fq "return '/marketplace';" "$login_source"
           grep -Fq 'return `${origin}/marketplace`;' "$callback_source"
           grep -Fq "return '/marketplace';" "$middleware_source"
-          grep -Fq "? '/marketplace'" "$logo_source"
+          grep -Fq ": '/marketplace'" "$logo_source"
           if grep -qi 'Explore a demo' "$login_source"; then
             echo 'Public demo access must not be rendered.'
             exit 1
