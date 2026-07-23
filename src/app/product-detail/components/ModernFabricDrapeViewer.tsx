@@ -1,29 +1,55 @@
 'use client';
 
-import { useMemo, useRef, useState, type ChangeEvent } from 'react';
-import Link from 'next/link';
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import AppImage from '@/components/ui/AppImage';
 import Icon from '@/components/ui/AppIcon';
 import { useProduct } from '@/lib/hooks/useProduct';
-import { useAuth } from '@/contexts/AuthContext';
 
-const models = [
-  { id: 'occasion', label: 'Occasionwear model', image: 'https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=1200&q=88' },
-  { id: 'studio', label: 'Studio model', image: 'https://images.unsplash.com/photo-1618375531912-867984bdfd87?auto=format&fit=crop&w=1200&q=88' },
-  { id: 'menswear', label: 'Menswear model', image: 'https://images.unsplash.com/photo-1617137968427-85924c800a22?auto=format&fit=crop&w=1200&q=88' },
+const studioModels = [
+  {
+    id: 'natural-light',
+    label: 'Natural light',
+    image:
+      'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=1200&q=88',
+  },
+  {
+    id: 'neutral-background',
+    label: 'Neutral background',
+    image:
+      'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=1200&q=88',
+  },
+  {
+    id: 'menswear',
+    label: 'Menswear',
+    image:
+      'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=1200&q=88',
+  },
 ] as const;
 
-const garments = [
-  { id: 'saree', label: 'Saree', description: 'six-yard saree with natural pleats and pallu' },
-  { id: 'lehenga', label: 'Lehenga', description: 'full lehenga skirt, blouse and coordinated dupatta' },
-  { id: 'kurta', label: 'Kurta', description: 'straight tailored kurta with realistic textile fall' },
-  { id: 'shirt', label: 'Shirt', description: 'premium long-sleeve shirt with collar and natural seams' },
-  { id: 'dress', label: 'Dress', description: 'modern midi dress with clean tailoring' },
-  { id: 'dupatta', label: 'Dupatta', description: 'draped dupatta layered naturally over the outfit' },
+const paletteColours = [
+  { id: 'ivory', label: 'Soft Ivory', colour: '#F3E8D0', family: 'Neutral' },
+  { id: 'camel', label: 'Warm Camel', colour: '#B9865B', family: 'Neutral' },
+  { id: 'chocolate', label: 'Chocolate', colour: '#503329', family: 'Neutral' },
+  { id: 'charcoal', label: 'Charcoal', colour: '#424650', family: 'Neutral' },
+  { id: 'navy', label: 'Deep Navy', colour: '#1F365C', family: 'Blue' },
+  { id: 'cobalt', label: 'Clear Cobalt', colour: '#2856A6', family: 'Blue' },
+  { id: 'teal', label: 'Rich Teal', colour: '#0D6B69', family: 'Green' },
+  { id: 'olive', label: 'Soft Olive', colour: '#6B7042', family: 'Green' },
+  { id: 'emerald', label: 'Emerald', colour: '#13765B', family: 'Green' },
+  { id: 'coral', label: 'Warm Coral', colour: '#D96A5B', family: 'Red' },
+  { id: 'berry', label: 'Berry', colour: '#8C3155', family: 'Red' },
+  { id: 'burgundy', label: 'Burgundy', colour: '#641F32', family: 'Red' },
+  { id: 'rose', label: 'Dusty Rose', colour: '#B97882', family: 'Pink' },
+  { id: 'plum', label: 'Deep Plum', colour: '#603F63', family: 'Purple' },
+  { id: 'mustard', label: 'Mustard', colour: '#C79A2B', family: 'Yellow' },
 ] as const;
 
-const fits = ['Relaxed', 'Regular', 'Tailored'] as const;
 const MAX_UPLOAD = 8 * 1024 * 1024;
+const FAVOURITES_STORAGE_KEY = 'fabrictrad-colour-drape-favourites-v1';
+
+type PaletteColour = (typeof paletteColours)[number];
+type DrapeOption = PaletteColour & { texture?: string | null };
+type ViewMode = 'single' | 'compare';
 
 function readImage(file: File) {
   return new Promise<string>((resolve, reject) => {
@@ -34,31 +60,148 @@ function readImage(file: File) {
   });
 }
 
+function photoFilter(brightness: number, warmth: number) {
+  if (warmth >= 0) {
+    return `brightness(${brightness}%) sepia(${warmth * 0.45}%) saturate(${100 + warmth * 0.7}%) hue-rotate(-${warmth * 0.12}deg)`;
+  }
+
+  const coolness = Math.abs(warmth);
+  return `brightness(${brightness}%) saturate(${100 + coolness * 0.25}%) hue-rotate(${coolness * 0.25}deg)`;
+}
+
+function DrapePreview({
+  photo,
+  option,
+  brightness,
+  warmth,
+  compact = false,
+}: {
+  photo: string;
+  option: DrapeOption;
+  brightness: number;
+  warmth: number;
+  compact?: boolean;
+}) {
+  const isUploadedPhoto = photo.startsWith('data:');
+
+  return (
+    <div
+      className={`relative overflow-hidden rounded-3xl border border-border bg-card shadow-xl ${
+        compact ? 'aspect-[4/5]' : 'aspect-[4/5] w-full'
+      }`}
+    >
+      <div className="absolute inset-0" style={{ filter: photoFilter(brightness, warmth) }}>
+        {isUploadedPhoto ? (
+          <img src={photo} alt="Uploaded portrait for virtual colour draping" className="h-full w-full object-cover" />
+        ) : (
+          <AppImage src={photo} alt="Portrait selected for virtual colour draping" fill className="object-cover" />
+        )}
+      </div>
+
+      <div
+        className="pointer-events-none absolute inset-x-0 bottom-0 h-[51%] overflow-hidden shadow-[0_-18px_35px_rgba(0,0,0,0.18)]"
+        style={{
+          clipPath: 'polygon(0 22%, 20% 12%, 37% 4%, 50% 12%, 63% 4%, 80% 12%, 100% 22%, 100% 100%, 0 100%)',
+          backgroundColor: option.colour,
+          backgroundImage: option.texture
+            ? `linear-gradient(rgba(255,255,255,0.06), rgba(0,0,0,0.10)), url("${option.texture}")`
+            : 'radial-gradient(circle at 50% 12%, rgba(255,255,255,0.22), transparent 34%), linear-gradient(115deg, rgba(255,255,255,0.12), transparent 35%, rgba(0,0,0,0.08))',
+          backgroundPosition: 'center',
+          backgroundSize: option.texture ? 'cover' : '100% 100%',
+        }}
+      >
+        <div className="absolute inset-0 bg-gradient-to-b from-white/5 via-transparent to-black/10" />
+        <div className="absolute inset-x-[12%] top-[17%] h-px bg-white/20" />
+      </div>
+
+      <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-3 bg-gradient-to-t from-black/70 via-black/20 to-transparent px-4 pb-4 pt-16 text-white">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-800">{option.label}</p>
+          <p className="text-[10px] uppercase tracking-[0.14em] text-white/70">{option.family}</p>
+        </div>
+        <span
+          className="h-8 w-8 shrink-0 rounded-full border-2 border-white/80 shadow-lg"
+          style={{ backgroundColor: option.colour }}
+          aria-hidden="true"
+        />
+      </div>
+    </div>
+  );
+}
+
 export default function ModernFabricDrapeViewer() {
   const { product } = useProduct();
-  const { user } = useAuth();
-  const [modelId, setModelId] = useState<(typeof models)[number]['id']>(models[0].id);
-  const [garmentId, setGarmentId] = useState<(typeof garments)[number]['id']>(garments[0].id);
-  const [fit, setFit] = useState<(typeof fits)[number]>('Regular');
-  const [personImage, setPersonImage] = useState<string | null>(null);
-  const [result, setResult] = useState<string | null>(null);
-  const [analysis, setAnalysis] = useState('');
-  const [compare, setCompare] = useState(55);
-  const [opacity, setOpacity] = useState(70);
-  const [scale, setScale] = useState(112);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
   const uploadRef = useRef<HTMLInputElement>(null);
+  const [modelId, setModelId] = useState<(typeof studioModels)[number]['id']>(studioModels[0].id);
+  const [personImage, setPersonImage] = useState<string | null>(null);
+  const [primaryId, setPrimaryId] = useState('product-fabric');
+  const [secondaryId, setSecondaryId] = useState('navy');
+  const [viewMode, setViewMode] = useState<ViewMode>('single');
+  const [brightness, setBrightness] = useState(100);
+  const [warmth, setWarmth] = useState(0);
+  const [favourites, setFavourites] = useState<string[]>([]);
+  const [error, setError] = useState('');
 
-  const model = useMemo(() => models.find((item) => item.id === modelId) || models[0], [modelId]);
-  const garment = useMemo(() => garments.find((item) => item.id === garmentId) || garments[0], [garmentId]);
-  const baseImage = personImage || model.image;
+  const selectedModel = useMemo(
+    () => studioModels.find((item) => item.id === modelId) || studioModels[0],
+    [modelId]
+  );
+  const photo = personImage || selectedModel.image;
   const fabricImage = product.images?.[0] || product.image;
+
+  const drapeOptions = useMemo<DrapeOption[]>(
+    () => [
+      {
+        id: 'product-fabric',
+        label: product.name || 'Current fabric',
+        colour: '#8D6049',
+        family: 'Selected fabric',
+        texture: fabricImage || null,
+      },
+      ...paletteColours,
+    ],
+    [fabricImage, product.name]
+  );
+
+  const primary =
+    drapeOptions.find((option) => option.id === primaryId) || drapeOptions[0];
+  const secondary =
+    drapeOptions.find((option) => option.id === secondaryId) || drapeOptions[1];
+
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(FAVOURITES_STORAGE_KEY);
+      if (!saved) return;
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed)) {
+        setFavourites(parsed.filter((item): item is string => typeof item === 'string'));
+      }
+    } catch {
+      setFavourites([]);
+    }
+  }, []);
+
+  const persistFavourites = (next: string[]) => {
+    setFavourites(next);
+    try {
+      window.localStorage.setItem(FAVOURITES_STORAGE_KEY, JSON.stringify(next));
+    } catch {
+      // The studio remains usable when browser storage is unavailable.
+    }
+  };
+
+  const toggleFavourite = (id: string) => {
+    const next = favourites.includes(id)
+      ? favourites.filter((item) => item !== id)
+      : [...favourites, id];
+    persistFavourites(next);
+  };
 
   const handleUpload = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.target.value = '';
     if (!file) return;
+
     setError('');
     if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
       setError('Upload a JPG, PNG or WebP image.');
@@ -68,64 +211,23 @@ export default function ModernFabricDrapeViewer() {
       setError('The photo must be smaller than 8 MB.');
       return;
     }
+
     try {
       setPersonImage(await readImage(file));
-      setResult(null);
-      setAnalysis('');
     } catch (uploadError) {
       setError(uploadError instanceof Error ? uploadError.message : 'Unable to use this image.');
     }
   };
 
-  const generate = async () => {
-    setError('');
-    setAnalysis('');
-    if (!user) {
-      setError('Sign in as a buyer to generate a private AI drape preview.');
-      return;
-    }
-    setLoading(true);
-    try {
-      const response = await fetch('/api/ai/drape-on', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fabricImage,
-          modelImage: baseImage,
-          fabricName: `${product.name}; ${product.gsm || 'unknown'} GSM; ${product.work || 'textile fabric'}`,
-          styleName: `${fit.toLowerCase()} fit ${garment.description}`,
-        }),
-      });
-      const payload = (await response.json().catch(() => ({}))) as { image?: string; analysis?: string; error?: string };
-      if (!response.ok || !payload.image) throw new Error(payload.error || 'Unable to generate the drape preview.');
-      setResult(payload.image);
-      setAnalysis(payload.analysis || 'Preview generated. Confirm shade, scale and hand-feel with a physical sample before bulk production.');
-      setCompare(55);
-    } catch (generationError) {
-      setError(generationError instanceof Error ? generationError.message : 'Unable to generate the drape preview.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const reset = () => {
     setPersonImage(null);
-    setResult(null);
-    setAnalysis('');
+    setModelId(studioModels[0].id);
+    setPrimaryId('product-fabric');
+    setSecondaryId('navy');
+    setViewMode('single');
+    setBrightness(100);
+    setWarmth(0);
     setError('');
-    setModelId(models[0].id);
-    setGarmentId(garments[0].id);
-    setFit('Regular');
-    setOpacity(70);
-    setScale(112);
-  };
-
-  const download = () => {
-    if (!result) return;
-    const link = document.createElement('a');
-    link.href = result;
-    link.download = `${product.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-drape.png`;
-    link.click();
   };
 
   return (
@@ -133,55 +235,279 @@ export default function ModernFabricDrapeViewer() {
       <header className="bg-gradient-to-r from-secondary via-navy-light to-secondary px-5 py-6 text-white sm:px-8">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="flex items-center gap-2 text-xs font-800 uppercase tracking-[0.18em] text-gold"><Icon name="SparklesIcon" size={16} /> FabricTrad AI Drape Studio</p>
-            <h2 className="mt-2 text-2xl font-800 sm:text-3xl">Preview this fabric on a garment</h2>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-white/75">Use a studio model or your own photo, choose the garment and fit, then generate a sourcing preview before ordering a sample.</p>
+            <p className="flex items-center gap-2 text-xs font-800 uppercase tracking-[0.18em] text-gold">
+              <Icon name="SwatchIcon" size={16} /> FabricTrad Virtual Colour Draping
+            </p>
+            <h2 className="mt-2 text-2xl font-800 sm:text-3xl">See fabric colours beside your face</h2>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-white/75">
+              Upload a clear portrait, place the selected fabric or colour beneath your face, compare two options and save the shades you prefer.
+            </p>
           </div>
-          <div className="rounded-2xl border border-white/15 bg-white/10 px-4 py-3 text-xs text-white/80"><p className="font-800 text-white">Private preview</p><p className="mt-1">Authenticated and quota-protected.</p></div>
+          <div className="rounded-2xl border border-white/15 bg-white/10 px-4 py-3 text-xs text-white/80">
+            <p className="font-800 text-white">Private in your browser</p>
+            <p className="mt-1">Your uploaded photo is not sent for AI generation.</p>
+          </div>
         </div>
       </header>
 
-      <div className="grid lg:grid-cols-[360px_minmax(0,1fr)]">
-        <aside className="border-b border-border p-5 lg:border-b-0 lg:border-r sm:p-6">
-          <p className="text-xs font-800 uppercase tracking-wider text-muted-foreground">1 · Choose a person</p>
+      <div className="grid xl:grid-cols-[370px_minmax(0,1fr)]">
+        <aside className="border-b border-border p-5 sm:p-6 xl:border-b-0 xl:border-r">
+          <div className="rounded-2xl border border-success/20 bg-success/5 p-4">
+            <div className="flex items-start gap-3">
+              <Icon name="CameraIcon" size={18} className="mt-0.5 shrink-0 text-success" />
+              <div>
+                <p className="text-xs font-800 text-foreground">For a useful comparison</p>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                  Use a front-facing photo in natural light, with no beauty filter and a simple background.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <p className="mt-6 text-xs font-800 uppercase tracking-wider text-muted-foreground">1 · Choose a portrait</p>
           <div className="mt-3 grid grid-cols-3 gap-2">
-            {models.map((item) => (
-              <button key={item.id} type="button" onClick={() => { setModelId(item.id); setPersonImage(null); setResult(null); }} className={`overflow-hidden rounded-xl border-2 text-left ${modelId === item.id && !personImage ? 'border-primary' : 'border-border'}`}>
-                <div className="relative aspect-[3/4]"><AppImage src={item.image} alt={item.label} fill className="object-cover" /></div>
+            {studioModels.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => {
+                  setModelId(item.id);
+                  setPersonImage(null);
+                }}
+                className={`overflow-hidden rounded-xl border-2 text-left transition ${
+                  modelId === item.id && !personImage ? 'border-primary' : 'border-border hover:border-primary/40'
+                }`}
+              >
+                <div className="relative aspect-[3/4]">
+                  <AppImage src={item.image} alt={item.label} fill className="object-cover" />
+                </div>
                 <p className="truncate px-2 py-2 text-[10px] font-800 text-foreground">{item.label}</p>
               </button>
             ))}
           </div>
-          <input ref={uploadRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleUpload} />
-          <button type="button" onClick={() => uploadRef.current?.click()} className="btn-secondary mt-3 flex w-full items-center justify-center gap-2 rounded-xl py-3 text-xs"><Icon name="ArrowUpTrayIcon" size={16} />Upload your own photo</button>
 
-          <p className="mt-6 text-xs font-800 uppercase tracking-wider text-muted-foreground">2 · Garment style</p>
-          <div className="mt-3 grid grid-cols-3 gap-2">
-            {garments.map((item) => <button key={item.id} type="button" onClick={() => { setGarmentId(item.id); setResult(null); }} className={`rounded-xl border px-2 py-2.5 text-xs font-800 ${garmentId === item.id ? 'border-primary bg-primary/10 text-primary' : 'border-border text-foreground'}`}>{item.label}</button>)}
+          <input
+            ref={uploadRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            className="hidden"
+            onChange={handleUpload}
+          />
+          <button
+            type="button"
+            onClick={() => uploadRef.current?.click()}
+            className="btn-secondary mt-3 flex w-full items-center justify-center gap-2 rounded-xl py-3 text-xs"
+          >
+            <Icon name="ArrowUpTrayIcon" size={16} />
+            {personImage ? 'Replace your photo' : 'Upload your own photo'}
+          </button>
+          {personImage && (
+            <p className="mt-2 flex items-center justify-center gap-1.5 text-[11px] font-700 text-success">
+              <Icon name="CheckCircleIcon" size={13} /> Your photo is active
+            </p>
+          )}
+
+          <p className="mt-6 text-xs font-800 uppercase tracking-wider text-muted-foreground">2 · Adjust the photo</p>
+          <div className="mt-3 space-y-4 rounded-2xl border border-border bg-muted/40 p-4">
+            <label className="block text-xs font-800 text-foreground">
+              Brightness <span className="float-right text-primary">{brightness}%</span>
+              <input
+                type="range"
+                min="75"
+                max="125"
+                value={brightness}
+                onChange={(event) => setBrightness(Number(event.target.value))}
+                className="mt-3 w-full accent-primary"
+              />
+            </label>
+            <label className="block text-xs font-800 text-foreground">
+              Temperature
+              <span className="float-right text-primary">
+                {warmth === 0 ? 'Neutral' : warmth > 0 ? `Warm +${warmth}` : `Cool ${warmth}`}
+              </span>
+              <input
+                type="range"
+                min="-40"
+                max="40"
+                value={warmth}
+                onChange={(event) => setWarmth(Number(event.target.value))}
+                className="mt-3 w-full accent-primary"
+              />
+            </label>
           </div>
 
-          <p className="mt-5 text-xs font-800 uppercase tracking-wider text-muted-foreground">3 · Fit</p>
-          <div className="mt-3 flex gap-2">{fits.map((item) => <button key={item} type="button" onClick={() => { setFit(item); setResult(null); }} className={`flex-1 rounded-xl border py-2 text-xs font-800 ${fit === item ? 'border-secondary bg-secondary text-white' : 'border-border text-foreground'}`}>{item}</button>)}</div>
+          <p className="mt-6 text-xs font-800 uppercase tracking-wider text-muted-foreground">3 · View</p>
+          <div className="mt-3 grid grid-cols-2 rounded-xl border border-border bg-muted p-1">
+            <button
+              type="button"
+              onClick={() => setViewMode('single')}
+              className={`rounded-lg px-3 py-2.5 text-xs font-800 transition ${
+                viewMode === 'single' ? 'bg-card text-primary shadow-sm' : 'text-muted-foreground'
+              }`}
+            >
+              One colour
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('compare')}
+              className={`rounded-lg px-3 py-2.5 text-xs font-800 transition ${
+                viewMode === 'compare' ? 'bg-card text-primary shadow-sm' : 'text-muted-foreground'
+              }`}
+            >
+              Side by side
+            </button>
+          </div>
 
-          <div className="mt-5 flex items-center gap-3 rounded-2xl bg-muted p-3"><div className="relative h-14 w-14 overflow-hidden rounded-xl"><AppImage src={fabricImage} alt={product.name} fill className="object-cover" /></div><div className="min-w-0"><p className="truncate text-sm font-800 text-foreground">{product.name}</p><p className="text-xs text-muted-foreground">{product.gsm ? `${product.gsm} GSM · ` : ''}{product.work}</p></div></div>
-
-          <button type="button" onClick={generate} disabled={loading} className="btn-primary mt-5 flex w-full items-center justify-center gap-2 rounded-xl py-3.5 disabled:opacity-60">{loading ? <><span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />Generating…</> : <><Icon name="SparklesIcon" size={18} />Generate AI drape</>}</button>
-          {!user && <p className="mt-3 text-center text-xs text-muted-foreground"><Link href="/login" className="font-800 text-primary hover:underline">Sign in</Link> to generate securely.</p>}
-          <button type="button" onClick={reset} className="mt-2 w-full rounded-xl py-2.5 text-xs font-800 text-muted-foreground hover:bg-muted">Reset studio</button>
-          {error && <p className="mt-4 rounded-xl border border-error/20 bg-error/10 p-3 text-xs font-700 text-error">{error}</p>}
+          <button
+            type="button"
+            onClick={reset}
+            className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-xs font-800 text-muted-foreground hover:bg-muted"
+          >
+            <Icon name="ArrowPathIcon" size={15} /> Reset studio
+          </button>
+          {error && (
+            <p className="mt-4 rounded-xl border border-error/20 bg-error/10 p-3 text-xs font-700 text-error">
+              {error}
+            </p>
+          )}
         </aside>
 
-        <section className="min-w-0 bg-muted/40 p-4 sm:p-6">
-          <div className="mx-auto max-w-3xl">
-            <div className="relative aspect-[4/5] overflow-hidden rounded-3xl border border-border bg-card shadow-2xl">
-              {baseImage.startsWith('data:') ? <img src={baseImage} alt="Uploaded person for fabric preview" className="h-full w-full object-cover" /> : <AppImage src={baseImage} alt="Person selected for fabric preview" fill className="object-cover" />}
-              {!result && <div className="pointer-events-none absolute inset-0 flex items-center justify-center"><div className="relative h-[72%] w-[58%] overflow-hidden rounded-[45%_45%_18%_18%]" style={{ opacity: opacity / 100, transform: `scale(${scale / 100})`, mixBlendMode: 'multiply' }}>{fabricImage.startsWith('data:') ? <img src={fabricImage} alt="Selected fabric" className="h-full w-full object-cover" /> : <AppImage src={fabricImage} alt="Selected fabric" fill className="object-cover" />}</div><div className="absolute bottom-4 left-4 right-4 rounded-xl bg-black/55 p-3 text-xs text-white backdrop-blur"><span className="font-800">Composition preview:</span> generate the AI result for realistic folds, seams and anatomy.</div></div>}
-              {result && <div className="absolute inset-y-0 left-0 overflow-hidden" style={{ width: `${compare}%` }}><img src={result} alt="AI generated fabric drape" className="h-full object-cover" style={{ width: `${10000 / compare}%`, maxWidth: 'none' }} /></div>}
-              {result && <div className="pointer-events-none absolute inset-y-0 w-0.5 bg-white shadow-xl" style={{ left: `${compare}%` }}><div className="absolute left-1/2 top-1/2 flex h-10 w-10 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-white text-secondary shadow-xl"><Icon name="ArrowsRightLeftIcon" size={18} /></div></div>}
-              <span className="absolute left-4 top-4 rounded-full bg-black/55 px-3 py-1.5 text-[10px] font-800 uppercase tracking-wider text-white">{result ? 'AI result' : 'Live preview'}</span>
+        <section className="min-w-0 bg-muted/35 p-4 sm:p-6 lg:p-8">
+          <div className="mx-auto max-w-5xl">
+            {viewMode === 'single' ? (
+              <div className="mx-auto max-w-[580px]">
+                <DrapePreview
+                  photo={photo}
+                  option={primary}
+                  brightness={brightness}
+                  warmth={warmth}
+                />
+                <button
+                  type="button"
+                  onClick={() => toggleFavourite(primary.id)}
+                  className={`mt-4 flex w-full items-center justify-center gap-2 rounded-xl border px-4 py-3 text-sm font-800 transition ${
+                    favourites.includes(primary.id)
+                      ? 'border-rose-300/40 bg-rose-500/10 text-rose-600'
+                      : 'border-border bg-card text-foreground hover:border-primary/40 hover:text-primary'
+                  }`}
+                >
+                  <Icon name={favourites.includes(primary.id) ? 'HeartIcon' : 'HeartIcon'} size={17} />
+                  {favourites.includes(primary.id) ? 'Saved to favourites' : 'Save this colour'}
+                </button>
+              </div>
+            ) : (
+              <div className="grid gap-4 md:grid-cols-2">
+                <DrapePreview
+                  photo={photo}
+                  option={primary}
+                  brightness={brightness}
+                  warmth={warmth}
+                  compact
+                />
+                <DrapePreview
+                  photo={photo}
+                  option={secondary}
+                  brightness={brightness}
+                  warmth={warmth}
+                  compact
+                />
+              </div>
+            )}
+
+            <div className="mt-6 rounded-3xl border border-border bg-card p-5 sm:p-6">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <p className="text-xs font-800 uppercase tracking-wider text-primary">Colour palette</p>
+                  <h3 className="mt-1 text-xl font-800 text-foreground">Click a fabric or shade to drape it</h3>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {favourites.length} saved {favourites.length === 1 ? 'colour' : 'colours'}
+                </p>
+              </div>
+
+              <div className="mt-5 grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-6">
+                {drapeOptions.map((option) => {
+                  const selected = primary.id === option.id;
+                  const saved = favourites.includes(option.id);
+                  return (
+                    <div key={option.id} className="relative">
+                      <button
+                        type="button"
+                        onClick={() => setPrimaryId(option.id)}
+                        className={`w-full rounded-2xl border p-2 text-left transition ${
+                          selected
+                            ? 'border-primary bg-primary/5 shadow-md ring-2 ring-primary/15'
+                            : 'border-border bg-background hover:border-primary/40'
+                        }`}
+                      >
+                        <span
+                          className="relative block aspect-square overflow-hidden rounded-xl border border-black/5"
+                          style={{
+                            backgroundColor: option.colour,
+                            backgroundImage: option.texture
+                              ? `linear-gradient(rgba(255,255,255,0.04),rgba(0,0,0,0.08)),url("${option.texture}")`
+                              : undefined,
+                            backgroundSize: 'cover',
+                            backgroundPosition: 'center',
+                          }}
+                        >
+                          {selected && (
+                            <span className="absolute inset-0 flex items-center justify-center bg-black/10">
+                              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white text-primary shadow">
+                                <Icon name="CheckIcon" size={16} />
+                              </span>
+                            </span>
+                          )}
+                        </span>
+                        <span className="mt-2 block truncate text-[11px] font-800 text-foreground">{option.label}</span>
+                        <span className="block truncate text-[9px] uppercase tracking-wider text-muted-foreground">{option.family}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => toggleFavourite(option.id)}
+                        aria-label={`${saved ? 'Remove' : 'Add'} ${option.label} ${saved ? 'from' : 'to'} favourites`}
+                        className={`absolute right-3 top-3 flex h-7 w-7 items-center justify-center rounded-full border shadow-sm ${
+                          saved
+                            ? 'border-rose-200 bg-rose-500 text-white'
+                            : 'border-white/60 bg-white/85 text-slate-500 hover:text-rose-500'
+                        }`}
+                      >
+                        <Icon name="HeartIcon" size={14} />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {viewMode === 'compare' && (
+                <div className="mt-6 border-t border-border pt-5">
+                  <label htmlFor="comparison-colour" className="text-xs font-800 uppercase tracking-wider text-muted-foreground">
+                    Compare against
+                  </label>
+                  <select
+                    id="comparison-colour"
+                    value={secondaryId}
+                    onChange={(event) => setSecondaryId(event.target.value)}
+                    className="mt-2 w-full rounded-xl border border-border bg-background px-4 py-3 text-sm font-700 text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/15"
+                  >
+                    {drapeOptions
+                      .filter((option) => option.id !== primary.id)
+                      .map((option) => (
+                        <option key={option.id} value={option.id}>
+                          {option.label} · {option.family}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+              )}
             </div>
 
-            {result ? <div className="mt-4 rounded-2xl border border-border bg-card p-4"><label className="flex items-center justify-between text-xs font-800 text-foreground"><span>Compare AI result with original</span><span>{compare}%</span></label><input type="range" min="5" max="95" value={compare} onChange={(event) => setCompare(Number(event.target.value))} className="mt-3 w-full accent-primary" /><div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><p className="max-w-xl text-xs leading-5 text-muted-foreground">{analysis}</p><button type="button" onClick={download} className="btn-secondary flex shrink-0 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-xs"><Icon name="ArrowDownTrayIcon" size={16} />Download</button></div></div> : <div className="mt-4 grid gap-4 rounded-2xl border border-border bg-card p-4 sm:grid-cols-2"><label className="text-xs font-800 text-foreground">Fabric opacity <span className="float-right text-primary">{opacity}%</span><input type="range" min="25" max="95" value={opacity} onChange={(event) => setOpacity(Number(event.target.value))} className="mt-3 w-full accent-primary" /></label><label className="text-xs font-800 text-foreground">Fabric scale <span className="float-right text-primary">{scale}%</span><input type="range" min="80" max="150" value={scale} onChange={(event) => setScale(Number(event.target.value))} className="mt-3 w-full accent-primary" /></label></div>}
+            <div className="mt-5 flex items-start gap-3 rounded-2xl border border-border bg-card p-4 text-xs leading-5 text-muted-foreground">
+              <Icon name="InformationCircleIcon" size={17} className="mt-0.5 shrink-0 text-primary" />
+              <p>
+                This is a visual comparison tool, not a professional colour analysis. Screen calibration, room lighting and the original photo can change how shades appear. Confirm the final colour with a physical fabric sample before a bulk order.
+              </p>
+            </div>
           </div>
         </section>
       </div>
