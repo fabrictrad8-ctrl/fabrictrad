@@ -24,7 +24,7 @@ const AUTH_ENTRY_PATHS = new Set([
 const roleDestination = (role?: string | null) => {
   if (role === 'seller') return '/seller-dashboard';
   if (role === 'admin_staff' || role === 'super_admin') return '/admin-portal';
-  return '/buyer-dashboard';
+  return '/marketplace';
 };
 
 const withRefreshedCookies = (target: NextResponse, source: NextResponse) => {
@@ -128,6 +128,6 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/((?!api|_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)',
+    '/((?!api|_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml|.*\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)',
   ],
 };
