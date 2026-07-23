@@ -41,7 +41,7 @@ const normaliseTab = (value: string | null): DashboardTab =>
   validTabs.includes(value as DashboardTab) ? (value as DashboardTab) : 'overview';
 
 export default function ModernBuyerDashboardLayout() {
-  const { user, profile, isDemoAccount } = useAuth();
+  const { user, profile } = useAuth();
   const { language, t } = useAppPreferences();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -117,11 +117,11 @@ export default function ModernBuyerDashboardLayout() {
           className="block rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/15 to-secondary/10 p-4 transition hover:-translate-y-0.5 hover:shadow-lg"
         >
           <div className="flex items-center gap-2 text-primary">
-            <Icon name="SparklesIcon" size={18} />
-            <span className="text-sm font-800">AI Drape Studio</span>
+            <Icon name="SwatchIcon" size={18} />
+            <span className="text-sm font-800">Virtual Colour Draping</span>
           </div>
           <p className="mt-2 text-xs leading-5 text-muted-foreground">
-            Upload a photo, choose a garment and preview fabric before ordering.
+            Upload a clear photo and compare fabric colours beside your face.
           </p>
           <span className="mt-3 inline-flex items-center gap-1 text-xs font-800 text-primary">
             Open studio <Icon name="ArrowRightIcon" size={13} />
@@ -151,7 +151,7 @@ export default function ModernBuyerDashboardLayout() {
         <div className="min-w-0">
           <p className="truncate text-sm font-800 text-foreground">Buyer Portal</p>
           <p className="hidden text-xs text-muted-foreground sm:block">
-            Orders, sourcing, drape previews and account preferences
+            Orders, sourcing, colour draping and account preferences
           </p>
         </div>
 
@@ -206,12 +206,6 @@ export default function ModernBuyerDashboardLayout() {
         )}
 
         <main className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
-          {isDemoAccount && (
-            <div className="mb-5 rounded-2xl border border-primary/20 bg-primary/5 p-4 text-sm text-muted-foreground">
-              <span className="font-800 text-primary">Demo buyer account:</span> real checkout is disabled, but the full buyer workflow remains available for testing.
-            </div>
-          )}
-
           {activeTab === 'overview' && (
             <section className="mb-7 overflow-hidden rounded-[2rem] border border-border bg-card shadow-xl">
               <div className="grid gap-6 p-6 sm:p-8 lg:grid-cols-[1fr_auto] lg:items-center">
@@ -223,14 +217,14 @@ export default function ModernBuyerDashboardLayout() {
                     Good to see you, {buyerName}
                   </h1>
                   <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground sm:text-base">
-                    Source verified fabrics, manage pending orders, track shipments and preview drapes from one account.
+                    Source verified fabrics, manage pending orders, track shipments and compare colours from one account.
                   </p>
                   <div className="mt-5 flex flex-wrap gap-3">
                     <Link href="/marketplace" className="btn-primary inline-flex items-center gap-2 px-5 py-3 text-sm">
                       Browse fabrics <Icon name="ArrowRightIcon" size={15} />
                     </Link>
                     <Link href="/product-detail#drape-on" className="btn-secondary inline-flex items-center gap-2 px-5 py-3 text-sm">
-                      <Icon name="SparklesIcon" size={16} /> Try Drape Studio
+                      <Icon name="SwatchIcon" size={16} /> Try Colour Draping
                     </Link>
                     <button
                       type="button"
