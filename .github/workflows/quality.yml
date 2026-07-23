@@ -10,10 +10,31 @@ permissions:
   contents: read
 
 jobs:
-  check:
+  apex:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
-      - name: Inspect live FabricTrad authentication
-        run: bash scripts/live-auth-diagnostic.sh
+      - name: Inspect fabrictrad.com
+        shell: bash
+        run: |
+          base='https://fabrictrad.com'
+          login=$(curl -sS -o /dev/null -w '%{http_code}' "$base/login" || true)
+          buyer=$(curl -sS -c /tmp/buyer.cookies -o /tmp/buyer.json -w '%{http_code}' -H 'Content-Type: application/json' --data '{"email":"demo.buyer@fabrictrad.com","password":"FabricDemo@2026"}' "$base/api/auth/demo-session" || true)
+          marketplace=$(curl -sS -b /tmp/buyer.cookies -o /dev/null -w '%{http_code}' --max-redirs 0 "$base/marketplace" || true)
+          seller=$(curl -sS -c /tmp/seller.cookies -o /tmp/seller.json -w '%{http_code}' -H 'Content-Type: application/json' --data '{"email":"demo.seller@fabrictrad.com","password":"FabricDemo@2026"}' "$base/api/auth/demo-session" || true)
+          dashboard=$(curl -sS -b /tmp/seller.cookies -o /dev/null -w '%{http_code}' --max-redirs 0 "$base/seller-dashboard" || true)
+          echo "LOGIN=$login BUYER=$buyer BUYER_BODY=$(cat /tmp/buyer.json 2>/dev/null || true) BUYER_COOKIE=$(grep -c fabrictrad_demo_role /tmp/buyer.cookies 2>/dev/null || true) MARKETPLACE=$marketplace SELLER=$seller SELLER_BODY=$(cat /tmp/seller.json 2>/dev/null || true) SELLER_COOKIE=$(grep -c fabrictrad_demo_role /tmp/seller.cookies 2>/dev/null || true) DASHBOARD=$dashboard"
+  www:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Inspect www.fabrictrad.com
+        shell: bash
+        run: |
+          base='https://www.fabrictrad.com'
+          login=$(curl -sS -o /dev/null -w '%{http_code}' "$base/login" || true)
+          buyer=$(curl -sS -c /tmp/buyer.cookies -o /tmp/buyer.json -w '%{http_code}' -H 'Content-Type: application/json' --data '{"email":"demo.buyer@fabrictrad.com","password":"FabricDemo@2026"}' "$base/api/auth/demo-session" || true)
+          marketplace=$(curl -sS -b /tmp/buyer.cookies -o /dev/null -w '%{http_code}' --max-redirs 0 "$base/marketplace" || true)
+          seller=$(curl -sS -c /tmp/seller.cookies -o /tmp/seller.json -w '%{http_code}' -H 'Content-Type: application/json' --data '{"email":"demo.seller@fabrictrad.com","password":"FabricDemo@2026"}' "$base/api/auth/demo-session" || true)
+          dashboard=$(curl -sS -b /tmp/seller.cookies -o /dev/null -w '%{http_code}' --max-redirs 0 "$base/seller-dashboard" || true)
+          echo "LOGIN=$login BUYER=$buyer BUYER_BODY=$(cat /tmp/buyer.json 2>/dev/null || true) BUYER_COOKIE=$(grep -c fabrictrad_demo_role /tmp/buyer.cookies 2>/dev/null || true) MARKETPLACE=$marketplace SELLER=$seller SELLER_BODY=$(cat /tmp/seller.json 2>/dev/null || true) SELLER_COOKIE=$(grep -c fabrictrad_demo_role /tmp/seller.cookies 2>/dev/null || true) DASHBOARD=$dashboard"
