@@ -20,7 +20,7 @@ export default async function AdminPortalPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) redirect('/admin-login');
+  if (!user) redirect('/login');
 
   const { data: profile, error } = await supabase
     .from('user_profiles')
@@ -33,7 +33,7 @@ export default async function AdminPortalPage() {
     !profile?.is_active ||
     (profile.role !== 'super_admin' && profile.role !== 'admin_staff')
   ) {
-    redirect('/admin-login');
+    redirect('/login');
   }
 
   return (
