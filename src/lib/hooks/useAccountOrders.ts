@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { DEMO_BULK_ORDERS } from '@/lib/demoAccounts';
 
 export type BulkOrderItem = {
   product_name?: string | null;
@@ -50,18 +49,13 @@ export function firstOrderItem(order: AccountBulkOrder) {
 }
 
 export function useBuyerBulkOrders() {
-  const { user, isDemoAccount } = useAuth();
+  const { user } = useAuth();
   const [orders, setOrders] = useState<AccountBulkOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const loadOrders = useCallback(async () => {
     setError(null);
-    if (isDemoAccount) {
-      setOrders(DEMO_BULK_ORDERS.buyer as AccountBulkOrder[]);
-      setLoading(false);
-      return;
-    }
     if (!user?.id) {
       setOrders([]);
       setLoading(false);
@@ -82,18 +76,14 @@ export function useBuyerBulkOrders() {
       setOrders((data || []) as AccountBulkOrder[]);
     }
     setLoading(false);
-  }, [isDemoAccount, user?.id]);
+  }, [user?.id]);
 
   useEffect(() => {
-    loadOrders();
+    void loadOrders();
   }, [loadOrders]);
 
   const cancelOrder = useCallback(
     async (orderId: string) => {
-      if (isDemoAccount) {
-        setOrders((current) => current.map((order) => order.id === orderId ? { ...order, status: 'cancelled' } : order));
-        return;
-      }
       if (!user?.id) throw new Error('Authentication required.');
       const supabase = createClient();
       const { error: updateError } = await supabase
@@ -105,25 +95,20 @@ export function useBuyerBulkOrders() {
       if (updateError) throw updateError;
       await loadOrders();
     },
-    [isDemoAccount, loadOrders, user?.id]
+    [loadOrders, user?.id]
   );
 
   return { orders, loading, error, refresh: loadOrders, cancelOrder };
 }
 
 export function useSellerBulkOrders() {
-  const { user, isDemoAccount } = useAuth();
+  const { user } = useAuth();
   const [orders, setOrders] = useState<AccountBulkOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const loadOrders = useCallback(async () => {
     setError(null);
-    if (isDemoAccount) {
-      setOrders(DEMO_BULK_ORDERS.seller as AccountBulkOrder[]);
-      setLoading(false);
-      return;
-    }
     if (!user?.id) {
       setOrders([]);
       setLoading(false);
@@ -156,20 +141,14 @@ export function useSellerBulkOrders() {
       setOrders((data || []) as AccountBulkOrder[]);
     }
     setLoading(false);
-  }, [isDemoAccount, user?.id]);
+  }, [user?.id]);
 
   useEffect(() => {
-    loadOrders();
+    void loadOrders();
   }, [loadOrders]);
 
   const updateOrder = useCallback(
     async (orderId: string, patch: { status?: string; notes?: string }) => {
-      if (isDemoAccount) {
-        setOrders((current) =>
-          current.map((order) => (order.id === orderId ? { ...order, ...patch } : order))
-        );
-        return;
-      }
       if (!user?.id) throw new Error('Authentication required.');
 
       const allowedPatch: { status?: string; notes?: string; updated_at: string } = {
@@ -179,14 +158,24 @@ export function useSellerBulkOrders() {
       if (patch.notes !== undefined) allowedPatch.notes = patch.notes;
 
       const supabase = createClient();
+      const { data: sellerProfile, error: sellerError } = await supabase
+        .from('seller_profiles')
+        .select('id')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      if (sellerError || !sellerProfile?.id) {
+        throw new Error(sellerError?.message || 'Seller profile is not available.');
+      }
+
       const { error: updateError } = await supabase
         .from('bulk_orders')
         .update(allowedPatch)
-        .eq('id', orderId);
+        .eq('id', orderId)
+        .eq('seller_id', sellerProfile.id);
       if (updateError) throw updateError;
       await loadOrders();
     },
-    [isDemoAccount, loadOrders, user?.id]
+    [loadOrders, user?.id]
   );
 
   return { orders, loading, error, refresh: loadOrders, updateOrder };
