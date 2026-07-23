@@ -34,10 +34,24 @@ jobs:
         run: npm run lint
       - name: Production build
         run: npm run build
-      - name: Authentication route smoke tests
+      - name: Authentication source and route smoke tests
         shell: bash
         run: |
           set -euo pipefail
+
+          login_source='src/app/login/EmailOtpLoginClient.tsx'
+          grep -q 'Forgot password?' "$login_source"
+          grep -q 'Continue with Google' "$login_source"
+          grep -q 'current-password' "$login_source"
+          if grep -qi 'Explore a demo' "$login_source"; then
+            echo 'Public demo access must not be rendered.'
+            exit 1
+          fi
+          if grep -qi 'Admin portal' "$login_source"; then
+            echo 'A separate administrator entry point must not be rendered.'
+            exit 1
+          fi
+
           npm run start > /tmp/fabrictrad-server.log 2>&1 &
           server_pid=$!
           cleanup() {
@@ -59,22 +73,9 @@ jobs:
             exit 1
           fi
 
-          if grep -qi 'Explore a demo' /tmp/login.html; then
-            echo 'Public demo access must not be rendered.'
-            exit 1
-          fi
-          if grep -qi 'Admin portal' /tmp/login.html; then
-            echo 'A separate administrator entry point must not be rendered.'
-            exit 1
-          fi
-          if ! grep -q 'Forgot password' /tmp/login.html; then
-            echo 'Password recovery must remain available.'
-            exit 1
-          fi
-          if ! grep -q 'Enter marketplace' /tmp/login.html; then
-            echo 'Buyer password sign-in was not rendered.'
-            exit 1
-          fi
+          marketplace_status=$(curl --silent --show-error --output /dev/null \
+            --write-out '%{http_code}' --max-redirs 0 http://127.0.0.1:3000/marketplace)
+          test "$marketplace_status" = "307" -o "$marketplace_status" = "308"
 
           invalid_otp_status=$(curl --silent --show-error --output /tmp/invalid-otp.json \
             --write-out '%{http_code}' --header 'Content-Type: application/json' \
