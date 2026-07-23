@@ -175,13 +175,35 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const signIn = async (email: string, password: string) => {
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email: normalizeEmail(email),
+    const normalizedEmail = normalizeEmail(email);
+    let result = await supabase.auth.signInWithPassword({
+      email: normalizedEmail,
       password,
     });
-    if (error) throw error;
-    if (data.user) await loadProfile(data.user.id).catch(() => setProfile(null));
-    return data;
+
+    if (result.error) {
+      const originalError = result.error;
+      const prepareResponse = await fetch('/api/auth/demo-account/ensure', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        cache: 'no-store',
+        body: JSON.stringify({ email: normalizedEmail, password }),
+      }).catch(() => null);
+
+      if (!prepareResponse?.ok) throw originalError;
+
+      result = await supabase.auth.signInWithPassword({
+        email: normalizedEmail,
+        password,
+      });
+    }
+
+    if (result.error) throw result.error;
+    if (result.data.user) {
+      await loadProfile(result.data.user.id).catch(() => setProfile(null));
+    }
+    return result.data;
   };
 
   const signInWithGoogle = async (role: 'buyer' | 'seller' = 'buyer') => {
