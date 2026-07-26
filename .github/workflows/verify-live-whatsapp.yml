@@ -1,6 +1,7 @@
 name: Verify live WhatsApp catalogue
 
 on:
+  pull_request:
   push:
     branches:
       - agent/verify-live-whatsapp
