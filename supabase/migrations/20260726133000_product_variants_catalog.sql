@@ -56,7 +56,8 @@ CREATE POLICY public_read_active_product_variants
       SELECT 1
       FROM public.seller_products product
       JOIN public.seller_profiles seller ON seller.id = product.seller_id
-      WHERE product.id = product_id
+      WHERE product.id = seller_product_variants.product_id
+        AND product.seller_id = seller_product_variants.seller_id
         AND product.status = 'active'
         AND seller.is_active = TRUE
         AND seller.verification_status = 'verified'::public.seller_status
@@ -70,8 +71,10 @@ CREATE POLICY sellers_manage_own_product_variants
   WITH CHECK (
     seller_id = public.my_seller_id()
     AND EXISTS (
-      SELECT 1 FROM public.seller_products product
-      WHERE product.id = product_id AND product.seller_id = seller_id
+      SELECT 1
+      FROM public.seller_products product
+      WHERE product.id = seller_product_variants.product_id
+        AND product.seller_id = seller_product_variants.seller_id
     )
   );
 
@@ -121,7 +124,6 @@ BEGIN
     ) AS summary,
     COALESCE(SUM(GREATEST(available_quantity - reserved_quantity, 0)) FILTER (WHERE status <> 'archived'), 0) AS total_available,
     MIN(price_per_unit) FILTER (WHERE status <> 'archived') AS minimum_price,
-    MAX(price_per_unit) FILTER (WHERE status <> 'archived') AS maximum_price,
     MIN(image_url) FILTER (WHERE status <> 'archived' AND image_url IS NOT NULL) AS first_image,
     COALESCE(
       STRING_AGG(
