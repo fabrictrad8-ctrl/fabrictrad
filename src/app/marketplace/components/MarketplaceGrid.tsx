@@ -7,7 +7,12 @@ import toast from 'react-hot-toast';
 import AppImage from '@/components/ui/AppImage';
 import Icon from '@/components/ui/AppIcon';
 import { trackFunnelStep } from '@/lib/analytics';
-import { CATALOG_PRODUCTS, productDetailHref, type CatalogProduct } from '@/lib/catalog';
+import {
+  CATALOG_PRODUCTS,
+  productDetailHref,
+  type CatalogProduct,
+  type CatalogVariant,
+} from '@/lib/catalog';
 import { createClient } from '@/lib/supabase/client';
 import { useWishlist } from '@/lib/hooks/useWishlist';
 
@@ -24,7 +29,10 @@ const sortOptions = [
 ];
 
 function splitParam(params: URLSearchParams, key: string) {
-  return (params.get(key) || '').split(',').map((value) => value.trim()).filter(Boolean);
+  return (params.get(key) || '')
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean);
 }
 
 function matchesGsm(value: number, selected: string[]) {
@@ -48,9 +56,42 @@ function matchesDispatch(value: number, selected: string[]) {
   });
 }
 
+function mapVariantSummary(value: unknown): CatalogVariant[] {
+  if (!Array.isArray(value)) return [];
+  return value.map((entry, index) => {
+    const row = entry && typeof entry === 'object' ? (entry as Record<string, unknown>) : {};
+    const image = row.image ? String(row.image) : null;
+    return {
+      id: String(row.id || `summary-${index}`),
+      key: String(row.id || `summary-${index}`),
+      code: '',
+      colorName: String(row.color || 'Assorted'),
+      colorHex: row.colorHex ? String(row.colorHex) : null,
+      designName: String(row.design || 'Standard'),
+      description: '',
+      price: Number(row.price || 0),
+      unit: String(row.unit || 'mtr'),
+      available: Number(row.available || 0),
+      moq: Number(row.moq || 1),
+      image,
+      images: image ? [image] : [],
+    };
+  });
+}
+
 function mapSellerProduct(row: Record<string, unknown>, sellerName: string): CatalogProduct {
-  const image = String(row.image_url || 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64');
+  const variants = mapVariantSummary(row.variant_summary);
+  const image = String(
+    row.image_url || variants.find((variant) => variant.image)?.image ||
+      'https://images.unsplash.com/photo-1558618666-fcd25c85cd64'
+  );
   const extraImages = Array.isArray(row.image_urls) ? row.image_urls.map(String) : [];
+  const variantImages = variants.flatMap((variant) => variant.images);
+  const prices = variants.map((variant) => variant.price).filter((price) => price > 0);
+  const colors = Array.isArray(row.variant_colors)
+    ? row.variant_colors.map(String)
+    : variants.map((variant) => variant.colorName);
+
   return {
     id: `seller-${String(row.id)}`,
     source: 'seller',
@@ -59,24 +100,32 @@ function mapSellerProduct(row: Record<string, unknown>, sellerName: string): Cat
     seller: sellerName,
     city: [row.origin_city, row.origin_state].filter(Boolean).join(', ') || 'India',
     category: String(row.category || 'Other'),
-    price: Number(row.price_per_unit || 0),
+    price: prices.length ? Math.min(...prices) : Number(row.price_per_unit || 0),
+    priceMax: prices.length ? Math.max(...prices) : Number(row.price_per_unit || 0),
     unit: String(row.unit || 'mtr'),
-    moq: Number(row.moq || 1),
+    moq: variants.length ? Math.min(...variants.map((variant) => variant.moq)) : Number(row.moq || 1),
     available: Number(row.available_quantity || 0),
     gsm: Number(row.gsm || 0),
     width: row.width_inches ? `${Number(row.width_inches)} inches` : 'Not specified',
     work: String(row.work_type || 'Plain'),
     rating: 0,
     reviews: 0,
-    badge: row.created_at && Date.now() - new Date(String(row.created_at)).getTime() < 30 * 86400000 ? 'new' : null,
+    badge:
+      row.created_at && Date.now() - new Date(String(row.created_at)).getTime() < 30 * 86400000
+        ? 'new'
+        : null,
     verified: true,
     image,
-    images: [image, ...extraImages.filter((value) => value !== image)],
+    images: [...new Set([image, ...variantImages, ...extraImages].filter(Boolean))],
     alt: `${String(row.name || 'Fabric')} supplied by ${sellerName}`,
     dispatchDays: Number(row.dispatch_days || 3),
     gst: true,
     description: String(row.description || ''),
     sku: row.sku ? String(row.sku) : null,
+    variantCount: Number(row.variant_count || variants.length),
+    colors,
+    variants,
+    searchTerms: String(row.search_terms || ''),
   };
 }
 
@@ -123,10 +172,14 @@ export default function MarketplaceGrid() {
           seller.display_name || seller.legal_business_name || 'Verified FabricTrad Seller',
         ])
       );
-      setLiveProducts(rows.map((row) => mapSellerProduct(row, names.get(row.seller_id) || 'Verified FabricTrad Seller')));
+      setLiveProducts(
+        rows.map((row) =>
+          mapSellerProduct(row, names.get(row.seller_id) || 'Verified FabricTrad Seller')
+        )
+      );
       setLoadingLive(false);
     }
-    loadProducts();
+    void loadProducts();
     return () => {
       mounted = false;
     };
@@ -149,7 +202,23 @@ export default function MarketplaceGrid() {
     const verified = params.get('verified') === '1';
 
     const products = [...liveProducts, ...CATALOG_PRODUCTS].filter((product) => {
-      const searchable = [product.name, product.seller, product.city, product.category, product.work, product.gsm, product.width, product.sku]
+      const variantSearch = product.variants
+        ?.flatMap((variant) => [variant.colorName, variant.designName, variant.description])
+        .join(' ');
+      const searchable = [
+        product.name,
+        product.seller,
+        product.city,
+        product.category,
+        product.work,
+        product.gsm,
+        product.width,
+        product.sku,
+        product.description,
+        product.searchTerms,
+        product.colors?.join(' '),
+        variantSearch,
+      ]
         .filter(Boolean)
         .join(' ')
         .toLowerCase();
@@ -160,7 +229,7 @@ export default function MarketplaceGrid() {
       if (product.price > maxPrice || product.moq > maxMoq) return false;
       if (!matchesGsm(product.gsm, gsm)) return false;
       if (widths.length && !widths.includes(product.width)) return false;
-      if (works.length && !works.some((work) => product.work.toLowerCase().includes(work.toLowerCase()))) return false;
+      if (works.length && !works.some((work) => searchable.includes(work.toLowerCase()))) return false;
       if (!matchesDispatch(product.dispatchDays, dispatch)) return false;
       return true;
     });
@@ -179,7 +248,9 @@ export default function MarketplaceGrid() {
       case 'newest':
         return products.sort((a, b) => Number(b.badge === 'new') - Number(a.badge === 'new'));
       default:
-        return products.sort((a, b) => Number(b.source === 'seller') - Number(a.source === 'seller') || b.rating - a.rating);
+        return products.sort(
+          (a, b) => Number(b.source === 'seller') - Number(a.source === 'seller') || b.rating - a.rating
+        );
     }
   }, [liveProducts, params, sort]);
 
@@ -208,15 +279,43 @@ export default function MarketplaceGrid() {
 
   const productCard = (product: CatalogProduct) => {
     const saved = has(product.id);
+    const visibleColors = product.variants?.slice(0, 6) || [];
     return (
-      <article key={product.id} className={`overflow-hidden rounded-2xl border border-border bg-card product-card ${view === 'list' ? 'flex min-h-48' : ''}`}>
+      <article
+        key={product.id}
+        className={`product-card overflow-hidden rounded-2xl border border-border bg-card ${
+          view === 'list' ? 'flex min-h-48' : ''
+        }`}
+      >
         <div className={`relative bg-muted ${view === 'list' ? 'w-48 shrink-0 sm:w-60' : 'aspect-square'}`}>
-          <Link href={productDetailHref(product)} onClick={() => trackFunnelStep('product_view', { product_id: product.id })}>
-            <AppImage src={product.image} alt={product.alt} fill sizes={view === 'list' ? '240px' : '(max-width: 640px) 100vw, 33vw'} className="object-cover transition-transform duration-300 hover:scale-105" />
+          <Link
+            href={productDetailHref(product)}
+            onClick={() => trackFunnelStep('product_view', { product_id: product.id })}
+          >
+            <AppImage
+              src={product.image}
+              alt={product.alt}
+              fill
+              sizes={view === 'list' ? '240px' : '(max-width: 640px) 100vw, 33vw'}
+              className="object-cover transition-transform duration-300 hover:scale-105"
+            />
           </Link>
           <div className="absolute left-2 top-2 flex flex-wrap gap-1">
-            {product.badge && <span className={product.badge === 'premium' ? 'tag-premium' : product.badge === 'new' ? 'tag-new' : 'tag-bestseller'}>{product.badge === 'premium' ? 'Premium' : product.badge === 'new' ? 'New' : 'Best Seller'}</span>}
-            {product.source === 'seller' && <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] font-800 text-white">Live Stock</span>}
+            {product.badge && (
+              <span className={product.badge === 'premium' ? 'tag-premium' : product.badge === 'new' ? 'tag-new' : 'tag-bestseller'}>
+                {product.badge === 'premium' ? 'Premium' : product.badge === 'new' ? 'New' : 'Best Seller'}
+              </span>
+            )}
+            {product.source === 'seller' && (
+              <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] font-800 text-white">
+                Live Stock
+              </span>
+            )}
+            {!!product.variantCount && (
+              <span className="rounded-full bg-black/70 px-2 py-0.5 text-[10px] font-800 text-white">
+                {product.variantCount} colours/designs
+              </span>
+            )}
           </div>
           <button
             type="button"
@@ -228,13 +327,20 @@ export default function MarketplaceGrid() {
                 toast.error(error instanceof Error ? error.message : 'Could not update wishlist');
               }
             }}
-            className={`absolute right-2 top-2 flex h-9 w-9 items-center justify-center rounded-full border bg-white/90 shadow-sm transition-colors ${saved ? 'border-error text-error' : 'border-white text-muted-foreground hover:text-error'}`}
+            className={`absolute right-2 top-2 flex h-9 w-9 items-center justify-center rounded-full border bg-white/90 shadow-sm ${
+              saved ? 'border-error text-error' : 'border-white text-muted-foreground hover:text-error'
+            }`}
             aria-label={`${saved ? 'Remove' : 'Add'} ${product.name} ${saved ? 'from' : 'to'} wishlist`}
           >
             <Icon name="HeartIcon" size={17} variant={saved ? 'solid' : 'outline'} />
           </button>
           <label className="absolute bottom-2 left-2 flex cursor-pointer items-center gap-1.5 rounded-lg bg-white/90 px-2 py-1 text-[11px] font-700 text-foreground shadow-sm">
-            <input type="checkbox" checked={selected.includes(product.id)} onChange={() => toggleCompare(product.id)} className="rounded border-border text-primary focus:ring-primary" />
+            <input
+              type="checkbox"
+              checked={selected.includes(product.id)}
+              onChange={() => toggleCompare(product.id)}
+              className="rounded border-border text-primary focus:ring-primary"
+            />
             Compare
           </label>
         </div>
@@ -242,27 +348,53 @@ export default function MarketplaceGrid() {
         <div className={`p-4 ${view === 'list' ? 'flex min-w-0 flex-1 flex-col justify-between' : ''}`}>
           <div>
             <div className="mb-1 flex items-center gap-1.5">
-              {product.verified && <Icon name="ShieldCheckIcon" size={13} className="text-success" title="GST-verified seller" />}
+              {product.verified && <Icon name="ShieldCheckIcon" size={13} className="text-success" />}
               <p className="truncate text-xs text-muted-foreground">{product.seller}</p>
             </div>
             <Link href={productDetailHref(product)} className="line-clamp-2 text-sm font-800 text-foreground hover:text-primary">
               {product.name}
             </Link>
-            <p className="mt-1 text-xs text-muted-foreground">{product.city} · {product.gsm || '—'} GSM · {product.width}</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {product.city} · {product.gsm || '—'} GSM · {product.width}
+            </p>
+            {!!visibleColors.length && (
+              <div className="mt-2 flex items-center gap-1.5">
+                {visibleColors.map((variant) => (
+                  <span
+                    key={variant.id}
+                    title={`${variant.colorName} · ${variant.designName}`}
+                    className="h-5 w-5 rounded-full border border-black/10 shadow-sm"
+                    style={{ backgroundColor: variant.colorHex || '#d1d5db' }}
+                  />
+                ))}
+                {(product.variantCount || 0) > visibleColors.length && (
+                  <span className="text-[10px] font-700 text-muted-foreground">
+                    +{(product.variantCount || 0) - visibleColors.length}
+                  </span>
+                )}
+              </div>
+            )}
             <div className="mt-2 flex items-center gap-1 text-xs">
               <Icon name="StarIcon" size={13} variant="solid" className="text-amber-400" />
               <span className="font-700 text-foreground">{product.reviews ? product.rating.toFixed(1) : 'New'}</span>
-              {product.reviews > 0 && <span className="text-muted-foreground">({product.reviews})</span>}
               <span className="ml-auto text-muted-foreground">Dispatch {product.dispatchDays}d</span>
             </div>
           </div>
           <div className="mt-4 flex items-end justify-between gap-3 border-t border-border pt-3">
             <div>
-              <p className="text-lg font-800 text-primary">₹{product.price.toLocaleString('en-IN')}<span className="text-xs font-500 text-muted-foreground">/{product.unit}</span></p>
-              <p className="text-xs text-muted-foreground">MOQ {product.moq} mtrs · {product.available.toLocaleString('en-IN')} available</p>
+              <p className="text-lg font-800 text-primary">
+                ₹{product.price.toLocaleString('en-IN')}
+                {product.priceMax && product.priceMax > product.price && (
+                  <span className="text-xs font-600">–₹{product.priceMax.toLocaleString('en-IN')}</span>
+                )}
+                <span className="text-xs font-500 text-muted-foreground">/{product.unit}</span>
+              </p>
+              <p className="text-xs text-muted-foreground">
+                MOQ {product.moq} {product.unit} · {product.available.toLocaleString('en-IN')} available
+              </p>
             </div>
             <Link href={productDetailHref(product)} className="btn-primary shrink-0 rounded-lg px-3 py-2 text-xs">
-              View & Request
+              View variants
             </Link>
           </div>
         </div>
@@ -275,19 +407,26 @@ export default function MarketplaceGrid() {
       <div className="mb-5 flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
         <div>
           <p className="text-sm text-muted-foreground">
-            {loadingLive ? 'Checking live seller inventory…' : <><span className="font-700 text-foreground">{filteredProducts.length}</span> matching product{filteredProducts.length === 1 ? '' : 's'}</>}
+            {loadingLive ? (
+              'Checking live seller inventory…'
+            ) : (
+              <><span className="font-700 text-foreground">{filteredProducts.length}</span> matching product{filteredProducts.length === 1 ? '' : 's'}</>
+            )}
           </p>
-          {selected.length > 0 && (
-            <p className="mt-1 text-xs font-700 text-primary">{selected.length} selected for comparison</p>
-          )}
+          {selected.length > 0 && <p className="mt-1 text-xs font-700 text-primary">{selected.length} selected for comparison</p>}
         </div>
         <div className="flex items-center gap-2">
-          <select value={sort} onChange={(event) => updateParam('sort', event.target.value === 'relevance' ? undefined : event.target.value)} className="input-base rounded-xl px-3 py-2 pr-8 text-sm" aria-label="Sort products">
+          <select
+            value={sort}
+            onChange={(event) => updateParam('sort', event.target.value === 'relevance' ? undefined : event.target.value)}
+            className="input-base rounded-xl px-3 py-2 pr-8 text-sm"
+            aria-label="Sort products"
+          >
             {sortOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
           </select>
           <div className="flex overflow-hidden rounded-xl border border-border">
-            <button type="button" onClick={() => setView('grid')} className={`p-2 ${view === 'grid' ? 'bg-primary text-white' : 'bg-card text-muted-foreground hover:text-foreground'}`} aria-label="Grid view" aria-pressed={view === 'grid'}><Icon name="Squares2X2Icon" size={16} /></button>
-            <button type="button" onClick={() => setView('list')} className={`p-2 ${view === 'list' ? 'bg-primary text-white' : 'bg-card text-muted-foreground hover:text-foreground'}`} aria-label="List view" aria-pressed={view === 'list'}><Icon name="ListBulletIcon" size={16} /></button>
+            <button type="button" onClick={() => setView('grid')} className={`p-2 ${view === 'grid' ? 'bg-primary text-white' : 'bg-card text-muted-foreground'}`} aria-label="Grid view"><Icon name="Squares2X2Icon" size={16} /></button>
+            <button type="button" onClick={() => setView('list')} className={`p-2 ${view === 'list' ? 'bg-primary text-white' : 'bg-card text-muted-foreground'}`} aria-label="List view"><Icon name="ListBulletIcon" size={16} /></button>
           </div>
         </div>
       </div>
@@ -295,9 +434,9 @@ export default function MarketplaceGrid() {
       {filteredProducts.length === 0 ? (
         <div className="rounded-2xl border border-border bg-card px-5 py-16 text-center">
           <Icon name="MagnifyingGlassIcon" size={36} className="mx-auto mb-3 text-muted-foreground" />
-          <p className="text-sm font-800 text-foreground">No fabrics match these filters</p>
-          <p className="mt-1 text-xs text-muted-foreground">Try increasing the price or MOQ range, or clear a filter.</p>
-          <button type="button" onClick={() => router.replace('/marketplace')} className="btn-primary mt-4 rounded-xl px-4 py-2 text-xs">Clear Filters</button>
+          <p className="text-sm font-800 text-foreground">No fabrics or colour variants match</p>
+          <p className="mt-1 text-xs text-muted-foreground">Search by fabric, colour, design, work, seller or SKU.</p>
+          <button type="button" onClick={() => router.replace('/marketplace')} className="btn-primary mt-4 rounded-xl px-4 py-2 text-xs">Clear filters</button>
         </div>
       ) : (
         <div className={view === 'grid' ? 'grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3' : 'space-y-4'}>
@@ -307,11 +446,11 @@ export default function MarketplaceGrid() {
 
       {pageCount > 1 && (
         <nav className="mt-8 flex items-center justify-center gap-2" aria-label="Marketplace pages">
-          <button type="button" onClick={() => updateParam('page', String(Math.max(1, safePage - 1)))} disabled={safePage === 1} className="flex h-9 items-center gap-1 rounded-lg border border-border bg-card px-3 text-xs font-700 text-muted-foreground disabled:cursor-not-allowed disabled:opacity-40" aria-label="Previous page"><Icon name="ChevronLeftIcon" size={14} /> Prev</button>
+          <button type="button" onClick={() => updateParam('page', String(Math.max(1, safePage - 1)))} disabled={safePage === 1} className="rounded-lg border border-border bg-card px-3 py-2 text-xs disabled:opacity-40">Prev</button>
           {Array.from({ length: pageCount }, (_, index) => index + 1).map((pageNumber) => (
-            <button key={pageNumber} type="button" onClick={() => updateParam('page', pageNumber === 1 ? undefined : String(pageNumber))} className={`h-9 w-9 rounded-lg text-sm font-600 ${pageNumber === safePage ? 'bg-primary text-white' : 'border border-border bg-card text-muted-foreground hover:border-primary hover:text-primary'}`} aria-current={pageNumber === safePage ? 'page' : undefined}>{pageNumber}</button>
+            <button key={pageNumber} type="button" onClick={() => updateParam('page', pageNumber === 1 ? undefined : String(pageNumber))} className={`h-9 w-9 rounded-lg text-sm ${pageNumber === safePage ? 'bg-primary text-white' : 'border border-border bg-card'}`}>{pageNumber}</button>
           ))}
-          <button type="button" onClick={() => updateParam('page', String(Math.min(pageCount, safePage + 1)))} disabled={safePage === pageCount} className="flex h-9 items-center gap-1 rounded-lg border border-border bg-card px-3 text-xs font-700 text-muted-foreground disabled:cursor-not-allowed disabled:opacity-40" aria-label="Next page">Next <Icon name="ChevronRightIcon" size={14} /></button>
+          <button type="button" onClick={() => updateParam('page', String(Math.min(pageCount, safePage + 1)))} disabled={safePage === pageCount} className="rounded-lg border border-border bg-card px-3 py-2 text-xs disabled:opacity-40">Next</button>
         </nav>
       )}
     </div>
