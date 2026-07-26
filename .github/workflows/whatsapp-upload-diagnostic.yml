@@ -1,6 +1,7 @@
 name: Inspect WhatsApp catalogue upload
 
 on:
+  pull_request:
   push:
     branches:
       - 'agent/diagnose-whatsapp-upload'
