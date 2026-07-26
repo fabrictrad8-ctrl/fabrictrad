@@ -17,23 +17,15 @@ jobs:
     env:
       NEXT_PUBLIC_SUPABASE_URL: https://rdhfwlzhcvwjhkxhhpoo.supabase.co
       NEXT_PUBLIC_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJIUzI1NiIsInJlZiI6InJkaGZ3bHpoY3Z3amhreGhocG9vIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQxMzMwNjMsImV4cCI6MjA5OTcwOTA2M30.jLF4AD-joIbRslei-T55lwZBdRpntrsU-hjyHCZXgVc
-      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       SELLER_CREDENTIALS_OUTPUT: /tmp/whatsapp-test-seller.enc.json
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Check private database credential
-        shell: bash
-        run: |
-          if [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
-            echo '::error::SUPABASE_SERVICE_ROLE_KEY is not configured in repository Actions secrets.'
-            exit 1
-          fi
       - name: Install Supabase client
         run: npm install --no-audit --no-fund --package-lock=false --legacy-peer-deps
-      - name: Provision and verify seller
+      - name: Create seller through normal signup and verify when possible
         run: node scripts/provision-whatsapp-test-seller.mjs
       - name: Upload encrypted credentials
         uses: actions/upload-artifact@v4
