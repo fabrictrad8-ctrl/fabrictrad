@@ -72,6 +72,7 @@ jobs:
           product_specs='src/app/product-detail/components/ProductSpecs.tsx'
           base_migration='supabase/migrations/20260726100000_whatsapp_catalog_ingestion.sql'
           variant_migration='supabase/migrations/20260726133000_product_variants_catalog.sql'
+          pairing_migration='supabase/migrations/20260726134000_whatsapp_variant_pairing_context.sql'
           deploy='.github/workflows/deploy-cloudflare.yml'
 
           grep -q 'Forgot password?' "$login"
@@ -103,16 +104,21 @@ jobs:
           grep -Fq 'The catalogue is now visible in your seller dashboard and searchable by buyers.' "$whatsapp_api"
           grep -Fq "variant: 'variant'" "$parser"
           grep -Fq "color: 'variant'" "$parser"
-          grep -Fq 'variants: ParsedWhatsAppVariant\[\]' "$parser"
+          grep -Fq 'variants: ParsedWhatsAppVariant[]' "$parser"
           grep -Fq 'variantKey' "$parser"
           grep -Fq 'whatsapp_catalog_messages' "$base_migration"
           grep -Fq 'resolve_whatsapp_seller' "$base_migration"
           grep -Fq 'seller-product-images' "$base_migration"
           grep -Fq 'WHATSAPP_ACCESS_TOKEN' "$whatsapp_status"
+          grep -Fq 'seller_product_variants' "$whatsapp_status"
+          grep -Fq 'supportsVariants: true' "$whatsapp_status"
 
           grep -Fq 'seller_product_variants' "$variant_migration"
           grep -Fq 'sync_product_variant_rollup' "$variant_migration"
           grep -Fq 'variant_summary' "$variant_migration"
+          grep -Fq 'seller_product_variants.product_id' "$variant_migration"
+          grep -Fq 'reopen_recent_whatsapp_catalog_context' "$pairing_migration"
+          grep -Fq "status = 'processed'" "$pairing_migration"
           grep -Fq 'Colour & design variations' "$variant_ui"
           grep -Fq "key: 'variants'" "$seller_layout"
           grep -Fq 'variant_summary' "$marketplace"
@@ -169,6 +175,7 @@ jobs:
           whatsapp_status_code=$(curl --silent --output /tmp/whatsapp.json --write-out '%{http_code}' http://127.0.0.1:3000/api/whatsapp/catalog/status)
           test "$whatsapp_status_code" = '200'
           grep -q '"credentialsConfigured":true' /tmp/whatsapp.json
+          grep -q '"supportsVariants":true' /tmp/whatsapp.json
 
           verify_status=$(curl --silent --output /tmp/verify.txt --write-out '%{http_code}' 'http://127.0.0.1:3000/api/whatsapp/webhook?hub.mode=subscribe&hub.verify_token=test-whatsapp-verify-token&hub.challenge=fabrictrad-ok')
           test "$verify_status" = '200'
@@ -190,7 +197,7 @@ jobs:
           seller=$(curl --silent --output /tmp/seller.json --write-out '%{http_code}' --cookie-jar /tmp/seller.cookies --header 'Content-Type: application/json' --data '{"email":"demo.seller@fabrictrad.com","password":"FabricDemo@2026"}' http://127.0.0.1:3000/api/auth/demo-session)
           test "$seller" = '200'
           grep -q '"role":"seller"' /tmp/seller.json
-          dashboard=$(curl --silent --output /tmp/dashboard.html --write-out '%{http_code}' --cookie /tmp/seller.cookies --max-redirs 0 http://127.0.0.1:3000/seller-dashboard?tab=variants)
+          dashboard=$(curl --silent --output /tmp/dashboard.html --write-out '%{http_code}' --cookie /tmp/seller.cookies --max-redirs 0 'http://127.0.0.1:3000/seller-dashboard?tab=variants')
           test "$dashboard" = '200'
 
       - name: OpenNext Cloudflare compatibility build
