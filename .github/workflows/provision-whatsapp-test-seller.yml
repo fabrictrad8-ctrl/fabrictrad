@@ -1,6 +1,7 @@
 name: Provision WhatsApp test seller
 
 on:
+  pull_request:
   push:
     branches:
       - agent/run-secure-seller-provisioning
