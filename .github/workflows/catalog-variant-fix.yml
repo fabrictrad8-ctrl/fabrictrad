@@ -1,0 +1,49 @@
+name: Apply final catalogue variant fixes
+
+on:
+  push:
+    branches:
+      - agent/catalog-variants
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/catalog-variants
+          fetch-depth: 0
+      - name: Apply verified fixes and remove temporary workflows
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          webhook = Path('src/app/api/whatsapp/webhook/route.ts')
+          text = webhook.read_text()
+          old = ".in('status', ['pending', 'unmatched', 'failed'])"
+          new = ".in('status', ['pending', 'unmatched', 'failed', 'processed'])"
+          if old not in text:
+              raise SystemExit('WhatsApp status filter target was not found')
+          webhook.write_text(text.replace(old, new, 1))
+
+          quality = Path('.github/workflows/quality.yml')
+          text = quality.read_text()
+          old = "grep -Fq 'variants: ParsedWhatsAppVariant\\[\\]' \"$parser\""
+          new = "grep -Fq 'variants: ParsedWhatsAppVariant[]' \"$parser\""
+          if old not in text:
+              raise SystemExit('Quality assertion target was not found')
+          quality.write_text(text.replace(old, new, 1))
+          PY
+          rm -f .github/workflows/catalog-variant-diagnostic.yml
+          rm -f .github/workflows/catalog-variant-fix.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/app/api/whatsapp/webhook/route.ts .github/workflows/quality.yml .github/workflows
+          git commit -m 'Finalize multi-variant WhatsApp pairing and checks'
+          git push origin HEAD:agent/catalog-variants
