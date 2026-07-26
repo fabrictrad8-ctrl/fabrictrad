@@ -1,0 +1,26 @@
+name: Verify live WhatsApp catalogue
+
+on:
+  push:
+    branches:
+      - agent/verify-live-whatsapp
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check production domains
+        shell: bash
+        run: |
+          set -euo pipefail
+          for base in https://fabrictrad.com https://www.fabrictrad.com; do
+            status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+              --output /tmp/status.json --write-out '%{http_code}' \
+              "$base/api/whatsapp/catalog/status")
+            echo "$base HTTP=$status BODY=$(cat /tmp/status.json)"
+            test "$status" = '200'
+          done
