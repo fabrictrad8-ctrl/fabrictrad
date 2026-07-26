@@ -1,0 +1,31 @@
+name: Inspect WhatsApp catalogue upload
+
+on:
+  push:
+    branches:
+      - 'agent/diagnose-whatsapp-upload'
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Find and print WhatsApp upload files
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo '=== MATCHING FILES ==='
+          grep -RIlE 'WhatsApp|whatsapp|Upload Catalog|AI Parser|catalog upload|FabricTradUploadBot' src supabase scripts 2>/dev/null | sort | tee /tmp/files.txt || true
+          echo '=== API ROUTES ==='
+          find src/app/api -type f -maxdepth 8 | sort || true
+          echo '=== RELEVANT CONTENT ==='
+          while IFS= read -r file; do
+            echo "----- $file -----"
+            sed -n '1,800p' "$file"
+          done < /tmp/files.txt
+          echo '=== DATABASE REFERENCES ==='
+          grep -RInE 'products|product_images|catalog|whatsapp|webhook|seller_profiles|approval_status' supabase src/app/api src/lib 2>/dev/null | head -n 1000 || true
