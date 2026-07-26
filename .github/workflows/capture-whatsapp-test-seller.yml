@@ -1,6 +1,7 @@
 name: Capture encrypted WhatsApp test seller credentials
 
 on:
+  pull_request:
   push:
     branches:
       - main
