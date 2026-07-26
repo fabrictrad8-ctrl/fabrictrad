@@ -13,14 +13,14 @@ permissions:
 jobs:
   capture:
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 4
     steps:
-      - name: Wait for provisioning route and capture encrypted receipt
+      - name: Capture encrypted credential receipt
         shell: bash
         run: |
           set -euo pipefail
           ready=false
-          for attempt in $(seq 1 48); do
+          for attempt in $(seq 1 4); do
             status=$(curl --silent --show-error --connect-timeout 10 --max-time 45 \
               --output /tmp/whatsapp-test-seller-receipt.json \
               --write-out '%{http_code}' \
@@ -33,8 +33,8 @@ jobs:
               break
             fi
 
-            echo "Attempt $attempt: provisioning route is not ready yet (HTTP $status)."
-            sleep 15
+            echo "Attempt $attempt: provisioning route returned HTTP $status."
+            sleep 10
           done
 
           if [ "$ready" != 'true' ]; then
