@@ -10,6 +10,7 @@ const required = (name) => {
 
 const supabaseUrl = required('NEXT_PUBLIC_SUPABASE_URL');
 const anonKey = required('NEXT_PUBLIC_SUPABASE_ANON_KEY');
+const serviceRoleKey = required('SUPABASE_SERVICE_ROLE_KEY');
 const credentialsOutput = required('SELLER_CREDENTIALS_OUTPUT');
 
 const email = 'fabrictrad8+seller9038746562@gmail.com';
@@ -28,129 +29,169 @@ IAm9WUD39e4ue2c7+aIShlybM94sRpM+xyGruxePFzkq6E57YVat05x7XFzB2/KH
 ywIDAQAB
 -----END PUBLIC KEY-----`;
 
-const client = createClient(supabaseUrl, anonKey, {
+const normalizePhone = (value) => String(value || '').replace(/\D/g, '').slice(-10);
+const admin = createClient(supabaseUrl, serviceRoleKey, {
   auth: { autoRefreshToken: false, persistSession: false },
 });
 
-const { data: signupData, error: signupError } = await client.auth.signUp({
-  email,
-  password,
-  options: {
-    data: {
-      full_name: fullName,
-      role: 'seller',
-      business_name: businessName,
-      phone,
-    },
-    emailRedirectTo: 'https://fabrictrad.com/auth/callback?next=/seller-dashboard',
-  },
-});
-
-if (signupError) throw signupError;
-if (!signupData.user) throw new Error('Supabase did not return the seller user.');
-
-let profileReady = false;
-let sellerProfileReady = false;
-let registrationReady = false;
-let loginVerified = false;
-let sellerId = null;
-const confirmationRequired = !signupData.session;
-
-if (signupData.session) {
-  const userId = signupData.user.id;
-  const { error: profileError } = await client.from('user_profiles').upsert(
-    {
-      id: userId,
-      email,
-      full_name: fullName,
-      phone,
-      phone_verified: true,
-      role: 'seller',
-      is_active: true,
-      updated_at: now,
-    },
-    { onConflict: 'id' }
-  );
-  if (profileError) throw profileError;
-  profileReady = true;
-
-  const { data: existingSeller, error: sellerLookupError } = await client
-    .from('seller_profiles')
-    .select('id')
-    .eq('user_id', userId)
-    .maybeSingle();
-  if (sellerLookupError) throw sellerLookupError;
-
-  const sellerValues = {
-    user_id: userId,
-    seller_ref: `SEL-${phone}`,
-    legal_business_name: businessName,
-    display_name: businessName,
-    business_type: 'Textile wholesaler',
-    verification_status: 'verified',
-    pickup_address: {
-      address_line1: 'FabricTrad WhatsApp catalogue test account',
-      city: 'Surat',
-      state: 'Gujarat',
-      pincode: '395003',
-      country: 'India',
-    },
-    is_active: true,
-    updated_at: now,
-  };
-
-  if (existingSeller?.id) {
-    const { data, error } = await client
-      .from('seller_profiles')
-      .update(sellerValues)
-      .eq('id', existingSeller.id)
-      .select('id')
-      .single();
+const findUserByEmail = async () => {
+  for (let page = 1; page <= 10; page += 1) {
+    const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 1000 });
     if (error) throw error;
-    sellerId = data.id;
-  } else {
-    const { data, error } = await client
-      .from('seller_profiles')
-      .insert(sellerValues)
-      .select('id')
-      .single();
-    if (error) throw error;
-    sellerId = data.id;
+    const match = data.users.find((user) => user.email?.toLowerCase() === email);
+    if (match) return match;
+    if (data.users.length < 1000) break;
   }
-  sellerProfileReady = true;
+  return null;
+};
 
-  const { error: registrationError } = await client.from('seller_registrations').upsert(
-    {
-      seller_id: sellerId,
-      phone,
-      owner_name: fullName,
-      email,
-      business_name: businessName,
-      business_type: 'Textile wholesaler',
-      city: 'Surat',
-      state: 'Gujarat',
-      pincode: '395003',
-      address: 'FabricTrad WhatsApp catalogue test account',
-      categories: ['Fabrics', 'Textiles'],
-      registration_status: 'approved',
-      submitted_at: now,
-      approved_at: now,
-      updated_at: now,
+const existingByEmail = await findUserByEmail();
+const { data: phoneProfiles, error: phoneLookupError } = await admin
+  .from('user_profiles')
+  .select('id,phone')
+  .not('phone', 'is', null)
+  .limit(2000);
+if (phoneLookupError) throw phoneLookupError;
+
+const phoneOwner = (phoneProfiles || []).find((profile) => normalizePhone(profile.phone) === phone);
+if (phoneOwner && phoneOwner.id !== existingByEmail?.id) {
+  throw new Error('The requested phone is already linked to another FabricTrad account.');
+}
+
+let authUser;
+if (existingByEmail) {
+  const { data, error } = await admin.auth.admin.updateUserById(existingByEmail.id, {
+    password,
+    email_confirm: true,
+    app_metadata: {
+      ...(existingByEmail.app_metadata || {}),
+      role: 'seller',
+      test_account: true,
     },
-    { onConflict: 'seller_id' }
-  );
-  registrationReady = !registrationError;
-
-  await client.auth.signOut();
-  const { data: loginData, error: loginError } = await client.auth.signInWithPassword({
+    user_metadata: {
+      ...(existingByEmail.user_metadata || {}),
+      full_name: fullName,
+      role: 'seller',
+      business_name: businessName,
+    },
+  });
+  if (error) throw error;
+  authUser = data.user;
+} else {
+  const { data, error } = await admin.auth.admin.createUser({
     email,
     password,
+    email_confirm: true,
+    app_metadata: { role: 'seller', test_account: true },
+    user_metadata: { full_name: fullName, role: 'seller', business_name: businessName },
   });
-  if (loginError || !loginData.user) {
-    throw new Error(`Seller login verification failed: ${loginError?.message || 'No user returned.'}`);
-  }
-  loginVerified = true;
-  await client.auth.signOut();
+  if (error) throw error;
+  authUser = data.user;
+}
+if (!authUser) throw new Error('Supabase did not return the seller user.');
+
+const { error: profileError } = await admin.from('user_profiles').upsert(
+  {
+    id: authUser.id,
+    email,
+    full_name: fullName,
+    phone,
+    phone_verified: true,
+    role: 'seller',
+    is_active: true,
+    updated_at: now,
+  },
+  { onConflict: 'id' }
+);
+if (profileError) throw profileError;
+
+const { data: existingSeller, error: sellerLookupError } = await admin
+  .from('seller_profiles')
+  .select('id')
+  .eq('user_id', authUser.id)
+  .maybeSingle();
+if (sellerLookupError) throw sellerLookupError;
+
+const sellerValues = {
+  user_id: authUser.id,
+  seller_ref: `SEL-${phone}`,
+  legal_business_name: businessName,
+  display_name: businessName,
+  business_type: 'Textile wholesaler',
+  verification_status: 'verified',
+  pickup_address: {
+    address_line1: 'FabricTrad WhatsApp catalogue test account',
+    city: 'Surat',
+    state: 'Gujarat',
+    pincode: '395003',
+    country: 'India',
+  },
+  is_active: true,
+  updated_at: now,
+};
+
+let sellerId;
+if (existingSeller?.id) {
+  const { data, error } = await admin
+    .from('seller_profiles')
+    .update(sellerValues)
+    .eq('id', existingSeller.id)
+    .select('id')
+    .single();
+  if (error) throw error;
+  sellerId = data.id;
+} else {
+  const { data, error } = await admin
+    .from('seller_profiles')
+    .insert(sellerValues)
+    .select('id')
+    .single();
+  if (error) throw error;
+  sellerId = data.id;
+}
+
+let registrationReady = false;
+const { error: registrationError } = await admin.from('seller_registrations').upsert(
+  {
+    seller_id: sellerId,
+    phone,
+    owner_name: fullName,
+    email,
+    business_name: businessName,
+    business_type: 'Textile wholesaler',
+    city: 'Surat',
+    state: 'Gujarat',
+    pincode: '395003',
+    address: 'FabricTrad WhatsApp catalogue test account',
+    categories: ['Fabrics', 'Textiles'],
+    registration_status: 'approved',
+    submitted_at: now,
+    approved_at: now,
+    updated_at: now,
+  },
+  { onConflict: 'seller_id' }
+);
+registrationReady = !registrationError;
+
+const loginClient = createClient(supabaseUrl, anonKey, {
+  auth: { autoRefreshToken: false, persistSession: false },
+});
+const { data: loginData, error: loginError } = await loginClient.auth.signInWithPassword({
+  email,
+  password,
+});
+if (loginError || !loginData.user) {
+  throw new Error(`Seller login verification failed: ${loginError?.message || 'No user returned.'}`);
+}
+await loginClient.auth.signOut();
+
+let whatsappAccountMatchVerified = false;
+const { data: resolvedSeller, error: resolveError } = await admin.rpc('resolve_whatsapp_seller', {
+  p_phone: phone,
+});
+if (!resolveError) {
+  const resolved = Array.isArray(resolvedSeller) ? resolvedSeller[0] : resolvedSeller;
+  whatsappAccountMatchVerified = resolved?.seller_id === sellerId;
 }
 
 const credentials = JSON.stringify({
@@ -159,13 +200,10 @@ const credentials = JSON.stringify({
   phone,
   role: 'seller',
   businessName,
-  userId: signupData.user.id,
   sellerId,
-  confirmationRequired,
-  profileReady,
-  sellerProfileReady,
+  loginVerified: true,
   registrationReady,
-  loginVerified,
+  whatsappAccountMatchVerified,
   provisionedAt: now,
 });
 
@@ -199,6 +237,5 @@ await writeFile(
   { mode: 0o600 }
 );
 
-console.info('Seller signup completed and credentials encrypted successfully.');
-console.info(`Email confirmation required: ${confirmationRequired ? 'yes' : 'no'}.`);
-console.info(`Seller profile ready: ${sellerProfileReady ? 'yes' : 'pending confirmation'}.`);
+console.info('Verified seller account provisioned and credentials encrypted successfully.');
+console.info(`WhatsApp account resolver verified: ${whatsappAccountMatchVerified ? 'yes' : 'not available'}.`);
