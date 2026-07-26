@@ -6,6 +6,10 @@ import Icon from '@/components/ui/AppIcon';
 import { useAuth } from '@/contexts/AuthContext';
 import { createClient } from '@/lib/supabase/client';
 import { parseWhatsAppCatalog } from '@/lib/whatsappCatalog';
+import {
+  OFFICIAL_WHATSAPP_DISPLAY_NUMBER,
+  OFFICIAL_WHATSAPP_WA_NUMBER,
+} from '@/lib/whatsappConfig';
 
 type ConnectionStatus = {
   configured: boolean;
@@ -68,7 +72,7 @@ Rate = 245 per mtr
 Design = all-over mirror`;
 
 export default function SellerWhatsAppUpload() {
-  const { user, isDemoAccount } = useAuth();
+  const { user, profile, isDemoAccount } = useAuth();
   const [connection, setConnection] = useState<ConnectionStatus | null>(null);
   const [products, setProducts] = useState<WhatsAppProduct[]>([]);
   const [loadingProducts, setLoadingProducts] = useState(true);
@@ -77,6 +81,12 @@ export default function SellerWhatsAppUpload() {
   const [sampleText, setSampleText] = useState(template);
 
   const parsedPreview = useMemo(() => parseWhatsAppCatalog(sampleText), [sampleText]);
+  const accountPhone = useMemo(() => {
+    if (isDemoAccount || !profile?.phone_verified || !profile.phone) return null;
+    const digits = profile.phone.replace(/\D/g, '').slice(-10);
+    if (digits.length !== 10) return profile.phone;
+    return `+91 ${digits.slice(0, 5)} ${digits.slice(5)}`;
+  }, [isDemoAccount, profile?.phone, profile?.phone_verified]);
 
   useEffect(() => {
     let cancelled = false;
@@ -86,8 +96,8 @@ export default function SellerWhatsAppUpload() {
         if (!cancelled) {
           setConnection({
             configured: response.ok && payload.configured === true,
-            displayNumber: payload.displayNumber || null,
-            waNumber: payload.waNumber || null,
+            displayNumber: payload.displayNumber || OFFICIAL_WHATSAPP_DISPLAY_NUMBER,
+            waNumber: payload.waNumber || OFFICIAL_WHATSAPP_WA_NUMBER,
             pairingWindowMinutes: payload.pairingWindowMinutes || 15,
             webhookPath: payload.webhookPath || '/api/whatsapp/webhook',
           });
@@ -95,7 +105,13 @@ export default function SellerWhatsAppUpload() {
       })
       .catch(() => {
         if (!cancelled) {
-          setConnection({ configured: false, displayNumber: null, waNumber: null, pairingWindowMinutes: 15, webhookPath: '/api/whatsapp/webhook' });
+          setConnection({
+            configured: false,
+            displayNumber: OFFICIAL_WHATSAPP_DISPLAY_NUMBER,
+            waNumber: OFFICIAL_WHATSAPP_WA_NUMBER,
+            pairingWindowMinutes: 15,
+            webhookPath: '/api/whatsapp/webhook',
+          });
         }
       });
     return () => {
@@ -144,7 +160,7 @@ export default function SellerWhatsAppUpload() {
   }, [loadProducts]);
 
   const openWhatsApp = () => {
-    if (!connection?.configured || !connection.waNumber) return;
+    if (!connection?.waNumber) return;
     window.open(`https://wa.me/${connection.waNumber}?text=${encodeURIComponent(sampleText.trim() || template)}`, '_blank', 'noopener');
   };
 
@@ -165,39 +181,59 @@ export default function SellerWhatsAppUpload() {
         </p>
       </div>
 
-      <div className={`mb-6 rounded-2xl border p-5 ${connection?.configured ? 'border-success/25 bg-success/5' : 'border-error/25 bg-error/5'}`}>
+      <div className="mb-6 rounded-2xl border border-success/25 bg-success/5 p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-start gap-3">
-            <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${connection?.configured ? 'bg-success text-white' : 'bg-muted text-muted-foreground'}`}>
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-success text-white">
               <Icon name={connection === null ? 'ArrowPathIcon' : 'ChatBubbleLeftRightIcon'} size={21} className={connection === null ? 'animate-spin' : ''} />
             </div>
             <div>
-              <p className="text-sm font-800 text-foreground">
-                {connection === null
-                  ? 'Checking WhatsApp connection…'
-                  : connection.configured
-                    ? `FabricTrad Upload Bot · ${connection.displayNumber}`
-                    : 'WhatsApp Business upload is not connected'}
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-sm font-800 text-foreground">Official FabricTrad catalogue WhatsApp</p>
+                <span className={`rounded-full px-2.5 py-1 text-[10px] font-800 ${connection?.configured ? 'bg-success/15 text-success' : 'bg-warning/15 text-warning'}`}>
+                  {connection === null ? 'Checking automation…' : connection.configured ? 'Automatic sync active' : 'Official number · automation setup pending'}
+                </span>
+              </div>
+              <p className="mt-1 text-lg font-800 text-success">
+                {connection?.displayNumber || OFFICIAL_WHATSAPP_DISPLAY_NUMBER}
               </p>
               <p className="mt-1 max-w-2xl text-xs leading-5 text-muted-foreground">
-                {connection?.configured
-                  ? `Send the parent details and up to any number of colour blocks. Photos and text sent by the same verified seller number within ${connection.pairingWindowMinutes} minutes are paired automatically.`
-                  : 'A real Meta WhatsApp Business number and webhook credentials must be connected before external messages can be received.'}
+                Send the parent fabric details, colour/design blocks and photos to this number from the
+                same WhatsApp number verified on your FabricTrad seller account.
               </p>
+              {connection !== null && !connection.configured && (
+                <p className="mt-1 text-xs leading-5 text-warning">
+                  The official chat link is available. Automatic website publishing will activate as soon
+                  as the Meta webhook credentials and database connection are completed.
+                </p>
+              )}
             </div>
           </div>
-          <button type="button" onClick={openWhatsApp} disabled={!connection?.configured || !connection.waNumber} className="btn-primary inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm disabled:cursor-not-allowed disabled:opacity-50">
-            <Icon name="PaperAirplaneIcon" size={16} /> Open connected WhatsApp
+          <button type="button" onClick={openWhatsApp} disabled={!connection?.waNumber} className="btn-primary inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm disabled:cursor-not-allowed disabled:opacity-50">
+            <Icon name="PaperAirplaneIcon" size={16} /> Open WhatsApp
           </button>
         </div>
       </div>
 
-      {isDemoAccount && (
-        <div className="mb-6 rounded-2xl border border-warning/30 bg-warning/5 p-4 text-xs leading-5 text-muted-foreground">
-          The shared demo seller cannot bind a private WhatsApp number. Use a real seller account with
-          the same verified phone number that sends the catalogue messages.
+      <div className="mb-6 rounded-2xl border border-primary/20 bg-primary/5 p-4">
+        <div className="flex items-start gap-3">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+            <Icon name="ShieldCheckIcon" size={18} />
+          </div>
+          <div>
+            <p className="text-sm font-800 text-foreground">Catalogue ownership is automatic</p>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">
+              When anyone sends catalogue information to {connection?.displayNumber || OFFICIAL_WHATSAPP_DISPLAY_NUMBER},
+              FabricTrad matches the sender&apos;s WhatsApp number with the verified phone number on a seller
+              account. The complete parent fabric and all its colour/design variations are added only to
+              that matched seller&apos;s dashboard and customer catalogue.
+            </p>
+            <p className="mt-2 text-xs font-800 text-primary">
+              Your account match: {accountPhone || 'verify your own seller phone number before sending'}
+            </p>
+          </div>
         </div>
-      )}
+      </div>
 
       <div className="mb-6 grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
         <section className="rounded-2xl border border-border bg-card p-5">
@@ -209,7 +245,7 @@ export default function SellerWhatsAppUpload() {
             MOQ and details beneath it. Decimal metre values are supported.
           </p>
           <textarea value={sampleText} onChange={(event) => setSampleText(event.target.value)} rows={18} className="input-base mt-4 w-full resize-y rounded-xl px-4 py-3 font-mono text-sm" />
-          <button type="button" onClick={openWhatsApp} disabled={!connection?.configured || !parsedPreview} className="mt-3 inline-flex items-center gap-2 rounded-xl border border-success/30 bg-success/10 px-4 py-2.5 text-sm font-800 text-success disabled:opacity-50">
+          <button type="button" onClick={openWhatsApp} disabled={!connection?.waNumber || !parsedPreview} className="mt-3 inline-flex items-center gap-2 rounded-xl border border-success/30 bg-success/10 px-4 py-2.5 text-sm font-800 text-success disabled:opacity-50">
             <Icon name="ChatBubbleLeftRightIcon" size={16} /> Send this catalogue text
           </button>
         </section>
