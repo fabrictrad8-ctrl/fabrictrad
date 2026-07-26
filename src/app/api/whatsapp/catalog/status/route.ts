@@ -1,16 +1,21 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import {
+  OFFICIAL_WHATSAPP_DISPLAY_NUMBER,
+  OFFICIAL_WHATSAPP_WA_NUMBER,
+} from '@/lib/whatsappConfig';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
-  const displayNumber = process.env.WHATSAPP_DISPLAY_NUMBER?.trim() || null;
+  const displayNumber =
+    process.env.WHATSAPP_DISPLAY_NUMBER?.trim() || OFFICIAL_WHATSAPP_DISPLAY_NUMBER;
+  const waNumber = displayNumber.replace(/\D/g, '') || OFFICIAL_WHATSAPP_WA_NUMBER;
   const credentialsConfigured = Boolean(
     process.env.WHATSAPP_ACCESS_TOKEN &&
       process.env.WHATSAPP_APP_SECRET &&
       process.env.WHATSAPP_VERIFY_TOKEN &&
       process.env.WHATSAPP_PHONE_NUMBER_ID &&
-      displayNumber &&
       process.env.SUPABASE_SERVICE_ROLE_KEY
   );
 
@@ -36,8 +41,9 @@ export async function GET() {
       credentialsConfigured,
       databaseReady,
       supportsVariants: true,
-      displayNumber: configured ? displayNumber : null,
-      waNumber: configured ? displayNumber?.replace(/\D/g, '') || null : null,
+      accountMatching: 'verified-seller-phone',
+      displayNumber,
+      waNumber,
       pairingWindowMinutes: 15,
       webhookPath: '/api/whatsapp/webhook',
     },
