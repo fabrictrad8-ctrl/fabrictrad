@@ -25,6 +25,12 @@ jobs:
       OPENAI_DRAPE_IMAGE_MODEL: gpt-image-2
       OPENAI_DRAPE_IMAGE_SIZE: 1024x1536
       OPENAI_DRAPE_IMAGE_QUALITY: medium
+      WHATSAPP_ACCESS_TOKEN: test-whatsapp-access-token
+      WHATSAPP_APP_SECRET: test-whatsapp-app-secret
+      WHATSAPP_VERIFY_TOKEN: test-whatsapp-verify-token
+      WHATSAPP_PHONE_NUMBER_ID: '123456789'
+      WHATSAPP_DISPLAY_NUMBER: '+91 99999 99999'
+      WHATSAPP_GRAPH_API_VERSION: v25.0
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -38,7 +44,7 @@ jobs:
         run: npm run lint
       - name: Production build
         run: npm run build
-      - name: Authentication and AI drape source checks
+      - name: Authentication, AI drape and WhatsApp source checks
         shell: bash
         run: |
           set -euo pipefail
@@ -51,6 +57,11 @@ jobs:
           logo_source='src/components/ui/AppLogo.tsx'
           drape_ui_source='src/app/product-detail/components/VirtualColourDrapeStudio.tsx'
           drape_route_source='src/app/api/ai/drape-on/route.ts'
+          whatsapp_ui_source='src/app/seller-dashboard/components/SellerWhatsAppUpload.tsx'
+          whatsapp_route_source='src/app/api/whatsapp/webhook/route.ts'
+          whatsapp_status_source='src/app/api/whatsapp/catalog/status/route.ts'
+          whatsapp_parser_source='src/lib/whatsappCatalog.ts'
+          whatsapp_migration='supabase/migrations/20260726100000_whatsapp_catalog_ingestion.sql'
           deploy_source='.github/workflows/deploy-cloudflare.yml'
 
           grep -q 'Forgot password?' "$login_source"
@@ -76,8 +87,27 @@ jobs:
           grep -Fq "form.append('image[]', fabric.blob" "$drape_route_source"
           grep -Fq 'flat colour block' "$drape_route_source"
           grep -Fq "const DEMO_COOKIE_NAME = 'fabrictrad_demo_role';" "$drape_route_source"
-          grep -Fq 'OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}' "$deploy_source"
-          grep -Fq 'Verify live AI drape-on configuration' "$deploy_source"
+
+          grep -Fq "fetch('/api/whatsapp/catalog/status'" "$whatsapp_ui_source"
+          grep -Fq 'same verified phone number' "$whatsapp_ui_source"
+          grep -Fq 'separate messages within' "$whatsapp_ui_source"
+          grep -Fq "eq('source', 'whatsapp')" "$whatsapp_ui_source"
+          grep -Fq "request.headers.get('x-hub-signature-256')" "$whatsapp_route_source"
+          grep -Fq "message.type === 'text' || message.type === 'image'" "$whatsapp_route_source"
+          grep -Fq 'MESSAGE_WINDOW_MINUTES = 15' "$whatsapp_route_source"
+          grep -Fq 'downloadWhatsAppImage' "$whatsapp_route_source"
+          grep -Fq "source: 'whatsapp'" "$whatsapp_route_source"
+          grep -Fq "approval_status: 'pending'" "$whatsapp_route_source"
+          grep -Fq 'parseWhatsAppCatalog' "$whatsapp_parser_source"
+          grep -Fq "fabric: 'fabric'" "$whatsapp_parser_source"
+          grep -Fq "rate: 'price'" "$whatsapp_parser_source"
+          grep -Fq 'whatsapp_catalog_messages' "$whatsapp_migration"
+          grep -Fq 'resolve_whatsapp_seller' "$whatsapp_migration"
+          grep -Fq 'seller-product-images' "$whatsapp_migration"
+          grep -Fq 'WHATSAPP_ACCESS_TOKEN' "$whatsapp_status_source"
+          grep -Fq 'WHATSAPP_ACCESS_TOKEN: ${{ secrets.WHATSAPP_ACCESS_TOKEN }}' "$deploy_source"
+          grep -Fq 'Apply Supabase migrations when deployment credentials exist' "$deploy_source"
+          grep -Fq 'Verify live feature routes' "$deploy_source"
 
           if grep -q 'clipPath' "$drape_ui_source"; then
             echo 'The AI drape studio still contains the old polygon overlay.'
@@ -93,6 +123,14 @@ jobs:
           fi
           if grep -qi 'Click a fabric or shade to drape it' "$drape_ui_source"; then
             echo 'The old colour-comparison tool is still being rendered as drape-on.'
+            exit 1
+          fi
+          if grep -Fq '98765 00001' "$whatsapp_ui_source"; then
+            echo 'The fake WhatsApp upload number was restored.'
+            exit 1
+          fi
+          if grep -Fq 'processedUploads = [' "$whatsapp_ui_source"; then
+            echo 'Hard-coded WhatsApp upload cards were restored.'
             exit 1
           fi
           if grep -qi 'Password reset codes are sent only' "$login_source"; then
@@ -134,6 +172,25 @@ jobs:
           test "$ai_status" = "200"
           grep -q '"configured":true' /tmp/ai-drape-status.json
           grep -q 'gpt-image-2' /tmp/ai-drape-status.json
+
+          whatsapp_status=$(curl --silent --show-error --output /tmp/whatsapp-status.json \
+            --write-out '%{http_code}' http://127.0.0.1:3000/api/whatsapp/catalog/status)
+          test "$whatsapp_status" = "200"
+          grep -q '"credentialsConfigured":true' /tmp/whatsapp-status.json
+          grep -q '"databaseReady":false' /tmp/whatsapp-status.json
+
+          verify_status=$(curl --silent --show-error --output /tmp/whatsapp-verify.txt \
+            --write-out '%{http_code}' \
+            'http://127.0.0.1:3000/api/whatsapp/webhook?hub.mode=subscribe&hub.verify_token=test-whatsapp-verify-token&hub.challenge=fabrictrad-ok')
+          test "$verify_status" = "200"
+          grep -q 'fabrictrad-ok' /tmp/whatsapp-verify.txt
+
+          unsigned_status=$(curl --silent --show-error --output /tmp/unsigned-whatsapp.json \
+            --write-out '%{http_code}' --header 'Content-Type: application/json' \
+            --data '{"object":"whatsapp_business_account"}' \
+            http://127.0.0.1:3000/api/whatsapp/webhook)
+          test "$unsigned_status" = "401"
+          grep -q 'Invalid webhook signature' /tmp/unsigned-whatsapp.json
 
           invalid_otp_status=$(curl --silent --show-error --output /tmp/invalid-otp.json \
             --write-out '%{http_code}' --header 'Content-Type: application/json' \

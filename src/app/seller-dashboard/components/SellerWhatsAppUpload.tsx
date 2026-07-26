@@ -1,527 +1,409 @@
 'use client';
-import React, { useState } from 'react';
+
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import AppImage from '@/components/ui/AppImage';
 import Icon from '@/components/ui/AppIcon';
+import { useAuth } from '@/contexts/AuthContext';
+import { createClient } from '@/lib/supabase/client';
+import { parseWhatsAppCatalog } from '@/lib/whatsappCatalog';
 
-type UploadStatus = 'idle' | 'parsing' | 'preview' | 'submitted';
+type ConnectionStatus = {
+  configured: boolean;
+  displayNumber: string | null;
+  waNumber: string | null;
+  pairingWindowMinutes: number;
+  webhookPath: string;
+};
 
-const processedUploads = [
-  {
-    id: 'WA-001',
-    raw: 'Fabric = pure dyeable soft nett\nWidth = 44\nWork = handwork all over\nRate = 840 per mtr',
-    parsed: {
-      name: 'Pure Dyeable Soft Nett Fabric',
-      width: '44 inches',
-      work: 'Handwork All Over',
-      price: '₹840/mtr',
-    },
-    images: [
-      'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=120&h=120&fit=crop',
-      'https://images.unsplash.com/photo-1597843786272-5e54bef5b7e6?w=120&h=120&fit=crop',
-      'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=120&h=120&fit=crop',
-      'https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?w=120&h=120&fit=crop',
-    ],
-    status: 'approved',
-    time: '17 Jul 2026, 10:14 AM',
-  },
-  {
-    id: 'WA-002',
-    raw: 'Fabric = georgette embroidered\nWidth = 44\nWork = zari work\nRate = 1250 per mtr',
-    parsed: {
-      name: 'Georgette Embroidered Fabric',
-      width: '44 inches',
-      work: 'Zari Work',
-      price: '₹1,250/mtr',
-    },
-    images: ['https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=120&h=120&fit=crop'],
-    status: 'pending_admin',
-    time: '16 Jul 2026, 03:30 PM',
-  },
-];
+type WhatsAppProduct = {
+  id: string;
+  name: string;
+  sku: string;
+  category: string;
+  price_per_unit: number;
+  unit: string;
+  width_inches: number | null;
+  work_type: string;
+  image_url: string | null;
+  approval_status: 'not_submitted' | 'pending' | 'approved' | 'rejected';
+  status: 'draft' | 'active' | 'archived';
+  created_at: string;
+  admin_review_notes: string | null;
+};
 
-const referenceMatches = [
-  {
-    id: 'REF-1150',
-    vendor: 'Aarav Ethnic Studio',
-    image: 'https://images.unsplash.com/photo-1593032465175-481ac7f401f0?w=240&h=280&fit=crop',
-    title: 'White Indo-Western Jacket',
-    confidence: '94%',
-    details: ['Pearl button placket', 'Mandarin collar', 'Gold hand embroidery', 'Ready reference'],
-    capturedFrom: 'WhatsApp image + caption',
-  },
-  {
-    id: 'REF-1142',
-    vendor: 'Surat Zari House',
-    image: 'https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?w=240&h=280&fit=crop',
-    title: 'Ivory Designer Fabric Panel',
-    confidence: '88%',
-    details: ['Ivory base', 'Zari motif', 'Occasion wear', 'Sample available'],
-    capturedFrom: 'Seller catalog upload',
-  },
-];
+const template = `Navratri special
 
-const whatsappUploadNumbers = [
-  {
-    id: 'surat',
-    label: 'Surat Seller Upload Bot',
-    number: '+91 98765 00001',
-    waNumber: '919876500001',
-    scope: 'Fabric, lace, embroidery and textile catalog uploads',
-  },
-  {
-    id: 'mumbai',
-    label: 'Mumbai Seller Upload Bot',
-    number: '+91 98765 00002',
-    waNumber: '919876500002',
-    scope: 'Ready garment, boutique and sample catalog uploads',
-  },
-  {
-    id: 'jaipur',
-    label: 'Jaipur Seller Upload Bot',
-    number: '+91 98765 00003',
-    waNumber: '919876500003',
-    scope: 'Handwork, block print and artisan product references',
-  },
-];
+Fabric = vichitra silk
+Width = 44
+Work = mirror work
+Rate = 240 per mtr`;
+
+function approvalLabel(product: WhatsAppProduct) {
+  if (product.approval_status === 'approved') return 'Approved';
+  if (product.approval_status === 'rejected') return 'Needs changes';
+  return 'Pending review';
+}
 
 export default function SellerWhatsAppUpload() {
-  const [status, setStatus] = useState<UploadStatus>('idle');
-  const [rawText, setRawText] = useState('');
-  const [parsedData, setParsedData] = useState<Record<string, string> | null>(null);
-  const [selectedWhatsAppId, setSelectedWhatsAppId] = useState(whatsappUploadNumbers[0].id);
-  const selectedWhatsApp =
-    whatsappUploadNumbers.find((number) => number.id === selectedWhatsAppId) ||
-    whatsappUploadNumbers[0];
+  const { user, isDemoAccount } = useAuth();
+  const [connection, setConnection] = useState<ConnectionStatus | null>(null);
+  const [products, setProducts] = useState<WhatsAppProduct[]>([]);
+  const [loadingProducts, setLoadingProducts] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState('');
+  const [sampleText, setSampleText] = useState(template);
 
-  const handleParse = () => {
-    setStatus('parsing');
-    setTimeout(() => {
-      setParsedData({
-        'Fabric Name': 'Pure Dyeable Soft Nett Fabric',
-        Width: '44 inches',
-        'Work Type': 'Handwork All Over',
-        Price: '₹840 per metre',
-        Category: 'Net & Embroidered (AI detected)',
-        GSM: '120 GSM (AI estimated)',
-        'HSN Code': '5804 10 00 (AI assigned)',
-        'GST Rate': '5% (AI assigned)',
-      });
-      setStatus('preview');
-    }, 1800);
+  const parsedPreview = useMemo(() => parseWhatsAppCatalog(sampleText), [sampleText]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadConnection = async () => {
+      try {
+        const response = await fetch('/api/whatsapp/catalog/status', {
+          cache: 'no-store',
+          credentials: 'same-origin',
+        });
+        const payload = (await response.json().catch(() => ({}))) as Partial<ConnectionStatus>;
+        if (!cancelled) {
+          setConnection({
+            configured: response.ok && payload.configured === true,
+            displayNumber: payload.displayNumber || null,
+            waNumber: payload.waNumber || null,
+            pairingWindowMinutes: payload.pairingWindowMinutes || 15,
+            webhookPath: payload.webhookPath || '/api/whatsapp/webhook',
+          });
+        }
+      } catch {
+        if (!cancelled) {
+          setConnection({
+            configured: false,
+            displayNumber: null,
+            waNumber: null,
+            pairingWindowMinutes: 15,
+            webhookPath: '/api/whatsapp/webhook',
+          });
+        }
+      }
+    };
+    void loadConnection();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const loadProducts = useCallback(async () => {
+    setError('');
+    setLoadingProducts(true);
+
+    if (isDemoAccount) {
+      setProducts([]);
+      setLoadingProducts(false);
+      return;
+    }
+    if (!user?.id) {
+      setProducts([]);
+      setLoadingProducts(false);
+      return;
+    }
+
+    try {
+      const supabase = createClient();
+      const { data: seller, error: sellerError } = await supabase
+        .from('seller_profiles')
+        .select('id')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      if (sellerError) throw sellerError;
+      if (!seller?.id) throw new Error('Complete your seller registration before using WhatsApp upload.');
+
+      const { data, error: productsError } = await supabase
+        .from('seller_products')
+        .select(
+          'id,name,sku,category,price_per_unit,unit,width_inches,work_type,image_url,approval_status,status,created_at,admin_review_notes'
+        )
+        .eq('seller_id', seller.id)
+        .eq('source', 'whatsapp')
+        .order('created_at', { ascending: false })
+        .limit(30);
+      if (productsError) throw productsError;
+      setProducts((data || []) as WhatsAppProduct[]);
+    } catch (loadError) {
+      setProducts([]);
+      setError(
+        loadError instanceof Error
+          ? loadError.message
+          : 'Unable to load WhatsApp catalogue uploads.'
+      );
+    } finally {
+      setLoadingProducts(false);
+    }
+  }, [isDemoAccount, user?.id]);
+
+  useEffect(() => {
+    void loadProducts();
+  }, [loadProducts]);
+
+  const refreshProducts = async () => {
+    setRefreshing(true);
+    await loadProducts();
+    setRefreshing(false);
   };
 
-  const handleSubmit = () => {
-    setStatus('submitted');
-  };
-
-  const getWhatsAppMessage = () =>
-    rawText.trim() ||
-    'Fabric = pure dyeable soft nett\nWidth = 44\nWork = handwork all over\nRate = 840 per mtr';
-
-  const handleOpenWhatsApp = () => {
-    const text = encodeURIComponent(getWhatsAppMessage());
-    window.open(`https://wa.me/${selectedWhatsApp.waNumber}?text=${text}`, '_blank', 'noopener');
+  const openWhatsApp = () => {
+    if (!connection?.configured || !connection.waNumber) return;
+    const text = encodeURIComponent(sampleText.trim() || template);
+    window.open(`https://wa.me/${connection.waNumber}?text=${text}`, '_blank', 'noopener');
   };
 
   return (
     <div>
-      <h1 className="text-xl font-800 text-foreground mb-2">WhatsApp Catalog Upload</h1>
-      <p className="text-sm text-muted-foreground mb-6">
-        Send your catalog details via WhatsApp. Our AI automatically processes and uploads products
-        to your store. Products go live only after Admin approval.
-      </p>
-
-      {/* How it works */}
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 mb-8">
-        {[
-          {
-            step: '1',
-            icon: 'ChatBubbleLeftRightIcon',
-            label: 'Send on WhatsApp',
-            desc: 'Type fabric details + attach photos',
-          },
-          {
-            step: '2',
-            icon: 'CpuChipIcon',
-            label: 'AI Processes',
-            desc: 'AI parses, structures and categorises',
-          },
-          {
-            step: '3',
-            icon: 'CloudArrowUpIcon',
-            label: 'Auto Uploaded',
-            desc: 'Product added to your catalog draft',
-          },
-          {
-            step: '4',
-            icon: 'ShieldCheckIcon',
-            label: 'Admin Approval',
-            desc: 'Goes live after FabricTrad review',
-          },
-        ].map((s) => (
-          <div key={s.step} className="bg-card rounded-xl border border-border p-4 text-center">
-            <div className="w-10 h-10 rounded-xl gradient-saffron flex items-center justify-center mx-auto mb-2">
-              <Icon name={s.icon as 'CpuChipIcon'} size={18} className="text-white" />
-            </div>
-            <p className="text-xs font-700 text-foreground mb-1">{s.label}</p>
-            <p className="text-xs text-muted-foreground leading-tight">{s.desc}</p>
-          </div>
-        ))}
+      <div className="mb-6">
+        <p className="text-xs font-800 uppercase tracking-[0.16em] text-primary">
+          Connected catalogue intake
+        </p>
+        <h1 className="mt-1 text-xl font-800 text-foreground">WhatsApp Catalog Upload</h1>
+        <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
+          Send a clear fabric photo and its details to the connected FabricTrad WhatsApp Business
+          number. The webhook pairs the messages, saves the image and creates a catalogue draft for
+          review.
+        </p>
       </div>
 
-      {/* WhatsApp Reference Image */}
-      <div className="bg-card rounded-2xl border border-border p-5 mb-6">
-        <h2 className="font-800 text-foreground text-sm mb-3 flex items-center gap-2">
-          <Icon name="PhotoIcon" size={16} className="text-primary" />
-          Reference: How to Send on WhatsApp
-        </h2>
-        <div className="flex flex-col sm:flex-row gap-4 items-start">
-          {/* Simulated WhatsApp Chat */}
-          <div className="w-full sm:w-64 bg-[#ECE5DD] rounded-2xl p-3 font-sans">
-            <div className="flex items-center gap-2 mb-3 pb-2 border-b border-black/10">
-              <div className="w-8 h-8 rounded-full bg-[#25D366] flex items-center justify-center">
-                <Icon name="ChatBubbleLeftRightIcon" size={16} className="text-white" />
-              </div>
-              <div>
-                <p className="text-xs font-700 text-foreground">FabricTrad Upload Bot</p>
-                <p className="text-xs text-green-600">● Online</p>
-              </div>
+      <div
+        className={`mb-6 rounded-2xl border p-5 ${
+          connection === null
+            ? 'border-border bg-card'
+            : connection.configured
+              ? 'border-success/25 bg-success/5'
+              : 'border-error/25 bg-error/5'
+        }`}
+      >
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex items-start gap-3">
+            <div
+              className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${
+                connection?.configured ? 'bg-success text-white' : 'bg-muted text-muted-foreground'
+              }`}
+            >
+              <Icon
+                name={connection === null ? 'ArrowPathIcon' : 'ChatBubbleLeftRightIcon'}
+                size={21}
+                className={connection === null ? 'animate-spin' : ''}
+              />
             </div>
+            <div>
+              <p className="text-sm font-800 text-foreground">
+                {connection === null
+                  ? 'Checking WhatsApp connection…'
+                  : connection.configured
+                    ? `FabricTrad Upload Bot · ${connection.displayNumber}`
+                    : 'WhatsApp Business upload is not connected'}
+              </p>
+              <p className="mt-1 max-w-2xl text-xs leading-5 text-muted-foreground">
+                {connection?.configured
+                  ? `Send the image with a caption, or send the image and text as separate messages within ${connection.pairingWindowMinutes} minutes.`
+                  : 'The previous +91 98765… numbers were display placeholders and could not receive website webhooks. A real Meta WhatsApp Business number, access token and webhook subscription are required.'}
+              </p>
+            </div>
+          </div>
 
-            {/* Image message */}
-            <div className="bg-white rounded-xl rounded-tl-sm p-1 mb-2 shadow-sm max-w-[220px]">
-              <div className="grid grid-cols-2 gap-0.5 rounded-lg overflow-hidden mb-1">
-                {[
-                  'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=100&h=100&fit=crop',
-                  'https://images.unsplash.com/photo-1597843786272-5e54bef5b7e6?w=100&h=100&fit=crop',
-                  'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=100&h=100&fit=crop',
-                ].map((src, i) => (
-                  <div
-                    key={i}
-                    className={`${i === 0 ? 'col-span-2' : ''} aspect-video overflow-hidden bg-gray-100 relative`}
-                  >
+          <button
+            type="button"
+            onClick={openWhatsApp}
+            disabled={!connection?.configured || !connection.waNumber}
+            className="btn-primary inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Icon name="PaperAirplaneIcon" size={16} /> Open connected WhatsApp
+          </button>
+        </div>
+      </div>
+
+      {isDemoAccount && (
+        <div className="mb-6 rounded-2xl border border-warning/30 bg-warning/5 p-4">
+          <p className="flex items-center gap-2 text-sm font-800 text-foreground">
+            <Icon name="ExclamationTriangleIcon" size={17} className="text-warning" /> Demo account
+            limitation
+          </p>
+          <p className="mt-2 text-xs leading-5 text-muted-foreground">
+            The shared demo seller is not linked to a private WhatsApp number. External uploads are
+            attached only to a real seller account whose verified FabricTrad phone matches the number
+            sending the WhatsApp messages.
+          </p>
+        </div>
+      )}
+
+      <div className="mb-6 grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+        <section className="rounded-2xl border border-border bg-card p-5">
+          <h2 className="flex items-center gap-2 text-sm font-800 text-foreground">
+            <Icon name="DocumentTextIcon" size={17} className="text-primary" /> Message format
+          </h2>
+          <p className="mt-2 text-xs leading-5 text-muted-foreground">
+            The title can be the first line. Fabric and Rate are required. Width, Work, MOQ, Stock and
+            GSM are optional. Attach at least one JPG, PNG or WebP photo.
+          </p>
+          <textarea
+            value={sampleText}
+            onChange={(event) => setSampleText(event.target.value)}
+            rows={8}
+            className="input-base mt-4 w-full resize-none rounded-xl px-4 py-3 font-mono text-sm"
+          />
+          <button
+            type="button"
+            onClick={openWhatsApp}
+            disabled={!connection?.configured || !connection.waNumber || !parsedPreview}
+            className="mt-3 inline-flex items-center gap-2 rounded-xl border border-success/30 bg-success/10 px-4 py-2.5 text-sm font-800 text-success disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Icon name="ChatBubbleLeftRightIcon" size={16} /> Send these details
+          </button>
+        </section>
+
+        <section className="rounded-2xl border border-border bg-card p-5">
+          <h2 className="flex items-center gap-2 text-sm font-800 text-foreground">
+            <Icon name="CpuChipIcon" size={17} className="text-secondary" /> Parsed preview
+          </h2>
+          {parsedPreview ? (
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              {[
+                ['Product', parsedPreview.name],
+                ['Category', parsedPreview.category],
+                ['Price', `₹${parsedPreview.pricePerUnit}/${parsedPreview.unit}`],
+                ['Width', parsedPreview.widthInches ? `${parsedPreview.widthInches} inches` : 'Not provided'],
+                ['Work', parsedPreview.workType],
+                ['Status', 'Draft · Pending review'],
+              ].map(([label, value]) => (
+                <div key={label} className="rounded-xl bg-muted p-3">
+                  <p className="text-[10px] font-800 uppercase tracking-wider text-muted-foreground">
+                    {label}
+                  </p>
+                  <p className="mt-1 text-xs font-800 text-foreground">{value}</p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="mt-4 rounded-xl border border-error/20 bg-error/5 p-4 text-xs leading-5 text-error">
+              Add both a Fabric value and a positive Rate. Example: Fabric = vichitra silk and Rate =
+              240 per mtr.
+            </div>
+          )}
+          <div className="mt-4 rounded-xl border border-border bg-muted/40 p-3 text-xs leading-5 text-muted-foreground">
+            <span className="font-800 text-foreground">How pairing works:</span> an image caption is
+            processed immediately. When the photo and details are separate messages, the system finds
+            the matching messages from the same sender within the connection window and uploads them
+            as one product.
+          </div>
+        </section>
+      </div>
+
+      <section className="rounded-2xl border border-border bg-card p-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-sm font-800 text-foreground">Real WhatsApp uploads</h2>
+            <p className="mt-1 text-xs text-muted-foreground">
+              These records come from your seller inventory, not hard-coded demonstration cards.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => void refreshProducts()}
+            disabled={refreshing || loadingProducts || isDemoAccount}
+            className="btn-secondary inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-xs disabled:opacity-50"
+          >
+            <Icon
+              name="ArrowPathIcon"
+              size={15}
+              className={refreshing ? 'animate-spin' : ''}
+            />
+            Refresh uploads
+          </button>
+        </div>
+
+        {error && (
+          <div className="mt-4 rounded-xl border border-error/20 bg-error/5 p-3 text-xs text-error">
+            {error}
+          </div>
+        )}
+
+        {loadingProducts ? (
+          <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
+            <span className="mr-3 h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            Loading catalogue drafts…
+          </div>
+        ) : products.length ? (
+          <div className="mt-5 space-y-3">
+            {products.map((product) => (
+              <article
+                key={product.id}
+                className="flex flex-col gap-4 rounded-xl border border-border p-4 sm:flex-row sm:items-start"
+              >
+                <div className="relative h-28 w-full shrink-0 overflow-hidden rounded-xl bg-muted sm:w-24">
+                  {product.image_url ? (
                     <AppImage
-                      src={src}
-                      alt={`WhatsApp catalog image ${i + 1} showing fabric texture and embroidery detail`}
+                      src={product.image_url}
+                      alt={`${product.name} WhatsApp catalogue upload`}
                       fill
-                      sizes="100px"
+                      sizes="96px"
                       className="object-cover"
                     />
-                    {i === 2 && (
-                      <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                        <span className="text-white text-sm font-700">+3</span>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-              <p className="text-xs text-gray-500 text-right px-1 pb-0.5">12:14</p>
-            </div>
-
-            {/* Text message */}
-            <div className="bg-white rounded-xl rounded-tl-sm p-3 shadow-sm max-w-[220px]">
-              <p className="text-xs text-gray-500 text-xs mb-1">Forwarded</p>
-              <p className="text-xs font-500 text-foreground leading-relaxed">
-                Fabric = pure dyeable soft nett
-                <br />
-                Width = 44
-                <br />
-                Work = handwork all over
-                <br />
-                Rate = 840 per mtr
-              </p>
-              <p className="text-xs text-gray-400 text-right mt-1">12:14</p>
-            </div>
-          </div>
-
-          <div className="flex-1">
-            <p className="text-sm font-700 text-foreground mb-2">Message Format</p>
-            <div className="bg-muted rounded-xl p-4 font-mono text-sm mb-3">
-              <p className="text-muted-foreground">Fabric = [fabric type]</p>
-              <p className="text-muted-foreground">Width = [width in inches]</p>
-              <p className="text-muted-foreground">Work = [work type]</p>
-              <p className="text-muted-foreground">Rate = [price per mtr]</p>
-            </div>
-            <p className="text-xs text-muted-foreground mb-2">
-              Also attach photos of the fabric. AI will auto-detect: category, GSM, HSN code, and
-              GST rate.
-            </p>
-            <div className="rounded-xl border border-green-200 bg-green-50 p-3">
-              <div className="mb-3 flex items-center gap-2">
-                <Icon name="ChatBubbleLeftRightIcon" size={16} className="text-green-600" />
-                <div>
-                  <p className="text-xs font-700 text-green-800">
-                    Send to: {selectedWhatsApp.number}
-                  </p>
-                  <p className="text-xs text-green-600">{selectedWhatsApp.label}</p>
-                </div>
-              </div>
-              <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
-                <select
-                  value={selectedWhatsAppId}
-                  onChange={(event) => setSelectedWhatsAppId(event.target.value)}
-                  className="input-base w-full rounded-xl px-3 py-2 text-xs"
-                  aria-label="Choose WhatsApp upload number"
-                >
-                  {whatsappUploadNumbers.map((number) => (
-                    <option key={number.id} value={number.id}>
-                      {number.label} · {number.number}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  type="button"
-                  onClick={handleOpenWhatsApp}
-                  className="btn-primary inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-xs"
-                >
-                  <Icon name="PaperAirplaneIcon" size={13} />
-                  Open WhatsApp
-                </button>
-              </div>
-              <p className="mt-2 text-xs text-green-700">{selectedWhatsApp.scope}</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Manual Text Input (Demo) */}
-      <div className="bg-card rounded-2xl border border-border p-5 mb-6">
-        <h2 className="font-800 text-foreground text-sm mb-3">Try AI Parser (Demo)</h2>
-
-        {status === 'idle' && (
-          <div>
-            <textarea
-              value={rawText}
-              onChange={(e) => setRawText(e.target.value)}
-              rows={5}
-              placeholder={`Fabric = pure dyeable soft nett\nWidth = 44\nWork = handwork all over\nRate = 840 per mtr`}
-              className="input-base w-full px-4 py-3 text-sm rounded-xl font-mono mb-3 resize-none"
-            />
-            <button
-              onClick={handleParse}
-              disabled={rawText.trim().length < 10}
-              className="btn-primary px-5 py-2.5 text-sm rounded-xl disabled:opacity-50"
-            >
-              Process with AI
-            </button>
-            <button
-              type="button"
-              onClick={handleOpenWhatsApp}
-              className="ml-2 inline-flex items-center gap-2 rounded-xl border border-green-200 bg-green-50 px-5 py-2.5 text-sm font-700 text-green-700 transition-colors hover:bg-green-100"
-            >
-              <Icon name="ChatBubbleLeftRightIcon" size={15} />
-              Send on WhatsApp
-            </button>
-          </div>
-        )}
-
-        {status === 'parsing' && (
-          <div className="text-center py-8">
-            <div className="w-12 h-12 rounded-full border-4 border-primary border-t-transparent animate-spin mx-auto mb-3" />
-            <p className="text-sm font-700 text-foreground">AI is processing your catalog...</p>
-            <p className="text-xs text-muted-foreground mt-1">
-              Detecting fabric type, category, HSN code...
-            </p>
-          </div>
-        )}
-
-        {status === 'preview' && parsedData && (
-          <div>
-            <div className="flex items-center gap-2 mb-4 p-3 bg-success/10 border border-success/20 rounded-xl">
-              <Icon name="CheckCircleIcon" size={16} className="text-success" />
-              <p className="text-sm font-700 text-success">
-                AI parsing complete! Review and submit.
-              </p>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
-              {Object.entries(parsedData).map(([key, val]) => (
-                <div key={key} className="bg-muted rounded-xl p-3">
-                  <p className="text-xs text-muted-foreground mb-0.5">{key}</p>
-                  <p className="text-sm font-700 text-foreground">{val}</p>
-                </div>
-              ))}
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setStatus('idle')}
-                className="btn-secondary px-4 py-2.5 text-sm rounded-xl"
-              >
-                Edit
-              </button>
-              <button onClick={handleSubmit} className="btn-primary px-5 py-2.5 text-sm rounded-xl">
-                Submit for Admin Approval
-              </button>
-            </div>
-          </div>
-        )}
-
-        {status === 'submitted' && (
-          <div className="text-center py-6">
-            <div className="w-14 h-14 rounded-full bg-success/10 border-2 border-success flex items-center justify-center mx-auto mb-3">
-              <Icon name="CheckCircleIcon" size={28} className="text-success" />
-            </div>
-            <p className="text-base font-800 text-foreground mb-1">Product Submitted!</p>
-            <p className="text-sm text-muted-foreground mb-4">
-              Awaiting FabricTrad admin approval. You'll be notified via SMS & email.
-            </p>
-            <button
-              onClick={() => {
-                setStatus('idle');
-                setRawText('');
-                setParsedData(null);
-              }}
-              className="btn-secondary px-4 py-2 text-sm rounded-xl"
-            >
-              Upload Another
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* AI Reference Matching */}
-      <div className="mb-6 rounded-2xl border border-secondary/20 bg-card p-5">
-        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <h2 className="flex items-center gap-2 text-sm font-800 text-foreground">
-              <Icon name="SparklesIcon" size={16} className="text-secondary" />
-              AI Reference Matching
-            </h2>
-            <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-              Product or fabric photos shared on WhatsApp become searchable vendor references with
-              extracted details. When a buyer posts the same or similar image, FabricTrad can show
-              matching vendors instantly.
-            </p>
-          </div>
-          <span className="w-fit rounded-full border border-success/20 bg-success/10 px-3 py-1 text-xs font-700 text-success">
-            Buyer popup enabled
-          </span>
-        </div>
-
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.1fr_0.9fr]">
-          <div className="rounded-xl border border-border bg-muted/40 p-4">
-            <p className="mb-3 text-xs font-800 uppercase text-muted-foreground">
-              WhatsApp to account flow
-            </p>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              {[
-                {
-                  icon: 'PhotoIcon',
-                  title: 'Image received',
-                  desc: 'Vendor sends catalog image, product code, rate and notes.',
-                },
-                {
-                  icon: 'CpuChipIcon',
-                  title: 'AI fills details',
-                  desc: 'Fabric, work, colour, price, tags and reference ID are drafted.',
-                },
-                {
-                  icon: 'BellAlertIcon',
-                  title: 'Buyer match popup',
-                  desc: 'Similar buyer image posts surface this vendor as a reference.',
-                },
-              ].map((step) => (
-                <div key={step.title} className="rounded-xl border border-border bg-card p-3">
-                  <Icon name={step.icon as 'PhotoIcon'} size={18} className="mb-2 text-primary" />
-                  <p className="text-sm font-800 text-foreground">{step.title}</p>
-                  <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{step.desc}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="space-y-3">
-            {referenceMatches.map((match) => (
-              <div key={match.id} className="flex gap-3 rounded-xl border border-border p-3">
-                <div className="relative h-24 w-20 shrink-0 overflow-hidden rounded-lg bg-muted">
-                  <AppImage
-                    src={match.image}
-                    alt={`${match.title} AI reference image`}
-                    fill
-                    sizes="80px"
-                    className="object-cover"
-                  />
+                  ) : (
+                    <div className="flex h-full items-center justify-center text-muted-foreground">
+                      <Icon name="PhotoIcon" size={24} />
+                    </div>
+                  )}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-start justify-between gap-2">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                     <div>
-                      <p className="text-xs font-700 text-primary">{match.id}</p>
-                      <p className="text-sm font-800 text-foreground">{match.title}</p>
+                      <p className="text-sm font-800 text-foreground">{product.name}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {product.sku} · {product.category} · {product.work_type}
+                      </p>
                     </div>
-                    <span className="rounded-full bg-secondary/10 px-2 py-0.5 text-xs font-800 text-secondary">
-                      {match.confidence}
+                    <span
+                      className={`w-fit rounded-full px-3 py-1 text-xs font-800 ${
+                        product.approval_status === 'approved'
+                          ? 'bg-success/10 text-success'
+                          : product.approval_status === 'rejected'
+                            ? 'bg-error/10 text-error'
+                            : 'bg-warning/10 text-warning'
+                      }`}
+                    >
+                      {approvalLabel(product)}
                     </span>
                   </div>
-                  <p className="mt-0.5 text-xs text-muted-foreground">{match.vendor}</p>
-                  <div className="mt-2 flex flex-wrap gap-1">
-                    {match.details.slice(0, 3).map((detail) => (
-                      <span key={detail} className="rounded-full bg-muted px-2 py-0.5 text-xs">
-                        {detail}
+                  <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                    <span className="rounded-full bg-muted px-2.5 py-1 font-800 text-foreground">
+                      ₹{Number(product.price_per_unit).toLocaleString('en-IN')}/{product.unit}
+                    </span>
+                    {product.width_inches && (
+                      <span className="rounded-full bg-muted px-2.5 py-1 text-muted-foreground">
+                        {product.width_inches} inches
                       </span>
-                    ))}
+                    )}
+                    <span className="rounded-full bg-muted px-2.5 py-1 text-muted-foreground">
+                      Added {new Date(product.created_at).toLocaleString('en-IN')}
+                    </span>
                   </div>
-                  <p className="mt-2 text-xs text-muted-foreground">{match.capturedFrom}</p>
+                  {product.admin_review_notes && (
+                    <p className="mt-3 rounded-lg bg-error/5 p-2 text-xs text-error">
+                      {product.admin_review_notes}
+                    </p>
+                  )}
                 </div>
-              </div>
+              </article>
             ))}
           </div>
-        </div>
-      </div>
-
-      {/* Recent Uploads */}
-      <div className="bg-card rounded-2xl border border-border p-5">
-        <h2 className="font-800 text-foreground text-sm mb-4">Recent WhatsApp Uploads</h2>
-        <div className="space-y-4">
-          {processedUploads.map((upload) => (
-            <div key={upload.id} className="border border-border rounded-xl p-4">
-              <div className="flex items-start gap-3 mb-3">
-                <div className="flex gap-1 shrink-0">
-                  {upload.images.slice(0, 3).map((img, i) => (
-                    <div key={i} className="w-12 h-12 rounded-lg overflow-hidden bg-muted">
-                      <AppImage
-                        src={img}
-                        alt={`Uploaded fabric product image ${i + 1}`}
-                        width={48}
-                        height={48}
-                        className="object-cover"
-                      />
-                    </div>
-                  ))}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-700 text-foreground">{upload.parsed.name}</p>
-                  <div className="flex flex-wrap gap-1 mt-1">
-                    {Object.values(upload.parsed)
-                      .slice(1)
-                      .map((val) => (
-                        <span
-                          key={val}
-                          className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded-full"
-                        >
-                          {val}
-                        </span>
-                      ))}
-                  </div>
-                </div>
-                <span
-                  className={`text-xs font-700 px-2.5 py-1 rounded-full shrink-0 ${
-                    upload.status === 'approved'
-                      ? 'bg-success/10 text-success'
-                      : 'bg-amber-50 text-warning'
-                  }`}
-                >
-                  {upload.status === 'approved' ? '✓ Live' : '⏳ Pending Review'}
-                </span>
-              </div>
-              <div className="bg-muted rounded-lg p-2">
-                <p className="text-xs font-mono text-muted-foreground whitespace-pre-line">
-                  {upload.raw}
-                </p>
-              </div>
-              <p className="text-xs text-muted-foreground mt-2">{upload.time}</p>
-            </div>
-          ))}
-        </div>
-      </div>
+        ) : (
+          <div className="mt-5 rounded-xl border border-dashed border-border py-12 text-center">
+            <Icon name="PhotoIcon" size={28} className="mx-auto text-muted-foreground" />
+            <p className="mt-3 text-sm font-800 text-foreground">No WhatsApp catalogue drafts yet</p>
+            <p className="mx-auto mt-1 max-w-lg text-xs leading-5 text-muted-foreground">
+              Once the connection is configured, send from the same verified phone number saved on
+              your seller account. A successful upload receives a WhatsApp confirmation and appears
+              here.
+            </p>
+          </div>
+        )}
+      </section>
     </div>
   );
 }
