@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: List repository paths relevant to WhatsApp upload
+      - name: List database and upload implementation paths
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -26,7 +26,9 @@ jobs:
             --header 'X-GitHub-Api-Version: 2022-11-28' \
             "https://api.github.com/repos/${GITHUB_REPOSITORY}/git/trees/${GITHUB_SHA}?recursive=1" \
             > /tmp/tree.json
-          echo MATCHING_PATHS
-          jq -r '.tree[].path' /tmp/tree.json | grep -Ei 'whatsapp|catalog|seller-dashboard|webhook' | sort
-          echo API_PATHS
-          jq -r '.tree[].path' /tmp/tree.json | grep '^src/app/api/' | sort
+          echo MIGRATIONS
+          jq -r '.tree[].path' /tmp/tree.json | grep '^supabase/migrations/.*\.sql$' | sort
+          echo SUPABASE_HELPERS
+          jq -r '.tree[].path' /tmp/tree.json | grep '^src/lib/supabase/' | sort
+          echo UPLOAD_RELATED
+          jq -r '.tree[].path' /tmp/tree.json | grep -Ei 'storage|upload|product' | head -n 150
