@@ -30,12 +30,19 @@ jobs:
         continue-on-error: true
         shell: bash
         run: node scripts/provision-whatsapp-test-seller.mjs > /tmp/provision.log 2>&1
+      - name: Upload provisioning diagnostic
+        if: steps.provision.outcome != 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: whatsapp-test-seller-provision-diagnostic
+          path: /tmp/provision.log
+          if-no-files-found: error
+          retention-days: 1
       - name: Report provisioning failure
         if: steps.provision.outcome != 'success'
         shell: bash
         run: |
-          echo 'Seller provisioning failed:'
-          tail -n 30 /tmp/provision.log
+          echo 'Seller provisioning failed; diagnostic artifact uploaded.'
           exit 1
       - name: Upload encrypted credentials
         if: steps.provision.outcome == 'success'
