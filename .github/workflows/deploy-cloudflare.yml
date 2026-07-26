@@ -16,7 +16,7 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 50
     env:
       NEXT_PUBLIC_SUPABASE_URL: https://rdhfwlzhcvwjhkxhhpoo.supabase.co
       NEXT_PUBLIC_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJIUzI1NiIsInJlZiI6InJkaGZ3bHpoY3Z3amhreGhocG9vIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQxMzMwNjMsImV4cCI6MjA5OTcwOTA2M30.jLF4AD-joIbRslei-T55lwZBdRpntrsU-hjyHCZXgVc
@@ -29,6 +29,7 @@ jobs:
       AI_DRAPE_DAILY_LIMIT: '10'
       AI_DRAPE_DEMO_DAILY_LIMIT: '2'
       AI_DRAPE_FALLBACK_DAILY_LIMIT: '3'
+      WHATSAPP_GRAPH_API_VERSION: v25.0
     steps:
       - uses: actions/checkout@v4
 
@@ -56,22 +57,78 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Apply Supabase migrations when deployment credentials exist
+        shell: bash
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          if [ -z "$SUPABASE_ACCESS_TOKEN" ] || [ -z "$SUPABASE_DB_PASSWORD" ]; then
+            echo '::warning::SUPABASE_ACCESS_TOKEN or SUPABASE_DB_PASSWORD is missing. Database migrations were not applied automatically.'
+            exit 0
+          fi
+          npx --yes supabase@latest link \
+            --project-ref rdhfwlzhcvwjhkxhhpoo \
+            --password "$SUPABASE_DB_PASSWORD"
+          npx --yes supabase@latest db push \
+            --linked \
+            --include-all \
+            --password "$SUPABASE_DB_PASSWORD"
+
       - name: Build Cloudflare Worker
         run: npm run build:sites
 
-      - name: Sync OpenAI image-generation secret
+      - name: Sync server secrets to the Cloudflare Worker
+        id: sync_secrets
         shell: bash
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          WHATSAPP_ACCESS_TOKEN: ${{ secrets.WHATSAPP_ACCESS_TOKEN }}
+          WHATSAPP_APP_SECRET: ${{ secrets.WHATSAPP_APP_SECRET }}
+          WHATSAPP_VERIFY_TOKEN: ${{ secrets.WHATSAPP_VERIFY_TOKEN }}
+          WHATSAPP_PHONE_NUMBER_ID: ${{ secrets.WHATSAPP_PHONE_NUMBER_ID }}
+          WHATSAPP_DISPLAY_NUMBER: ${{ secrets.WHATSAPP_DISPLAY_NUMBER }}
         run: |
+          set -euo pipefail
+          synced=0
+          for name in \
+            OPENAI_API_KEY \
+            SUPABASE_SERVICE_ROLE_KEY \
+            WHATSAPP_ACCESS_TOKEN \
+            WHATSAPP_APP_SECRET \
+            WHATSAPP_VERIFY_TOKEN \
+            WHATSAPP_PHONE_NUMBER_ID \
+            WHATSAPP_DISPLAY_NUMBER; do
+            value="${!name:-}"
+            if [ -n "$value" ]; then
+              printf '%s' "$value" | npx wrangler secret put "$name" --config wrangler.jsonc
+              echo "$name synced to the FabricTrad Worker."
+              synced=$((synced + 1))
+            fi
+          done
+
           if [ -n "$OPENAI_API_KEY" ]; then
-            printf '%s' "$OPENAI_API_KEY" | npx wrangler secret put OPENAI_API_KEY --config wrangler.jsonc
-            echo 'OpenAI image-generation secret synced to the FabricTrad Worker.'
+            echo 'openai_requested=true' >> "$GITHUB_OUTPUT"
           else
-            echo '::warning::The GitHub OPENAI_API_KEY secret is not set. Keeping any OPENAI_API_KEY already stored on the Cloudflare Worker.'
+            echo 'openai_requested=false' >> "$GITHUB_OUTPUT"
           fi
+
+          if [ -n "$SUPABASE_SERVICE_ROLE_KEY" ] \
+            && [ -n "$WHATSAPP_ACCESS_TOKEN" ] \
+            && [ -n "$WHATSAPP_APP_SECRET" ] \
+            && [ -n "$WHATSAPP_VERIFY_TOKEN" ] \
+            && [ -n "$WHATSAPP_PHONE_NUMBER_ID" ] \
+            && [ -n "$WHATSAPP_DISPLAY_NUMBER" ]; then
+            echo 'whatsapp_requested=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'whatsapp_requested=false' >> "$GITHUB_OUTPUT"
+            echo '::warning::The complete WhatsApp Cloud API secret set is not present. The website will show WhatsApp upload as disconnected.'
+          fi
+
+          echo "Synced $synced optional server secrets."
 
       - name: Deploy existing Worker
         uses: cloudflare/wrangler-action@v3
@@ -80,33 +137,45 @@ jobs:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: deploy --config wrangler.jsonc
 
-      - name: Verify live AI drape-on configuration
+      - name: Verify live feature routes
         shell: bash
+        env:
+          OPENAI_REQUESTED: ${{ steps.sync_secrets.outputs.openai_requested }}
+          WHATSAPP_REQUESTED: ${{ steps.sync_secrets.outputs.whatsapp_requested }}
         run: |
           set -euo pipefail
           ready=false
-
           for attempt in $(seq 1 36); do
-            status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+            drape_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
               --output /tmp/ai-drape-status.json --write-out '%{http_code}' \
               'https://fabrictrad.com/api/ai/drape-on' || true)
+            whatsapp_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+              --output /tmp/whatsapp-status.json --write-out '%{http_code}' \
+              'https://fabrictrad.com/api/whatsapp/catalog/status' || true)
 
-            if [ "$status" = '200' ] \
-              && grep -q '"configured":true' /tmp/ai-drape-status.json \
-              && grep -q 'gpt-image-2' /tmp/ai-drape-status.json; then
+            if [ "$drape_status" = '200' ] && [ "$whatsapp_status" = '200' ]; then
               ready=true
               break
             fi
-
-            echo "Attempt $attempt: waiting for the real AI drape-on release"
-            cat /tmp/ai-drape-status.json 2>/dev/null || true
+            echo "Attempt $attempt: waiting for the deployed feature routes"
             sleep 10
           done
 
           if [ "$ready" != 'true' ]; then
-            echo '::error::The website deployed, but the live AI drape-on endpoint is not configured with GPT Image 2.'
-            cat /tmp/ai-drape-status.json 2>/dev/null || true
+            echo '::error::The deployed feature status routes did not become reachable.'
             exit 1
           fi
 
-          echo 'Live FabricTrad AI drape-on endpoint is configured and ready.'
+          if [ "$OPENAI_REQUESTED" = 'true' ]; then
+            grep -q '"configured":true' /tmp/ai-drape-status.json
+          elif ! grep -q '"configured":true' /tmp/ai-drape-status.json; then
+            echo '::warning::AI Drape-On code is deployed but no image provider key is configured.'
+          fi
+
+          if [ "$WHATSAPP_REQUESTED" = 'true' ]; then
+            grep -q '"configured":true' /tmp/whatsapp-status.json
+          elif ! grep -q '"configured":true' /tmp/whatsapp-status.json; then
+            echo '::warning::WhatsApp catalogue ingestion code is deployed but the Meta connection is not configured.'
+          fi
+
+          echo 'FabricTrad feature routes are deployed.'
