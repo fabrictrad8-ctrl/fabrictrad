@@ -1,0 +1,23 @@
+name: Inspect catalogue variant surfaces
+
+on:
+  push:
+    branches:
+      - agent/catalog-variants
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: List relevant files
+        shell: bash
+        run: |
+          set -euo pipefail
+          find src/app/marketplace src/app/product-detail src/app/seller-dashboard src/components src/lib supabase/migrations -type f 2>/dev/null \
+            | grep -Ei 'marketplace|product|catalog|inventory|seller|wishlist|search|filter' \
+            | sort
