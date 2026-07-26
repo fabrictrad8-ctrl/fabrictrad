@@ -30,6 +30,7 @@ jobs:
       AI_DRAPE_DEMO_DAILY_LIMIT: '2'
       AI_DRAPE_FALLBACK_DAILY_LIMIT: '3'
       WHATSAPP_GRAPH_API_VERSION: v25.0
+      WHATSAPP_DISPLAY_NUMBER: '+91 92244 47024'
     steps:
       - uses: actions/checkout@v4
 
@@ -90,7 +91,6 @@ jobs:
           WHATSAPP_APP_SECRET: ${{ secrets.WHATSAPP_APP_SECRET }}
           WHATSAPP_VERIFY_TOKEN: ${{ secrets.WHATSAPP_VERIFY_TOKEN }}
           WHATSAPP_PHONE_NUMBER_ID: ${{ secrets.WHATSAPP_PHONE_NUMBER_ID }}
-          WHATSAPP_DISPLAY_NUMBER: ${{ secrets.WHATSAPP_DISPLAY_NUMBER }}
         run: |
           set -euo pipefail
           synced=0
@@ -100,8 +100,7 @@ jobs:
             WHATSAPP_ACCESS_TOKEN \
             WHATSAPP_APP_SECRET \
             WHATSAPP_VERIFY_TOKEN \
-            WHATSAPP_PHONE_NUMBER_ID \
-            WHATSAPP_DISPLAY_NUMBER; do
+            WHATSAPP_PHONE_NUMBER_ID; do
             value="${!name:-}"
             if [ -n "$value" ]; then
               printf '%s' "$value" | npx wrangler secret put "$name" --config wrangler.jsonc
@@ -120,12 +119,11 @@ jobs:
             && [ -n "$WHATSAPP_ACCESS_TOKEN" ] \
             && [ -n "$WHATSAPP_APP_SECRET" ] \
             && [ -n "$WHATSAPP_VERIFY_TOKEN" ] \
-            && [ -n "$WHATSAPP_PHONE_NUMBER_ID" ] \
-            && [ -n "$WHATSAPP_DISPLAY_NUMBER" ]; then
+            && [ -n "$WHATSAPP_PHONE_NUMBER_ID" ]; then
             echo 'whatsapp_requested=true' >> "$GITHUB_OUTPUT"
           else
             echo 'whatsapp_requested=false' >> "$GITHUB_OUTPUT"
-            echo '::warning::The complete WhatsApp Cloud API secret set is not present. The website will show WhatsApp upload as disconnected.'
+            echo '::warning::The WhatsApp Cloud API credentials are incomplete. The official number will remain visible, but automatic catalogue ingestion will stay pending.'
           fi
 
           echo "Synced $synced optional server secrets."
@@ -166,6 +164,10 @@ jobs:
             exit 1
           fi
 
+          grep -q '"displayNumber":"+91 92244 47024"' /tmp/whatsapp-status.json
+          grep -q '"waNumber":"919224447024"' /tmp/whatsapp-status.json
+          grep -q '"accountMatching":"verified-seller-phone"' /tmp/whatsapp-status.json
+
           if [ "$OPENAI_REQUESTED" = 'true' ]; then
             grep -q '"configured":true' /tmp/ai-drape-status.json
           elif ! grep -q '"configured":true' /tmp/ai-drape-status.json; then
@@ -175,7 +177,7 @@ jobs:
           if [ "$WHATSAPP_REQUESTED" = 'true' ]; then
             grep -q '"configured":true' /tmp/whatsapp-status.json
           elif ! grep -q '"configured":true' /tmp/whatsapp-status.json; then
-            echo '::warning::WhatsApp catalogue ingestion code is deployed but the Meta connection is not configured.'
+            echo '::warning::The official WhatsApp number is live, but automated catalogue ingestion is waiting for the Meta connection.'
           fi
 
           echo 'FabricTrad feature routes are deployed.'
