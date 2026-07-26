@@ -4,7 +4,7 @@ on:
   pull_request:
   push:
     branches:
-      - 'agent/diagnose-whatsapp-upload'
+      - agent/diagnose-whatsapp-upload
 
 permissions:
   contents: read
@@ -15,18 +15,11 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-      - name: Find and print WhatsApp upload files
-        shell: bash
+      - name: List relevant files
         run: |
-          set -euo pipefail
-          echo '=== MATCHING FILES ==='
-          grep -RIlE 'WhatsApp|whatsapp|Upload Catalog|AI Parser|catalog upload|FabricTradUploadBot' src supabase scripts 2>/dev/null | sort | tee /tmp/files.txt || true
-          echo '=== API ROUTES ==='
-          find src/app/api -type f -maxdepth 8 | sort || true
-          echo '=== RELEVANT CONTENT ==='
-          while IFS= read -r file; do
-            echo "----- $file -----"
-            sed -n '1,800p' "$file"
-          done < /tmp/files.txt
-          echo '=== DATABASE REFERENCES ==='
-          grep -RInE 'products|product_images|catalog|whatsapp|webhook|seller_profiles|approval_status' supabase src/app/api src/lib 2>/dev/null | head -n 1000 || true
+          echo MATCHING_FILES
+          grep -RIlE 'WhatsApp|whatsapp|Upload Catalog|AI Parser|FabricTradUploadBot' src supabase scripts 2>/dev/null | sort || true
+          echo API_ROUTES
+          find src/app/api -maxdepth 8 -type f | sort || true
+          echo SELLER_FILES
+          find src/app/seller-dashboard -maxdepth 6 -type f | sort || true
