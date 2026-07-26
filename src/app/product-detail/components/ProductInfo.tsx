@@ -1,217 +1,253 @@
 'use client';
-import React, { useState } from 'react';
-import Link from 'next/link';
-import Icon from '@/components/ui/AppIcon';
 
-const priceTiers = [
-  { min: 50, max: 99, price: 840, label: '50-99 mtrs' },
-  { min: 100, max: 249, price: 790, label: '100-249 mtrs' },
-  { min: 250, max: 499, price: 750, label: '250-499 mtrs' },
-  { min: 500, max: null, price: 720, label: '500+ mtrs' },
-];
+import { useEffect, useMemo, useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import Icon from '@/components/ui/AppIcon';
+import { useProduct } from '@/lib/hooks/useProduct';
 
 export default function ProductInfo() {
-  const [qty, setQty] = useState(50);
+  const { product, loading } = useProduct();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const selectedVariant = product.variants?.find(
+    (variant) => variant.id === product.selectedVariantId
+  );
+  const minimum = Math.max(1, Math.ceil(selectedVariant?.moq || product.moq || 1));
+  const available = Math.max(0, selectedVariant?.available ?? product.available);
+  const price = selectedVariant?.price || product.price;
+  const unit = selectedVariant?.unit || product.unit;
+  const [qty, setQty] = useState(minimum);
   const [orderSubmitted, setOrderSubmitted] = useState(false);
   const [saved, setSaved] = useState(false);
 
-  const activePrice =
-    priceTiers?.find((t) => qty >= t?.min && (t?.max === null || qty <= t?.max)) || priceTiers?.[0];
+  useEffect(() => {
+    setQty(minimum);
+  }, [minimum, product.selectedVariantId]);
 
-  const handleOrderRequest = () => {
-    setOrderSubmitted(true);
-    setTimeout(() => setOrderSubmitted(false), 3000);
+  const estimatedTotal = useMemo(() => qty * price, [price, qty]);
+
+  const selectVariant = (variantId: string) => {
+    const next = new URLSearchParams(searchParams.toString());
+    next.set('variant', variantId);
+    router.replace(`${pathname}?${next.toString()}`, { scroll: false });
   };
 
+  if (loading) {
+    return <div className="h-[32rem] animate-pulse rounded-2xl border border-border bg-muted" />;
+  }
+
   return (
-    <div className="bg-card rounded-2xl border border-border p-5">
-      {/* Product Title */}
-      <div className="flex items-start justify-between gap-3 mb-3">
+    <div className="rounded-2xl border border-border bg-card p-5">
+      <div className="mb-3 flex items-start justify-between gap-3">
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="tag-bestseller">Best Seller</span>
+          <div className="mb-1 flex flex-wrap items-center gap-2">
+            {product.source === 'seller' && <span className="tag-new">Live catalogue</span>}
             <span className="badge-gstin">GST Ready</span>
+            {!!product.variantCount && (
+              <span className="rounded-full bg-secondary/10 px-2 py-0.5 text-[10px] font-800 text-secondary">
+                {product.variantCount} variation{product.variantCount === 1 ? '' : 's'}
+              </span>
+            )}
           </div>
-          <h1 className="text-lg font-800 text-foreground leading-snug">
-            Pure Dyeable Soft Nett Fabric
-          </h1>
+          <h1 className="text-lg font-800 leading-snug text-foreground">{product.name}</h1>
+          {product.sku && <p className="mt-1 text-xs text-muted-foreground">SKU {product.sku}</p>}
         </div>
         <button
-          onClick={() => setSaved(!saved)}
-          className={`p-2 rounded-xl border transition-all shrink-0 ${saved ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground hover:border-primary hover:text-primary'}`}
+          type="button"
+          onClick={() => setSaved((current) => !current)}
+          className={`shrink-0 rounded-xl border p-2 transition-all ${
+            saved
+              ? 'border-primary bg-primary/10 text-primary'
+              : 'border-border text-muted-foreground hover:border-primary hover:text-primary'
+          }`}
+          aria-label={saved ? 'Remove from saved products' : 'Save product'}
         >
-          <Icon
-            name={saved ? 'HeartIcon' : 'HeartIcon'}
-            size={18}
-            variant={saved ? 'solid' : 'outline'}
-          />
+          <Icon name="HeartIcon" size={18} variant={saved ? 'solid' : 'outline'} />
         </button>
       </div>
-      {/* Rating */}
-      <div className="flex items-center gap-2 mb-4">
-        <div className="flex items-center gap-0.5">
-          {[1, 2, 3, 4, 5]?.map((s) => (
-            <Icon
-              key={s}
-              name="StarIcon"
-              size={14}
-              className={s <= 4 ? 'text-amber-400' : 'text-amber-200'}
-              variant="solid"
-            />
-          ))}
-        </div>
-        <span className="text-sm font-700 text-foreground">4.8</span>
-        <span className="text-sm text-muted-foreground">(124 reviews)</span>
-        <span className="text-xs text-muted-foreground">· 380 orders</span>
+
+      <div className="mb-4 flex items-center gap-2 text-xs text-muted-foreground">
+        <Icon name="ShieldCheckIcon" size={14} className="text-success" />
+        <span>{product.seller}</span>
+        <span>·</span>
+        <span>{product.city}</span>
       </div>
-      {/* Price Tiers */}
-      <div className="mb-4">
-        <p className="text-xs font-700 text-muted-foreground uppercase tracking-wider mb-2">
-          Bulk Price Tiers
-        </p>
-        <div className="overflow-hidden rounded-xl border border-border">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-muted">
-                <th className="text-left px-3 py-2 text-xs font-700 text-muted-foreground">
-                  Quantity
-                </th>
-                <th className="text-right px-3 py-2 text-xs font-700 text-muted-foreground">
-                  Price/mtr
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {priceTiers?.map((tier) => (
-                <tr
-                  key={tier?.label}
-                  className={`price-tier-row border-t border-border ${qty >= tier?.min && (tier?.max === null || qty <= tier?.max) ? 'bg-primary/5 text-primary font-700' : ''}`}
+
+      {!!product.variants?.length && (
+        <div className="mb-5">
+          <div className="mb-2 flex items-center justify-between gap-3">
+            <p className="text-xs font-800 uppercase tracking-wider text-muted-foreground">
+              Select colour / design
+            </p>
+            <span className="text-xs text-muted-foreground">
+              {product.variants.filter((variant) => variant.available > 0).length} in stock
+            </span>
+          </div>
+          <div className="grid max-h-72 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
+            {product.variants.map((variant) => {
+              const active = variant.id === product.selectedVariantId;
+              const unavailable = variant.available <= 0;
+              return (
+                <button
+                  key={variant.id}
+                  type="button"
+                  onClick={() => selectVariant(variant.id)}
+                  className={`rounded-xl border p-3 text-left transition ${
+                    active
+                      ? 'border-primary bg-primary/5 ring-2 ring-primary/10'
+                      : 'border-border hover:border-primary/50'
+                  } ${unavailable ? 'opacity-55' : ''}`}
                 >
-                  <td className="px-3 py-2 text-xs">{tier?.label}</td>
-                  <td className="px-3 py-2 text-xs text-right font-700">₹{tier?.price}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  <div className="flex items-start gap-2.5">
+                    <span
+                      className="mt-0.5 h-6 w-6 shrink-0 rounded-full border border-black/10 shadow-sm"
+                      style={{ backgroundColor: variant.colorHex || '#d1d5db' }}
+                      aria-hidden="true"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-800 text-foreground">{variant.colorName}</p>
+                      <p className="truncate text-xs text-muted-foreground">{variant.designName}</p>
+                      <div className="mt-1 flex items-center justify-between gap-2 text-xs">
+                        <span className="font-800 text-primary">
+                          ₹{variant.price.toLocaleString('en-IN')}/{variant.unit}
+                        </span>
+                        <span className={unavailable ? 'text-error' : 'text-success'}>
+                          {unavailable ? 'Out of stock' : `${variant.available.toLocaleString('en-IN')} ${variant.unit}`}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {selectedVariant && (
+        <div className="mb-4 rounded-xl border border-secondary/20 bg-secondary/5 p-3">
+          <p className="text-sm font-800 text-foreground">
+            {selectedVariant.colorName} · {selectedVariant.designName}
+          </p>
+          {selectedVariant.description && (
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">
+              {selectedVariant.description}
+            </p>
+          )}
+        </div>
+      )}
+
+      <div className="mb-4 flex items-end gap-2">
+        <span className="text-3xl font-800 text-primary">₹{price.toLocaleString('en-IN')}</span>
+        <span className="mb-1 text-sm text-muted-foreground">per {unit}</span>
+        {product.priceMax && product.priceMax > product.price && !selectedVariant && (
+          <span className="mb-1 text-xs text-muted-foreground">
+            – ₹{product.priceMax.toLocaleString('en-IN')}
+          </span>
+        )}
+      </div>
+
+      <div className="mb-4 grid grid-cols-2 gap-2 text-xs">
+        <div className="rounded-xl bg-muted p-3">
+          <p className="text-muted-foreground">Available</p>
+          <p className="mt-1 font-800 text-foreground">
+            {available.toLocaleString('en-IN')} {unit}
+          </p>
+        </div>
+        <div className="rounded-xl bg-muted p-3">
+          <p className="text-muted-foreground">Minimum order</p>
+          <p className="mt-1 font-800 text-foreground">
+            {minimum.toLocaleString('en-IN')} {unit}
+          </p>
         </div>
       </div>
-      {/* Current Price */}
-      <div className="flex items-end gap-2 mb-4">
-        <span className="text-3xl font-800 text-primary">₹{activePrice?.price}</span>
-        <span className="text-sm text-muted-foreground mb-1">per metre · {activePrice?.label}</span>
-      </div>
-      {/* Quantity Input */}
+
       <div className="mb-4">
-        <div className="flex items-center justify-between mb-2">
-          <p className="text-sm font-700 text-foreground">Quantity (metres)</p>
-          <span className="text-xs text-muted-foreground">
-            Min: 50 mtrs · Available: 2,400 mtrs
-          </span>
+        <div className="mb-2 flex items-center justify-between">
+          <p className="text-sm font-700 text-foreground">Quantity ({unit})</p>
+          <span className="text-xs text-muted-foreground">Max {available.toLocaleString('en-IN')}</span>
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => setQty((q) => Math.max(50, q - 10))}
-            className="w-10 h-10 rounded-xl border border-border bg-muted flex items-center justify-center hover:border-primary transition-colors"
+            type="button"
+            onClick={() => setQty((current) => Math.max(minimum, current - 1))}
+            className="flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-muted hover:border-primary"
           >
-            <Icon name="MinusIcon" size={16} className="text-foreground" />
+            <Icon name="MinusIcon" size={16} />
           </button>
           <input
             type="number"
             value={qty}
-            min={50}
-            onChange={(e) => setQty(Math.max(50, parseInt(e?.target?.value) || 50))}
-            className="input-base flex-1 text-center px-3 py-2 text-sm rounded-xl font-700"
+            min={minimum}
+            max={available || undefined}
+            step={unit === 'mtr' || unit === 'kg' ? 0.5 : 1}
+            onChange={(event) => {
+              const next = Number(event.target.value);
+              setQty(Math.max(minimum, available ? Math.min(available, next) : next));
+            }}
+            className="input-base flex-1 rounded-xl px-3 py-2 text-center text-sm font-700"
           />
           <button
-            onClick={() => setQty((q) => q + 10)}
-            className="w-10 h-10 rounded-xl border border-border bg-muted flex items-center justify-center hover:border-primary transition-colors"
+            type="button"
+            onClick={() => setQty((current) => (available ? Math.min(available, current + 1) : current + 1))}
+            className="flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-muted hover:border-primary"
           >
-            <Icon name="PlusIcon" size={16} className="text-foreground" />
+            <Icon name="PlusIcon" size={16} />
           </button>
         </div>
       </div>
-      {/* Order Total */}
-      <div className="bg-muted rounded-xl p-3 mb-4">
-        <div className="flex justify-between text-sm mb-1">
+
+      <div className="mb-4 rounded-xl bg-muted p-3">
+        <div className="flex justify-between text-sm">
           <span className="text-muted-foreground">
-            Subtotal ({qty} mtrs × ₹{activePrice?.price})
+            {qty} {unit} × ₹{price.toLocaleString('en-IN')}
           </span>
-          <span className="font-700 text-foreground">
-            ₹{(qty * activePrice?.price)?.toLocaleString('en-IN')}
-          </span>
+          <span className="font-700 text-foreground">₹{estimatedTotal.toLocaleString('en-IN')}</span>
         </div>
-        <div className="flex justify-between text-sm font-700">
+        <div className="mt-1 flex justify-between text-sm">
           <span className="text-muted-foreground">GST (5%)</span>
-          <span className="text-foreground">
-            ₹{Math.round(qty * activePrice?.price * 0.05)?.toLocaleString('en-IN')}
+          <span className="font-700 text-foreground">
+            ₹{Math.round(estimatedTotal * 0.05).toLocaleString('en-IN')}
           </span>
         </div>
-        <div className="border-t border-border mt-2 pt-2 flex justify-between text-sm font-800">
-          <span className="text-foreground">Estimated Total</span>
+        <div className="mt-2 flex justify-between border-t border-border pt-2 text-sm font-800">
+          <span>Estimated total</span>
           <span className="text-primary">
-            ₹{Math.round(qty * activePrice?.price * 1.05)?.toLocaleString('en-IN')}
+            ₹{Math.round(estimatedTotal * 1.05).toLocaleString('en-IN')}
           </span>
         </div>
       </div>
-      {/* Dispatch Info */}
-      <div className="flex items-center gap-3 mb-4 p-3 bg-success/5 border border-success/20 rounded-xl">
-        <Icon name="TruckIcon" size={16} className="text-success shrink-0" />
+
+      <div className="mb-4 flex items-center gap-3 rounded-xl border border-success/20 bg-success/5 p-3">
+        <Icon name="TruckIcon" size={16} className="shrink-0 text-success" />
         <div>
-          <p className="text-xs font-700 text-success">Dispatch in 2-3 business days</p>
-          <p className="text-xs text-muted-foreground">
-            Shipped via Shiprocket · Tracking included
+          <p className="text-xs font-700 text-success">
+            Dispatch in {product.dispatchDays} business day{product.dispatchDays === 1 ? '' : 's'}
           </p>
+          <p className="text-xs text-muted-foreground">Tracking included</p>
         </div>
       </div>
-      {/* Policy Notice */}
-      <div className="flex items-start gap-2 mb-4 p-3 bg-amber-50 border border-amber-200 rounded-xl">
-        <Icon name="ExclamationTriangleIcon" size={14} className="text-warning shrink-0 mt-0.5" />
-        <p className="text-xs text-warning leading-relaxed">
-          <span className="font-700">No Returns.</span> Exchange accepted within 24hrs with unboxing
-          video. No COD — 100% prepaid only.
-        </p>
-      </div>
-      {/* Action Buttons */}
+
       {orderSubmitted ? (
-        <div className="flex items-center justify-center gap-2 bg-success/10 border border-success/30 rounded-xl p-4">
+        <div className="flex items-center justify-center gap-2 rounded-xl border border-success/30 bg-success/10 p-4">
           <Icon name="CheckCircleIcon" size={20} className="text-success" />
-          <span className="text-sm font-700 text-success">
-            Order request submitted! Seller will respond shortly.
-          </span>
+          <span className="text-sm font-700 text-success">Order request submitted.</span>
         </div>
       ) : (
-        <div className="space-y-2">
-          <button
-            onClick={handleOrderRequest}
-            className="btn-primary w-full py-3 text-sm rounded-xl flex items-center justify-center gap-2"
-          >
-            <Icon name="ShoppingCartIcon" size={16} />
-            Submit Order Request
-          </button>
-          <Link
-            href="/register"
-            className="btn-secondary w-full py-3 text-sm rounded-xl flex items-center justify-center gap-2"
-          >
-            <Icon name="DocumentTextIcon" size={16} />
-            Create Account to Quote
-          </Link>
-        </div>
+        <button
+          type="button"
+          onClick={() => {
+            setOrderSubmitted(true);
+            window.setTimeout(() => setOrderSubmitted(false), 3000);
+          }}
+          disabled={available <= 0}
+          className="btn-primary flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <Icon name="ShoppingCartIcon" size={16} />
+          {available > 0 ? 'Submit order request' : 'Selected variation is out of stock'}
+        </button>
       )}
-      {/* Policies */}
-      <div className="mt-3 flex items-center justify-center gap-4 text-xs text-muted-foreground">
-        <div className="flex items-center gap-1">
-          <Icon name="LockClosedIcon" size={12} />
-          <span>Secure Payment</span>
-        </div>
-        <div className="flex items-center gap-1">
-          <Icon name="ShieldCheckIcon" size={12} />
-          <span>GST Invoice</span>
-        </div>
-        <div className="flex items-center gap-1">
-          <Icon name="ReceiptPercentIcon" size={12} />
-          <span>No Hidden Charges</span>
-        </div>
-      </div>
     </div>
   );
 }

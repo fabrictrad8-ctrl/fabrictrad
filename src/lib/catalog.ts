@@ -1,3 +1,19 @@
+export type CatalogVariant = {
+  id: string;
+  key: string;
+  code: string;
+  colorName: string;
+  colorHex: string | null;
+  designName: string;
+  description: string;
+  price: number;
+  unit: string;
+  available: number;
+  moq: number;
+  image: string | null;
+  images: string[];
+};
+
 export type CatalogProduct = {
   id: string;
   source: 'catalog' | 'seller';
@@ -7,6 +23,7 @@ export type CatalogProduct = {
   city: string;
   category: string;
   price: number;
+  priceMax?: number;
   unit: string;
   moq: number;
   available: number;
@@ -24,6 +41,11 @@ export type CatalogProduct = {
   gst: boolean;
   description?: string;
   sku?: string | null;
+  variantCount?: number;
+  colors?: string[];
+  variants?: CatalogVariant[];
+  selectedVariantId?: string | null;
+  searchTerms?: string;
 };
 
 const makeImages = (image: string, extras: string[] = []) => [image, ...extras].filter(Boolean);

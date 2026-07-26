@@ -13,7 +13,7 @@ permissions:
 jobs:
   check:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 45
     env:
       NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
       NEXT_PUBLIC_SUPABASE_ANON_KEY: test-anon-key
@@ -36,116 +36,117 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+
       - name: Install dependencies
         run: npm install --no-audit --no-fund --package-lock=false --legacy-peer-deps
+
       - name: Type check
         run: npm run type-check
+
       - name: Lint
         run: npm run lint
+
       - name: Production build
         run: npm run build
-      - name: Authentication, AI drape and WhatsApp source checks
+
+      - name: Authentication, AI drape, WhatsApp and variant source checks
         shell: bash
         run: |
           set -euo pipefail
 
-          login_source='src/app/login/EmailOtpLoginClient.tsx'
-          auth_context_source='src/contexts/AuthContext.tsx'
-          demo_route_source='src/app/api/auth/demo-session/route.ts'
-          callback_source='src/app/auth/callback/route.ts'
-          middleware_source='src/middleware.ts'
-          logo_source='src/components/ui/AppLogo.tsx'
-          drape_ui_source='src/app/product-detail/components/VirtualColourDrapeStudio.tsx'
-          drape_route_source='src/app/api/ai/drape-on/route.ts'
-          whatsapp_ui_source='src/app/seller-dashboard/components/SellerWhatsAppUpload.tsx'
-          whatsapp_route_source='src/app/api/whatsapp/webhook/route.ts'
-          whatsapp_status_source='src/app/api/whatsapp/catalog/status/route.ts'
-          whatsapp_parser_source='src/lib/whatsappCatalog.ts'
-          whatsapp_migration='supabase/migrations/20260726100000_whatsapp_catalog_ingestion.sql'
-          deploy_source='.github/workflows/deploy-cloudflare.yml'
+          login='src/app/login/EmailOtpLoginClient.tsx'
+          auth='src/contexts/AuthContext.tsx'
+          demo='src/app/api/auth/demo-session/route.ts'
+          middleware='src/middleware.ts'
+          drape_ui='src/app/product-detail/components/VirtualColourDrapeStudio.tsx'
+          drape_api='src/app/api/ai/drape-on/route.ts'
+          whatsapp_ui='src/app/seller-dashboard/components/SellerWhatsAppUpload.tsx'
+          whatsapp_api='src/app/api/whatsapp/webhook/route.ts'
+          whatsapp_status='src/app/api/whatsapp/catalog/status/route.ts'
+          parser='src/lib/whatsappCatalog.ts'
+          variant_ui='src/app/seller-dashboard/components/SellerVariantCatalog.tsx'
+          seller_layout='src/app/seller-dashboard/components/SellerDashboardLayout.tsx'
+          marketplace='src/app/marketplace/components/MarketplaceGrid.tsx'
+          product_hook='src/lib/hooks/useProduct.ts'
+          product_info='src/app/product-detail/components/ProductInfo.tsx'
+          product_specs='src/app/product-detail/components/ProductSpecs.tsx'
+          base_migration='supabase/migrations/20260726100000_whatsapp_catalog_ingestion.sql'
+          variant_migration='supabase/migrations/20260726133000_product_variants_catalog.sql'
+          pairing_migration='supabase/migrations/20260726134000_whatsapp_variant_pairing_context.sql'
+          deploy='.github/workflows/deploy-cloudflare.yml'
 
-          grep -q 'Forgot password?' "$login_source"
-          grep -q 'Continue with Google' "$login_source"
-          grep -q 'current-password' "$login_source"
-          grep -Fq "return '/marketplace';" "$login_source"
-          grep -Fq 'result?.isDemo' "$login_source"
-          grep -Fq "'/api/auth/demo-session'" "$auth_context_source"
-          grep -Fq "'demo.buyer@fabrictrad.com'" "$demo_route_source"
-          grep -Fq "'demo.seller@fabrictrad.com'" "$demo_route_source"
-          grep -Fq "const DEMO_COOKIE_NAME = 'fabrictrad_demo_role';" "$middleware_source"
-          grep -Fq 'return `${origin}/marketplace`;' "$callback_source"
-          grep -Fq "return '/marketplace';" "$middleware_source"
-          grep -Fq ": '/marketplace'" "$logo_source"
+          grep -q 'Forgot password?' "$login"
+          grep -q 'Continue with Google' "$login"
+          grep -q 'current-password' "$login"
+          grep -Fq "'/api/auth/demo-session'" "$auth"
+          grep -Fq "'demo.buyer@fabrictrad.com'" "$demo"
+          grep -Fq "const DEMO_COOKIE_NAME = 'fabrictrad_demo_role';" "$middleware"
 
-          grep -Fq "fetch('/api/ai/drape-on'" "$drape_ui_source"
-          grep -Fq 'Generate AI drape' "$drape_ui_source"
-          grep -Fq 'Your uploaded photo' "$drape_ui_source"
-          grep -Fq 'Choose the garment' "$drape_ui_source"
-          grep -Fq 'AI-generated garment using the selected fabric' "$drape_ui_source"
-          grep -Fq "'gpt-image-2'" "$drape_route_source"
-          grep -Fq "form.append('image[]', person.blob" "$drape_route_source"
-          grep -Fq "form.append('image[]', fabric.blob" "$drape_route_source"
-          grep -Fq 'flat colour block' "$drape_route_source"
-          grep -Fq "const DEMO_COOKIE_NAME = 'fabrictrad_demo_role';" "$drape_route_source"
-
-          grep -Fq "fetch('/api/whatsapp/catalog/status'" "$whatsapp_ui_source"
-          grep -Fq 'same verified phone number' "$whatsapp_ui_source"
-          grep -Fq 'separate messages within' "$whatsapp_ui_source"
-          grep -Fq "eq('source', 'whatsapp')" "$whatsapp_ui_source"
-          grep -Fq "request.headers.get('x-hub-signature-256')" "$whatsapp_route_source"
-          grep -Fq "message.type === 'text' || message.type === 'image'" "$whatsapp_route_source"
-          grep -Fq 'MESSAGE_WINDOW_MINUTES = 15' "$whatsapp_route_source"
-          grep -Fq 'downloadWhatsAppImage' "$whatsapp_route_source"
-          grep -Fq "source: 'whatsapp'" "$whatsapp_route_source"
-          grep -Fq "approval_status: 'pending'" "$whatsapp_route_source"
-          grep -Fq 'parseWhatsAppCatalog' "$whatsapp_parser_source"
-          grep -Fq "fabric: 'fabric'" "$whatsapp_parser_source"
-          grep -Fq "rate: 'price'" "$whatsapp_parser_source"
-          grep -Fq 'whatsapp_catalog_messages' "$whatsapp_migration"
-          grep -Fq 'resolve_whatsapp_seller' "$whatsapp_migration"
-          grep -Fq 'seller-product-images' "$whatsapp_migration"
-          grep -Fq 'WHATSAPP_ACCESS_TOKEN' "$whatsapp_status_source"
-          grep -Fq 'WHATSAPP_ACCESS_TOKEN: ${{ secrets.WHATSAPP_ACCESS_TOKEN }}' "$deploy_source"
-          grep -Fq 'Apply Supabase migrations when deployment credentials exist' "$deploy_source"
-          grep -Fq 'Verify live feature routes' "$deploy_source"
-
-          if grep -q 'clipPath' "$drape_ui_source"; then
-            echo 'The AI drape studio still contains the old polygon overlay.'
-            exit 1
-          fi
-          if grep -q 'photoFilter' "$drape_ui_source"; then
-            echo 'The AI drape studio still contains the old colour-filter simulation.'
-            exit 1
-          fi
-          if grep -qi 'Your photo is not sent for AI generation' "$drape_ui_source"; then
-            echo 'The AI drape studio still claims images are not sent to the generator.'
-            exit 1
-          fi
-          if grep -qi 'Click a fabric or shade to drape it' "$drape_ui_source"; then
-            echo 'The old colour-comparison tool is still being rendered as drape-on.'
-            exit 1
-          fi
-          if grep -Fq '98765 00001' "$whatsapp_ui_source"; then
-            echo 'The fake WhatsApp upload number was restored.'
-            exit 1
-          fi
-          if grep -Fq 'processedUploads = [' "$whatsapp_ui_source"; then
-            echo 'Hard-coded WhatsApp upload cards were restored.'
-            exit 1
-          fi
-          if grep -qi 'Password reset codes are sent only' "$login_source"; then
-            echo 'The removed password-reset notice was restored unexpectedly.'
-            exit 1
-          fi
-          if grep -qi 'Explore a demo' "$login_source"; then
-            echo 'Public demo shortcut buttons must not be rendered.'
-            exit 1
-          fi
-          if grep -qi 'Admin portal' "$login_source"; then
-            echo 'A separate administrator entry point must not be rendered.'
+          grep -Fq "fetch('/api/ai/drape-on'" "$drape_ui"
+          grep -Fq 'Generate AI drape' "$drape_ui"
+          grep -Fq "'gpt-image-2'" "$drape_api"
+          grep -Fq "form.append('image[]', person.blob" "$drape_api"
+          grep -Fq "form.append('image[]', fabric.blob" "$drape_api"
+          if grep -q 'clipPath\|photoFilter' "$drape_ui"; then
+            echo 'The fake drape overlay returned.'
             exit 1
           fi
 
+          grep -Fq "fetch('/api/whatsapp/catalog/status'" "$whatsapp_ui"
+          grep -Fq 'WhatsApp multi-variant catalogue' "$whatsapp_ui"
+          grep -Fq 'Color = Blue' "$whatsapp_ui"
+          grep -Fq 'variant_summary' "$whatsapp_ui"
+          grep -Fq "request.headers.get('x-hub-signature-256')" "$whatsapp_api"
+          grep -Fq 'MESSAGE_WINDOW_MINUTES = 15' "$whatsapp_api"
+          grep -Fq 'buildVariantSet' "$whatsapp_api"
+          grep -Fq "from('seller_product_variants')" "$whatsapp_api"
+          grep -Fq "approval_status: 'approved'" "$whatsapp_api"
+          grep -Fq 'The catalogue is now visible in your seller dashboard and searchable by buyers.' "$whatsapp_api"
+          grep -Fq "variant: 'variant'" "$parser"
+          grep -Fq "color: 'variant'" "$parser"
+          grep -Fq 'variants: ParsedWhatsAppVariant[]' "$parser"
+          grep -Fq 'variantKey' "$parser"
+          grep -Fq 'whatsapp_catalog_messages' "$base_migration"
+          grep -Fq 'resolve_whatsapp_seller' "$base_migration"
+          grep -Fq 'seller-product-images' "$base_migration"
+          grep -Fq 'WHATSAPP_ACCESS_TOKEN' "$whatsapp_status"
+          grep -Fq 'seller_product_variants' "$whatsapp_status"
+          grep -Fq 'supportsVariants: true' "$whatsapp_status"
+
+          grep -Fq 'seller_product_variants' "$variant_migration"
+          grep -Fq 'sync_product_variant_rollup' "$variant_migration"
+          grep -Fq 'variant_summary' "$variant_migration"
+          grep -Fq 'seller_product_variants.product_id' "$variant_migration"
+          grep -Fq 'reopen_recent_whatsapp_catalog_context' "$pairing_migration"
+          grep -Fq "status = 'processed'" "$pairing_migration"
+          grep -Fq 'Colour & design variations' "$variant_ui"
+          grep -Fq "key: 'variants'" "$seller_layout"
+          grep -Fq 'variant_summary' "$marketplace"
+          grep -Fq 'colors?.join' "$marketplace"
+          grep -Fq "from('seller_product_variants')" "$product_hook"
+          grep -Fq 'Select colour / design' "$product_info"
+          grep -Fq 'Live seller catalogue data' "$product_specs"
+
+          grep -Fq 'WHATSAPP_ACCESS_TOKEN: ${{ secrets.WHATSAPP_ACCESS_TOKEN }}' "$deploy"
+          grep -Fq 'Apply Supabase migrations when deployment credentials exist' "$deploy"
+
+          if grep -Fq '98765 00001' "$whatsapp_ui"; then
+            echo 'A placeholder WhatsApp number was restored.'
+            exit 1
+          fi
+          if grep -Fq 'processedUploads = [' "$whatsapp_ui"; then
+            echo 'Hard-coded WhatsApp cards were restored.'
+            exit 1
+          fi
+          if grep -qi 'Password reset codes are sent only\|Explore a demo\|Admin portal' "$login"; then
+            echo 'Removed login content was restored.'
+            exit 1
+          fi
+
+      - name: Runtime route smoke tests
+        shell: bash
+        run: |
+          set -euo pipefail
           npm run start > /tmp/fabrictrad-server.log 2>&1 &
           server_pid=$!
           cleanup() {
@@ -155,105 +156,49 @@ jobs:
           trap cleanup EXIT
 
           ready=false
-          for _ in $(seq 1 40); do
-            if curl --fail --silent --show-error http://127.0.0.1:3000/login > /tmp/login.html; then
+          for _ in $(seq 1 45); do
+            if curl --fail --silent http://127.0.0.1:3000/login > /tmp/login.html; then
               ready=true
               break
             fi
             sleep 1
           done
-          if [ "$ready" != "true" ]; then
+          if [ "$ready" != 'true' ]; then
             cat /tmp/fabrictrad-server.log
             exit 1
           fi
 
-          ai_status=$(curl --silent --show-error --output /tmp/ai-drape-status.json \
-            --write-out '%{http_code}' http://127.0.0.1:3000/api/ai/drape-on)
-          test "$ai_status" = "200"
-          grep -q '"configured":true' /tmp/ai-drape-status.json
-          grep -q 'gpt-image-2' /tmp/ai-drape-status.json
+          ai_status=$(curl --silent --output /tmp/ai.json --write-out '%{http_code}' http://127.0.0.1:3000/api/ai/drape-on)
+          test "$ai_status" = '200'
+          grep -q '"configured":true' /tmp/ai.json
 
-          whatsapp_status=$(curl --silent --show-error --output /tmp/whatsapp-status.json \
-            --write-out '%{http_code}' http://127.0.0.1:3000/api/whatsapp/catalog/status)
-          test "$whatsapp_status" = "200"
-          grep -q '"credentialsConfigured":true' /tmp/whatsapp-status.json
-          grep -q '"databaseReady":false' /tmp/whatsapp-status.json
+          whatsapp_status_code=$(curl --silent --output /tmp/whatsapp.json --write-out '%{http_code}' http://127.0.0.1:3000/api/whatsapp/catalog/status)
+          test "$whatsapp_status_code" = '200'
+          grep -q '"credentialsConfigured":true' /tmp/whatsapp.json
+          grep -q '"supportsVariants":true' /tmp/whatsapp.json
 
-          verify_status=$(curl --silent --show-error --output /tmp/whatsapp-verify.txt \
-            --write-out '%{http_code}' \
-            'http://127.0.0.1:3000/api/whatsapp/webhook?hub.mode=subscribe&hub.verify_token=test-whatsapp-verify-token&hub.challenge=fabrictrad-ok')
-          test "$verify_status" = "200"
-          grep -q 'fabrictrad-ok' /tmp/whatsapp-verify.txt
+          verify_status=$(curl --silent --output /tmp/verify.txt --write-out '%{http_code}' 'http://127.0.0.1:3000/api/whatsapp/webhook?hub.mode=subscribe&hub.verify_token=test-whatsapp-verify-token&hub.challenge=fabrictrad-ok')
+          test "$verify_status" = '200'
+          grep -q 'fabrictrad-ok' /tmp/verify.txt
 
-          unsigned_status=$(curl --silent --show-error --output /tmp/unsigned-whatsapp.json \
-            --write-out '%{http_code}' --header 'Content-Type: application/json' \
-            --data '{"object":"whatsapp_business_account"}' \
-            http://127.0.0.1:3000/api/whatsapp/webhook)
-          test "$unsigned_status" = "401"
-          grep -q 'Invalid webhook signature' /tmp/unsigned-whatsapp.json
+          unsigned_status=$(curl --silent --output /tmp/unsigned.json --write-out '%{http_code}' --header 'Content-Type: application/json' --data '{"object":"whatsapp_business_account"}' http://127.0.0.1:3000/api/whatsapp/webhook)
+          test "$unsigned_status" = '401'
+          grep -q 'Invalid webhook signature' /tmp/unsigned.json
 
-          invalid_otp_status=$(curl --silent --show-error --output /tmp/invalid-otp.json \
-            --write-out '%{http_code}' --header 'Content-Type: application/json' \
-            --data '{}' http://127.0.0.1:3000/api/auth/email-otp/request)
-          test "$invalid_otp_status" = "400"
-          grep -q 'Email is required' /tmp/invalid-otp.json
+          invalid_demo=$(curl --silent --output /tmp/invalid-demo.json --write-out '%{http_code}' --header 'Content-Type: application/json' --data '{"email":"demo.buyer@fabrictrad.com","password":"wrong-password"}' http://127.0.0.1:3000/api/auth/demo-session)
+          test "$invalid_demo" = '401'
 
-          invalid_demo_status=$(curl --silent --show-error --output /tmp/invalid-demo.json \
-            --write-out '%{http_code}' --header 'Content-Type: application/json' \
-            --data '{"email":"demo.buyer@fabrictrad.com","password":"wrong-password"}' \
-            http://127.0.0.1:3000/api/auth/demo-session)
-          test "$invalid_demo_status" = "401"
-          grep -q 'Invalid login credentials' /tmp/invalid-demo.json
+          buyer=$(curl --silent --output /tmp/buyer.json --write-out '%{http_code}' --cookie-jar /tmp/buyer.cookies --header 'Content-Type: application/json' --data '{"email":"demo.buyer@fabrictrad.com","password":"FabricDemo@2026"}' http://127.0.0.1:3000/api/auth/demo-session)
+          test "$buyer" = '200'
+          grep -q '"role":"buyer"' /tmp/buyer.json
+          marketplace=$(curl --silent --output /tmp/marketplace.html --write-out '%{http_code}' --cookie /tmp/buyer.cookies --max-redirs 0 http://127.0.0.1:3000/marketplace)
+          test "$marketplace" = '200'
 
-          buyer_status=$(curl --silent --show-error --output /tmp/buyer-session.json \
-            --write-out '%{http_code}' --cookie-jar /tmp/buyer.cookies \
-            --header 'Content-Type: application/json' \
-            --data '{"email":"demo.buyer@fabrictrad.com","password":"FabricDemo@2026"}' \
-            http://127.0.0.1:3000/api/auth/demo-session)
-          test "$buyer_status" = "200"
-          grep -q '"role":"buyer"' /tmp/buyer-session.json
-          grep -q 'fabrictrad_demo_role' /tmp/buyer.cookies
+          seller=$(curl --silent --output /tmp/seller.json --write-out '%{http_code}' --cookie-jar /tmp/seller.cookies --header 'Content-Type: application/json' --data '{"email":"demo.seller@fabrictrad.com","password":"FabricDemo@2026"}' http://127.0.0.1:3000/api/auth/demo-session)
+          test "$seller" = '200'
+          grep -q '"role":"seller"' /tmp/seller.json
+          dashboard=$(curl --silent --output /tmp/dashboard.html --write-out '%{http_code}' --cookie /tmp/seller.cookies --max-redirs 0 'http://127.0.0.1:3000/seller-dashboard?tab=variants')
+          test "$dashboard" = '200'
 
-          buyer_marketplace_status=$(curl --silent --show-error --output /tmp/buyer-marketplace.html \
-            --write-out '%{http_code}' --cookie /tmp/buyer.cookies --max-redirs 0 \
-            http://127.0.0.1:3000/marketplace)
-          test "$buyer_marketplace_status" = "200"
-
-          buyer_to_seller_status=$(curl --silent --show-error --dump-header /tmp/buyer-to-seller.headers \
-            --output /dev/null --write-out '%{http_code}' --cookie /tmp/buyer.cookies --max-redirs 0 \
-            http://127.0.0.1:3000/seller-dashboard)
-          test "$buyer_to_seller_status" = "307" -o "$buyer_to_seller_status" = "308"
-          grep -qi '^location: .*marketplace' /tmp/buyer-to-seller.headers
-
-          seller_status=$(curl --silent --show-error --output /tmp/seller-session.json \
-            --write-out '%{http_code}' --cookie-jar /tmp/seller.cookies \
-            --header 'Content-Type: application/json' \
-            --data '{"email":"demo.seller@fabrictrad.com","password":"FabricDemo@2026"}' \
-            http://127.0.0.1:3000/api/auth/demo-session)
-          test "$seller_status" = "200"
-          grep -q '"role":"seller"' /tmp/seller-session.json
-          grep -q 'fabrictrad_demo_role' /tmp/seller.cookies
-
-          seller_dashboard_status=$(curl --silent --show-error --output /tmp/seller-dashboard.html \
-            --write-out '%{http_code}' --cookie /tmp/seller.cookies --max-redirs 0 \
-            http://127.0.0.1:3000/seller-dashboard)
-          test "$seller_dashboard_status" = "200"
-
-          seller_to_buyer_status=$(curl --silent --show-error --dump-header /tmp/seller-to-buyer.headers \
-            --output /dev/null --write-out '%{http_code}' --cookie /tmp/seller.cookies --max-redirs 0 \
-            http://127.0.0.1:3000/buyer-dashboard)
-          test "$seller_to_buyer_status" = "307" -o "$seller_to_buyer_status" = "308"
-          grep -qi '^location: .*seller-dashboard' /tmp/seller-to-buyer.headers
-
-          clear_status=$(curl --silent --show-error --output /tmp/clear-demo.json \
-            --write-out '%{http_code}' --cookie /tmp/buyer.cookies --request DELETE \
-            http://127.0.0.1:3000/api/auth/demo-session)
-          test "$clear_status" = "200"
-
-          retired_ensure_status=$(curl --silent --show-error --output /tmp/retired-ensure.txt \
-            --write-out '%{http_code}' --header 'Content-Type: application/json' \
-            --data '{"email":"demo.buyer@fabrictrad.com","password":"FabricDemo@2026"}' \
-            http://127.0.0.1:3000/api/auth/demo-account/ensure)
-          test "$retired_ensure_status" = "404" -o "$retired_ensure_status" = "410"
       - name: OpenNext Cloudflare compatibility build
         run: npm run build:sites

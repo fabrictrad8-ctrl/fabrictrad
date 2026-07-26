@@ -9,6 +9,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import SellerOverview from '@/app/seller-dashboard/components/SellerOverview';
 import SellerOrders from '@/app/seller-dashboard/components/SellerOrders';
 import SellerInventory from '@/app/seller-dashboard/components/SellerInventory';
+import SellerVariantCatalog from '@/app/seller-dashboard/components/SellerVariantCatalog';
 import SellerAnalytics from '@/app/seller-dashboard/components/SellerAnalytics';
 import SellerWhatsAppUpload from '@/app/seller-dashboard/components/SellerWhatsAppUpload';
 import SellerEarnings from '@/app/seller-dashboard/components/SellerEarnings';
@@ -25,6 +26,7 @@ type SellerTab =
   | 'overview'
   | 'orders'
   | 'inventory'
+  | 'variants'
   | 'analytics'
   | 'upload'
   | 'profile'
@@ -41,7 +43,8 @@ type SellerTab =
 const navItems: { key: SellerTab; label: string; icon: string; badge?: number }[] = [
   { key: 'overview', label: 'Dashboard', icon: 'HomeIcon' },
   { key: 'orders', label: 'Order Queue', icon: 'ClipboardDocumentListIcon' },
-  { key: 'inventory', label: 'Inventory', icon: 'ArchiveBoxIcon' },
+  { key: 'inventory', label: 'Parent Fabrics', icon: 'ArchiveBoxIcon' },
+  { key: 'variants', label: 'Colours & Designs', icon: 'SwatchIcon' },
   { key: 'categories', label: 'Categories', icon: 'TagIcon' },
   { key: 'analytics', label: 'Analytics', icon: 'ChartBarIcon' },
   { key: 'fulfillment', label: 'Fulfillment', icon: 'TruckIcon' },
@@ -52,7 +55,7 @@ const navItems: { key: SellerTab; label: string; icon: string; badge?: number }[
   { key: 'inbox', label: 'Buyer Inbox', icon: 'ChatBubbleLeftRightIcon' },
   { key: 'disputes', label: 'Disputes & Messages', icon: 'ChatBubbleLeftRightIcon' },
   { key: 'notifications', label: 'Notifications', icon: 'BellIcon' },
-  { key: 'upload', label: 'Upload Catalog', icon: 'ArrowUpTrayIcon' },
+  { key: 'upload', label: 'WhatsApp Catalog', icon: 'ArrowUpTrayIcon' },
   { key: 'profile', label: 'Business Profile', icon: 'BuildingOfficeIcon' },
 ];
 
@@ -168,11 +171,11 @@ export default function SellerDashboardLayout() {
             ))}
             <div className="mt-4 p-3 bg-secondary/10 border border-secondary/20 rounded-xl">
               <div className="flex items-center gap-2 mb-1">
-                <Icon name="ArchiveBoxIcon" size={14} className="text-secondary" />
-                <p className="text-xs font-700 text-secondary">Inventory Alerts</p>
+                <Icon name="SwatchIcon" size={14} className="text-secondary" />
+                <p className="text-xs font-700 text-secondary">Variant inventory</p>
               </div>
               <p className="text-xs text-muted-foreground">
-                Alerts will appear only for this seller account's listings
+                Track stock, photos and rates separately for every colour or design.
               </p>
             </div>
           </div>
@@ -193,8 +196,8 @@ export default function SellerDashboardLayout() {
                 <div>
                   <p className="text-xs font-800 text-secondary">Demo seller sandbox</p>
                   <p className="mt-0.5 text-xs leading-5 text-muted-foreground">
-                    This account is for testing only. You can explore seller features, but real
-                    products, sales, payouts, and courier creation are disabled.
+                    This account is for testing only. Real catalogue publishing and WhatsApp binding
+                    require a verified seller account.
                   </p>
                 </div>
               </div>
@@ -203,6 +206,7 @@ export default function SellerDashboardLayout() {
           {activeTab === 'overview' && <SellerOverview onNavigate={navigateToTab} />}
           {activeTab === 'orders' && <SellerOrders />}
           {activeTab === 'inventory' && <SellerInventory />}
+          {activeTab === 'variants' && <SellerVariantCatalog />}
           {activeTab === 'analytics' && <SellerAnalytics />}
           {activeTab === 'earnings' && <SellerEarnings />}
           {activeTab === 'billing' && <SellerBillingDocuments />}

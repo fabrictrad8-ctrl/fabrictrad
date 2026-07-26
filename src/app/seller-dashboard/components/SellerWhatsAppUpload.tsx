@@ -15,6 +15,17 @@ type ConnectionStatus = {
   webhookPath: string;
 };
 
+type VariantSummary = {
+  id?: string;
+  color?: string;
+  colorHex?: string | null;
+  design?: string;
+  price?: number;
+  unit?: string;
+  available?: number;
+  image?: string | null;
+};
+
 type WhatsAppProduct = {
   id: string;
   name: string;
@@ -22,27 +33,39 @@ type WhatsAppProduct = {
   category: string;
   price_per_unit: number;
   unit: string;
+  available_quantity: number;
   width_inches: number | null;
   work_type: string;
   image_url: string | null;
-  approval_status: 'not_submitted' | 'pending' | 'approved' | 'rejected';
-  status: 'draft' | 'active' | 'archived';
+  variant_count: number;
+  variant_colors: string[];
+  variant_summary: VariantSummary[];
+  approval_status: string;
+  status: string;
   created_at: string;
-  admin_review_notes: string | null;
 };
 
-const template = `Navratri special
-
+const template = `Catalog = Navratri Vichitra Silk
 Fabric = vichitra silk
 Width = 44
 Work = mirror work
-Rate = 240 per mtr`;
+Rate = 240 per mtr
+MOQ = 3
 
-function approvalLabel(product: WhatsAppProduct) {
-  if (product.approval_status === 'approved') return 'Approved';
-  if (product.approval_status === 'rejected') return 'Needs changes';
-  return 'Pending review';
-}
+Color = Blue
+Stock = 9 mtr
+Rate = 240 per mtr
+Design = mirror dots
+
+Color = Pink
+Stock = 14 mtr
+Rate = 250 per mtr
+Design = mirror border
+
+Color = Yellow
+Stock = 11 mtr
+Rate = 245 per mtr
+Design = all-over mirror`;
 
 export default function SellerWhatsAppUpload() {
   const { user, isDemoAccount } = useAuth();
@@ -57,12 +80,8 @@ export default function SellerWhatsAppUpload() {
 
   useEffect(() => {
     let cancelled = false;
-    const loadConnection = async () => {
-      try {
-        const response = await fetch('/api/whatsapp/catalog/status', {
-          cache: 'no-store',
-          credentials: 'same-origin',
-        });
+    void fetch('/api/whatsapp/catalog/status', { cache: 'no-store', credentials: 'same-origin' })
+      .then(async (response) => {
         const payload = (await response.json().catch(() => ({}))) as Partial<ConnectionStatus>;
         if (!cancelled) {
           setConnection({
@@ -73,19 +92,12 @@ export default function SellerWhatsAppUpload() {
             webhookPath: payload.webhookPath || '/api/whatsapp/webhook',
           });
         }
-      } catch {
+      })
+      .catch(() => {
         if (!cancelled) {
-          setConnection({
-            configured: false,
-            displayNumber: null,
-            waNumber: null,
-            pairingWindowMinutes: 15,
-            webhookPath: '/api/whatsapp/webhook',
-          });
+          setConnection({ configured: false, displayNumber: null, waNumber: null, pairingWindowMinutes: 15, webhookPath: '/api/whatsapp/webhook' });
         }
-      }
-    };
-    void loadConnection();
+      });
     return () => {
       cancelled = true;
     };
@@ -94,13 +106,7 @@ export default function SellerWhatsAppUpload() {
   const loadProducts = useCallback(async () => {
     setError('');
     setLoadingProducts(true);
-
-    if (isDemoAccount) {
-      setProducts([]);
-      setLoadingProducts(false);
-      return;
-    }
-    if (!user?.id) {
+    if (isDemoAccount || !user?.id) {
       setProducts([]);
       setLoadingProducts(false);
       return;
@@ -118,22 +124,16 @@ export default function SellerWhatsAppUpload() {
 
       const { data, error: productsError } = await supabase
         .from('seller_products')
-        .select(
-          'id,name,sku,category,price_per_unit,unit,width_inches,work_type,image_url,approval_status,status,created_at,admin_review_notes'
-        )
+        .select('id,name,sku,category,price_per_unit,unit,available_quantity,width_inches,work_type,image_url,variant_count,variant_colors,variant_summary,approval_status,status,created_at')
         .eq('seller_id', seller.id)
         .eq('source', 'whatsapp')
-        .order('created_at', { ascending: false })
+        .order('updated_at', { ascending: false })
         .limit(30);
       if (productsError) throw productsError;
       setProducts((data || []) as WhatsAppProduct[]);
     } catch (loadError) {
       setProducts([]);
-      setError(
-        loadError instanceof Error
-          ? loadError.message
-          : 'Unable to load WhatsApp catalogue uploads.'
-      );
+      setError(loadError instanceof Error ? loadError.message : 'Unable to load WhatsApp catalogue uploads.');
     } finally {
       setLoadingProducts(false);
     }
@@ -143,53 +143,33 @@ export default function SellerWhatsAppUpload() {
     void loadProducts();
   }, [loadProducts]);
 
+  const openWhatsApp = () => {
+    if (!connection?.configured || !connection.waNumber) return;
+    window.open(`https://wa.me/${connection.waNumber}?text=${encodeURIComponent(sampleText.trim() || template)}`, '_blank', 'noopener');
+  };
+
   const refreshProducts = async () => {
     setRefreshing(true);
     await loadProducts();
     setRefreshing(false);
   };
 
-  const openWhatsApp = () => {
-    if (!connection?.configured || !connection.waNumber) return;
-    const text = encodeURIComponent(sampleText.trim() || template);
-    window.open(`https://wa.me/${connection.waNumber}?text=${text}`, '_blank', 'noopener');
-  };
-
   return (
     <div>
       <div className="mb-6">
-        <p className="text-xs font-800 uppercase tracking-[0.16em] text-primary">
-          Connected catalogue intake
-        </p>
-        <h1 className="mt-1 text-xl font-800 text-foreground">WhatsApp Catalog Upload</h1>
+        <p className="text-xs font-800 uppercase tracking-[0.16em] text-primary">Connected catalogue intake</p>
+        <h1 className="mt-1 text-xl font-800 text-foreground">WhatsApp multi-variant catalogue</h1>
         <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-          Send a clear fabric photo and its details to the connected FabricTrad WhatsApp Business
-          number. The webhook pairs the messages, saves the image and creates a catalogue draft for
-          review.
+          One fabric becomes the parent product. Every colour or design becomes its own variation with
+          separate stock, rate, description and photos.
         </p>
       </div>
 
-      <div
-        className={`mb-6 rounded-2xl border p-5 ${
-          connection === null
-            ? 'border-border bg-card'
-            : connection.configured
-              ? 'border-success/25 bg-success/5'
-              : 'border-error/25 bg-error/5'
-        }`}
-      >
+      <div className={`mb-6 rounded-2xl border p-5 ${connection?.configured ? 'border-success/25 bg-success/5' : 'border-error/25 bg-error/5'}`}>
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-start gap-3">
-            <div
-              className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${
-                connection?.configured ? 'bg-success text-white' : 'bg-muted text-muted-foreground'
-              }`}
-            >
-              <Icon
-                name={connection === null ? 'ArrowPathIcon' : 'ChatBubbleLeftRightIcon'}
-                size={21}
-                className={connection === null ? 'animate-spin' : ''}
-              />
+            <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${connection?.configured ? 'bg-success text-white' : 'bg-muted text-muted-foreground'}`}>
+              <Icon name={connection === null ? 'ArrowPathIcon' : 'ChatBubbleLeftRightIcon'} size={21} className={connection === null ? 'animate-spin' : ''} />
             </div>
             <div>
               <p className="text-sm font-800 text-foreground">
@@ -201,95 +181,90 @@ export default function SellerWhatsAppUpload() {
               </p>
               <p className="mt-1 max-w-2xl text-xs leading-5 text-muted-foreground">
                 {connection?.configured
-                  ? `Send the image with a caption, or send the image and text as separate messages within ${connection.pairingWindowMinutes} minutes.`
-                  : 'The previous +91 98765… numbers were display placeholders and could not receive website webhooks. A real Meta WhatsApp Business number, access token and webhook subscription are required.'}
+                  ? `Send the parent details and up to any number of colour blocks. Photos and text sent by the same verified seller number within ${connection.pairingWindowMinutes} minutes are paired automatically.`
+                  : 'A real Meta WhatsApp Business number and webhook credentials must be connected before external messages can be received.'}
               </p>
             </div>
           </div>
-
-          <button
-            type="button"
-            onClick={openWhatsApp}
-            disabled={!connection?.configured || !connection.waNumber}
-            className="btn-primary inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm disabled:cursor-not-allowed disabled:opacity-50"
-          >
+          <button type="button" onClick={openWhatsApp} disabled={!connection?.configured || !connection.waNumber} className="btn-primary inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm disabled:cursor-not-allowed disabled:opacity-50">
             <Icon name="PaperAirplaneIcon" size={16} /> Open connected WhatsApp
           </button>
         </div>
       </div>
 
       {isDemoAccount && (
-        <div className="mb-6 rounded-2xl border border-warning/30 bg-warning/5 p-4">
-          <p className="flex items-center gap-2 text-sm font-800 text-foreground">
-            <Icon name="ExclamationTriangleIcon" size={17} className="text-warning" /> Demo account
-            limitation
-          </p>
-          <p className="mt-2 text-xs leading-5 text-muted-foreground">
-            The shared demo seller is not linked to a private WhatsApp number. External uploads are
-            attached only to a real seller account whose verified FabricTrad phone matches the number
-            sending the WhatsApp messages.
-          </p>
+        <div className="mb-6 rounded-2xl border border-warning/30 bg-warning/5 p-4 text-xs leading-5 text-muted-foreground">
+          The shared demo seller cannot bind a private WhatsApp number. Use a real seller account with
+          the same verified phone number that sends the catalogue messages.
         </div>
       )}
 
-      <div className="mb-6 grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+      <div className="mb-6 grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
         <section className="rounded-2xl border border-border bg-card p-5">
           <h2 className="flex items-center gap-2 text-sm font-800 text-foreground">
-            <Icon name="DocumentTextIcon" size={17} className="text-primary" /> Message format
+            <Icon name="DocumentTextIcon" size={17} className="text-primary" /> Parent and variation format
           </h2>
           <p className="mt-2 text-xs leading-5 text-muted-foreground">
-            The title can be the first line. Fabric and Rate are required. Width, Work, MOQ, Stock and
-            GSM are optional. Attach at least one JPG, PNG or WebP photo.
+            Fabric and Rate are required. Start each variation with Color. Add Stock, Rate, Design,
+            MOQ and details beneath it. Decimal metre values are supported.
           </p>
-          <textarea
-            value={sampleText}
-            onChange={(event) => setSampleText(event.target.value)}
-            rows={8}
-            className="input-base mt-4 w-full resize-none rounded-xl px-4 py-3 font-mono text-sm"
-          />
-          <button
-            type="button"
-            onClick={openWhatsApp}
-            disabled={!connection?.configured || !connection.waNumber || !parsedPreview}
-            className="mt-3 inline-flex items-center gap-2 rounded-xl border border-success/30 bg-success/10 px-4 py-2.5 text-sm font-800 text-success disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <Icon name="ChatBubbleLeftRightIcon" size={16} /> Send these details
+          <textarea value={sampleText} onChange={(event) => setSampleText(event.target.value)} rows={18} className="input-base mt-4 w-full resize-y rounded-xl px-4 py-3 font-mono text-sm" />
+          <button type="button" onClick={openWhatsApp} disabled={!connection?.configured || !parsedPreview} className="mt-3 inline-flex items-center gap-2 rounded-xl border border-success/30 bg-success/10 px-4 py-2.5 text-sm font-800 text-success disabled:opacity-50">
+            <Icon name="ChatBubbleLeftRightIcon" size={16} /> Send this catalogue text
           </button>
         </section>
 
         <section className="rounded-2xl border border-border bg-card p-5">
           <h2 className="flex items-center gap-2 text-sm font-800 text-foreground">
-            <Icon name="CpuChipIcon" size={17} className="text-secondary" /> Parsed preview
+            <Icon name="CpuChipIcon" size={17} className="text-secondary" /> Parsed catalogue preview
           </h2>
           {parsedPreview ? (
-            <div className="mt-4 grid grid-cols-2 gap-3">
-              {[
-                ['Product', parsedPreview.name],
-                ['Category', parsedPreview.category],
-                ['Price', `₹${parsedPreview.pricePerUnit}/${parsedPreview.unit}`],
-                ['Width', parsedPreview.widthInches ? `${parsedPreview.widthInches} inches` : 'Not provided'],
-                ['Work', parsedPreview.workType],
-                ['Status', 'Draft · Pending review'],
-              ].map(([label, value]) => (
-                <div key={label} className="rounded-xl bg-muted p-3">
-                  <p className="text-[10px] font-800 uppercase tracking-wider text-muted-foreground">
-                    {label}
-                  </p>
-                  <p className="mt-1 text-xs font-800 text-foreground">{value}</p>
-                </div>
-              ))}
-            </div>
+            <>
+              <div className="mt-4 grid grid-cols-2 gap-3">
+                {[
+                  ['Parent fabric', parsedPreview.name],
+                  ['Category', parsedPreview.category],
+                  ['Width', parsedPreview.widthInches ? `${parsedPreview.widthInches} inches` : 'Not provided'],
+                  ['Variations', `${parsedPreview.variants.length}`],
+                  ['Total stock', `${parsedPreview.availableQuantity} ${parsedPreview.unit}`],
+                  ['Starting rate', `₹${parsedPreview.pricePerUnit}/${parsedPreview.unit}`],
+                ].map(([label, value]) => (
+                  <div key={label} className="rounded-xl bg-muted p-3">
+                    <p className="text-[10px] font-800 uppercase tracking-wider text-muted-foreground">{label}</p>
+                    <p className="mt-1 text-xs font-800 text-foreground">{value}</p>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-4 max-h-80 space-y-2 overflow-y-auto pr-1">
+                {parsedPreview.variants.map((variant, index) => (
+                  <div key={`${variant.colorName}-${index}`} className="rounded-xl border border-border p-3">
+                    <div className="flex items-start gap-2.5">
+                      <span className="h-7 w-7 shrink-0 rounded-full border border-black/10" style={{ backgroundColor: variant.colorHex || '#d1d5db' }} />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <p className="text-sm font-800 text-foreground">{variant.colorName}</p>
+                            <p className="text-xs text-muted-foreground">{variant.designName}</p>
+                          </div>
+                          <p className="text-xs font-800 text-primary">₹{variant.pricePerUnit}/{variant.unit}</p>
+                        </div>
+                        <p className="mt-1 text-xs text-muted-foreground">{variant.availableQuantity} {variant.unit} available · MOQ {variant.moq}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
           ) : (
             <div className="mt-4 rounded-xl border border-error/20 bg-error/5 p-4 text-xs leading-5 text-error">
-              Add both a Fabric value and a positive Rate. Example: Fabric = vichitra silk and Rate =
-              240 per mtr.
+              Include a Fabric value and a positive Rate. Add each variation using Color and Stock.
             </div>
           )}
+
           <div className="mt-4 rounded-xl border border-border bg-muted/40 p-3 text-xs leading-5 text-muted-foreground">
-            <span className="font-800 text-foreground">How pairing works:</span> an image caption is
-            processed immediately. When the photo and details are separate messages, the system finds
-            the matching messages from the same sender within the connection window and uploads them
-            as one product.
+            <p className="font-800 text-foreground">Photo options</p>
+            <p className="mt-1">Best: send each colour photo with a caption such as “Color = Blue”.</p>
+            <p>Also supported: send all photos immediately after the text; unlabelled photos are matched to the colour blocks in order.</p>
           </div>
         </section>
       </div>
@@ -297,110 +272,66 @@ export default function SellerWhatsAppUpload() {
       <section className="rounded-2xl border border-border bg-card p-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h2 className="text-sm font-800 text-foreground">Real WhatsApp uploads</h2>
-            <p className="mt-1 text-xs text-muted-foreground">
-              These records come from your seller inventory, not hard-coded demonstration cards.
-            </p>
+            <h2 className="text-sm font-800 text-foreground">Published WhatsApp catalogues</h2>
+            <p className="mt-1 text-xs text-muted-foreground">Parent fabrics and their colour/design inventory are live in the customer marketplace.</p>
           </div>
-          <button
-            type="button"
-            onClick={() => void refreshProducts()}
-            disabled={refreshing || loadingProducts || isDemoAccount}
-            className="btn-secondary inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-xs disabled:opacity-50"
-          >
-            <Icon
-              name="ArrowPathIcon"
-              size={15}
-              className={refreshing ? 'animate-spin' : ''}
-            />
-            Refresh uploads
+          <button type="button" onClick={() => void refreshProducts()} disabled={refreshing || loadingProducts || isDemoAccount} className="btn-secondary inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-xs disabled:opacity-50">
+            <Icon name="ArrowPathIcon" size={15} className={refreshing ? 'animate-spin' : ''} /> Refresh
           </button>
         </div>
 
-        {error && (
-          <div className="mt-4 rounded-xl border border-error/20 bg-error/5 p-3 text-xs text-error">
-            {error}
-          </div>
-        )}
+        {error && <div className="mt-4 rounded-xl border border-error/20 bg-error/5 p-3 text-xs text-error">{error}</div>}
 
         {loadingProducts ? (
-          <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
-            <span className="mr-3 h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-            Loading catalogue drafts…
-          </div>
+          <div className="flex items-center justify-center py-12 text-sm text-muted-foreground"><span className="mr-3 h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />Loading catalogues…</div>
         ) : products.length ? (
-          <div className="mt-5 space-y-3">
+          <div className="mt-5 space-y-4">
             {products.map((product) => (
-              <article
-                key={product.id}
-                className="flex flex-col gap-4 rounded-xl border border-border p-4 sm:flex-row sm:items-start"
-              >
-                <div className="relative h-28 w-full shrink-0 overflow-hidden rounded-xl bg-muted sm:w-24">
-                  {product.image_url ? (
-                    <AppImage
-                      src={product.image_url}
-                      alt={`${product.name} WhatsApp catalogue upload`}
-                      fill
-                      sizes="96px"
-                      className="object-cover"
-                    />
-                  ) : (
-                    <div className="flex h-full items-center justify-center text-muted-foreground">
-                      <Icon name="PhotoIcon" size={24} />
-                    </div>
-                  )}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                    <div>
-                      <p className="text-sm font-800 text-foreground">{product.name}</p>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {product.sku} · {product.category} · {product.work_type}
-                      </p>
-                    </div>
-                    <span
-                      className={`w-fit rounded-full px-3 py-1 text-xs font-800 ${
-                        product.approval_status === 'approved'
-                          ? 'bg-success/10 text-success'
-                          : product.approval_status === 'rejected'
-                            ? 'bg-error/10 text-error'
-                            : 'bg-warning/10 text-warning'
-                      }`}
-                    >
-                      {approvalLabel(product)}
-                    </span>
+              <article key={product.id} className="rounded-2xl border border-border p-4">
+                <div className="flex flex-col gap-4 sm:flex-row">
+                  <div className="relative h-36 w-full shrink-0 overflow-hidden rounded-xl bg-muted sm:w-32">
+                    {product.image_url ? <AppImage src={product.image_url} alt={product.name} fill sizes="128px" className="object-cover" /> : <div className="flex h-full items-center justify-center"><Icon name="PhotoIcon" size={28} className="text-muted-foreground" /></div>}
                   </div>
-                  <div className="mt-3 flex flex-wrap gap-2 text-xs">
-                    <span className="rounded-full bg-muted px-2.5 py-1 font-800 text-foreground">
-                      ₹{Number(product.price_per_unit).toLocaleString('en-IN')}/{product.unit}
-                    </span>
-                    {product.width_inches && (
-                      <span className="rounded-full bg-muted px-2.5 py-1 text-muted-foreground">
-                        {product.width_inches} inches
-                      </span>
-                    )}
-                    <span className="rounded-full bg-muted px-2.5 py-1 text-muted-foreground">
-                      Added {new Date(product.created_at).toLocaleString('en-IN')}
-                    </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <p className="text-base font-800 text-foreground">{product.name}</p>
+                        <p className="mt-1 text-xs text-muted-foreground">{product.sku} · {product.category} · {product.width_inches || '—'} inches</p>
+                      </div>
+                      <span className="w-fit rounded-full bg-success/10 px-3 py-1 text-xs font-800 text-success">Published</span>
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                      <span className="rounded-full bg-primary/10 px-3 py-1 font-800 text-primary">{product.variant_count || 0} variations</span>
+                      <span className="rounded-full bg-muted px-3 py-1">{Number(product.available_quantity || 0).toLocaleString('en-IN')} {product.unit} total</span>
+                      <span className="rounded-full bg-muted px-3 py-1">From ₹{Number(product.price_per_unit || 0).toLocaleString('en-IN')}/{product.unit}</span>
+                    </div>
                   </div>
-                  {product.admin_review_notes && (
-                    <p className="mt-3 rounded-lg bg-error/5 p-2 text-xs text-error">
-                      {product.admin_review_notes}
-                    </p>
-                  )}
                 </div>
+                {!!product.variant_summary?.length && (
+                  <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                    {product.variant_summary.map((variant, index) => (
+                      <div key={variant.id || index} className="flex items-center gap-3 rounded-xl bg-muted/60 p-3">
+                        {variant.image ? (
+                          <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-lg"><AppImage src={variant.image} alt={variant.color || 'Variant'} fill sizes="48px" className="object-cover" /></div>
+                        ) : (
+                          <span className="h-8 w-8 shrink-0 rounded-full border border-black/10" style={{ backgroundColor: variant.colorHex || '#d1d5db' }} />
+                        )}
+                        <div className="min-w-0">
+                          <p className="truncate text-xs font-800 text-foreground">{variant.color || 'Assorted'} · {variant.design || 'Standard'}</p>
+                          <p className="text-xs text-muted-foreground">{Number(variant.available || 0)} {variant.unit || product.unit} · ₹{Number(variant.price || 0)}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </article>
             ))}
           </div>
         ) : (
           <div className="mt-5 rounded-xl border border-dashed border-border py-12 text-center">
-            <Icon name="PhotoIcon" size={28} className="mx-auto text-muted-foreground" />
-            <p className="mt-3 text-sm font-800 text-foreground">No WhatsApp catalogue drafts yet</p>
-            <p className="mx-auto mt-1 max-w-lg text-xs leading-5 text-muted-foreground">
-              Once the connection is configured, send from the same verified phone number saved on
-              your seller account. A successful upload receives a WhatsApp confirmation and appears
-              here.
-            </p>
+            <Icon name="SwatchIcon" size={28} className="mx-auto text-muted-foreground" />
+            <p className="mt-3 text-sm font-800 text-foreground">No WhatsApp catalogues yet</p>
+            <p className="mx-auto mt-1 max-w-lg text-xs leading-5 text-muted-foreground">Send the parent fabric details and colour blocks from the verified phone number on your seller account.</p>
           </div>
         )}
       </section>

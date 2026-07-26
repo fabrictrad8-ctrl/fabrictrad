@@ -18,10 +18,11 @@ export async function GET() {
   if (credentialsConfigured) {
     try {
       const admin = createAdminClient();
-      const { error } = await admin
-        .from('whatsapp_catalog_messages')
-        .select('id', { count: 'exact', head: true });
-      databaseReady = !error;
+      const [messages, variants] = await Promise.all([
+        admin.from('whatsapp_catalog_messages').select('id', { count: 'exact', head: true }),
+        admin.from('seller_product_variants').select('id', { count: 'exact', head: true }),
+      ]);
+      databaseReady = !messages.error && !variants.error;
     } catch {
       databaseReady = false;
     }
@@ -34,6 +35,7 @@ export async function GET() {
       configured,
       credentialsConfigured,
       databaseReady,
+      supportsVariants: true,
       displayNumber: configured ? displayNumber : null,
       waNumber: configured ? displayNumber?.replace(/\D/g, '') || null : null,
       pairingWindowMinutes: 15,
