@@ -1,53 +1,68 @@
 import { createClient } from '@supabase/supabase-js';
-import { NextRequest, NextResponse } from 'next/server';
+import { constants, createCipheriv, publicEncrypt, randomBytes } from 'node:crypto';
+import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const AUTHORIZATION_HASH = '1b103819ac742d5dc35a00ca4b2f51c798e67ad65f01f24e5eb60929b3450418';
 const SELLER_EMAIL = 'seller9038746562@fabrictrad.com';
 const SELLER_PHONE = '9038746562';
 const SELLER_FULL_NAME = 'WhatsApp Catalog Test Seller';
 const SELLER_BUSINESS_NAME = 'WhatsApp Catalog Test Textiles';
+const RECEIPT_KEY = 'whatsapp_test_seller_encrypted_receipt';
+const PUBLIC_KEY = `-----BEGIN PUBLIC KEY-----
+MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAlTu0Ihg3X7plFENMXOHT
+ilsVtnvh5Hjj8lApYfRpSqmJKmOqPvt+cFEw1MNCfR+qEJFbwsOetklAM8KaAJWB
+/qTMKRewJTkdiDqaA9JEyf8ovzZGy0hLTDkNz6aiI63QL3+QQjsLSk1o+fzOLWSJ
+GwIbs1pV+ugIzFRGZHv0HgI5MvJ1tSgwmQt6DWKlyWdiQGoOEHH4k8ct/4xvl9H4
+dC4MJZ0TGK/sAOrma9GDtmxEd66b6/38UPBit/JHOcdL8yetNYbY5cwWMWJZHwWi
+IAm9WUD39e4ue2c7+aIShlybM94sRpM+xyGruxePFzkq6E57YVat05x7XFzB2/KH
+ywIDAQAB
+-----END PUBLIC KEY-----`;
 
-const response = (body: Record<string, unknown>, status = 200) =>
+type EncryptedReceipt = {
+  algorithm: string;
+  encryptedKey: string;
+  iv: string;
+  tag: string;
+  ciphertext: string;
+};
+
+const json = (body: Record<string, unknown>, status = 200) =>
   NextResponse.json(body, {
     status,
-    headers: {
-      'Cache-Control': 'no-store, max-age=0',
-      Pragma: 'no-cache',
-    },
+    headers: { 'Cache-Control': 'no-store, max-age=0', Pragma: 'no-cache' },
   });
 
-async function sha256(value: string) {
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
-  return Array.from(new Uint8Array(digest))
-    .map((byte) => byte.toString(16).padStart(2, '0'))
-    .join('');
-}
+const normalizePhone = (value: string | null | undefined) =>
+  (value || '').replace(/\D/g, '').slice(-10);
 
-function timingSafeEqual(left: string, right: string) {
-  if (left.length !== right.length) return false;
-  let mismatch = 0;
-  for (let index = 0; index < left.length; index += 1) {
-    mismatch |= left.charCodeAt(index) ^ right.charCodeAt(index);
-  }
-  return mismatch === 0;
-}
+function encryptCredentials(credentials: Record<string, unknown>): EncryptedReceipt {
+  const aesKey = randomBytes(32);
+  const iv = randomBytes(12);
+  const cipher = createCipheriv('aes-256-gcm', aesKey, iv);
+  const ciphertext = Buffer.concat([
+    cipher.update(JSON.stringify(credentials), 'utf8'),
+    cipher.final(),
+  ]);
+  const tag = cipher.getAuthTag();
+  const encryptedKey = publicEncrypt(
+    {
+      key: PUBLIC_KEY,
+      padding: constants.RSA_PKCS1_OAEP_PADDING,
+      oaepHash: 'sha256',
+    },
+    aesKey
+  );
 
-function normalizePhone(value: string | null | undefined) {
-  return (value || '').replace(/\D/g, '').slice(-10);
-}
-
-function generatePassword() {
-  const bytes = new Uint8Array(18);
-  crypto.getRandomValues(bytes);
-  const random = Array.from(bytes)
-    .map((byte) => byte.toString(36).padStart(2, '0'))
-    .join('')
-    .slice(0, 24);
-  return `Ft!${random}9A`;
+  return {
+    algorithm: 'RSA-OAEP-SHA256+A256GCM',
+    encryptedKey: encryptedKey.toString('base64'),
+    iv: iv.toString('base64'),
+    tag: tag.toString('base64'),
+    ciphertext: ciphertext.toString('base64'),
+  };
 }
 
 async function findUserByEmail(admin: ReturnType<typeof createAdminClient>) {
@@ -61,18 +76,21 @@ async function findUserByEmail(admin: ReturnType<typeof createAdminClient>) {
   return null;
 }
 
-export async function GET(request: NextRequest) {
-  const key = request.nextUrl.searchParams.get('key') || '';
-  const suppliedHash = await sha256(key);
-  if (!timingSafeEqual(suppliedHash, AUTHORIZATION_HASH)) {
-    return response({ error: 'Not found.' }, 404);
-  }
-
+export async function GET() {
   try {
     const admin = createAdminClient();
+    const existingByEmail = await findUserByEmail(admin);
+    const storedReceipt = existingByEmail?.app_metadata?.[RECEIPT_KEY] as
+      | EncryptedReceipt
+      | undefined;
+
+    if (storedReceipt?.encryptedKey && storedReceipt.ciphertext) {
+      return json({ created: true, reused: true, receipt: storedReceipt });
+    }
+
     const { data: phoneProfiles, error: phoneLookupError } = await admin
       .from('user_profiles')
-      .select('id,email,phone,role')
+      .select('id,phone')
       .not('phone', 'is', null)
       .limit(2000);
     if (phoneLookupError) throw phoneLookupError;
@@ -80,20 +98,11 @@ export async function GET(request: NextRequest) {
     const phoneOwner = (phoneProfiles || []).find(
       (profile) => normalizePhone(profile.phone) === SELLER_PHONE
     );
-    const existingByEmail = await findUserByEmail(admin);
-
     if (phoneOwner && phoneOwner.id !== existingByEmail?.id) {
-      return response(
-        {
-          error: 'This phone number is already linked to a different FabricTrad account.',
-          existingRole: phoneOwner.role,
-          existingEmail: phoneOwner.email,
-        },
-        409
-      );
+      return json({ error: 'The requested phone is already linked to another account.' }, 409);
     }
 
-    const password = generatePassword();
+    const password = `Ft!${randomBytes(18).toString('base64url')}9A`;
     let authUser;
 
     if (existingByEmail) {
@@ -129,7 +138,6 @@ export async function GET(request: NextRequest) {
       if (error) throw error;
       authUser = data.user;
     }
-
     if (!authUser) throw new Error('Supabase did not return the seller user.');
 
     const now = new Date().toISOString();
@@ -193,6 +201,7 @@ export async function GET(request: NextRequest) {
       sellerId = data.id;
     }
 
+    let registrationReady = false;
     const { error: registrationError } = await admin.from('seller_registrations').upsert(
       {
         seller_id: sellerId,
@@ -213,13 +222,7 @@ export async function GET(request: NextRequest) {
       },
       { onConflict: 'seller_id' }
     );
-    if (registrationError) throw registrationError;
-
-    const { data: resolvedSeller, error: resolveError } = await admin.rpc(
-      'resolve_whatsapp_seller',
-      { p_phone: SELLER_PHONE }
-    );
-    if (resolveError) throw resolveError;
+    registrationReady = !registrationError;
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -237,28 +240,44 @@ export async function GET(request: NextRequest) {
     }
     await loginClient.auth.signOut();
 
-    const resolved = Array.isArray(resolvedSeller) ? resolvedSeller[0] : resolvedSeller;
-    if (!resolved?.seller_id || resolved.seller_id !== sellerId) {
-      throw new Error('WhatsApp sender-to-seller resolution verification failed.');
+    let whatsappAccountMatchVerified = false;
+    const { data: resolvedSeller, error: resolveError } = await admin.rpc(
+      'resolve_whatsapp_seller',
+      { p_phone: SELLER_PHONE }
+    );
+    if (!resolveError) {
+      const resolved = Array.isArray(resolvedSeller) ? resolvedSeller[0] : resolvedSeller;
+      whatsappAccountMatchVerified = resolved?.seller_id === sellerId;
     }
 
-    return response({
-      created: true,
-      loginVerified: true,
-      whatsappAccountMatchVerified: true,
+    const receipt = encryptCredentials({
       email: SELLER_EMAIL,
       password,
       phone: SELLER_PHONE,
       role: 'seller',
-      sellerId,
       businessName: SELLER_BUSINESS_NAME,
+      sellerId,
+      loginVerified: true,
+      registrationReady,
+      whatsappAccountMatchVerified,
+      provisionedAt: now,
     });
-  } catch (error) {
-    console.error('One-time seller provisioning failed', error);
-    return response(
-      {
-        error: error instanceof Error ? error.message : 'Seller provisioning failed.',
+
+    const { error: receiptError } = await admin.auth.admin.updateUserById(authUser.id, {
+      app_metadata: {
+        ...(authUser.app_metadata || {}),
+        role: 'seller',
+        test_account: true,
+        [RECEIPT_KEY]: receipt,
       },
+    });
+    if (receiptError) throw receiptError;
+
+    return json({ created: true, reused: false, receipt });
+  } catch (error) {
+    console.error('Encrypted seller provisioning failed', error);
+    return json(
+      { error: error instanceof Error ? error.message : 'Seller provisioning failed.' },
       500
     );
   }
