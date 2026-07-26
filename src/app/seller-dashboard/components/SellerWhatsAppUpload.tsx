@@ -45,7 +45,7 @@ function approvalLabel(product: WhatsAppProduct) {
 }
 
 export default function SellerWhatsAppUpload() {
-  const { user, profile, isDemoAccount } = useAuth();
+  const { user, isDemoAccount } = useAuth();
   const [connection, setConnection] = useState<ConnectionStatus | null>(null);
   const [products, setProducts] = useState<WhatsAppProduct[]>([]);
   const [loadingProducts, setLoadingProducts] = useState(true);
