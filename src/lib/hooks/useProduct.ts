@@ -5,14 +5,34 @@ import { useSearchParams } from 'next/navigation';
 import {
   CATALOG_PRODUCTS,
   getCatalogProduct,
+  type CatalogMedia,
   type CatalogProduct,
   type CatalogVariant,
 } from '@/lib/catalog';
 import { createClient } from '@/lib/supabase/client';
 
-function mapVariant(row: Record<string, unknown>): CatalogVariant {
+function mapMedia(row: Record<string, unknown>): CatalogMedia {
+  return {
+    id: String(row.id),
+    type: row.media_type === 'video' ? 'video' : 'image',
+    viewType:
+      row.view_type === 'front' ||
+      row.view_type === 'back' ||
+      row.view_type === 'detail' ||
+      row.view_type === 'reel'
+        ? row.view_type
+        : 'other',
+    url: String(row.public_url || ''),
+    alt: String(row.alt_text || 'Product media'),
+    durationSeconds: row.duration_seconds ? Number(row.duration_seconds) : null,
+  };
+}
+
+function mapVariant(row: Record<string, unknown>, media: CatalogMedia[]): CatalogVariant {
   const image = row.image_url ? String(row.image_url) : null;
   const extraImages = Array.isArray(row.image_urls) ? row.image_urls.map(String) : [];
+  const mediaImages = media.filter((item) => item.type === 'image').map((item) => item.url);
+  const images = [image, ...extraImages, ...mediaImages].filter(Boolean) as string[];
   return {
     id: String(row.id),
     key: String(row.variant_key || row.id),
@@ -25,15 +45,27 @@ function mapVariant(row: Record<string, unknown>): CatalogVariant {
     unit: String(row.unit || 'mtr'),
     available: Math.max(0, Number(row.available_quantity || 0) - Number(row.reserved_quantity || 0)),
     moq: Number(row.moq || 1),
-    image,
-    images: [image, ...extraImages.filter((value) => value !== image)].filter(Boolean) as string[],
+    image: mediaImages[0] || image,
+    images: [...new Set(images)],
+    media,
   };
+}
+
+function imageMedia(images: string[], productName: string): CatalogMedia[] {
+  return [...new Set(images.filter(Boolean))].map((url, index) => ({
+    id: `legacy-image-${index}`,
+    type: 'image',
+    viewType: index === 0 ? 'front' : 'detail',
+    url,
+    alt: `${productName} image ${index + 1}`,
+  }));
 }
 
 function mapSellerProduct(
   row: Record<string, unknown>,
   sellerName: string,
   variants: CatalogVariant[],
+  parentMedia: CatalogMedia[],
   selectedVariantId: string | null
 ): CatalogProduct {
   const selectedVariant =
@@ -43,14 +75,24 @@ function mapSellerProduct(
   );
   const parentImages = Array.isArray(row.image_urls) ? row.image_urls.map(String) : [];
   const variantImages = variants.flatMap((variant) => variant.images);
-  const displayImage = selectedVariant?.image || parentImage;
-  const displayImages = [
+  const selectedMedia = selectedVariant?.media || [];
+  const combinedMedia = [
+    ...selectedMedia,
+    ...parentMedia,
+    ...variants.flatMap((variant) => variant.media || []),
+  ];
+  const uniqueMedia = [...new Map(combinedMedia.map((item) => [item.url, item])).values()].filter(
+    (item) => item.url
+  );
+  const fallbackImages = [
     ...(selectedVariant?.images || []),
     ...variantImages,
     parentImage,
     ...parentImages,
   ].filter(Boolean);
-  const uniqueImages = [...new Set(displayImages)];
+  const media = uniqueMedia.length ? uniqueMedia : imageMedia(fallbackImages, String(row.name || 'Fabric'));
+  const imageUrls = media.filter((item) => item.type === 'image').map((item) => item.url);
+  const displayImage = imageUrls[0] || selectedVariant?.image || parentImage;
   const prices = variants.map((variant) => variant.price).filter((price) => price > 0);
   const available = variants.length
     ? variants.reduce((sum, variant) => sum + variant.available, 0)
@@ -58,6 +100,7 @@ function mapSellerProduct(
 
   return {
     id: `seller-${String(row.id)}`,
+    rawProductId: String(row.id),
     source: 'seller',
     sellerId: String(row.seller_id),
     name: String(row.name || 'Untitled fabric'),
@@ -77,7 +120,8 @@ function mapSellerProduct(
     badge: 'new',
     verified: true,
     image: displayImage,
-    images: uniqueImages.length ? uniqueImages : [displayImage],
+    images: [...new Set(imageUrls.length ? imageUrls : [displayImage])],
+    media,
     alt: `${String(row.name || 'Fabric')} supplied by ${sellerName}`,
     dispatchDays: Number(row.dispatch_days || 3),
     gst: true,
@@ -88,6 +132,9 @@ function mapSellerProduct(
     variants,
     selectedVariantId: selectedVariant?.id || null,
     searchTerms: String(row.search_terms || ''),
+    saleChannel:
+      row.sale_channel === 'retail' || row.sale_channel === 'both' ? row.sale_channel : 'b2b',
+    packageFormat: (row.package_format || 'Fabric Only') as CatalogProduct['packageFormat'],
   };
 }
 
@@ -102,7 +149,12 @@ export function useProduct() {
   useEffect(() => {
     let mounted = true;
     if (!requestedId.startsWith('seller-')) {
-      setProduct(getCatalogProduct(requestedId));
+      const catalogProduct = getCatalogProduct(requestedId);
+      setProduct({
+        ...catalogProduct,
+        media:
+          catalogProduct.media || imageMedia(catalogProduct.images, catalogProduct.name),
+      });
       setLoading(false);
       return;
     }
@@ -124,7 +176,7 @@ export function useProduct() {
         return;
       }
 
-      const [{ data: seller }, { data: variantRows }] = await Promise.all([
+      const [{ data: seller }, { data: variantRows }, { data: mediaRows }] = await Promise.all([
         supabase
           .from('seller_directory')
           .select('display_name,legal_business_name')
@@ -137,14 +189,35 @@ export function useProduct() {
           .eq('status', 'active')
           .eq('approval_status', 'approved')
           .order('color_name', { ascending: true }),
+        supabase
+          .from('seller_product_media')
+          .select('id,variant_id,media_type,view_type,public_url,alt_text,duration_seconds,sort_order')
+          .eq('product_id', id)
+          .order('sort_order', { ascending: true }),
       ]);
       if (!mounted) return;
-      const variants = (variantRows || []).map((variant) => mapVariant(variant));
+
+      const media = (mediaRows || []).map((entry) => ({
+        row: entry as Record<string, unknown>,
+        item: mapMedia(entry as Record<string, unknown>),
+      }));
+      const variants = (variantRows || []).map((variant) => {
+        const variantId = String(variant.id);
+        return mapVariant(
+          variant as Record<string, unknown>,
+          media.filter(({ row: mediaRow }) => String(mediaRow.variant_id || '') === variantId).map(({ item }) => item)
+        );
+      });
+      const parentMedia = media
+        .filter(({ row: mediaRow }) => !mediaRow.variant_id)
+        .map(({ item }) => item);
+
       setProduct(
         mapSellerProduct(
           row,
           seller?.display_name || seller?.legal_business_name || 'Verified FabricTrad Seller',
           variants,
+          parentMedia,
           selectedVariantId
         )
       );
