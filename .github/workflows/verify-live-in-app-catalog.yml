@@ -1,6 +1,7 @@
 name: Verify live in-app catalog release
 
 on:
+  pull_request:
   push:
     branches:
       - agent/verify-live-in-app-catalog
