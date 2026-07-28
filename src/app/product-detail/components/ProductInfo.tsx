@@ -2,22 +2,30 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import toast from 'react-hot-toast';
 import Icon from '@/components/ui/AppIcon';
+import { useAuth } from '@/contexts/AuthContext';
+import { createClient } from '@/lib/supabase/client';
 import { useProduct } from '@/lib/hooks/useProduct';
 
 export default function ProductInfo() {
   const { product, loading } = useProduct();
+  const { user, profile, isDemoAccount } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const selectedVariant = product.variants?.find(
     (variant) => variant.id === product.selectedVariantId
   );
-  const minimum = Math.max(1, Math.ceil(selectedVariant?.moq || product.moq || 1));
+  const retailEnabled = product.saleChannel === 'retail' || product.saleChannel === 'both';
+  const minimum = retailEnabled
+    ? 1
+    : Math.max(1, Math.ceil(selectedVariant?.moq || product.moq || 1));
   const available = Math.max(0, selectedVariant?.available ?? product.available);
   const price = selectedVariant?.price || product.price;
   const unit = selectedVariant?.unit || product.unit;
   const [qty, setQty] = useState(minimum);
+  const [submittingOrder, setSubmittingOrder] = useState(false);
   const [orderSubmitted, setOrderSubmitted] = useState(false);
   const [saved, setSaved] = useState(false);
 
@@ -26,6 +34,7 @@ export default function ProductInfo() {
   }, [minimum, product.selectedVariantId]);
 
   const estimatedTotal = useMemo(() => qty * price, [price, qty]);
+  const gstAmount = useMemo(() => Math.round(estimatedTotal * 0.05 * 100) / 100, [estimatedTotal]);
 
   const selectVariant = (variantId: string) => {
     const next = new URLSearchParams(searchParams.toString());
@@ -33,17 +42,79 @@ export default function ProductInfo() {
     router.replace(`${pathname}?${next.toString()}`, { scroll: false });
   };
 
+  const submitOrderRequest = async () => {
+    if (!user) {
+      router.push(`/login?next=${encodeURIComponent(`${pathname}?${searchParams.toString()}`)}`);
+      return;
+    }
+    if (profile?.role === 'seller') {
+      toast.error('Seller accounts cannot place buyer orders.');
+      return;
+    }
+    if (available <= 0 || qty < minimum || qty > available) {
+      toast.error('Choose an available quantity before submitting.');
+      return;
+    }
+
+    setSubmittingOrder(true);
+    try {
+      if (isDemoAccount || product.source === 'catalog' || !product.rawProductId || !product.sellerId) {
+        await new Promise((resolve) => setTimeout(resolve, 250));
+      } else {
+        const supabase = createClient();
+        const subtotal = Math.round(estimatedTotal * 100) / 100;
+        const total = Math.round((subtotal + gstAmount) * 100) / 100;
+        const { error } = await supabase.from('catalog_order_requests').insert({
+          buyer_id: user.id,
+          seller_id: product.sellerId,
+          product_id: product.rawProductId,
+          variant_id: selectedVariant?.id || null,
+          quantity: qty,
+          unit,
+          price_per_unit: price,
+          subtotal,
+          gst_amount: gstAmount,
+          total_amount: total,
+          status: 'pending',
+          notes: retailEnabled
+            ? `Retail catalogue request for ${product.name}`
+            : `B2B catalogue request for ${product.name}`,
+        });
+        if (error) throw error;
+      }
+
+      setOrderSubmitted(true);
+      toast.success('Order request sent to the seller.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'The order request could not be submitted.');
+    } finally {
+      setSubmittingOrder(false);
+    }
+  };
+
   if (loading) {
     return <div className="h-[32rem] animate-pulse rounded-2xl border border-border bg-muted" />;
   }
 
   return (
-    <div className="rounded-2xl border border-border bg-card p-5">
+    <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
       <div className="mb-3 flex items-start justify-between gap-3">
         <div>
           <div className="mb-1 flex flex-wrap items-center gap-2">
-            {product.source === 'seller' && <span className="tag-new">Live catalogue</span>}
+            {product.source === 'seller' && <span className="tag-new">Live seller catalogue</span>}
             <span className="badge-gstin">GST Ready</span>
+            <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-800 text-primary">
+              {product.saleChannel === 'both'
+                ? 'B2B + Retail'
+                : product.saleChannel === 'retail'
+                  ? 'Retail / B2C'
+                  : 'B2B / Wholesale'}
+            </span>
+            {product.packageFormat && (
+              <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-800 text-muted-foreground">
+                {product.packageFormat}
+              </span>
+            )}
             {!!product.variantCount && (
               <span className="rounded-full bg-secondary/10 px-2 py-0.5 text-[10px] font-800 text-secondary">
                 {product.variantCount} variation{product.variantCount === 1 ? '' : 's'}
@@ -113,7 +184,9 @@ export default function ProductInfo() {
                           ₹{variant.price.toLocaleString('en-IN')}/{variant.unit}
                         </span>
                         <span className={unavailable ? 'text-error' : 'text-success'}>
-                          {unavailable ? 'Out of stock' : `${variant.available.toLocaleString('en-IN')} ${variant.unit}`}
+                          {unavailable
+                            ? 'Out of stock'
+                            : `${variant.available.toLocaleString('en-IN')} ${variant.unit}`}
                         </span>
                       </div>
                     </div>
@@ -160,6 +233,7 @@ export default function ProductInfo() {
           <p className="mt-1 font-800 text-foreground">
             {minimum.toLocaleString('en-IN')} {unit}
           </p>
+          {retailEnabled && <p className="mt-0.5 text-[10px] text-success">Retail quantity enabled</p>}
         </div>
       </div>
 
@@ -173,6 +247,7 @@ export default function ProductInfo() {
             type="button"
             onClick={() => setQty((current) => Math.max(minimum, current - 1))}
             className="flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-muted hover:border-primary"
+            aria-label="Reduce quantity"
           >
             <Icon name="MinusIcon" size={16} />
           </button>
@@ -190,8 +265,11 @@ export default function ProductInfo() {
           />
           <button
             type="button"
-            onClick={() => setQty((current) => (available ? Math.min(available, current + 1) : current + 1))}
+            onClick={() =>
+              setQty((current) => (available ? Math.min(available, current + 1) : current + 1))
+            }
             className="flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-muted hover:border-primary"
+            aria-label="Increase quantity"
           >
             <Icon name="PlusIcon" size={16} />
           </button>
@@ -207,14 +285,12 @@ export default function ProductInfo() {
         </div>
         <div className="mt-1 flex justify-between text-sm">
           <span className="text-muted-foreground">GST (5%)</span>
-          <span className="font-700 text-foreground">
-            ₹{Math.round(estimatedTotal * 0.05).toLocaleString('en-IN')}
-          </span>
+          <span className="font-700 text-foreground">₹{gstAmount.toLocaleString('en-IN')}</span>
         </div>
         <div className="mt-2 flex justify-between border-t border-border pt-2 text-sm font-800">
           <span>Estimated total</span>
           <span className="text-primary">
-            ₹{Math.round(estimatedTotal * 1.05).toLocaleString('en-IN')}
+            ₹{(estimatedTotal + gstAmount).toLocaleString('en-IN')}
           </span>
         </div>
       </div>
@@ -225,27 +301,30 @@ export default function ProductInfo() {
           <p className="text-xs font-700 text-success">
             Dispatch in {product.dispatchDays} business day{product.dispatchDays === 1 ? '' : 's'}
           </p>
-          <p className="text-xs text-muted-foreground">Tracking included</p>
+          <p className="text-xs text-muted-foreground">Tracking included after seller acceptance</p>
         </div>
       </div>
 
       {orderSubmitted ? (
         <div className="flex items-center justify-center gap-2 rounded-xl border border-success/30 bg-success/10 p-4">
           <Icon name="CheckCircleIcon" size={20} className="text-success" />
-          <span className="text-sm font-700 text-success">Order request submitted.</span>
+          <span className="text-sm font-700 text-success">Order request sent to the seller.</span>
         </div>
       ) : (
         <button
           type="button"
-          onClick={() => {
-            setOrderSubmitted(true);
-            window.setTimeout(() => setOrderSubmitted(false), 3000);
-          }}
-          disabled={available <= 0}
+          onClick={() => void submitOrderRequest()}
+          disabled={available <= 0 || submittingOrder}
           className="btn-primary flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm disabled:cursor-not-allowed disabled:opacity-50"
         >
           <Icon name="ShoppingCartIcon" size={16} />
-          {available > 0 ? 'Submit order request' : 'Selected variation is out of stock'}
+          {submittingOrder
+            ? 'Sending request…'
+            : available > 0
+              ? retailEnabled
+                ? 'Request this order'
+                : 'Submit B2B order request'
+              : 'Selected variation is out of stock'}
         </button>
       )}
     </div>

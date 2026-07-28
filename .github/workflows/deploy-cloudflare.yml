@@ -26,11 +26,10 @@ jobs:
       OPENAI_DRAPE_IMAGE_MODEL: gpt-image-2
       OPENAI_DRAPE_IMAGE_SIZE: 1024x1536
       OPENAI_DRAPE_IMAGE_QUALITY: medium
+      OPENAI_CATALOG_MODEL: gpt-4.1-mini
       AI_DRAPE_DAILY_LIMIT: '10'
       AI_DRAPE_DEMO_DAILY_LIMIT: '2'
       AI_DRAPE_FALLBACK_DAILY_LIMIT: '3'
-      WHATSAPP_GRAPH_API_VERSION: v25.0
-      WHATSAPP_DISPLAY_NUMBER: '+91 92244 47024'
     steps:
       - uses: actions/checkout@v4
 
@@ -87,20 +86,10 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          WHATSAPP_ACCESS_TOKEN: ${{ secrets.WHATSAPP_ACCESS_TOKEN }}
-          WHATSAPP_APP_SECRET: ${{ secrets.WHATSAPP_APP_SECRET }}
-          WHATSAPP_VERIFY_TOKEN: ${{ secrets.WHATSAPP_VERIFY_TOKEN }}
-          WHATSAPP_PHONE_NUMBER_ID: ${{ secrets.WHATSAPP_PHONE_NUMBER_ID }}
         run: |
           set -euo pipefail
           synced=0
-          for name in \
-            OPENAI_API_KEY \
-            SUPABASE_SERVICE_ROLE_KEY \
-            WHATSAPP_ACCESS_TOKEN \
-            WHATSAPP_APP_SECRET \
-            WHATSAPP_VERIFY_TOKEN \
-            WHATSAPP_PHONE_NUMBER_ID; do
+          for name in OPENAI_API_KEY SUPABASE_SERVICE_ROLE_KEY; do
             value="${!name:-}"
             if [ -n "$value" ]; then
               printf '%s' "$value" | npx wrangler secret put "$name" --config wrangler.jsonc
@@ -113,17 +102,7 @@ jobs:
             echo 'openai_requested=true' >> "$GITHUB_OUTPUT"
           else
             echo 'openai_requested=false' >> "$GITHUB_OUTPUT"
-          fi
-
-          if [ -n "$SUPABASE_SERVICE_ROLE_KEY" ] \
-            && [ -n "$WHATSAPP_ACCESS_TOKEN" ] \
-            && [ -n "$WHATSAPP_APP_SECRET" ] \
-            && [ -n "$WHATSAPP_VERIFY_TOKEN" ] \
-            && [ -n "$WHATSAPP_PHONE_NUMBER_ID" ]; then
-            echo 'whatsapp_requested=true' >> "$GITHUB_OUTPUT"
-          else
-            echo 'whatsapp_requested=false' >> "$GITHUB_OUTPUT"
-            echo '::warning::The WhatsApp Cloud API credentials are incomplete. The official number will remain visible, but automatic catalogue ingestion will stay pending.'
+            echo '::warning::AI Catalog Studio will use the deterministic textile parser until OPENAI_API_KEY is configured.'
           fi
 
           echo "Synced $synced optional server secrets."
@@ -139,7 +118,6 @@ jobs:
         shell: bash
         env:
           OPENAI_REQUESTED: ${{ steps.sync_secrets.outputs.openai_requested }}
-          WHATSAPP_REQUESTED: ${{ steps.sync_secrets.outputs.whatsapp_requested }}
         run: |
           set -euo pipefail
           ready=false
@@ -147,26 +125,31 @@ jobs:
             drape_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
               --output /tmp/ai-drape-status.json --write-out '%{http_code}' \
               'https://fabrictrad.com/api/ai/drape-on' || true)
-            whatsapp_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
-              --output /tmp/whatsapp-status.json --write-out '%{http_code}' \
-              'https://fabrictrad.com/api/whatsapp/catalog/status' || true)
+            catalog_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+              --output /tmp/catalog-assistant-status.json --write-out '%{http_code}' \
+              'https://fabrictrad.com/api/catalog-assistant/parse' || true)
 
-            if [ "$drape_status" = '200' ] && [ "$whatsapp_status" = '200' ]; then
+            if [ "$drape_status" = '200' ] && [ "$catalog_status" = '200' ]; then
               ready=true
               break
             fi
-            echo "Attempt $attempt: waiting for the deployed feature routes"
+            echo "Attempt $attempt: waiting for the deployed AI feature routes"
             sleep 10
           done
 
           if [ "$ready" != 'true' ]; then
-            echo '::error::The deployed feature status routes did not become reachable.'
+            echo '::error::The deployed AI feature status routes did not become reachable.'
             exit 1
           fi
 
-          grep -q '"displayNumber":"+91 92244 47024"' /tmp/whatsapp-status.json
-          grep -q '"waNumber":"919224447024"' /tmp/whatsapp-status.json
-          grep -q '"accountMatching":"verified-seller-phone"' /tmp/whatsapp-status.json
+          grep -q '"available":true' /tmp/catalog-assistant-status.json
+          grep -q 'deterministic textile parser' /tmp/catalog-assistant-status.json
+
+          if [ "$OPENAI_REQUESTED" = 'true' ]; then
+            grep -q '"aiConfigured":true' /tmp/catalog-assistant-status.json
+          elif ! grep -q '"aiConfigured":true' /tmp/catalog-assistant-status.json; then
+            echo '::warning::The in-app catalogue assistant is live with its built-in parser; OpenAI extraction is not configured.'
+          fi
 
           if [ "$OPENAI_REQUESTED" = 'true' ]; then
             grep -q '"configured":true' /tmp/ai-drape-status.json
@@ -174,10 +157,4 @@ jobs:
             echo '::warning::AI Drape-On code is deployed but no image provider key is configured.'
           fi
 
-          if [ "$WHATSAPP_REQUESTED" = 'true' ]; then
-            grep -q '"configured":true' /tmp/whatsapp-status.json
-          elif ! grep -q '"configured":true' /tmp/whatsapp-status.json; then
-            echo '::warning::The official WhatsApp number is live, but automated catalogue ingestion is waiting for the Meta connection.'
-          fi
-
-          echo 'FabricTrad feature routes are deployed.'
+          echo 'FabricTrad in-app catalogue and media features are deployed.'
