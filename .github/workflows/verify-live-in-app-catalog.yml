@@ -1,0 +1,66 @@
+name: Verify live in-app catalog release
+
+on:
+  push:
+    branches:
+      - agent/verify-live-in-app-catalog
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Verify production routes and behavior
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='https://fabrictrad.com'
+          ready=false
+          for attempt in $(seq 1 24); do
+            catalog_get=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+              --output /tmp/catalog-get.json --write-out '%{http_code}' \
+              "$base/api/catalog-assistant/parse" || true)
+            old_whatsapp=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+              --output /tmp/old-whatsapp.txt --write-out '%{http_code}' \
+              "$base/api/whatsapp/catalog/status" || true)
+            login=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+              --output /tmp/login.html --write-out '%{http_code}' "$base/login" || true)
+            if [ "$catalog_get" = '200' ] && [ "$old_whatsapp" = '404' ] && [ "$login" = '200' ]; then
+              ready=true
+              break
+            fi
+            echo "Attempt $attempt: catalog=$catalog_get old_whatsapp=$old_whatsapp login=$login"
+            sleep 10
+          done
+          test "$ready" = 'true'
+          grep -q '"available":true' /tmp/catalog-get.json
+
+          catalog_post=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+            --output /tmp/catalog-post.json --write-out '%{http_code}' \
+            --header 'Content-Type: application/json' \
+            --data '{"text":"Catalog = Live Test Cotton\nFabric = cotton\nRate = 220 per mtr\nChannel = both\nFormat = Top & Bottom\n\nColor = Blue\nStock = 9 mtr\nDesign = woven stripe"}' \
+            "$base/api/catalog-assistant/parse")
+          test "$catalog_post" = '200'
+          grep -q '"fabric":"Cotton"' /tmp/catalog-post.json
+          grep -q '"saleChannel":"both"' /tmp/catalog-post.json
+          grep -q '"packageFormat":"Top & Bottom"' /tmp/catalog-post.json
+
+          buyer=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+            --output /tmp/buyer.json --write-out '%{http_code}' \
+            --cookie-jar /tmp/buyer.cookies \
+            --header 'Content-Type: application/json' \
+            --data '{"email":"demo.buyer@fabrictrad.com","password":"FabricDemo@2026"}' \
+            "$base/api/auth/demo-session")
+          test "$buyer" = '200'
+          grep -q '"role":"buyer"' /tmp/buyer.json
+
+          logout=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+            --dump-header /tmp/logout.headers --output /dev/null --write-out '%{http_code}' \
+            --cookie /tmp/buyer.cookies --max-redirs 0 "$base/api/auth/logout")
+          test "$logout" = '303'
+          grep -qi '^location: .*login?logged_out=1' /tmp/logout.headers
+
+          echo "LIVE_OK catalog=$catalog_get parse=$catalog_post old_whatsapp=$old_whatsapp logout=$logout"
