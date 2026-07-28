@@ -97,6 +97,7 @@ function labelForChannel(channel: SaleChannel) {
 export default function SellerCatalogAssistant() {
   const { user, profile, isDemoAccount } = useAuth();
   const inputRef = useRef<HTMLInputElement>(null);
+  const attachmentUrlsRef = useRef<string[]>([]);
   const [text, setText] = useState(STARTER_TEXT);
   const [draft, setDraft] = useState<ParsedCatalogDraft | null>(null);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
@@ -122,11 +123,15 @@ export default function SellerCatalogAssistant() {
     [draft]
   );
 
+  useEffect(() => {
+    attachmentUrlsRef.current = attachments.map((attachment) => attachment.previewUrl);
+  }, [attachments]);
+
   useEffect(
     () => () => {
-      attachments.forEach((attachment) => URL.revokeObjectURL(attachment.previewUrl));
+      attachmentUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
     },
-    [attachments]
+    []
   );
 
   const analyze = async () => {
