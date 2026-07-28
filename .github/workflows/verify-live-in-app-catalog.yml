@@ -19,24 +19,17 @@ jobs:
         run: |
           set -euo pipefail
           base='https://fabrictrad.com'
-          ready=false
-          for attempt in $(seq 1 24); do
-            catalog_get=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
-              --output /tmp/catalog-get.json --write-out '%{http_code}' \
-              "$base/api/catalog-assistant/parse" || true)
-            old_whatsapp=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
-              --output /tmp/old-whatsapp.txt --write-out '%{http_code}' \
-              "$base/api/whatsapp/catalog/status" || true)
-            login=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
-              --output /tmp/login.html --write-out '%{http_code}' "$base/login" || true)
-            if [ "$catalog_get" = '200' ] && [ "$old_whatsapp" = '404' ] && [ "$login" = '200' ]; then
-              ready=true
-              break
-            fi
-            echo "Attempt $attempt: catalog=$catalog_get old_whatsapp=$old_whatsapp login=$login"
-            sleep 10
-          done
-          test "$ready" = 'true'
+          catalog_get=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+            --output /tmp/catalog-get.json --write-out '%{http_code}' \
+            "$base/api/catalog-assistant/parse")
+          old_whatsapp=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+            --output /tmp/old-whatsapp.txt --write-out '%{http_code}' \
+            "$base/api/whatsapp/catalog/status")
+          login=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+            --output /tmp/login.html --write-out '%{http_code}' "$base/login")
+          test "$catalog_get" = '200'
+          test "$old_whatsapp" = '404'
+          test "$login" = '200'
           grep -q '"available":true' /tmp/catalog-get.json
 
           catalog_post=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
@@ -64,4 +57,6 @@ jobs:
           test "$logout" = '303'
           grep -qi '^location: .*login?logged_out=1' /tmp/logout.headers
 
+          echo "CATALOG_STATUS=$(jq -c '{available,aiConfigured,model,fallback}' /tmp/catalog-get.json)"
+          echo "CATALOG_PARSE=$(jq -c '{provider,message}' /tmp/catalog-post.json)"
           echo "LIVE_OK catalog=$catalog_get parse=$catalog_post old_whatsapp=$old_whatsapp logout=$logout"
