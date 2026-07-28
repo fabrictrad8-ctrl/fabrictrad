@@ -152,15 +152,16 @@ export default function SellerCatalogAssistant() {
         error?: string;
       };
       if (!response.ok || !payload.draft) throw new Error(payload.error || 'Unable to organise the catalogue.');
+      const organisedDraft = payload.draft;
 
-      setDraft(payload.draft);
+      setDraft(organisedDraft);
       setProvider(payload.provider || 'rules');
       setMessages((current) => [
         ...current,
         {
           id: `assistant-${Date.now()}`,
           role: 'assistant',
-          text: `${payload.message || 'Catalogue organised.'} I found ${payload.draft.variants.length || 1} variation${payload.draft.variants.length === 1 ? '' : 's'}. Attach media, choose its colour/view, and review before saving.`,
+          text: `${payload.message || 'Catalogue organised.'} I found ${organisedDraft.variants.length || 1} variation${organisedDraft.variants.length === 1 ? '' : 's'}. Attach media, choose its colour/view, and review before saving.`,
         },
       ]);
       setAttachments((current) =>
@@ -168,7 +169,7 @@ export default function SellerCatalogAssistant() {
           ...attachment,
           targetKey:
             attachment.targetKey &&
-            payload.draft?.variants.some(
+            organisedDraft.variants.some(
               (variant) => catalogVariantKey(variant.colorName, variant.designName) === attachment.targetKey
             )
               ? attachment.targetKey

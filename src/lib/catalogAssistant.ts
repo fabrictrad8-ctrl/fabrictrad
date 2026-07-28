@@ -323,26 +323,25 @@ export function normalizeAiCatalogDraft(value: unknown, fallbackText: string): P
   const price = Number(raw.pricePerUnit || 0);
   if (!fabric || !Number.isFinite(price) || price <= 0) return parseCatalogMessage(fallbackText);
 
-  const variants: ParsedCatalogVariant[] = variantsRaw
-    .map((entry) => {
-      if (!entry || typeof entry !== 'object') return null;
-      const item = entry as Record<string, unknown>;
-      const colorName = String(item.colorName || '').trim();
-      const variantPrice = Number(item.pricePerUnit || price);
-      if (!colorName || !Number.isFinite(variantPrice) || variantPrice <= 0) return null;
-      return {
-        colorName: titleCase(colorName),
-        colorHex: normalizeHex(item.colorHex ? String(item.colorHex) : null),
-        designName: titleCase(String(item.designName || raw.workType || 'Standard')),
-        description: String(item.description || '').trim().slice(0, 1000),
-        pricePerUnit: variantPrice,
-        unit: inferCatalogUnit(String(item.unit || raw.unit || 'mtr')),
-        availableQuantity: Math.max(0, Number(item.availableQuantity || 0)),
-        moq: Math.max(0.01, Number(item.moq || raw.moq || 1)),
-        mediaLabel: String(item.mediaLabel || colorName),
-      } satisfies ParsedCatalogVariant;
-    })
-    .filter((item): item is ParsedCatalogVariant => Boolean(item));
+  const variants = variantsRaw.reduce<ParsedCatalogVariant[]>((result, entry) => {
+    if (!entry || typeof entry !== 'object') return result;
+    const item = entry as Record<string, unknown>;
+    const colorName = String(item.colorName || '').trim();
+    const variantPrice = Number(item.pricePerUnit || price);
+    if (!colorName || !Number.isFinite(variantPrice) || variantPrice <= 0) return result;
+    result.push({
+      colorName: titleCase(colorName),
+      colorHex: normalizeHex(item.colorHex ? String(item.colorHex) : null),
+      designName: titleCase(String(item.designName || raw.workType || 'Standard')),
+      description: String(item.description || '').trim().slice(0, 1000),
+      pricePerUnit: variantPrice,
+      unit: inferCatalogUnit(String(item.unit || raw.unit || 'mtr')),
+      availableQuantity: Math.max(0, Number(item.availableQuantity || 0)),
+      moq: Math.max(0.01, Number(item.moq || raw.moq || 1)),
+      mediaLabel: item.mediaLabel ? String(item.mediaLabel) : colorName,
+    });
+    return result;
+  }, []);
 
   const name = titleCase(String(raw.name || `${fabric} Fabric`)).slice(0, 160);
   const unit = inferCatalogUnit(String(raw.unit || 'mtr'));
