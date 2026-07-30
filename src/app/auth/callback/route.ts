@@ -1,4 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
+import { ensureAccountProvisioned } from '@/lib/accountProvisioning';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
@@ -77,6 +79,19 @@ export async function GET(request: NextRequest) {
 
   if (normalizedEmail === ADMIN_EMAIL && user.email_confirmed_at) {
     return redirectAfterAuth(`${origin}/admin-portal`);
+  }
+
+  try {
+    let provisioningClient = supabase;
+    try {
+      provisioningClient = createAdminClient();
+    } catch {
+      // An authenticated user can safely create their own role profile through RLS.
+    }
+    await ensureAccountProvisioned(provisioningClient, user);
+  } catch {
+    await supabase.auth.signOut();
+    return redirectAfterAuth(loginErrorUrl(origin, 'account_setup_failed'));
   }
 
   const { data: profile, error: profileError } = await supabase
