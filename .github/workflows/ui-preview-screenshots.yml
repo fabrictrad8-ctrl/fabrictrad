@@ -1,6 +1,7 @@
 name: Visual UI verification
 
 on:
+  pull_request:
   push:
     branches:
       - agent/shopify-glass-ui-system
