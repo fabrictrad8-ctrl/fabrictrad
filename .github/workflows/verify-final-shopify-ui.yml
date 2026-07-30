@@ -1,0 +1,102 @@
+name: Verify final Shopify-style UI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - agent/verify-final-shopify-ui
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 24
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: test-anon-key
+      SUPABASE_SERVICE_ROLE_KEY: test-service-role-key
+      NEXT_PUBLIC_SITE_URL: http://127.0.0.1:3000
+      NEXT_PUBLIC_ENABLE_GOOGLE_AUTH: 'false'
+      ADMIN_EMAIL: fabrictrad8@gmail.com
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies and Chromium
+        run: |
+          npm install --no-audit --no-fund --package-lock=false --legacy-peer-deps
+          npm install --no-save --no-audit --no-fund --package-lock=false --legacy-peer-deps playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Run quality checks
+        run: |
+          npm run type-check
+          npm run lint
+          npm run build
+          npm run build:sites
+      - name: Start app
+        shell: bash
+        run: |
+          npm run start > /tmp/fabrictrad-final-ui.log 2>&1 &
+          echo $! > /tmp/fabrictrad-final-ui.pid
+          for attempt in $(seq 1 50); do
+            if curl --fail --silent http://127.0.0.1:3000/login >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/fabrictrad-final-ui.log
+          exit 1
+      - name: Capture final screens
+        shell: bash
+        run: |
+          mkdir -p /tmp/fabrictrad-final-ui
+          cat > capture-final-ui.mjs <<'EOF'
+          import { chromium } from 'playwright';
+          const base = 'http://127.0.0.1:3000';
+          const browser = await chromium.launch({ headless: true });
+
+          async function shot(path, name, viewport) {
+            const context = await browser.newContext({ viewport, colorScheme: 'light' });
+            const page = await context.newPage();
+            await page.goto(`${base}${path}`, { waitUntil: 'networkidle' });
+            await page.screenshot({ path: `/tmp/fabrictrad-final-ui/${name}.png`, fullPage: true });
+            await context.close();
+          }
+
+          async function demo(email, path, name, viewport) {
+            const context = await browser.newContext({ viewport, colorScheme: 'light' });
+            const login = await context.request.post(`${base}/api/auth/demo-session`, {
+              data: { email, password: 'FabricDemo@2026' },
+            });
+            if (!login.ok()) throw new Error(`Demo login failed: ${login.status()}`);
+            const page = await context.newPage();
+            await page.goto(`${base}${path}`, { waitUntil: 'networkidle' });
+            await page.screenshot({ path: `/tmp/fabrictrad-final-ui/${name}.png`, fullPage: true });
+            await context.close();
+          }
+
+          const desktop = { width: 1440, height: 1000 };
+          const mobile = { width: 390, height: 844 };
+          await shot('/', 'home-desktop', desktop);
+          await shot('/login', 'login-desktop', desktop);
+          await shot('/marketplace', 'marketplace-desktop', desktop);
+          await shot('/marketplace', 'marketplace-mobile', mobile);
+          await demo('demo.buyer@fabrictrad.com', '/buyer-dashboard', 'buyer-dashboard', desktop);
+          await demo('demo.seller@fabrictrad.com', '/seller-dashboard', 'seller-dashboard', desktop);
+          await demo('demo.seller@fabrictrad.com', '/seller-dashboard?tab=upload', 'seller-upload-mobile', mobile);
+          await browser.close();
+          EOF
+          node capture-final-ui.mjs
+      - name: Upload screenshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: final-shopify-ui-screenshots
+          path: /tmp/fabrictrad-final-ui/*.png
+          if-no-files-found: error
+          retention-days: 1
+      - name: Stop app
+        if: always()
+        run: kill "$(cat /tmp/fabrictrad-final-ui.pid 2>/dev/null)" 2>/dev/null || true
