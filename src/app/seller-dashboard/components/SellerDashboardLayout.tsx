@@ -11,6 +11,7 @@ import SellerOrders from '@/app/seller-dashboard/components/SellerOrders';
 import SellerCatalogOrders from '@/app/seller-dashboard/components/SellerCatalogOrders';
 import SellerInventory from '@/app/seller-dashboard/components/SellerInventory';
 import SellerVariantCatalog from '@/app/seller-dashboard/components/SellerVariantCatalog';
+import SellerCatalogPricing from '@/app/seller-dashboard/components/SellerCatalogPricing';
 import SellerAnalytics from '@/app/seller-dashboard/components/SellerAnalytics';
 import SellerCatalogAssistant from '@/app/seller-dashboard/components/SellerCatalogAssistant';
 import SellerProfileReadiness from '@/app/seller-dashboard/components/SellerProfileReadiness';
@@ -29,6 +30,7 @@ type SellerTab =
   | 'orders'
   | 'inventory'
   | 'variants'
+  | 'catalogs'
   | 'analytics'
   | 'upload'
   | 'profile'
@@ -47,6 +49,7 @@ const navItems: { key: SellerTab; label: string; icon: string; badge?: number }[
   { key: 'upload', label: 'AI Catalog Studio', icon: 'SparklesIcon' },
   { key: 'inventory', label: 'Parent Fabrics', icon: 'ArchiveBoxIcon' },
   { key: 'variants', label: 'Colours & Designs', icon: 'SwatchIcon' },
+  { key: 'catalogs', label: 'Catalogs & Pricing', icon: 'TagIcon' },
   { key: 'orders', label: 'Order Queue', icon: 'ClipboardDocumentListIcon' },
   { key: 'requests', label: 'Buyer Requests', icon: 'MegaphoneIcon' },
   { key: 'inbox', label: 'Buyer Inbox', icon: 'ChatBubbleLeftRightIcon' },
@@ -229,6 +232,7 @@ export default function SellerDashboardLayout() {
           )}
           {activeTab === 'inventory' && <SellerInventory />}
           {activeTab === 'variants' && <SellerVariantCatalog />}
+          {activeTab === 'catalogs' && <SellerCatalogPricing />}
           {activeTab === 'analytics' && <SellerAnalytics />}
           {activeTab === 'earnings' && <SellerEarnings />}
           {activeTab === 'billing' && <SellerBillingDocuments />}
@@ -299,7 +303,7 @@ export default function SellerDashboardLayout() {
         {[
           { key: 'overview' as SellerTab, label: 'Home', icon: 'HomeIcon' },
           { key: 'upload' as SellerTab, label: 'Add', icon: 'SparklesIcon' },
-          { key: 'inventory' as SellerTab, label: 'Catalog', icon: 'ArchiveBoxIcon' },
+          { key: 'catalogs' as SellerTab, label: 'Pricing', icon: 'TagIcon' },
           { key: 'orders' as SellerTab, label: 'Orders', icon: 'ClipboardDocumentListIcon' },
         ].map((item) => (
           <button
