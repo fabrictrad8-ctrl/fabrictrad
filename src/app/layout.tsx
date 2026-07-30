@@ -2,6 +2,7 @@ import React from 'react';
 import type { Metadata, Viewport } from 'next';
 import { Plus_Jakarta_Sans } from 'next/font/google';
 import '../styles/tailwind.css';
+import '../styles/shopify-glass.css';
 import { AuthProvider } from '@/contexts/AuthContext';
 import AppClientEnhancements from '@/components/AppClientEnhancements';
 import LogoutButton from '@/components/auth/LogoutButton';
@@ -17,6 +18,11 @@ const plusJakartaSans = Plus_Jakarta_Sans({
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
+  viewportFit: 'cover',
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#f5f5f6' },
+    { media: '(prefers-color-scheme: dark)', color: '#0f1112' },
+  ],
 };
 
 export const metadata: Metadata = {
@@ -43,7 +49,7 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className={plusJakartaSans.className}>
+      <body className={`${plusJakartaSans.className} antialiased`}>
         <AuthProvider>
           <AppPreferencesProvider>
             <AppClientEnhancements />
