@@ -36,7 +36,19 @@ export default function AppClientEnhancements() {
   useEffect(() => {
     document.body.dataset.route = pathname;
     document.body.dataset.routeGroup = routeGroup(pathname);
+    document.body.classList.remove('route-entering');
+
+    const frame = window.requestAnimationFrame(() => {
+      document.body.classList.add('route-entering');
+    });
+    const timer = window.setTimeout(() => {
+      document.body.classList.remove('route-entering');
+    }, 320);
+
     return () => {
+      window.cancelAnimationFrame(frame);
+      window.clearTimeout(timer);
+      document.body.classList.remove('route-entering');
       delete document.body.dataset.route;
       delete document.body.dataset.routeGroup;
     };
