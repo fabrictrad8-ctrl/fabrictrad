@@ -4,6 +4,7 @@ import { Plus_Jakarta_Sans } from 'next/font/google';
 import '../styles/tailwind.css';
 import '../styles/shopify-glass.css';
 import '../styles/commerce-polish.css';
+import '../styles/global-commerce.css';
 import { AuthProvider } from '@/contexts/AuthContext';
 import AppClientEnhancements from '@/components/AppClientEnhancements';
 import LogoutButton from '@/components/auth/LogoutButton';
