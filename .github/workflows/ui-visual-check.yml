@@ -1,0 +1,96 @@
+name: UI visual check
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  screenshots:
+    runs-on: ubuntu-latest
+    timeout-minutes: 22
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: test-anon-key
+      SUPABASE_SERVICE_ROLE_KEY: test-service-role-key
+      NEXT_PUBLIC_SITE_URL: http://127.0.0.1:3000
+      NEXT_PUBLIC_ENABLE_GOOGLE_AUTH: 'false'
+      ADMIN_EMAIL: fabrictrad8@gmail.com
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install app and Chromium
+        run: |
+          npm install --no-audit --no-fund --package-lock=false --legacy-peer-deps
+          npm install --no-save --no-audit --no-fund --package-lock=false --legacy-peer-deps playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Build and start
+        shell: bash
+        run: |
+          npm run build
+          npm run start > /tmp/fabrictrad-ui.log 2>&1 &
+          echo $! > /tmp/fabrictrad-ui.pid
+          for attempt in $(seq 1 50); do
+            if curl --fail --silent http://127.0.0.1:3000/login >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/fabrictrad-ui.log
+          exit 1
+      - name: Capture key screens
+        shell: bash
+        run: |
+          mkdir -p /tmp/fabrictrad-screens
+          cat > capture-ui.mjs <<'EOF'
+          import { chromium } from 'playwright';
+
+          const base = 'http://127.0.0.1:3000';
+          const browser = await chromium.launch({ headless: true });
+
+          async function publicShot(path, name, viewport) {
+            const context = await browser.newContext({ viewport, colorScheme: 'light' });
+            const page = await context.newPage();
+            await page.goto(`${base}${path}`, { waitUntil: 'networkidle' });
+            await page.screenshot({ path: `/tmp/fabrictrad-screens/${name}.png`, fullPage: true });
+            await context.close();
+          }
+
+          async function demoShot(email, path, name, viewport) {
+            const context = await browser.newContext({ viewport, colorScheme: 'light' });
+            const login = await context.request.post(`${base}/api/auth/demo-session`, {
+              data: { email, password: 'FabricDemo@2026' },
+            });
+            if (!login.ok()) throw new Error(`Demo login failed: ${login.status()}`);
+            const page = await context.newPage();
+            await page.goto(`${base}${path}`, { waitUntil: 'networkidle' });
+            await page.screenshot({ path: `/tmp/fabrictrad-screens/${name}.png`, fullPage: true });
+            await context.close();
+          }
+
+          const desktop = { width: 1440, height: 1000 };
+          const mobile = { width: 390, height: 844 };
+          await publicShot('/', 'home-desktop', desktop);
+          await publicShot('/login', 'login-desktop', desktop);
+          await publicShot('/marketplace', 'marketplace-desktop', desktop);
+          await publicShot('/marketplace', 'marketplace-mobile', mobile);
+          await demoShot('demo.buyer@fabrictrad.com', '/buyer-dashboard', 'buyer-desktop', desktop);
+          await demoShot('demo.seller@fabrictrad.com', '/seller-dashboard', 'seller-desktop', desktop);
+          await demoShot('demo.seller@fabrictrad.com', '/seller-dashboard?tab=upload', 'seller-upload-mobile', mobile);
+
+          await browser.close();
+          EOF
+          node capture-ui.mjs
+      - name: Upload screenshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: fabrictrad-ui-visual-check
+          path: /tmp/fabrictrad-screens/*.png
+          if-no-files-found: error
+          retention-days: 1
+      - name: Stop app
+        if: always()
+        run: kill "$(cat /tmp/fabrictrad-ui.pid 2>/dev/null)" 2>/dev/null || true
