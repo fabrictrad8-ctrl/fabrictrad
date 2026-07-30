@@ -1,0 +1,98 @@
+name: Verify live FabricTrad launch
+
+on:
+  pull_request:
+  push:
+    branches:
+      - agent/verify-live-launch-after-hardening
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Verify public routes and production integrations
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          check_get() {
+            url="$1"
+            expected="$2"
+            output="$3"
+            status=$(curl --silent --show-error --location --connect-timeout 10 --max-time 40 \
+              --output "$output" --write-out '%{http_code}' "$url")
+            echo "$status $url"
+            test "$status" = "$expected"
+          }
+
+          check_get 'https://fabrictrad.com/' '200' /tmp/home.html
+          check_get 'https://fabrictrad.com/login' '200' /tmp/login.html
+          check_get 'https://fabrictrad.com/register' '200' /tmp/register.html
+          check_get 'https://fabrictrad.com/buyer-registration' '200' /tmp/buyer-registration.html
+          check_get 'https://fabrictrad.com/seller-registration' '200' /tmp/seller-registration.html
+          check_get 'https://fabrictrad.com/marketplace' '200' /tmp/marketplace.html
+          check_get 'https://fabrictrad.com/api/catalog-assistant/parse' '200' /tmp/catalog-status.json
+          check_get 'https://fabrictrad.com/api/ai/drape-on' '200' /tmp/drape-status.json
+          check_get 'https://fabrictrad.com/api/whatsapp/catalog/status' '404' /tmp/retired-whatsapp.txt
+
+          grep -q '"available":true' /tmp/catalog-status.json
+
+          supabase_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+            --header 'apikey: sb_publishable_Un2-RQfjGbIiXF3Mb2oGIA_p-Z1kMls' \
+            --output /tmp/supabase-auth-settings.json --write-out '%{http_code}' \
+            'https://rdhfwlzhcvwjhkxhhpoo.supabase.co/auth/v1/settings')
+          echo "$supabase_status Supabase Auth settings"
+          test "$supabase_status" = '200'
+
+          buyer_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+            --output /tmp/buyer-session.json --write-out '%{http_code}' \
+            --cookie-jar /tmp/buyer.cookies \
+            --header 'Content-Type: application/json' \
+            --data '{"email":"demo.buyer@fabrictrad.com","password":"FabricDemo@2026"}' \
+            'https://fabrictrad.com/api/auth/demo-session')
+          test "$buyer_status" = '200'
+          grep -q '"role":"buyer"' /tmp/buyer-session.json
+
+          buyer_marketplace_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+            --output /tmp/buyer-marketplace.html --write-out '%{http_code}' \
+            --cookie /tmp/buyer.cookies 'https://fabrictrad.com/marketplace')
+          test "$buyer_marketplace_status" = '200'
+
+          logout_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+            --dump-header /tmp/logout.headers --output /tmp/logout.body --write-out '%{http_code}' \
+            --cookie /tmp/buyer.cookies --max-redirs 0 \
+            'https://fabrictrad.com/api/auth/logout')
+          test "$logout_status" = '303' -o "$logout_status" = '307' -o "$logout_status" = '308'
+          grep -qi '^location: .*login' /tmp/logout.headers
+
+          seller_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+            --output /tmp/seller-session.json --write-out '%{http_code}' \
+            --cookie-jar /tmp/seller.cookies \
+            --header 'Content-Type: application/json' \
+            --data '{"email":"demo.seller@fabrictrad.com","password":"FabricDemo@2026"}' \
+            'https://fabrictrad.com/api/auth/demo-session')
+          test "$seller_status" = '200'
+          grep -q '"role":"seller"' /tmp/seller-session.json
+
+          seller_dashboard_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+            --output /tmp/seller-dashboard.html --write-out '%{http_code}' \
+            --cookie /tmp/seller.cookies 'https://fabrictrad.com/seller-dashboard')
+          test "$seller_dashboard_status" = '200'
+
+          seller_marketplace_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+            --output /tmp/seller-marketplace.html --write-out '%{http_code}' \
+            --cookie /tmp/seller.cookies 'https://fabrictrad.com/marketplace')
+          test "$seller_marketplace_status" = '200'
+
+          payment_probe=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+            --output /tmp/payment-probe.json --write-out '%{http_code}' \
+            --header 'Content-Type: application/json' --data '{}' \
+            'https://fabrictrad.com/api/razorpay/order')
+          echo "$payment_probe Razorpay order unauthenticated guard"
+          test "$payment_probe" = '400' -o "$payment_probe" = '401' -o "$payment_probe" = '403'
+
+          echo 'Live FabricTrad launch smoke test passed.'
