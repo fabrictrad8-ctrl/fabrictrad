@@ -7,8 +7,8 @@ const ADMIN_EMAIL = 'fabrictrad8@gmail.com';
 
 function AdminLoading() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[#07111f]">
-      <div className="h-8 w-8 animate-spin rounded-full border-2 border-orange-500 border-t-transparent" />
+    <div className="ft-shell flex min-h-screen items-center justify-center">
+      <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
     </div>
   );
 }
@@ -36,8 +36,10 @@ export default async function AdminPortalPage() {
   if (!authorisedByEmail && !authorisedByRole) redirect('/login');
 
   return (
-    <Suspense fallback={<AdminLoading />}>
-      <AdminPortalLayout />
-    </Suspense>
+    <div className="ft-shell">
+      <Suspense fallback={<AdminLoading />}>
+        <AdminPortalLayout />
+      </Suspense>
+    </div>
   );
 }

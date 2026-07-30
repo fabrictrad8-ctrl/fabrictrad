@@ -19,21 +19,18 @@ function DashboardRouteState({
   actionLabel: string;
 }) {
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center px-4 py-10">
-      <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 text-center card-shadow-lg">
-        <div className="flex items-center justify-center gap-2 mb-6">
+    <div className="ft-shell flex min-h-screen items-center justify-center px-4 py-10">
+      <div className="ft-card w-full max-w-md p-6 text-center sm:p-8">
+        <div className="mb-6 flex items-center justify-center gap-2">
           <AppLogo size={36} />
-          <span className="font-display text-lg font-800 text-secondary">FabricTrad</span>
+          <span className="text-lg font-800 text-foreground">FabricTrad</span>
         </div>
-        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl border border-primary/20 bg-primary/10">
-          <Icon name="ArrowPathIcon" size={22} className="text-primary animate-spin" />
+        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl border border-primary/20 bg-primary/10">
+          <Icon name="ArrowPathIcon" size={22} className="animate-spin text-primary" />
         </div>
         <h1 className="text-xl font-800 text-foreground">{title}</h1>
-        <p className="mt-2 text-sm text-muted-foreground">{message}</p>
-        <Link
-          href={href}
-          className="btn-primary mt-6 inline-flex w-full justify-center rounded-xl py-3"
-        >
+        <p className="mt-2 text-sm leading-6 text-muted-foreground">{message}</p>
+        <Link href={href} className="ft-primary-action mt-6 inline-flex w-full justify-center px-4 py-3 text-sm">
           {actionLabel}
         </Link>
       </div>
@@ -72,7 +69,9 @@ export default function BuyerDashboardPage() {
       }
     };
     void prepare();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [accountReady, isDemoAccount, loading, profile, refreshProfile, user]);
 
   useEffect(() => {
@@ -106,17 +105,17 @@ export default function BuyerDashboardPage() {
         title="Account setup needs attention"
         message={accountError}
         href="/login?role=buyer"
-        actionLabel="Sign In Again"
+        actionLabel="Sign in again"
       />
     );
   }
 
   if (loading || (user && !accountReady)) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center px-4">
+      <div className="ft-shell flex min-h-screen items-center justify-center px-4">
         <div className="flex flex-col items-center gap-4 text-center">
-          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-          <p className="text-sm font-600 text-muted-foreground">Loading your buyer account...</p>
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          <p className="text-sm font-600 text-muted-foreground">Loading your buyer workspace…</p>
         </div>
       </div>
     );
@@ -126,9 +125,9 @@ export default function BuyerDashboardPage() {
     return (
       <DashboardRouteState
         title="Sign in required"
-        message="Please sign in to open your buyer dashboard."
+        message="Please sign in to open your buyer workspace."
         href="/login?role=buyer"
-        actionLabel="Sign In"
+        actionLabel="Sign in"
       />
     );
   }
@@ -139,7 +138,7 @@ export default function BuyerDashboardPage() {
         title="Finishing account setup"
         message="Your login is active, but your account profile is still being prepared. Continue to complete setup."
         href="/auth/phone?role=buyer"
-        actionLabel="Continue Setup"
+        actionLabel="Continue setup"
       />
     );
   }
@@ -150,7 +149,7 @@ export default function BuyerDashboardPage() {
         title="Buyer access unavailable"
         message="This account is not currently allowed to place orders."
         href="/marketplace"
-        actionLabel="Return to Marketplace"
+        actionLabel="Return to marketplace"
       />
     );
   }
@@ -159,9 +158,9 @@ export default function BuyerDashboardPage() {
     return (
       <DashboardRouteState
         title="Opening admin portal"
-        message="This account has admin access, so the buyer dashboard is not shown for it."
+        message="This account has admin access, so the buyer workspace is not shown for it."
         href="/admin-portal"
-        actionLabel="Go to Admin Portal"
+        actionLabel="Go to admin portal"
       />
     );
   }
@@ -170,22 +169,24 @@ export default function BuyerDashboardPage() {
     return (
       <DashboardRouteState
         title="Complete buyer setup"
-        message="Add your phone number to finish account setup and open your dashboard."
+        message="Add your phone number to finish account setup and open your workspace."
         href="/auth/phone?role=buyer"
-        actionLabel="Add Phone Number"
+        actionLabel="Add phone number"
       />
     );
   }
 
   return (
-    <Suspense
-      fallback={
-        <div className="min-h-screen bg-background flex items-center justify-center px-4">
-          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-        </div>
-      }
-    >
-      <ModernBuyerDashboardLayout />
-    </Suspense>
+    <div className="ft-shell">
+      <Suspense
+        fallback={
+          <div className="flex min-h-screen items-center justify-center px-4">
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          </div>
+        }
+      >
+        <ModernBuyerDashboardLayout />
+      </Suspense>
+    </div>
   );
 }

@@ -4,7 +4,7 @@ import BuyerRegistrationFlow from '@/app/buyer-registration/components/BuyerRegi
 
 export default function BuyerRegistrationPage() {
   return (
-    <main className="min-h-screen bg-background">
+    <main className="ft-storefront min-h-screen">
       <Header />
       <div className="pt-16">
         <BuyerRegistrationFlow />
