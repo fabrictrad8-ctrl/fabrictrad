@@ -14,9 +14,6 @@
       "custom_domain": true
     }
   ],
-  "vars": {
-    "WHATSAPP_DISPLAY_NUMBER": "+91 92244 47024"
-  },
   "assets": {
     "directory": ".open-next/assets",
     "binding": "ASSETS"
