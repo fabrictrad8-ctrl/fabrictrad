@@ -2,7 +2,6 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import AppImage from '@/components/ui/AppImage';
 import Icon from '@/components/ui/AppIcon';
 import { useAuth } from '@/contexts/AuthContext';
@@ -16,35 +15,41 @@ type MenuItem = {
 
 const buyerItems: MenuItem[] = [
   { label: 'Your Profile', href: '/profile?tab=personal', icon: 'UserCircleIcon' },
+  { label: 'Buyer Dashboard', href: '/buyer-dashboard', icon: 'ChartBarSquareIcon' },
   { label: 'Purchases', href: '/buyer-dashboard?tab=orders', icon: 'ShoppingBagIcon' },
-  { label: 'Order History', href: '/buyer-dashboard?tab=tracking', icon: 'ClockIcon' },
+  { label: 'Track Shipments', href: '/buyer-dashboard?tab=tracking', icon: 'TruckIcon' },
   { label: 'Wishlist', href: '/buyer-dashboard?tab=wishlist', icon: 'HeartIcon' },
   { label: 'Requirements', href: '/buyer-dashboard?tab=requirements', icon: 'MegaphoneIcon' },
   { label: 'Messages', href: '/buyer-dashboard?tab=disputes', icon: 'ChatBubbleLeftRightIcon' },
-  { label: 'Notifications', href: '/buyer-dashboard?tab=notifications', icon: 'BellIcon' },
-  { label: 'AI Drape Credits', href: '/product-detail#drape-on', icon: 'SparklesIcon' },
+  { label: 'AI Drape Studio', href: '/product-detail#drape-on', icon: 'SparklesIcon' },
 ];
 
 const sellerItems: MenuItem[] = [
   { label: 'Business Profile', href: '/profile?tab=business', icon: 'BuildingOfficeIcon' },
-  { label: 'Seller Dashboard', href: '/seller-dashboard', icon: 'HomeIcon' },
+  { label: 'Seller Dashboard', href: '/seller-dashboard', icon: 'BuildingStorefrontIcon' },
+  { label: 'Add Product with AI', href: '/seller-dashboard?tab=upload', icon: 'SparklesIcon' },
   {
-    label: 'Orders',
+    label: 'Seller Orders',
     href: '/seller-dashboard?tab=orders',
     icon: 'ClipboardDocumentListIcon',
   },
-  { label: 'Listings', href: '/seller-dashboard?tab=inventory', icon: 'ArchiveBoxIcon' },
-  { label: 'Earnings', href: '/seller-dashboard?tab=earnings', icon: 'BanknotesIcon' },
-  { label: 'Billing Uploads', href: '/seller-dashboard?tab=billing', icon: 'DocumentArrowUpIcon' },
-  {
-    label: 'Buyer Inbox',
-    href: '/seller-dashboard?tab=inbox',
-    icon: 'ChatBubbleLeftRightIcon',
-  },
-  { label: 'Buyer Requests', href: '/seller-dashboard?tab=requests', icon: 'MegaphoneIcon' },
+  { label: 'Products & Inventory', href: '/seller-dashboard?tab=inventory', icon: 'ArchiveBoxIcon' },
+  { label: 'Colours & Designs', href: '/seller-dashboard?tab=variants', icon: 'SwatchIcon' },
+  { label: 'Earnings & Payouts', href: '/seller-dashboard?tab=earnings', icon: 'BanknotesIcon' },
+  { label: 'Buyer Inbox', href: '/seller-dashboard?tab=inbox', icon: 'ChatBubbleLeftRightIcon' },
   { label: 'Analytics', href: '/seller-dashboard?tab=analytics', icon: 'ChartBarIcon' },
-  { label: 'Shipping', href: '/seller-dashboard?tab=fulfillment', icon: 'TruckIcon' },
-  { label: 'Notifications', href: '/seller-dashboard?tab=notifications', icon: 'BellIcon' },
+];
+
+const businessItems: MenuItem[] = [
+  { label: 'Account Profile', href: '/profile', icon: 'UserCircleIcon' },
+  { label: 'Buyer Dashboard', href: '/buyer-dashboard', icon: 'ShoppingBagIcon' },
+  { label: 'My Purchases', href: '/buyer-dashboard?tab=orders', icon: 'ReceiptRefundIcon' },
+  { label: 'Seller Dashboard', href: '/seller-dashboard', icon: 'BuildingStorefrontIcon' },
+  { label: 'Add Product with AI', href: '/seller-dashboard?tab=upload', icon: 'SparklesIcon' },
+  { label: 'Products & Inventory', href: '/seller-dashboard?tab=inventory', icon: 'ArchiveBoxIcon' },
+  { label: 'Seller Order Queue', href: '/seller-dashboard?tab=orders', icon: 'ClipboardDocumentListIcon' },
+  { label: 'Earnings & Payouts', href: '/seller-dashboard?tab=earnings', icon: 'BanknotesIcon' },
+  { label: 'Buyer Requirements', href: '/buyer-requirements', icon: 'MegaphoneIcon' },
 ];
 
 const adminItems: MenuItem[] = [
@@ -69,18 +74,14 @@ function getInitials(name?: string, email?: string) {
 export default function ProfileMenu() {
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
-  const { user, profile, signOut } = useAuth();
-  const router = useRouter();
+  const { user, profile } = useAuth();
 
-  const isSeller = profile?.role === 'seller';
   const isAdmin = profile?.role === 'admin_staff' || profile?.role === 'super_admin';
-  const items = isAdmin ? adminItems : isSeller ? sellerItems : buyerItems;
-  const dashboardHref = isAdmin
-    ? '/admin-portal'
-    : isSeller
-      ? '/seller-dashboard'
-      : '/buyer-dashboard';
-  const roleLabel = isAdmin ? 'Admin' : isSeller ? 'Seller' : 'Buyer';
+  const canSell = Boolean(profile?.can_sell || profile?.role === 'seller');
+  const canBuy = profile?.can_buy !== false;
+  const items = isAdmin ? adminItems : canSell && canBuy ? businessItems : canSell ? sellerItems : buyerItems;
+  const dashboardHref = isAdmin ? '/admin-portal' : canSell ? '/seller-dashboard' : '/buyer-dashboard';
+  const roleLabel = isAdmin ? 'Admin' : canSell && canBuy ? 'Business' : canSell ? 'Seller' : 'Buyer';
   const name = profile?.full_name || user?.user_metadata?.full_name || user?.email?.split('@')[0];
   const initials = getInitials(name, user?.email);
 
@@ -94,10 +95,9 @@ export default function ProfileMenu() {
     return () => document.removeEventListener('mousedown', handlePointerDown);
   }, []);
 
-  const handleSignOut = async () => {
-    await signOut();
+  const handleSignOut = () => {
     setOpen(false);
-    router.push('/');
+    window.location.assign('/api/auth/logout');
   };
 
   return (
@@ -107,7 +107,7 @@ export default function ProfileMenu() {
         onClick={() => setOpen((current) => !current)}
         className="flex items-center gap-2 rounded-full border border-border bg-card pl-1 pr-2 py-1 shadow-sm transition-all hover:border-primary/40 hover:shadow-md"
         aria-expanded={open}
-        aria-label="Open profile menu"
+        aria-label="Open profile and workspace menu"
       >
         <span className="h-9 w-9 overflow-hidden rounded-full bg-primary/10 border border-border flex items-center justify-center">
           {profile?.avatar_url ? (
@@ -133,10 +133,10 @@ export default function ProfileMenu() {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-12 w-[310px] overflow-hidden rounded-xl border border-border bg-card shadow-2xl">
-          <div className="bg-gradient-to-r from-primary/10 via-card to-secondary/10 p-4">
+        <div className="absolute right-0 top-12 z-50 w-[320px] overflow-hidden rounded-2xl border border-border bg-card shadow-2xl">
+          <div className="bg-gradient-to-r from-primary/10 via-card to-accent/10 p-4">
             <div className="flex items-center gap-3">
-              <div className="h-12 w-12 overflow-hidden rounded-full bg-primary/10 border border-border flex items-center justify-center">
+              <div className="h-12 w-12 overflow-hidden rounded-xl bg-primary/10 border border-border flex items-center justify-center">
                 {profile?.avatar_url ? (
                   <AppImage
                     src={profile.avatar_url}
@@ -154,52 +154,73 @@ export default function ProfileMenu() {
                   {name || 'FabricTrad User'}
                 </p>
                 <p className="truncate text-xs text-muted-foreground">{user?.email}</p>
-                <div className="mt-1 flex items-center gap-2">
+                <div className="mt-1.5 flex items-center gap-2">
                   <span
                     className={`rounded-full px-2 py-0.5 text-[10px] font-800 uppercase ${
                       isAdmin
                         ? 'bg-error/10 text-error'
-                        : isSeller
-                          ? 'bg-secondary/10 text-secondary'
-                          : 'bg-primary/10 text-primary'
+                        : canSell
+                          ? 'bg-primary/10 text-primary'
+                          : 'bg-secondary/10 text-secondary'
                     }`}
                   >
                     {roleLabel}
                   </span>
                   {profile?.phone && (
-                    <span className="text-[10px] font-700 text-success">Phone added</span>
+                    <span className="text-[10px] font-700 text-success">Phone verified</span>
                   )}
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-2 border-b border-border p-3">
-            <Link
-              href={dashboardHref}
-              onClick={() => setOpen(false)}
-              className="rounded-lg bg-muted px-3 py-2 text-center text-xs font-800 text-foreground hover:bg-primary/10 hover:text-primary"
-            >
-              Dashboard
-            </Link>
-            <Link
-              href="/profile?tab=security"
-              onClick={() => setOpen(false)}
-              className="rounded-lg bg-muted px-3 py-2 text-center text-xs font-800 text-foreground hover:bg-primary/10 hover:text-primary"
-            >
-              Security
-            </Link>
-          </div>
+          {canSell && canBuy && !isAdmin ? (
+            <div className="grid grid-cols-2 gap-2 border-b border-border p-3">
+              <Link
+                href="/buyer-dashboard"
+                onClick={() => setOpen(false)}
+                className="flex items-center justify-center gap-2 rounded-xl bg-muted px-3 py-2.5 text-xs font-800 text-foreground hover:bg-primary/10 hover:text-primary"
+              >
+                <Icon name="ShoppingBagIcon" size={15} /> Buy
+              </Link>
+              <Link
+                href="/seller-dashboard"
+                onClick={() => setOpen(false)}
+                className="flex items-center justify-center gap-2 rounded-xl bg-primary px-3 py-2.5 text-xs font-800 text-white hover:opacity-90"
+              >
+                <Icon name="BuildingStorefrontIcon" size={15} /> Sell
+              </Link>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-2 border-b border-border p-3">
+              <Link
+                href={dashboardHref}
+                onClick={() => setOpen(false)}
+                className="rounded-xl bg-muted px-3 py-2.5 text-center text-xs font-800 text-foreground hover:bg-primary/10 hover:text-primary"
+              >
+                Dashboard
+              </Link>
+              <Link
+                href="/profile?tab=security"
+                onClick={() => setOpen(false)}
+                className="rounded-xl bg-muted px-3 py-2.5 text-center text-xs font-800 text-foreground hover:bg-primary/10 hover:text-primary"
+              >
+                Security
+              </Link>
+            </div>
+          )}
 
           <div className="max-h-[360px] overflow-y-auto p-2">
             {items.map((item) => (
               <Link
-                key={item.label}
+                key={`${item.label}-${item.href}`}
                 href={item.href}
                 onClick={() => setOpen(false)}
-                className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-600 text-foreground transition-colors hover:bg-muted"
+                className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-600 text-foreground transition-colors hover:bg-muted"
               >
-                <Icon name={item.icon} size={17} className="text-muted-foreground" />
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-muted/60">
+                  <Icon name={item.icon} size={16} className="text-muted-foreground" />
+                </span>
                 <span className="flex-1">{item.label}</span>
                 {item.badge && (
                   <span className="rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-800 text-white">
@@ -214,7 +235,7 @@ export default function ProfileMenu() {
             <button
               type="button"
               onClick={handleSignOut}
-              className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-700 text-error transition-colors hover:bg-error/10"
+              className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-700 text-error transition-colors hover:bg-error/10"
             >
               <Icon name="ArrowRightOnRectangleIcon" size={17} />
               Sign Out
