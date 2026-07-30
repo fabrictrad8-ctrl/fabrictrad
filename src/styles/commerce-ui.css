@@ -1,0 +1,707 @@
+/*
+ * FabricTrad Commerce UI
+ * A merchant-first, Shopify-inspired design layer with restrained glass surfaces.
+ * Main content stays opaque for legibility; blur is reserved for navigation, overlays and floating controls.
+ */
+
+:root {
+  --background: #f6f6f7;
+  --foreground: #202223;
+  --primary: #008060;
+  --primary-foreground: #ffffff;
+  --secondary: #1f2937;
+  --secondary-foreground: #ffffff;
+  --accent: #f59e0b;
+  --accent-foreground: #1f2937;
+  --muted: #f1f2f3;
+  --muted-foreground: #616a75;
+  --card: #ffffff;
+  --card-foreground: #202223;
+  --border: #dfe3e8;
+  --input: #f7f8f9;
+  --ring: #008060;
+  --radius: 0.75rem;
+  --navy: #1f2937;
+  --navy-light: #374151;
+  --saffron: #b45309;
+  --saffron-light: #d97706;
+  --gold: #f59e0b;
+  --cream: #f6f6f7;
+  --cream-dark: #eef0f2;
+  --success: #008060;
+  --warning: #b98900;
+  --error: #d72c0d;
+  --surface-raised: rgba(255, 255, 255, 0.92);
+  --surface-glass: rgba(255, 255, 255, 0.72);
+  --surface-glass-strong: rgba(255, 255, 255, 0.88);
+  --shadow-xs: 0 1px 0 rgba(0, 0, 0, 0.04);
+  --shadow-sm: 0 1px 2px rgba(31, 33, 36, 0.08), 0 1px 1px rgba(31, 33, 36, 0.04);
+  --shadow-md: 0 3px 8px rgba(31, 33, 36, 0.10), 0 1px 3px rgba(31, 33, 36, 0.06);
+  --shadow-lg: 0 12px 32px rgba(31, 33, 36, 0.13), 0 2px 8px rgba(31, 33, 36, 0.06);
+  --shadow-float: 0 18px 54px rgba(15, 23, 42, 0.16), 0 3px 12px rgba(15, 23, 42, 0.08);
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-emphasized: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.dark {
+  --background: #111318;
+  --foreground: #f1f2f3;
+  --primary: #4dd6b4;
+  --primary-foreground: #062c22;
+  --secondary: #e5e7eb;
+  --secondary-foreground: #111318;
+  --accent: #fbbf24;
+  --accent-foreground: #111318;
+  --muted: #20242b;
+  --muted-foreground: #aab0b8;
+  --card: #191c22;
+  --card-foreground: #f1f2f3;
+  --border: #343941;
+  --input: #22262e;
+  --ring: #4dd6b4;
+  --navy: #dce2ea;
+  --navy-light: #f1f5f9;
+  --saffron: #fbbf24;
+  --saffron-light: #fcd34d;
+  --gold: #fbbf24;
+  --cream: #111318;
+  --cream-dark: #20242b;
+  --success: #4dd6b4;
+  --warning: #fbbf24;
+  --error: #ff8a78;
+  --surface-raised: rgba(25, 28, 34, 0.94);
+  --surface-glass: rgba(25, 28, 34, 0.70);
+  --surface-glass-strong: rgba(25, 28, 34, 0.88);
+  --shadow-xs: 0 1px 0 rgba(255, 255, 255, 0.03);
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.22);
+  --shadow-md: 0 6px 20px rgba(0, 0, 0, 0.26);
+  --shadow-lg: 0 16px 42px rgba(0, 0, 0, 0.32);
+  --shadow-float: 0 22px 64px rgba(0, 0, 0, 0.44);
+}
+
+html {
+  background: var(--background);
+  scrollbar-gutter: stable;
+  text-rendering: optimizeLegibility;
+}
+
+body.commerce-root {
+  min-width: 320px;
+  background:
+    radial-gradient(circle at 12% -10%, color-mix(in srgb, var(--primary) 8%, transparent), transparent 34rem),
+    radial-gradient(circle at 90% 0%, color-mix(in srgb, var(--accent) 7%, transparent), transparent 28rem),
+    var(--background);
+  letter-spacing: -0.008em;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--primary) 24%, transparent);
+  color: var(--foreground);
+}
+
+body,
+button,
+input,
+select,
+textarea {
+  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+}
+
+button,
+a,
+input,
+select,
+textarea,
+[role='button'] {
+  touch-action: manipulation;
+}
+
+button,
+a,
+[role='button'] {
+  transition:
+    color 140ms var(--ease-standard),
+    background-color 140ms var(--ease-standard),
+    border-color 140ms var(--ease-standard),
+    box-shadow 160ms var(--ease-standard),
+    transform 160ms var(--ease-standard),
+    opacity 140ms var(--ease-standard);
+}
+
+button:active:not(:disabled),
+a:active {
+  transform: translateY(1px) scale(0.995);
+}
+
+button:disabled,
+[aria-disabled='true'] {
+  cursor: not-allowed;
+  opacity: 0.56;
+}
+
+/* Shopify-style restrained elevation */
+.card-shadow,
+.shadow-card {
+  box-shadow: var(--shadow-sm) !important;
+}
+
+.card-shadow-hover,
+.shadow-card-hover {
+  box-shadow: var(--shadow-md) !important;
+}
+
+.card-shadow-lg,
+.shadow-card-lg {
+  box-shadow: var(--shadow-lg) !important;
+}
+
+.rounded-xl.bg-card,
+.rounded-2xl.bg-card,
+.rounded-lg.bg-card,
+.stat-card,
+.product-card {
+  border-color: color-mix(in srgb, var(--border) 92%, transparent);
+  box-shadow: var(--shadow-sm);
+}
+
+.rounded-xl.bg-card,
+.rounded-2xl.bg-card,
+.stat-card {
+  background: var(--surface-raised);
+}
+
+.product-card {
+  position: relative;
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  isolation: isolate;
+  transform: translateZ(0);
+  transition:
+    transform 180ms var(--ease-emphasized),
+    border-color 180ms var(--ease-standard),
+    box-shadow 180ms var(--ease-standard);
+}
+
+.product-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  background: linear-gradient(145deg, color-mix(in srgb, var(--primary) 5%, transparent), transparent 42%);
+  transition: opacity 180ms var(--ease-standard);
+}
+
+.product-card:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--primary) 30%, var(--border));
+  box-shadow: var(--shadow-lg);
+}
+
+.product-card:hover::after {
+  opacity: 1;
+}
+
+/* Glass is intentionally limited to floating chrome. */
+.nav-blur,
+.glass-card,
+.commerce-glass {
+  background: var(--surface-glass-strong) !important;
+  border-color: color-mix(in srgb, var(--border) 76%, transparent) !important;
+  -webkit-backdrop-filter: saturate(145%) blur(18px);
+  backdrop-filter: saturate(145%) blur(18px);
+  box-shadow: var(--shadow-sm);
+}
+
+header.fixed,
+header.sticky {
+  background: var(--surface-glass-strong);
+  -webkit-backdrop-filter: saturate(150%) blur(18px);
+  backdrop-filter: saturate(150%) blur(18px);
+  border-color: color-mix(in srgb, var(--border) 78%, transparent);
+}
+
+header.fixed > div,
+header.sticky > div {
+  max-width: 1480px;
+}
+
+/* Buttons: compact, predictable and tactile. */
+.btn-primary,
+.btn-navy {
+  min-height: 2.5rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border: 1px solid color-mix(in srgb, var(--primary) 78%, black);
+  border-radius: 0.65rem;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--primary) 92%, white), var(--primary));
+  color: var(--primary-foreground);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  box-shadow: 0 1px 0 color-mix(in srgb, white 28%, transparent) inset, 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+
+.btn-primary:hover,
+.btn-navy:hover {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--primary) 82%, white), color-mix(in srgb, var(--primary) 90%, black));
+  box-shadow: 0 1px 0 color-mix(in srgb, white 26%, transparent) inset, 0 3px 8px color-mix(in srgb, var(--primary) 24%, transparent);
+  transform: translateY(-1px);
+}
+
+.btn-secondary {
+  min-height: 2.5rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 0.65rem;
+  background: linear-gradient(180deg, var(--card), color-mix(in srgb, var(--card) 91%, var(--muted)));
+  color: var(--foreground);
+  font-weight: 650;
+  box-shadow: var(--shadow-xs);
+}
+
+.btn-secondary:hover {
+  border-color: color-mix(in srgb, var(--foreground) 22%, var(--border));
+  background: var(--muted);
+  color: var(--foreground);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Form controls */
+.input-base,
+input:not([type='checkbox']):not([type='radio']):not([type='range']),
+select,
+textarea {
+  min-height: 2.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.65rem;
+  background: color-mix(in srgb, var(--card) 96%, var(--muted));
+  color: var(--foreground);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.02) inset;
+  transition:
+    border-color 140ms var(--ease-standard),
+    box-shadow 140ms var(--ease-standard),
+    background-color 140ms var(--ease-standard);
+}
+
+.input-base:hover,
+input:not([type='checkbox']):not([type='radio']):not([type='range']):hover,
+select:hover,
+textarea:hover {
+  border-color: color-mix(in srgb, var(--foreground) 23%, var(--border));
+}
+
+.input-base:focus,
+input:not([type='checkbox']):not([type='radio']):not([type='range']):focus,
+select:focus,
+textarea:focus {
+  outline: 0;
+  border-color: var(--ring);
+  background: var(--card);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ring) 22%, transparent);
+}
+
+input[type='checkbox'],
+input[type='radio'] {
+  accent-color: var(--primary);
+}
+
+/* Merchant shell */
+.seller-sidebar,
+.admin-sidebar {
+  background: color-mix(in srgb, var(--card) 96%, var(--background)) !important;
+  border-right: 1px solid var(--border);
+}
+
+.admin-sidebar {
+  color: var(--foreground);
+}
+
+.sidebar-nav-item {
+  min-height: 2.55rem;
+  border-radius: 0.6rem;
+  padding: 0.58rem 0.72rem;
+  color: var(--muted-foreground);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.sidebar-nav-item:hover {
+  background: color-mix(in srgb, var(--muted) 82%, transparent);
+  color: var(--foreground);
+}
+
+.sidebar-nav-item.active {
+  background: color-mix(in srgb, var(--primary) 11%, var(--card));
+  color: color-mix(in srgb, var(--primary) 88%, var(--foreground));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary) 13%, transparent) inset;
+}
+
+main {
+  min-width: 0;
+}
+
+main > section,
+main > div {
+  animation: commerce-enter 260ms var(--ease-emphasized) both;
+}
+
+/* Data-dense commerce tables */
+table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: color-mix(in srgb, var(--muted) 86%, var(--card));
+  color: var(--muted-foreground);
+  font-size: 0.6875rem;
+  font-weight: 750;
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
+}
+
+th,
+td {
+  min-height: 3rem;
+  padding: 0.72rem 0.85rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
+  text-align: left;
+  vertical-align: middle;
+}
+
+tbody tr {
+  transition: background-color 120ms var(--ease-standard);
+}
+
+tbody tr:hover {
+  background: color-mix(in srgb, var(--primary) 3.5%, var(--card));
+}
+
+/* Statuses and badges */
+.status-pill,
+.badge-verified,
+.badge-moq,
+.badge-gstin,
+.tag-bestseller,
+.tag-new {
+  border-radius: 999px;
+  box-shadow: none;
+  letter-spacing: 0.015em;
+}
+
+.badge-verified {
+  background: color-mix(in srgb, var(--success) 12%, var(--card));
+  color: var(--success);
+  border: 1px solid color-mix(in srgb, var(--success) 25%, transparent);
+}
+
+.badge-moq {
+  background: var(--muted);
+  color: var(--foreground);
+  border: 1px solid var(--border);
+}
+
+.badge-gstin {
+  background: color-mix(in srgb, var(--primary) 9%, var(--card));
+  color: var(--primary);
+  border-color: color-mix(in srgb, var(--primary) 22%, transparent);
+}
+
+/* Dialogs, sheets and menus */
+[role='dialog'],
+[role='menu'],
+.commerce-popover {
+  border: 1px solid color-mix(in srgb, var(--border) 90%, transparent);
+  background: var(--surface-glass-strong);
+  -webkit-backdrop-filter: saturate(145%) blur(20px);
+  backdrop-filter: saturate(145%) blur(20px);
+  box-shadow: var(--shadow-float);
+}
+
+/* Horizontal scrollers feel native on touch devices. */
+.overflow-x-auto {
+  overscroll-behavior-inline: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+  -webkit-overflow-scrolling: touch;
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--muted-foreground) 32%, transparent);
+}
+
+/* Reusable layout primitives for new and existing pages. */
+.commerce-page {
+  width: min(100%, 1480px);
+  margin-inline: auto;
+  padding: clamp(1rem, 2.2vw, 2rem);
+}
+
+.commerce-page-narrow {
+  width: min(100%, 980px);
+  margin-inline: auto;
+  padding: clamp(1rem, 2.2vw, 2rem);
+}
+
+.commerce-page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.commerce-page-title {
+  font-size: clamp(1.35rem, 2.2vw, 1.85rem);
+  line-height: 1.22;
+  font-weight: 760;
+  letter-spacing: -0.035em;
+}
+
+.commerce-page-description {
+  margin-top: 0.3rem;
+  max-width: 68ch;
+  color: var(--muted-foreground);
+  font-size: 0.875rem;
+  line-height: 1.55;
+}
+
+.commerce-surface {
+  border: 1px solid var(--border);
+  border-radius: 0.9rem;
+  background: var(--card);
+  box-shadow: var(--shadow-sm);
+}
+
+.commerce-grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.commerce-mobile-dock {
+  padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+  background: var(--surface-glass-strong);
+  -webkit-backdrop-filter: saturate(150%) blur(18px);
+  backdrop-filter: saturate(150%) blur(18px);
+}
+
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Loading */
+.commerce-skeleton {
+  overflow: hidden;
+  position: relative;
+  border-radius: 0.6rem;
+  background: var(--muted);
+}
+
+.commerce-skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, white 48%, transparent), transparent);
+  animation: commerce-shimmer 1.45s infinite;
+}
+
+@keyframes commerce-enter {
+  from { opacity: 0; transform: translateY(5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes commerce-shimmer {
+  100% { transform: translateX(100%); }
+}
+
+@media (max-width: 1023px) {
+  .commerce-grid {
+    grid-template-columns: repeat(8, minmax(0, 1fr));
+  }
+
+  header.fixed > div,
+  header.sticky > div {
+    max-width: none;
+  }
+}
+
+@media (max-width: 767px) {
+  :root {
+    --radius: 0.7rem;
+  }
+
+  body.commerce-root {
+    background: var(--background);
+  }
+
+  .commerce-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.75rem;
+  }
+
+  .commerce-page,
+  .commerce-page-narrow {
+    padding: 0.85rem;
+  }
+
+  .commerce-page-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .commerce-page-header > :last-child {
+    width: 100%;
+  }
+
+  .commerce-page-header > :last-child .btn-primary,
+  .commerce-page-header > :last-child .btn-secondary {
+    flex: 1;
+  }
+
+  button,
+  a.btn-primary,
+  a.btn-secondary,
+  .sidebar-nav-item {
+    min-height: 44px;
+  }
+
+  .rounded-2xl.bg-card,
+  .rounded-xl.bg-card,
+  .commerce-surface {
+    border-radius: 0.8rem;
+  }
+
+  table.responsive-stack,
+  table.responsive-stack thead,
+  table.responsive-stack tbody,
+  table.responsive-stack th,
+  table.responsive-stack td,
+  table.responsive-stack tr {
+    display: block;
+  }
+
+  table.responsive-stack thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+  }
+
+  table.responsive-stack tr {
+    margin-bottom: 0.75rem;
+    padding: 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: 0.75rem;
+    background: var(--card);
+  }
+
+  table.responsive-stack td {
+    display: grid;
+    grid-template-columns: minmax(6rem, 38%) 1fr;
+    gap: 0.75rem;
+    padding: 0.5rem 0;
+    border: 0;
+  }
+
+  table.responsive-stack td::before {
+    content: attr(data-label);
+    color: var(--muted-foreground);
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+
+  /* Blur is expensive on entry-level mobile GPUs; reduce the blur radius. */
+  .nav-blur,
+  .glass-card,
+  .commerce-glass,
+  header.fixed,
+  header.sticky,
+  [role='dialog'],
+  [role='menu'],
+  .commerce-popover,
+  .commerce-mobile-dock {
+    -webkit-backdrop-filter: saturate(125%) blur(10px);
+    backdrop-filter: saturate(125%) blur(10px);
+  }
+}
+
+@media (hover: none) {
+  .product-card:hover {
+    transform: none;
+    box-shadow: var(--shadow-sm);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto !important;
+  }
+
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  main > section,
+  main > div {
+    animation: none !important;
+  }
+}
+
+@media (prefers-contrast: more) {
+  :root {
+    --border: #8c9196;
+  }
+
+  .btn-primary,
+  .btn-secondary,
+  .input-base,
+  input,
+  select,
+  textarea {
+    border-width: 2px;
+  }
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .nav-blur,
+  .glass-card,
+  .commerce-glass,
+  header.fixed,
+  header.sticky,
+  [role='dialog'],
+  [role='menu'],
+  .commerce-popover,
+  .commerce-mobile-dock {
+    background: var(--card) !important;
+  }
+}
