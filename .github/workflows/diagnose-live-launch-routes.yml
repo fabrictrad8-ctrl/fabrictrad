@@ -1,0 +1,56 @@
+name: Diagnose live launch routes
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      LIVE_URL: https://fabrictrad.com
+      SUPABASE_URL: https://rdhfwlzhcvwjhkxhhpoo.supabase.co
+      SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJIUzI1NiIsInJlZiI6InJkaGZ3bHpoY3Z3amhreGhocG9vIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQxMzMwNjMsImV4cCI6MjA5OTcwOTA2M30.jLF4AD-joIbRslei-T55lwZBdRpntrsU-hjyHCZXgVc
+    steps:
+      - name: Print sanitized live status
+        shell: bash
+        run: |
+          set -u
+          fake_user='00000000-0000-4000-8000-000000000001'
+          fake_nonce='fabrictrad-invalid-launch-nonce-000001'
+
+          call() {
+            local name="$1"
+            shift
+            local code
+            code=$(curl --silent --show-error --output "/tmp/${name}.txt" --write-out '%{http_code}' "$@" || true)
+            echo "${name}_STATUS=${code}"
+            echo "${name}_BODY=$(head -c 800 "/tmp/${name}.txt" | tr '\n' ' ' | sed 's/[^[:print:]]//g')"
+          }
+
+          call login "$LIVE_URL/login"
+          call seller_registration "$LIVE_URL/seller-registration"
+          call buyer_registration "$LIVE_URL/buyer-registration"
+          call provision --request POST --header 'Content-Type: application/json' \
+            --data "$(jq -nc --arg user "$fake_user" --arg nonce "$fake_nonce" '{userId:$user,registrationNonce:$nonce}')" \
+            "$LIVE_URL/api/auth/provision-account"
+          call finalize --request POST \
+            --form "userId=$fake_user" --form "registrationNonce=$fake_nonce" \
+            --form 'payload={"ownerName":"Invalid Launch Test","phone":"9876500000","businessName":"Invalid Launch Test"}' \
+            "$LIVE_URL/api/registration/seller/finalize"
+          call payments_table --header "apikey: $SUPABASE_ANON_KEY" \
+            --header "Authorization: Bearer $SUPABASE_ANON_KEY" \
+            "$SUPABASE_URL/rest/v1/catalog_order_payments?select=id&limit=1"
+          call nonce_rpc --request POST --header "apikey: $SUPABASE_ANON_KEY" \
+            --header "Authorization: Bearer $SUPABASE_ANON_KEY" --header 'Content-Type: application/json' \
+            --data "$(jq -nc --arg user "$fake_user" --arg nonce "$fake_nonce" '{p_user_id:$user,p_nonce:$nonce}')" \
+            "$SUPABASE_URL/rest/v1/rpc/get_signup_account_by_nonce"
+          call stock_rpc --request POST --header "apikey: $SUPABASE_ANON_KEY" \
+            --header "Authorization: Bearer $SUPABASE_ANON_KEY" --header 'Content-Type: application/json' \
+            --data '{"p_order_id":"00000000-0000-4000-8000-000000000002","p_action":"accept","p_reason":null}' \
+            "$SUPABASE_URL/rest/v1/rpc/seller_decide_catalog_order"
+          call old_whatsapp "$LIVE_URL/api/whatsapp/catalog/status"
+          call catalog "$LIVE_URL/api/catalog-assistant/parse"
