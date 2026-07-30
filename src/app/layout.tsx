@@ -5,6 +5,8 @@ import '../styles/tailwind.css';
 import '../styles/shopify-glass.css';
 import '../styles/commerce-polish.css';
 import '../styles/global-commerce.css';
+import '../styles/command-palette.css';
+import '../styles/runtime-polish.css';
 import { AuthProvider } from '@/contexts/AuthContext';
 import AppClientEnhancements from '@/components/AppClientEnhancements';
 import LogoutButton from '@/components/auth/LogoutButton';
