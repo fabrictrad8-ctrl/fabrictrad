@@ -1,5 +1,9 @@
 import BuyerRequirementsBoard from './components/BuyerRequirementsBoard';
 
 export default function BuyerRequirementsPage() {
-  return <BuyerRequirementsBoard />;
+  return (
+    <main className="ft-shell ft-route-requirements min-h-screen">
+      <BuyerRequirementsBoard />
+    </main>
+  );
 }
