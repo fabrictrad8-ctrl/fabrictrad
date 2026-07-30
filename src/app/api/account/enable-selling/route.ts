@@ -12,6 +12,8 @@ const DOCUMENT_TYPES = [
   'address_proof',
 ] as const;
 
+const REQUIRED_DOCUMENT_TYPES = new Set(['gst_certificate', 'pan_card', 'cancelled_cheque']);
+
 type SellerAccessRow = {
   seller_profile_id: string;
   registration_id: string;
@@ -67,6 +69,14 @@ export async function POST(request: NextRequest) {
     return json({ error: 'Business name, owner name and a valid mobile number are required.' }, 400);
   }
 
+  const missingRequiredDocument = [...REQUIRED_DOCUMENT_TYPES].find((type) => {
+    const file = formData.get(`document_${type}`);
+    return !(file instanceof File) || file.size === 0;
+  });
+  if (missingRequiredDocument) {
+    return json({ error: 'Upload the GST certificate, PAN card and cancelled cheque before submitting.' }, 400);
+  }
+
   const accountDigits = clean(input.bankAccountNumber, 32).replace(/\D/g, '');
   const payload = {
     ownerName,
@@ -99,6 +109,7 @@ export async function POST(request: NextRequest) {
   const access = upgraded as SellerAccessRow;
   const sellerProfileId = String(access.seller_profile_id);
   const registrationId = String(access.registration_id);
+  const sellerRef = `FT-SLR-${user.id.replaceAll('-', '').slice(0, 12).toUpperCase()}`;
   let uploadedDocuments = 0;
 
   try {
@@ -136,13 +147,17 @@ export async function POST(request: NextRequest) {
       if (documentError) throw documentError;
       uploadedDocuments += 1;
     }
+
+    const { error: reviewError } = await supabase.rpc('mark_seller_application_documents_uploaded');
+    if (reviewError) throw reviewError;
   } catch (error) {
     return json(
       {
         activated: true,
         sellerProfileId,
         registrationId,
-        warning: error instanceof Error ? error.message : 'Seller access is active, but a document upload failed.',
+        sellerRef,
+        warning: error instanceof Error ? error.message : 'Seller access is active, but document review setup failed.',
       },
       207
     );
@@ -152,6 +167,7 @@ export async function POST(request: NextRequest) {
     activated: true,
     sellerProfileId,
     registrationId,
+    sellerRef,
     uploadedDocuments,
     message: 'Buying remains active and seller tools are now available on this same account.',
   });
