@@ -1,6 +1,7 @@
 name: Verify live launch routes
 
 on:
+  pull_request:
   push:
     branches:
       - agent/verify-live-launch-routes
