@@ -3,14 +3,16 @@ import PhoneCollectionPage from './PhoneCollectionPage';
 
 export default function PhonePage() {
   return (
-    <Suspense
-      fallback={
-        <div className="min-h-screen gradient-hero flex items-center justify-center">
-          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-        </div>
-      }
-    >
-      <PhoneCollectionPage />
-    </Suspense>
+    <div className="ft-auth">
+      <Suspense
+        fallback={
+          <div className="flex min-h-screen items-center justify-center">
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          </div>
+        }
+      >
+        <PhoneCollectionPage />
+      </Suspense>
+    </div>
   );
 }
