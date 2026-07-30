@@ -9,14 +9,13 @@ import { useAuth } from '@/contexts/AuthContext';
 
 export default function BuyerOnlyGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const { profile, loading, profileLoading } = useAuth();
-  const isSeller = profile?.role === 'seller';
+  const { user, profile, loading, profileLoading } = useAuth();
+  const buyingDisabled = !!profile && profile.can_buy === false;
 
   useEffect(() => {
-    if (!loading && !profileLoading && isSeller) {
-      router.replace('/seller-dashboard?tab=requests');
-    }
-  }, [isSeller, loading, profileLoading, router]);
+    if (!loading && !profileLoading && !user) router.replace('/login');
+    if (!loading && !profileLoading && buyingDisabled) router.replace('/profile');
+  }, [buyingDisabled, loading, profileLoading, router, user]);
 
   if (loading || profileLoading) {
     return (
@@ -28,24 +27,21 @@ export default function BuyerOnlyGuard({ children }: { children: React.ReactNode
     );
   }
 
-  if (isSeller) {
+  if (!user) return null;
+
+  if (buyingDisabled) {
     return (
       <main className="min-h-screen bg-muted/30">
         <div className="mx-auto flex min-h-screen max-w-md flex-col items-center justify-center px-4 text-center">
           <AppLogo size={44} />
-          <div className="mt-5 rounded-2xl border border-border bg-card p-6">
-            <Icon name="ShieldCheckIcon" size={28} className="mx-auto mb-3 text-secondary" />
-            <h1 className="text-lg font-800 text-foreground">Buyer area</h1>
+          <div className="mt-5 rounded-2xl border border-border bg-card p-6 shadow-xl">
+            <Icon name="ShoppingBagIcon" size={28} className="mx-auto mb-3 text-primary" />
+            <h1 className="text-lg font-800 text-foreground">Buying access is not enabled</h1>
             <p className="mt-2 text-sm leading-6 text-muted-foreground">
-              Marketplace, vendor listings, categories, and product pages are for buyer accounts.
-              Sellers can manage their own catalog and respond to buyer requests from the seller
-              dashboard.
+              This account currently has selling access only. Review the account capabilities or contact FabricTrad support to enable purchasing.
             </p>
-            <Link
-              href="/seller-dashboard?tab=requests"
-              className="btn-primary mt-5 inline-flex w-full justify-center rounded-xl px-4 py-3 text-sm"
-            >
-              Open Buyer Requests
+            <Link href="/profile" className="btn-primary mt-5 inline-flex w-full justify-center rounded-xl px-4 py-3 text-sm">
+              Review account
             </Link>
           </div>
         </div>
