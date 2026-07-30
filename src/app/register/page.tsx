@@ -6,95 +6,76 @@ import Icon from '@/components/ui/AppIcon';
 
 export default function RegisterPage() {
   return (
-    <main className="min-h-screen bg-background">
+    <main className="ft-storefront min-h-screen">
       <Header />
-      <section className="px-4 pb-16 pt-28 sm:px-6">
+      <section className="px-4 pb-20 pt-28 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-5xl">
           <div className="mx-auto max-w-2xl text-center">
-            <p className="text-xs font-800 uppercase tracking-widest text-primary">
-              Create Account
-            </p>
-            <h1 className="mt-3 text-hero-lg text-foreground">
-              Choose how you want to use FabricTrad
+            <span className="ft-badge">One account, flexible capabilities</span>
+            <h1 className="mt-5 text-balance text-4xl font-800 tracking-[-0.04em] text-foreground sm:text-5xl">
+              How will you use FabricTrad first?
             </h1>
-            <p className="mt-3 text-sm leading-6 text-muted-foreground">
-              Buyer accounts are for sourcing and purchasing. Seller accounts require GSTIN, store
-              details, bank details, and system verification before selling.
+            <p className="mt-4 text-sm leading-7 text-muted-foreground sm:text-base">
+              Start with buying or selling. A verified account can later unlock both capabilities without creating a second login.
             </p>
           </div>
 
-          <div className="mt-10 grid gap-4 md:grid-cols-2">
-            <Link
-              href="/buyer-registration"
-              className="group rounded-2xl border border-border bg-card p-6 card-shadow transition-all hover:-translate-y-1 hover:card-shadow-hover"
-            >
-              <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-                <Icon name="ShoppingBagIcon" size={24} />
+          <div className="mt-10 grid gap-5 md:grid-cols-2">
+            <Link href="/buyer-registration" className="ft-feature-card group flex min-h-[340px] flex-col p-6 sm:p-8">
+              <div className="flex items-center justify-between">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                  <Icon name="ShoppingBagIcon" size={24} />
+                </div>
+                <span className="ft-badge ft-badge--success">Retail or business</span>
               </div>
-              <h2 className="text-xl font-800 text-foreground">Create Buyer Account</h2>
-              <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                Source textiles, save products, place orders, track payments, and manage delivery.
+              <h2 className="mt-7 text-2xl font-800 tracking-tight text-foreground">Buy fabrics</h2>
+              <p className="mt-3 text-sm leading-6 text-muted-foreground">
+                Browse verified catalogues, order a single piece or bulk quantity, compare colours and follow delivery.
               </p>
-              <div className="mt-5 space-y-2">
-                {[
-                  'Name, email and phone',
-                  'Delivery address',
-                  'Buyer dashboard and order history',
-                ].map((item) => (
-                  <div key={item} className="flex items-center gap-2 text-sm text-foreground">
-                    <Icon name="CheckCircleIcon" size={16} className="text-success" />
+              <div className="mt-6 space-y-3">
+                {['PAN or secure offline identity verification', 'Wishlist, orders and shipment tracking', 'Post sourcing requirements to sellers'].map((item) => (
+                  <div key={item} className="flex items-start gap-2.5 text-sm text-foreground">
+                    <Icon name="CheckCircleIcon" size={17} className="mt-0.5 shrink-0 text-success" />
                     {item}
                   </div>
                 ))}
               </div>
-              <div className="mt-6 inline-flex items-center gap-2 text-sm font-800 text-primary">
-                Continue as Buyer
-                <Icon
-                  name="ArrowRightIcon"
-                  size={16}
-                  className="transition-transform group-hover:translate-x-1"
-                />
-              </div>
+              <span className="mt-auto inline-flex items-center gap-2 pt-8 text-sm font-800 text-primary">
+                Continue as buyer
+                <Icon name="ArrowRightIcon" size={16} className="transition-transform group-hover:translate-x-1" />
+              </span>
             </Link>
 
-            <Link
-              href="/seller-registration"
-              className="group rounded-2xl border border-secondary/20 bg-secondary p-6 text-white card-shadow transition-all hover:-translate-y-1 hover:card-shadow-hover"
-            >
-              <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-white/10 text-white">
-                <Icon name="BuildingStorefrontIcon" size={24} />
+            <Link href="/seller-registration" className="ft-feature-card group flex min-h-[340px] flex-col p-6 sm:p-8">
+              <div className="flex items-center justify-between">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-secondary/10 text-secondary">
+                  <Icon name="BuildingStorefrontIcon" size={24} />
+                </div>
+                <span className="ft-badge">GST business</span>
               </div>
-              <h2 className="text-xl font-800">Create Seller Account</h2>
-              <p className="mt-2 text-sm leading-6 text-white/75">
-                List products, receive B2B orders, manage fulfilment, and receive verified payouts.
+              <h2 className="mt-7 text-2xl font-800 tracking-tight text-foreground">Sell fabrics</h2>
+              <p className="mt-3 text-sm leading-6 text-muted-foreground">
+                Publish colour-level catalogues, receive buyer requests, manage orders, shipping, invoices and payouts.
               </p>
-              <div className="mt-5 space-y-2">
-                {[
-                  'GSTIN and store/business name required',
-                  'Bank and document verification',
-                  'System verification before seller activation',
-                ].map((item) => (
-                  <div key={item} className="flex items-center gap-2 text-sm text-white">
-                    <Icon name="CheckCircleIcon" size={16} className="text-accent" />
+              <div className="mt-6 space-y-3">
+                {['GSTIN and business verification', 'AI-assisted catalogue and media upload', 'Order, fulfilment and earnings workspace'].map((item) => (
+                  <div key={item} className="flex items-start gap-2.5 text-sm text-foreground">
+                    <Icon name="CheckCircleIcon" size={17} className="mt-0.5 shrink-0 text-success" />
                     {item}
                   </div>
                 ))}
               </div>
-              <div className="mt-6 inline-flex items-center gap-2 text-sm font-800 text-accent">
-                Continue as Seller
-                <Icon
-                  name="ArrowRightIcon"
-                  size={16}
-                  className="transition-transform group-hover:translate-x-1"
-                />
-              </div>
+              <span className="mt-auto inline-flex items-center gap-2 pt-8 text-sm font-800 text-secondary">
+                Continue as seller
+                <Icon name="ArrowRightIcon" size={16} className="transition-transform group-hover:translate-x-1" />
+              </span>
             </Link>
           </div>
 
           <p className="mt-8 text-center text-sm text-muted-foreground">
-            Already have an account?{' '}
+            Already registered?{' '}
             <Link href="/login" className="font-800 text-primary hover:underline">
-              Sign in
+              Sign in to your account
             </Link>
           </p>
         </div>
