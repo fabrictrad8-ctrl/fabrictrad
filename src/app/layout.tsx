@@ -15,6 +15,9 @@ const plusJakartaSans = Plus_Jakarta_Sans({
   weight: ['400', '500', '600', '700', '800'],
   variable: '--font-sans',
   display: 'swap',
+  preload: true,
+  fallback: ['Inter', 'system-ui', 'sans-serif'],
+  adjustFontFallback: true,
 });
 
 export const viewport: Viewport = {
@@ -29,9 +32,21 @@ export const viewport: Viewport = {
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'),
-  title: "FabricTrad — India's Textile Commerce Platform",
+  title: {
+    default: "FabricTrad — India's Textile Commerce Platform",
+    template: '%s · FabricTrad',
+  },
   description:
     'FabricTrad connects verified textile sellers with business and retail buyers for sourcing, catalogues, payments, orders and fulfilment.',
+  applicationName: 'FabricTrad',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'FabricTrad',
+  },
+  formatDetection: {
+    telephone: false,
+  },
   icons: {
     icon: [{ url: '/favicon.ico', type: 'image/x-icon' }],
   },
