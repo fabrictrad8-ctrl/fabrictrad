@@ -1,0 +1,35 @@
+name: Apply unified commerce UI
+
+on:
+  push:
+    branches:
+      - agent/unified-buy-sell-retail-catalog-reset
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: ${{ !contains(github.event.head_commit.message, '[unified-commerce-patched]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/unified-buy-sell-retail-catalog-reset
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Apply unified commerce patches
+        run: node scripts/apply-unified-commerce-ui.mjs
+      - name: Commit patches
+        run: |
+          if git diff --quiet; then
+            echo 'No changes needed.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src supabase .github/workflows/quality.yml
+          git commit -m 'Implement unified buy and sell account experience [unified-commerce-patched]'
+          git push origin HEAD:agent/unified-buy-sell-retail-catalog-reset
