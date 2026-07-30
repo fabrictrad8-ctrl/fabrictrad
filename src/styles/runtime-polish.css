@@ -1,5 +1,0 @@
-@media (max-width: 767px) {
-  body:has(.fixed[aria-label*='Log out']) .ft-command-trigger {
-    bottom: calc(5.15rem + env(safe-area-inset-bottom));
-  }
-}
