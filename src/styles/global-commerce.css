@@ -1,0 +1,78 @@
+/* Global fallbacks so legacy routes inherit the same commerce polish without changing business logic. */
+
+.font-650 {
+  font-weight: 650;
+}
+
+.font-750 {
+  font-weight: 750;
+}
+
+body.ft-root header.fixed.top-0:not(.ft-topbar) {
+  border-bottom: 1px solid var(--ft-border) !important;
+  background: color-mix(in srgb, var(--ft-surface) 92%, transparent) !important;
+  box-shadow: 0 1px 0 rgba(31, 33, 36, 0.04) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(145%);
+  backdrop-filter: blur(20px) saturate(145%);
+}
+
+body.ft-root main.min-h-screen.bg-background {
+  background:
+    radial-gradient(circle at 88% -12%, color-mix(in srgb, var(--secondary) 6%, transparent), transparent 26rem),
+    var(--ft-canvas) !important;
+}
+
+body.ft-root main.min-h-screen.bg-background > div.pt-16 > :where(div:first-child) {
+  border-color: var(--ft-border);
+}
+
+body.ft-root :where(.card-shadow) {
+  box-shadow: var(--ft-shadow-1) !important;
+}
+
+body.ft-root :where(.card-shadow-hover) {
+  box-shadow: var(--ft-shadow-2) !important;
+}
+
+body.ft-root :where(.card-shadow-lg) {
+  box-shadow: var(--ft-shadow-3) !important;
+}
+
+body.ft-root :where(.bg-card.rounded-2xl.border, .bg-card.rounded-xl.border) {
+  border-color: var(--ft-border) !important;
+  background: var(--ft-surface-solid) !important;
+  box-shadow: var(--ft-shadow-1);
+}
+
+body.ft-root :where(.bg-card.rounded-2xl.border, .bg-card.rounded-xl.border):hover {
+  border-color: var(--ft-border-strong) !important;
+}
+
+body.ft-root :where(.bg-gradient-to-r.from-primary\/10, .bg-gradient-to-br.from-primary\/15) {
+  border-color: color-mix(in srgb, var(--primary) 20%, var(--ft-border)) !important;
+  background: color-mix(in srgb, var(--primary) 6%, var(--ft-surface-solid)) !important;
+}
+
+body.ft-root :where(img) {
+  image-rendering: auto;
+}
+
+body.ft-root :where(button:disabled, [aria-disabled='true']) {
+  cursor: not-allowed;
+  opacity: 0.58;
+  transform: none !important;
+}
+
+@media (max-width: 767px) {
+  body.ft-root header.fixed.top-0 > div {
+    padding-inline: 14px !important;
+  }
+
+  body.ft-root main.min-h-screen.bg-background > div.pt-16 > :where(div[class*='max-w-7xl']) {
+    padding-inline: 14px !important;
+  }
+
+  body.ft-root :where(.grid.grid-cols-2) {
+    gap: 12px;
+  }
+}
