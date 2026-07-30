@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - agent/unified-buy-sell-retail-catalog-reset
+  workflow_dispatch:
 
 permissions:
   contents: write
