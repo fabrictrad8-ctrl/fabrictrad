@@ -1,0 +1,68 @@
+name: Verify live payment authentication
+
+on:
+  pull_request:
+  push:
+    branches:
+      - agent/verify-live-payment-auth
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Wait for production and verify payment authentication
+        shell: bash
+        run: |
+          set -euo pipefail
+          ready=false
+          for attempt in $(seq 1 42); do
+            order_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+              --output /tmp/payment-order.json --write-out '%{http_code}' \
+              --header 'Content-Type: application/json' --data '{}' \
+              'https://fabrictrad.com/api/razorpay/order' || true)
+            verify_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+              --output /tmp/payment-verify.json --write-out '%{http_code}' \
+              --header 'Content-Type: application/json' --data '{}' \
+              'https://fabrictrad.com/api/razorpay/verify' || true)
+
+            if [ "$order_status" = '401' ] && [ "$verify_status" = '401' ] \
+              && grep -q 'Authentication required' /tmp/payment-order.json \
+              && grep -q 'Authentication required' /tmp/payment-verify.json; then
+              ready=true
+              break
+            fi
+
+            echo "Attempt $attempt: waiting for payment guards (order=$order_status verify=$verify_status)"
+            sleep 10
+          done
+
+          if [ "$ready" != 'true' ]; then
+            echo '::error::The production payment authentication guards did not become active.'
+            echo 'Order response:'
+            cat /tmp/payment-order.json 2>/dev/null || true
+            echo
+            echo 'Verify response:'
+            cat /tmp/payment-verify.json 2>/dev/null || true
+            exit 1
+          fi
+
+          home=$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' 'https://fabrictrad.com/')
+          login=$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' 'https://fabrictrad.com/login')
+          register=$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' 'https://fabrictrad.com/register')
+          marketplace=$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' 'https://fabrictrad.com/marketplace')
+          catalog=$(curl --silent --show-error --output /tmp/catalog-status.json --write-out '%{http_code}' 'https://fabrictrad.com/api/catalog-assistant/parse')
+          retired=$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' 'https://fabrictrad.com/api/whatsapp/catalog/status')
+
+          test "$home" = '200'
+          test "$login" = '200'
+          test "$register" = '200'
+          test "$marketplace" = '200'
+          test "$catalog" = '200'
+          test "$retired" = '404'
+          grep -q '"available":true' /tmp/catalog-status.json
+
+          echo 'Live production payment authentication and public routes verified.'
