@@ -50,13 +50,14 @@ jobs:
             exit 1
           fi
 
-          home=$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' 'https://fabrictrad.com/')
-          login=$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' 'https://fabrictrad.com/login')
-          register=$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' 'https://fabrictrad.com/register')
-          marketplace=$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' 'https://fabrictrad.com/marketplace')
+          home=$(curl --silent --show-error --location --output /dev/null --write-out '%{http_code}' 'https://fabrictrad.com/')
+          login=$(curl --silent --show-error --location --output /dev/null --write-out '%{http_code}' 'https://fabrictrad.com/login')
+          register=$(curl --silent --show-error --location --output /dev/null --write-out '%{http_code}' 'https://fabrictrad.com/register')
+          marketplace=$(curl --silent --show-error --location --output /dev/null --write-out '%{http_code}' 'https://fabrictrad.com/marketplace')
           catalog=$(curl --silent --show-error --output /tmp/catalog-status.json --write-out '%{http_code}' 'https://fabrictrad.com/api/catalog-assistant/parse')
           retired=$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' 'https://fabrictrad.com/api/whatsapp/catalog/status')
 
+          echo "payment-order=$order_status payment-verify=$verify_status home=$home login=$login register=$register marketplace=$marketplace catalog=$catalog retired-whatsapp=$retired"
           test "$home" = '200'
           test "$login" = '200'
           test "$register" = '200'
