@@ -57,8 +57,22 @@ export default function SellerInventory() {
     if (isDemoAccount) { setProducts(demoInventory); setSellerId('demo-seller'); setLoading(false); return; }
     if (!user?.id) { setProducts([]); setLoading(false); return; }
     const supabase = createClient();
-    const { data: seller, error: sellerError } = await supabase.from('seller_profiles').select('id').eq('user_id', user.id).maybeSingle();
-    if (sellerError || !seller?.id) { setError(sellerError?.message || 'Complete seller registration before adding products.'); setLoading(false); return; }
+    let { data: seller, error: sellerError } = await supabase.from('seller_profiles').select('id').eq('user_id', user.id).maybeSingle();
+    if (!seller?.id && !sellerError) {
+      const repairResponse = await fetch('/api/auth/provision-account', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        cache: 'no-store',
+        body: '{}',
+      });
+      if (repairResponse.ok) {
+        const retry = await supabase.from('seller_profiles').select('id').eq('user_id', user.id).maybeSingle();
+        seller = retry.data;
+        sellerError = retry.error;
+      }
+    }
+    if (sellerError || !seller?.id) { setError(sellerError?.message || 'We could not finish the seller profile. Sign out and sign in again.'); setLoading(false); return; }
     setSellerId(seller.id);
     const { data, error: productError } = await supabase.from('seller_products').select('*').eq('seller_id', seller.id).order('updated_at', { ascending: false });
     if (productError) { setError(productError.message); setProducts([]); } else setProducts((data || []) as InventoryProduct[]);

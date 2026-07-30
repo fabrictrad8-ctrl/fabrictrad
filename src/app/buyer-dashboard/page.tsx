@@ -1,5 +1,5 @@
 'use client';
-import React, { Suspense, useEffect } from 'react';
+import React, { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
@@ -42,8 +42,43 @@ function DashboardRouteState({
 }
 
 export default function BuyerDashboardPage() {
-  const { user, profile, loading } = useAuth();
+  const { user, profile, loading, isDemoAccount, refreshProfile } = useAuth();
   const router = useRouter();
+  const [accountReady, setAccountReady] = useState(false);
+  const [accountError, setAccountError] = useState('');
+
+  useEffect(() => {
+    if (loading || !user || accountReady) return;
+    if (isDemoAccount) {
+      setAccountReady(true);
+      return;
+    }
+    if (profile && profile.role !== 'buyer') {
+      setAccountReady(true);
+      return;
+    }
+
+    let cancelled = false;
+    const prepare = async () => {
+      try {
+        const response = await fetch('/api/auth/provision-account', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          cache: 'no-store',
+          body: '{}',
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(payload?.error || 'Account setup failed.');
+        await refreshProfile();
+        if (!cancelled) setAccountReady(true);
+      } catch (error) {
+        if (!cancelled) setAccountError(error instanceof Error ? error.message : 'Account setup failed.');
+      }
+    };
+    void prepare();
+    return () => { cancelled = true; };
+  }, [accountReady, isDemoAccount, loading, profile, refreshProfile, user]);
 
   useEffect(() => {
     if (loading) return;
@@ -70,7 +105,18 @@ export default function BuyerDashboardPage() {
     }
   }, [user, profile, loading, router]);
 
-  if (loading) {
+  if (accountError) {
+    return (
+      <DashboardRouteState
+        title="Account setup needs attention"
+        message={accountError}
+        href="/login?role=buyer"
+        actionLabel="Sign In Again"
+      />
+    );
+  }
+
+  if (loading || (user && !accountReady)) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center px-4">
         <div className="flex flex-col items-center gap-4 text-center">

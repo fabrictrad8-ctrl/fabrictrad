@@ -46,7 +46,8 @@ export default function BuyerRegistrationFlow() {
   const [agreed, setAgreed] = useState(false);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [buyerId] = useState('FT-BYR-007842');
+  const [buyerId, setBuyerId] = useState('Pending');
+  const [setupWarning, setSetupWarning] = useState('');
 
   const currentIndex = stepOrder.indexOf(currentStep);
 
@@ -142,7 +143,7 @@ export default function BuyerRegistrationFlow() {
         return;
       }
 
-      await signUp(email, account.password, {
+      const signup = await signUp(email, account.password, {
         fullName: account.fullName,
         phone,
         role: 'buyer',
@@ -153,6 +154,9 @@ export default function BuyerRegistrationFlow() {
         pincode: address.pin,
         preferredLanguage: address.preferredLanguage,
       });
+      if (!signup?.user?.id) throw new Error('The buyer login could not be created.');
+      setBuyerId(`FT-BYR-${signup.user.id.replaceAll('-', '').slice(0, 12).toUpperCase()}`);
+      setSetupWarning(signup.provisioningWarning || '');
       setCurrentStep('done');
     } catch (e: any) {
       setError(e.message || 'Registration failed. Please try again.');
@@ -571,6 +575,12 @@ export default function BuyerRegistrationFlow() {
                 Check your email to verify your account before using buyer features.
               </p>
 
+              {setupWarning && (
+                <div className="mb-5 rounded-xl border border-warning/30 bg-warning/10 p-3 text-left text-xs leading-5 text-warning">
+                  {setupWarning}
+                </div>
+              )}
+
               <div className="bg-muted rounded-2xl p-4 mb-6 inline-block">
                 <p className="text-xs text-muted-foreground mb-1">Your Buyer ID</p>
                 <p className="font-mono text-xl font-800 text-primary">{buyerId}</p>
@@ -591,10 +601,10 @@ export default function BuyerRegistrationFlow() {
 
               <div className="flex flex-col sm:flex-row gap-3">
                 <Link
-                  href="/marketplace"
+                  href="/login?role=buyer"
                   className="btn-primary flex-1 py-3 text-sm rounded-xl text-center"
                 >
-                  Start Shopping
+                  Verify Email / Open Marketplace
                 </Link>
                 <Link
                   href="/buyer-dashboard"

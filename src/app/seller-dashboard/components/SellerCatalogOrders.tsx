@@ -38,11 +38,12 @@ export default function SellerCatalogOrders() {
     }
     setLoading(true);
     const supabase = createClient();
-    const { data: seller } = await supabase
+    const { data: seller, error: sellerError } = await supabase
       .from('seller_profiles')
       .select('id')
       .eq('user_id', user.id)
       .maybeSingle();
+    if (sellerError) toast.error(sellerError.message);
     if (!seller?.id) {
       setOrders([]);
       setLoading(false);
@@ -55,7 +56,7 @@ export default function SellerCatalogOrders() {
       )
       .eq('seller_id', seller.id)
       .order('created_at', { ascending: false })
-      .limit(50);
+      .limit(100);
     if (error) toast.error(error.message);
     setOrders((data || []) as unknown as CatalogOrder[]);
     setLoading(false);
@@ -65,31 +66,55 @@ export default function SellerCatalogOrders() {
     void loadOrders();
   }, [loadOrders]);
 
-  const updateStatus = async (order: CatalogOrder, status: CatalogOrder['status']) => {
+  const decideOrder = async (order: CatalogOrder, action: 'accept' | 'reject') => {
+    let reason = '';
+    if (action === 'reject') {
+      reason = window.prompt('Reason for rejecting this request:')?.trim() || '';
+      if (!reason) return;
+    } else {
+      reason = window.prompt('Optional acceptance or dispatch note:')?.trim() || '';
+    }
+
     setBusyId(order.id);
     try {
       const supabase = createClient();
-      const patch: { status: CatalogOrder['status']; notes?: string } = { status };
-      if (status === 'rejected') {
-        const reason = window.prompt('Reason for rejecting this request:')?.trim();
-        if (!reason) return;
-        patch.notes = `${order.notes ? `${order.notes}\n` : ''}Seller rejection: ${reason}`;
-      }
-      const { error } = await supabase
-        .from('catalog_order_requests')
-        .update(patch)
-        .eq('id', order.id);
+      const { error } = await supabase.rpc('seller_decide_catalog_order', {
+        p_order_id: order.id,
+        p_action: action,
+        p_reason: reason || null,
+      });
       if (error) throw error;
       toast.success(
-        status === 'accepted'
-          ? 'Order request accepted.'
-          : status === 'fulfilled'
-            ? 'Order marked fulfilled.'
-            : 'Order request rejected.'
+        action === 'accept'
+          ? 'Order accepted and stock reserved. The buyer can now pay.'
+          : 'Order request rejected and the buyer status was updated.'
       );
       await loadOrders();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Unable to update the order request.');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const markFulfilled = async (order: CatalogOrder) => {
+    setBusyId(order.id);
+    try {
+      const supabase = createClient();
+      const { error } = await supabase
+        .from('catalog_order_requests')
+        .update({
+          status: 'fulfilled',
+          fulfilled_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', order.id)
+        .eq('status', 'paid');
+      if (error) throw error;
+      toast.success('Paid order marked fulfilled.');
+      await loadOrders();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Unable to complete the order.');
     } finally {
       setBusyId(null);
     }
@@ -100,9 +125,9 @@ export default function SellerCatalogOrders() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-xs font-800 uppercase tracking-[0.14em] text-primary">Website catalogue</p>
-          <h2 className="mt-1 text-lg font-800 text-foreground">Direct buyer order requests</h2>
+          <h2 className="mt-1 text-lg font-800 text-foreground">Direct buyer orders</h2>
           <p className="mt-1 text-xs text-muted-foreground">
-            Requests placed from B2B, retail or combined catalogue listings appear here.
+            Accept only available quantities, reserve inventory, receive payment and fulfil orders.
           </p>
         </div>
         <button
@@ -125,15 +150,25 @@ export default function SellerCatalogOrders() {
             const product = order.seller_products;
             const variant = order.seller_product_variants;
             const pending = order.status === 'pending';
-            const accepted = order.status === 'accepted' || order.status === 'paid';
+            const paid = order.status === 'paid';
             return (
               <article key={order.id} className="rounded-xl border border-border p-4">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-sm font-800 text-foreground">{product?.name || 'Catalogue product'}</p>
-                      <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-800 uppercase text-muted-foreground">
-                        {order.status}
+                      <p className="text-sm font-800 text-foreground">
+                        {product?.name || 'Catalogue product'}
+                      </p>
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-[10px] font-800 uppercase ${
+                          order.status === 'paid' || order.status === 'fulfilled'
+                            ? 'bg-success/10 text-success'
+                            : order.status === 'rejected' || order.status === 'cancelled'
+                              ? 'bg-error/10 text-error'
+                              : 'bg-warning/10 text-warning'
+                        }`}
+                      >
+                        {order.status === 'accepted' ? 'Awaiting buyer payment' : order.status}
                       </span>
                     </div>
                     <p className="mt-1 text-xs text-muted-foreground">
@@ -142,49 +177,66 @@ export default function SellerCatalogOrders() {
                       {variant?.design_name ? ` · ${variant.design_name}` : ''}
                     </p>
                     <p className="mt-2 text-xs text-muted-foreground">
-                      {Number(order.quantity).toLocaleString('en-IN')} {order.unit} × ₹{Number(order.price_per_unit).toLocaleString('en-IN')}
+                      {Number(order.quantity).toLocaleString('en-IN')} {order.unit} × ₹
+                      {Number(order.price_per_unit).toLocaleString('en-IN')}
                     </p>
                   </div>
                   <div className="sm:text-right">
-                    <p className="text-lg font-800 text-primary">₹{Number(order.total_amount).toLocaleString('en-IN')}</p>
+                    <p className="text-lg font-800 text-primary">
+                      ₹{Number(order.total_amount).toLocaleString('en-IN')}
+                    </p>
                     <p className="text-[11px] text-muted-foreground">
                       {new Date(order.created_at).toLocaleString('en-IN')}
                     </p>
                   </div>
                 </div>
-                {order.notes && <p className="mt-3 rounded-lg bg-muted p-2 text-xs text-muted-foreground">{order.notes}</p>}
-                {(pending || accepted) && (
+
+                {order.notes && (
+                  <p className="mt-3 whitespace-pre-line rounded-lg bg-muted p-2 text-xs text-muted-foreground">
+                    {order.notes}
+                  </p>
+                )}
+
+                {pending && (
                   <div className="mt-4 flex flex-wrap gap-2 border-t border-border pt-3">
-                    {pending && (
-                      <>
-                        <button
-                          type="button"
-                          disabled={busyId === order.id}
-                          onClick={() => void updateStatus(order, 'accepted')}
-                          className="rounded-xl bg-success px-4 py-2 text-xs font-800 text-white disabled:opacity-50"
-                        >
-                          Accept request
-                        </button>
-                        <button
-                          type="button"
-                          disabled={busyId === order.id}
-                          onClick={() => void updateStatus(order, 'rejected')}
-                          className="rounded-xl border border-error/20 px-4 py-2 text-xs font-800 text-error disabled:opacity-50"
-                        >
-                          Reject
-                        </button>
-                      </>
-                    )}
-                    {accepted && (
-                      <button
-                        type="button"
-                        disabled={busyId === order.id}
-                        onClick={() => void updateStatus(order, 'fulfilled')}
-                        className="btn-primary rounded-xl px-4 py-2 text-xs disabled:opacity-50"
-                      >
-                        Mark fulfilled
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      disabled={busyId === order.id}
+                      onClick={() => void decideOrder(order, 'accept')}
+                      className="rounded-xl bg-success px-4 py-2 text-xs font-800 text-white disabled:opacity-50"
+                    >
+                      Accept and reserve stock
+                    </button>
+                    <button
+                      type="button"
+                      disabled={busyId === order.id}
+                      onClick={() => void decideOrder(order, 'reject')}
+                      className="rounded-xl border border-error/20 px-4 py-2 text-xs font-800 text-error disabled:opacity-50"
+                    >
+                      Reject with reason
+                    </button>
+                  </div>
+                )}
+
+                {order.status === 'accepted' && (
+                  <div className="mt-4 flex items-center gap-2 rounded-xl bg-warning/10 p-3 text-xs font-700 text-warning">
+                    <Icon name="ClockIcon" size={15} /> Stock is reserved while the buyer completes payment.
+                  </div>
+                )}
+
+                {paid && (
+                  <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-border pt-3">
+                    <span className="inline-flex items-center gap-2 rounded-xl bg-success/10 px-3 py-2 text-xs font-800 text-success">
+                      <Icon name="CheckCircleIcon" size={15} /> Payment captured
+                    </span>
+                    <button
+                      type="button"
+                      disabled={busyId === order.id}
+                      onClick={() => void markFulfilled(order)}
+                      className="btn-primary rounded-xl px-4 py-2 text-xs disabled:opacity-50"
+                    >
+                      Mark fulfilled
+                    </button>
                   </div>
                 )}
               </article>
@@ -194,8 +246,10 @@ export default function SellerCatalogOrders() {
       ) : (
         <div className="mt-5 rounded-xl border border-dashed border-border py-10 text-center">
           <Icon name="ShoppingBagIcon" size={28} className="mx-auto text-muted-foreground" />
-          <p className="mt-2 text-sm font-800 text-foreground">No direct catalogue requests yet</p>
-          <p className="mt-1 text-xs text-muted-foreground">They will appear here as buyers place orders from live listings.</p>
+          <p className="mt-2 text-sm font-800 text-foreground">No direct catalogue orders yet</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            They appear here when buyers submit orders from live listings.
+          </p>
         </div>
       )}
     </section>

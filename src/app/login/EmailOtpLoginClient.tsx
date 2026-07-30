@@ -83,6 +83,8 @@ export default function EmailOtpLoginClient() {
       setError('This Google account is not linked to an active FabricTrad buyer account.');
     } else if (authError === 'google_buyer_only') {
       setError('Google sign-in is available for buyer accounts only.');
+    } else if (authError === 'account_setup_failed') {
+      setError('Your login was verified, but the buyer or seller profile could not be prepared. Please sign in again.');
     } else if (authError) {
       setError('Authentication failed. Please try again.');
     }

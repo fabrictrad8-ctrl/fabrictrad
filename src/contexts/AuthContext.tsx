@@ -295,6 +295,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     demoActiveRef.current = false;
     setIsDemoAccount(false);
 
+    const registrationNonce = crypto.randomUUID();
     const { data, error } = await supabase.auth.signUp({
       email: normalizedEmail,
       password,
@@ -313,12 +314,38 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           pincode: metadata?.pincode || '',
           preferred_language: metadata?.preferredLanguage || 'en',
           preferred_theme: metadata?.preferredTheme || 'system',
+          business_type: metadata?.businessType || '',
+          pan: metadata?.pan || '',
+          categories: Array.isArray(metadata?.categories) ? metadata.categories : [],
+          monthly_capacity: metadata?.monthlyCapacity || '',
+          registration_nonce: registrationNonce,
         },
         emailRedirectTo: `${getAuthRedirectBase()}/auth/callback`,
       },
     });
     if (error) throw error;
-    return data;
+
+    let provisioningWarning: string | null = null;
+    if (data.user) {
+      const response = await fetch('/api/auth/provision-account', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(data.session?.access_token
+            ? { Authorization: `Bearer ${data.session.access_token}` }
+            : {}),
+        },
+        credentials: 'same-origin',
+        cache: 'no-store',
+        body: JSON.stringify({ userId: data.user.id, registrationNonce }),
+      }).catch(() => null);
+      if (!response?.ok) {
+        const payload = await response?.json().catch(() => ({}));
+        provisioningWarning = payload?.error || 'Account profile setup will finish when you verify and sign in.';
+      }
+    }
+
+    return { ...data, registrationNonce, provisioningWarning };
   };
 
   const signIn = async (email: string, password: string) => {
@@ -356,6 +383,23 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       data.user?.app_metadata?.role || data.user?.user_metadata?.role || 'buyer';
 
     if (data.user) {
+      const provisionResponse = await fetch('/api/auth/provision-account', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(data.session?.access_token
+            ? { Authorization: `Bearer ${data.session.access_token}` }
+            : {}),
+        },
+        credentials: 'same-origin',
+        cache: 'no-store',
+        body: '{}',
+      });
+      const provisionPayload = await provisionResponse.json().catch(() => ({}));
+      if (!provisionResponse.ok) {
+        throw new Error(provisionPayload?.error || 'Your account profile could not be prepared. Please try again.');
+      }
+
       const loadedProfile = await loadProfile(data.user.id).catch(() => null);
       if (loadedProfile?.role) accountRole = loadedProfile.role;
     }
@@ -413,7 +457,21 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       type: 'email',
     });
     if (error) throw error;
-    if (data.user) await loadProfile(data.user.id).catch(() => setProfile(null));
+    if (data.user) {
+      await fetch('/api/auth/provision-account', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(data.session?.access_token
+            ? { Authorization: `Bearer ${data.session.access_token}` }
+            : {}),
+        },
+        credentials: 'same-origin',
+        cache: 'no-store',
+        body: '{}',
+      }).catch(() => undefined);
+      await loadProfile(data.user.id).catch(() => setProfile(null));
+    }
     return data;
   };
 
@@ -453,7 +511,19 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const refreshProfile = async () => {
-    if (user && !isDemoAccount) await loadProfile(user.id);
+    if (user && !isDemoAccount) {
+      await fetch('/api/auth/provision-account', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+        },
+        credentials: 'same-origin',
+        cache: 'no-store',
+        body: '{}',
+      }).catch(() => undefined);
+      await loadProfile(user.id);
+    }
   };
 
   const updatePhone = async (phone: string) => {
