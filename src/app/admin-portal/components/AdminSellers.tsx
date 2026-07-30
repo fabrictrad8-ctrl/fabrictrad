@@ -13,12 +13,18 @@ interface Seller {
   gstin: string;
   status:
     | 'registration_started'
-    | 'documents_pending'
-    | 'pending_review'
+    | 'phone_unverified'
+    | 'email_unverified'
+    | 'profile_incomplete'
+    | 'documents_submitted'
+    | 'automated_review'
+    | 'manual_review'
+    | 'additional_docs_required'
     | 'verified'
+    | 'rejected'
     | 'suspended'
-    | 'deactivated'
-    | 'rejected';
+    | 'permanently_blocked'
+    | 'deactivated';
   products: number;
   orders: number;
   gmv: string;
@@ -31,12 +37,29 @@ const initialSellers: Seller[] = [];
 const statusConfig: Record<string, { label: string; class: string }> = {
   verified: { label: '✓ Verified', class: 'bg-success/10 text-success' },
   registration_started: { label: 'Registration Started', class: 'bg-blue-50 text-blue-700' },
-  documents_pending: { label: 'Documents Pending', class: 'bg-blue-50 text-blue-700' },
-  pending_review: { label: '⏳ Pending Review', class: 'bg-amber-50 text-warning' },
+  phone_unverified: { label: 'Phone Unverified', class: 'bg-blue-50 text-blue-700' },
+  email_unverified: { label: 'Email Unverified', class: 'bg-blue-50 text-blue-700' },
+  profile_incomplete: { label: 'Profile Incomplete', class: 'bg-blue-50 text-blue-700' },
+  documents_submitted: { label: 'Documents Submitted', class: 'bg-amber-50 text-warning' },
+  automated_review: { label: 'Automated Review', class: 'bg-amber-50 text-warning' },
+  manual_review: { label: 'Manual Review', class: 'bg-amber-50 text-warning' },
+  additional_docs_required: { label: 'More Documents Needed', class: 'bg-amber-50 text-warning' },
   suspended: { label: '⛔ Suspended', class: 'bg-error/10 text-error' },
+  permanently_blocked: { label: '⛔ Permanently Blocked', class: 'bg-error/10 text-error' },
   deactivated: { label: '✗ Deactivated', class: 'bg-muted text-muted-foreground' },
   rejected: { label: '✗ Rejected', class: 'bg-error/10 text-error' },
 };
+
+const PENDING_STATUSES = new Set<Seller['status']>([
+  'registration_started',
+  'phone_unverified',
+  'email_unverified',
+  'profile_incomplete',
+  'documents_submitted',
+  'automated_review',
+  'manual_review',
+  'additional_docs_required',
+]);
 
 export default function AdminSellers() {
   const [filter, setFilter] = useState('All');
@@ -112,7 +135,7 @@ export default function AdminSellers() {
       ? sellers
       : sellers.filter((s) => {
           if (filter === 'Verified') return s.status === 'verified';
-          if (filter === 'Pending Review') return s.status === 'pending_review';
+          if (filter === 'Pending Review') return PENDING_STATUSES.has(s.status);
           if (filter === 'Suspended') return s.status === 'suspended';
           if (filter === 'Deactivated') return s.status === 'deactivated';
           return true;
@@ -137,14 +160,25 @@ export default function AdminSellers() {
               ? 'deactivated'
               : 'verified';
 
+    const updateValues =
+      action === 'deactivate'
+        ? { is_active: false }
+        : action === 'reactivate'
+          ? { is_active: true, verification_status: 'verified' }
+          : {
+              is_active: action !== 'suspend' && action !== 'reject',
+              verification_status: newStatus,
+            };
+
     const supabase = createClient();
-    await supabase
+    const { error } = await supabase
       .from('seller_profiles')
-      .update({
-        verification_status: newStatus === 'deactivated' ? seller.status : newStatus,
-        is_active: newStatus !== 'deactivated',
-      })
+      .update(updateValues)
       .eq('id', seller.dbId);
+    if (error) {
+      showToast(error.message);
+      return;
+    }
 
     setSellers((prev) => prev.map((s) => (s.id === seller.id ? { ...s, status: newStatus } : s)));
     showToast(`Seller ${action}d successfully`);
@@ -152,7 +186,7 @@ export default function AdminSellers() {
     setActionReason('');
   };
 
-  const pendingCount = sellers.filter((s) => s.status === 'pending_review').length;
+  const pendingCount = sellers.filter((s) => PENDING_STATUSES.has(s.status)).length;
   const getSellerFinancials = (seller: Seller) => {
     const gross = Number(seller.gmv.replace(/[^\d]/g, '')) || 0;
     const commission = Math.round(gross * 0.1);
@@ -282,7 +316,7 @@ export default function AdminSellers() {
                   </td>
                   <td className="px-4 py-3 text-center">
                     <div className="flex items-center justify-center gap-1 flex-wrap">
-                      {seller.status === 'pending_review' && (
+                      {PENDING_STATUSES.has(seller.status) && (
                         <>
                           <button
                             onClick={() => setActionModal({ seller, action: 'approve' })}

@@ -48,7 +48,7 @@ export default function BuyerDashboardPage() {
   const [accountError, setAccountError] = useState('');
 
   useEffect(() => {
-    if (loading || !user) return;
+    if (loading || !user || accountReady) return;
     if (isDemoAccount) {
       setAccountReady(true);
       return;
@@ -78,7 +78,7 @@ export default function BuyerDashboardPage() {
     };
     void prepare();
     return () => { cancelled = true; };
-  }, [isDemoAccount, loading, profile, refreshProfile, user]);
+  }, [accountReady, isDemoAccount, loading, profile, refreshProfile, user]);
 
   useEffect(() => {
     if (loading) return;

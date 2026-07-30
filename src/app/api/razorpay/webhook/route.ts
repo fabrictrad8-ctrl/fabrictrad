@@ -158,7 +158,7 @@ export async function POST(request: NextRequest) {
         .update(orderUpdate)
         .eq('id', payment.fabrictradOrderId)
         .in('status', payableStatuses)
-        .select('id,seller_id,gst_total,gst_amount')
+        .select(payment.kind === 'bulk' ? 'id,seller_id,gst_total' : 'id,seller_id,gst_amount')
         .single();
       if (orderError || !order) throw new Error('Unable to mark FabricTrad order paid.');
 
