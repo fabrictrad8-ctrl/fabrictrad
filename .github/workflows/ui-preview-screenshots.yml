@@ -28,7 +28,8 @@ jobs:
       - name: Install application and browser
         run: |
           npm install --no-audit --no-fund --package-lock=false --legacy-peer-deps
-          npx --yes playwright@1.55.0 install --with-deps chromium
+          npm install --no-save --no-audit --no-fund playwright@1.55.0
+          npx playwright install --with-deps chromium
       - name: Build and start application
         shell: bash
         run: |
@@ -47,7 +48,7 @@ jobs:
         shell: bash
         run: |
           mkdir -p /tmp/ui-screenshots
-          cat > /tmp/capture-ui.mjs <<'EOF'
+          cat > capture-ui.mjs <<'EOF'
           import { chromium } from 'playwright';
 
           const base = 'http://127.0.0.1:3000';
@@ -82,7 +83,7 @@ jobs:
 
           await browser.close();
           EOF
-          npx --yes -p playwright@1.55.0 node /tmp/capture-ui.mjs
+          node capture-ui.mjs
       - name: Upload screenshots
         uses: actions/upload-artifact@v4
         with:
