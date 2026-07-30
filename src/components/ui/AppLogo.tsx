@@ -25,11 +25,9 @@ const AppLogo = memo(function AppLogo({
   const { user, profile } = useAuth();
   const authenticatedHome =
     user && profile
-      ? profile.role === 'seller'
-        ? '/seller-dashboard'
-        : profile.role === 'admin_staff' || profile.role === 'super_admin'
-          ? '/admin-portal'
-          : '/marketplace'
+      ? profile.role === 'admin_staff' || profile.role === 'super_admin'
+        ? '/admin-portal'
+        : '/marketplace'
       : null;
 
   // Memoize className calculation

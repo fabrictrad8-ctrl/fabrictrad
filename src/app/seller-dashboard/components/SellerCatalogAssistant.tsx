@@ -29,7 +29,7 @@ type ChatMessage = {
   text: string;
 };
 
-const STARTER_TEXT = `Catalog = Navratri Vichitra Silk
+const EXAMPLE_TEXT = `Catalog = Navratri Vichitra Silk
 Fabric = vichitra silk
 Category = Silk
 Width = 44
@@ -98,7 +98,7 @@ export default function SellerCatalogAssistant() {
   const { user, profile, isDemoAccount } = useAuth();
   const inputRef = useRef<HTMLInputElement>(null);
   const attachmentUrlsRef = useRef<string[]>([]);
-  const [text, setText] = useState(STARTER_TEXT);
+  const [text, setText] = useState('');
   const [draft, setDraft] = useState<ParsedCatalogDraft | null>(null);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([
@@ -193,9 +193,7 @@ export default function SellerCatalogAssistant() {
     }
   };
 
-  const addFiles = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(event.target.files || []);
-    event.target.value = '';
+  const ingestFiles = async (files: File[]) => {
     if (!files.length) return;
 
     const accepted: Attachment[] = [];
@@ -241,6 +239,33 @@ export default function SellerCatalogAssistant() {
     }
 
     setAttachments((current) => [...current, ...accepted].slice(0, 24));
+  };
+
+  const addFiles = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || []);
+    event.target.value = '';
+    await ingestFiles(files);
+  };
+
+  const handleDrop = async (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    await ingestFiles(Array.from(event.dataTransfer.files || []));
+  };
+
+  const resetComposer = () => {
+    attachmentUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+    attachmentUrlsRef.current = [];
+    setText('');
+    setDraft(null);
+    setAttachments([]);
+    setProvider(null);
+    setListingStatus('draft');
+    setMessages([{
+      id: `welcome-${Date.now()}`,
+      role: 'assistant',
+      text: 'New product ready. Describe the fabric or drop its photos, then I will organise the name, width, colours, rates and stock.',
+    }]);
+    inputRef.current?.focus();
   };
 
   const updateAttachment = (id: string, patch: Partial<Attachment>) => {
@@ -448,17 +473,20 @@ export default function SellerCatalogAssistant() {
           ? 'Catalogue published and visible to matching buyers.'
           : 'Catalogue saved privately as a draft.'
       );
-      setMessages((current) => [
-        ...current,
-        {
-          id: `published-${Date.now()}`,
-          role: 'assistant',
-          text:
-            listingStatus === 'active'
-              ? 'Done. The parent product, variations, stock, photos and reels are now in your live catalogue.'
-              : 'Saved. You can review the draft in Parent Fabrics and publish it later.',
-        },
-      ]);
+      attachmentUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+      attachmentUrlsRef.current = [];
+      setText('');
+      setDraft(null);
+      setAttachments([]);
+      setProvider(null);
+      setListingStatus('draft');
+      setMessages([{
+        id: `published-${Date.now()}`,
+        role: 'assistant',
+        text: listingStatus === 'active'
+          ? 'Published. The form is cleared and ready for your next product.'
+          : 'Draft saved. The form is cleared and ready for your next product.',
+      }]);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'The catalogue could not be saved.');
     } finally {
@@ -477,6 +505,10 @@ export default function SellerCatalogAssistant() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2 text-xs">
+          <button type="button" onClick={resetComposer} className="rounded-full border border-primary/30 bg-primary/5 px-3 py-1.5 font-800 text-primary">
+            <Icon name="PlusIcon" size={13} className="mr-1 inline" /> New product
+          </button>
+          <button type="button" onClick={() => setText(EXAMPLE_TEXT)} className="rounded-full border border-border bg-card px-3 py-1.5 font-800 text-muted-foreground">Use example</button>
           <span className="rounded-full border border-border bg-card px-3 py-1.5">Images up to 10 MB</span>
           <span className="rounded-full border border-border bg-card px-3 py-1.5">Reels up to 20 seconds</span>
           <span className="rounded-full border border-border bg-card px-3 py-1.5">24 media files per draft</span>
@@ -581,6 +613,8 @@ export default function SellerCatalogAssistant() {
                     ['Category', draft.category],
                     ['Channel', labelForChannel(draft.saleChannel)],
                     ['Format', draft.packageFormat],
+                    ['Fabric name', draft.name],
+                    ['Width', draft.widthInches ? `${draft.widthInches} in` : 'Not provided'],
                     ['Base rate', `₹${draft.pricePerUnit.toLocaleString('en-IN')}/${draft.unit}`],
                     ['Total stock', `${draft.availableQuantity.toLocaleString('en-IN')} ${draft.unit}`],
                     ['Variations', String(draft.variants.length || 1)],
@@ -625,7 +659,11 @@ export default function SellerCatalogAssistant() {
             )}
           </div>
 
-          <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+          <div
+            className="rounded-2xl border border-border bg-card p-5 shadow-sm"
+            onDragOver={(event) => event.preventDefault()}
+            onDrop={(event) => void handleDrop(event)}
+          >
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-xs font-800 uppercase tracking-wide text-muted-foreground">Product media</p>
@@ -639,6 +677,16 @@ export default function SellerCatalogAssistant() {
                 Add media
               </button>
             </div>
+
+            <button
+              type="button"
+              onClick={() => inputRef.current?.click()}
+              className="mt-4 flex w-full flex-col items-center justify-center rounded-xl border-2 border-dashed border-primary/25 bg-primary/5 px-4 py-6 text-center transition hover:border-primary/60"
+            >
+              <Icon name="ArrowUpTrayIcon" size={24} className="text-primary" />
+              <span className="mt-2 text-sm font-800 text-foreground">Drag and drop product photos or a reel</span>
+              <span className="mt-1 text-xs text-muted-foreground">{draft ? `${draft.name} · ${draft.widthInches ? `${draft.widthInches} in` : 'width pending'} · ${(draft.variants || []).map((item) => item.colorName).join(', ') || 'colour pending'}` : 'Name, width and colour appear here after extraction'}</span>
+            </button>
 
             {attachments.length ? (
               <div className="mt-4 space-y-3">

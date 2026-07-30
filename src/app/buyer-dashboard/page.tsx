@@ -53,11 +53,6 @@ export default function BuyerDashboardPage() {
       setAccountReady(true);
       return;
     }
-    if (profile && profile.role !== 'buyer') {
-      setAccountReady(true);
-      return;
-    }
-
     let cancelled = false;
     const prepare = async () => {
       try {
@@ -90,8 +85,8 @@ export default function BuyerDashboardPage() {
 
     if (!profile) return;
 
-    if (profile.role === 'seller') {
-      router.replace('/seller-dashboard');
+    if (profile.can_buy === false) {
+      router.replace('/marketplace');
       return;
     }
 
@@ -149,13 +144,13 @@ export default function BuyerDashboardPage() {
     );
   }
 
-  if (profile.role === 'seller') {
+  if (profile.can_buy === false) {
     return (
       <DashboardRouteState
-        title="Opening seller dashboard"
-        message="This account is registered as a seller, so we are taking you to the seller tools."
-        href="/seller-dashboard"
-        actionLabel="Go to Seller Dashboard"
+        title="Buyer access unavailable"
+        message="This account is not currently allowed to place orders."
+        href="/marketplace"
+        actionLabel="Return to Marketplace"
       />
     );
   }
