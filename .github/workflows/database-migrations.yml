@@ -1,0 +1,62 @@
+name: Validate Supabase migrations
+
+on:
+  pull_request:
+    paths:
+      - 'supabase/migrations/**'
+      - '.github/workflows/database-migrations.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'supabase/migrations/**'
+      - '.github/workflows/database-migrations.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  reset-database:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Initialize local Supabase configuration
+        run: |
+          if [ ! -f supabase/config.toml ]; then
+            npx --yes supabase@latest init
+          fi
+
+      - name: Start minimal local Supabase stack
+        run: >-
+          npx --yes supabase@latest start
+          -x studio,imgproxy,inbucket,realtime,edge-runtime,logflare,vector,supavisor
+
+      - name: Rebuild database from all migrations
+        run: npx --yes supabase@latest db reset --local --no-seed
+
+      - name: Verify launch-critical schema
+        shell: bash
+        run: |
+          set -euo pipefail
+          db_url=$(npx --yes supabase@latest status -o env | sed -n 's/^DB_URL="\(.*\)"$/\1/p')
+          test -n "$db_url"
+          psql "$db_url" -v ON_ERROR_STOP=1 <<'SQL'
+          SELECT to_regclass('public.user_profiles') IS NOT NULL AS user_profiles_ready;
+          SELECT to_regclass('public.seller_profiles') IS NOT NULL AS seller_profiles_ready;
+          SELECT to_regclass('public.buyer_profiles') IS NOT NULL AS buyer_profiles_ready;
+          SELECT to_regclass('public.catalog_order_requests') IS NOT NULL AS catalog_orders_ready;
+          SELECT to_regclass('public.catalog_order_payments') IS NOT NULL AS catalog_payments_ready;
+          SELECT to_regclass('public.seller_product_media') IS NOT NULL AS product_media_ready;
+          SELECT to_regprocedure('public.get_signup_account_by_nonce(uuid,text)') IS NOT NULL AS signup_nonce_ready;
+          SELECT to_regprocedure('public.submit_seller_registration_with_nonce(uuid,text,jsonb,jsonb)') IS NOT NULL AS seller_finalize_ready;
+          SELECT to_regprocedure('public.seller_decide_catalog_order(uuid,text,text)') IS NOT NULL AS inventory_reservation_ready;
+          SQL
+
+      - name: Stop local Supabase stack
+        if: always()
+        run: npx --yes supabase@latest stop --no-backup || true
