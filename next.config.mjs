@@ -8,6 +8,9 @@ const publicSupabaseAnonKey =
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  reactStrictMode: true,
+  poweredByHeader: false,
+  compress: true,
   productionBrowserSourceMaps: false,
   distDir: process.env.DIST_DIR || '.next',
   env: {
@@ -29,8 +32,11 @@ const nextConfig = {
   },
   images: {
     remotePatterns: imageHosts,
-    minimumCacheTTL: 60,
-    qualities: [75, 85, 100],
+    formats: ['image/avif', 'image/webp'],
+    minimumCacheTTL: 86400,
+    deviceSizes: [360, 480, 640, 750, 828, 1080, 1200, 1440, 1920],
+    imageSizes: [24, 32, 48, 64, 96, 128, 256, 384],
+    qualities: [70, 75, 85, 100],
   },
 };
 
