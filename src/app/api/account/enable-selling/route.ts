@@ -12,6 +12,11 @@ const DOCUMENT_TYPES = [
   'address_proof',
 ] as const;
 
+type SellerAccessRow = {
+  seller_profile_id: string;
+  registration_id: string;
+};
+
 const clean = (value: unknown, max = 500) =>
   (typeof value === 'string' ? value.trim() : '').slice(0, max);
 
@@ -91,8 +96,9 @@ export async function POST(request: NextRequest) {
     return json({ error: upgradeError?.message || 'Seller access could not be activated.' }, 500);
   }
 
-  const sellerProfileId = String(upgraded.seller_profile_id);
-  const registrationId = String(upgraded.registration_id);
+  const access = upgraded as SellerAccessRow;
+  const sellerProfileId = String(access.seller_profile_id);
+  const registrationId = String(access.registration_id);
   let uploadedDocuments = 0;
 
   try {
