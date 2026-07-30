@@ -5,6 +5,7 @@ import '../styles/tailwind.css';
 import '../styles/shopify-glass.css';
 import '../styles/commerce-polish.css';
 import '../styles/global-commerce.css';
+import '../styles/orange-commerce.css';
 import { AuthProvider } from '@/contexts/AuthContext';
 import AppClientEnhancements from '@/components/AppClientEnhancements';
 import LogoutButton from '@/components/auth/LogoutButton';
@@ -22,7 +23,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   viewportFit: 'cover',
   themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#f3f4f6' },
+    { media: '(prefers-color-scheme: light)', color: '#f4f4f5' },
     { media: '(prefers-color-scheme: dark)', color: '#111827' },
   ],
 };
