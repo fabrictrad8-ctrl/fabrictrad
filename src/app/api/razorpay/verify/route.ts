@@ -3,6 +3,15 @@ import crypto from 'crypto';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 
+type PaymentKind = 'bulk' | 'catalog';
+
+type PaymentRecord = {
+  id: string;
+  fabrictradOrderId: string;
+  status: string;
+  kind: PaymentKind;
+};
+
 export async function POST(request: NextRequest) {
   try {
     const secret = process.env.RAZORPAY_KEY_SECRET;
@@ -46,29 +55,63 @@ export async function POST(request: NextRequest) {
     }
 
     const admin = createAdminClient();
-    const { data: payment } = await admin
+    let payment: PaymentRecord | null = null;
+
+    const { data: bulkPayment, error: bulkPaymentError } = await admin
       .from('bulk_order_payments')
       .select('id,bulk_order_id,status')
       .eq('razorpay_order_id', orderId)
       .maybeSingle();
+    if (bulkPaymentError) throw bulkPaymentError;
+    if (bulkPayment) {
+      payment = {
+        id: bulkPayment.id,
+        fabrictradOrderId: bulkPayment.bulk_order_id,
+        status: bulkPayment.status,
+        kind: 'bulk',
+      };
+    }
+
+    if (!payment) {
+      const { data: catalogPayment, error: catalogPaymentError } = await admin
+        .from('catalog_order_payments')
+        .select('id,catalog_order_id,status')
+        .eq('razorpay_order_id', orderId)
+        .maybeSingle();
+      if (catalogPaymentError) throw catalogPaymentError;
+      if (catalogPayment) {
+        payment = {
+          id: catalogPayment.id,
+          fabrictradOrderId: catalogPayment.catalog_order_id,
+          status: catalogPayment.status,
+          kind: 'catalog',
+        };
+      }
+    }
+
     if (!payment) {
       return NextResponse.json({ success: false, error: 'Payment order not found.' }, { status: 404 });
     }
 
-    const { data: order } = await admin
-      .from('bulk_orders')
+    const orderTable = payment.kind === 'bulk' ? 'bulk_orders' : 'catalog_order_requests';
+    const { data: fabrictradOrder, error: orderError } = await admin
+      .from(orderTable)
       .select('buyer_id')
-      .eq('id', payment.bulk_order_id)
+      .eq('id', payment.fabrictradOrderId)
       .maybeSingle();
-    if (!order || order.buyer_id !== user.id) {
+    if (orderError) throw orderError;
+    if (!fabrictradOrder || fabrictradOrder.buyer_id !== user.id) {
       return NextResponse.json({ success: false, error: 'Payment order not found.' }, { status: 404 });
     }
 
     if (payment.status !== 'captured') {
+      const paymentTable =
+        payment.kind === 'bulk' ? 'bulk_order_payments' : 'catalog_order_payments';
       const { error } = await admin
-        .from('bulk_order_payments')
+        .from(paymentTable)
         .update({
           razorpay_payment_id: paymentId,
+          razorpay_signature: signature,
           status: 'authorized',
           updated_at: new Date().toISOString(),
         })
@@ -76,7 +119,13 @@ export async function POST(request: NextRequest) {
       if (error) throw error;
     }
 
-    return NextResponse.json({ success: true, paymentId, orderId });
+    return NextResponse.json({
+      success: true,
+      paymentId,
+      orderId,
+      fabrictradOrderId: payment.fabrictradOrderId,
+      orderKind: payment.kind,
+    });
   } catch (error) {
     console.error('Razorpay verification failed:', error);
     return NextResponse.json(
