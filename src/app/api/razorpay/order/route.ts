@@ -16,30 +16,46 @@ type PaymentOrder = {
   kind: OrderKind;
 };
 
+const json = (body: Record<string, unknown>, status = 200) =>
+  NextResponse.json(body, {
+    status,
+    headers: { 'Cache-Control': 'no-store, max-age=0' },
+  });
+
 export async function POST(request: NextRequest) {
   try {
-    const keyId = process.env.RAZORPAY_KEY_ID;
-    const keySecret = process.env.RAZORPAY_KEY_SECRET;
-    if (!keyId || !keySecret) {
-      return NextResponse.json(
-        { success: false, error: 'Payment service is not configured.' },
-        { status: 503 }
-      );
-    }
-
     const supabase = await createClient();
     const {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) {
-      return NextResponse.json({ success: false, error: 'Authentication required.' }, { status: 401 });
+      return json({ success: false, error: 'Authentication required.' }, 401);
     }
 
-    const body = (await request.json()) as { orderId?: string };
+    let body: { orderId?: string };
+    try {
+      body = (await request.json()) as { orderId?: string };
+    } catch {
+      return json({ success: false, error: 'A valid JSON request is required.' }, 400);
+    }
+
     if (!body.orderId) {
-      return NextResponse.json(
+      return json(
         { success: false, error: 'A seller-confirmed FabricTrad order is required.' },
-        { status: 400 }
+        400
+      );
+    }
+
+    const keyId = process.env.RAZORPAY_KEY_ID;
+    const keySecret = process.env.RAZORPAY_KEY_SECRET;
+    if (!keyId || !keySecret) {
+      return json(
+        {
+          success: false,
+          error: 'Online payment is temporarily unavailable. Please try again shortly.',
+          code: 'PAYMENT_SERVICE_UNAVAILABLE',
+        },
+        503
       );
     }
 
@@ -87,12 +103,12 @@ export async function POST(request: NextRequest) {
     }
 
     if (!paymentOrder) {
-      return NextResponse.json({ success: false, error: 'Order not found.' }, { status: 404 });
+      return json({ success: false, error: 'Order not found.' }, 404);
     }
 
     const payableStatus = paymentOrder.kind === 'bulk' ? 'confirmed' : 'accepted';
     if (paymentOrder.status !== payableStatus) {
-      return NextResponse.json(
+      return json(
         {
           success: false,
           error:
@@ -100,13 +116,13 @@ export async function POST(request: NextRequest) {
               ? 'This order is already paid.'
               : 'Only seller-accepted orders can be paid.',
         },
-        { status: 409 }
+        409
       );
     }
 
     const amount = paymentOrder.amount;
     if (!Number.isFinite(amount) || amount <= 0) {
-      return NextResponse.json({ success: false, error: 'Order total is invalid.' }, { status: 409 });
+      return json({ success: false, error: 'Order total is invalid.' }, 409);
     }
 
     const paymentTable =
@@ -123,7 +139,7 @@ export async function POST(request: NextRequest) {
     if (existingError) throw existingError;
 
     if (existing) {
-      return NextResponse.json({
+      return json({
         success: true,
         orderId: existing.razorpay_order_id,
         fabrictradOrderId: paymentOrder.id,
@@ -191,10 +207,7 @@ export async function POST(request: NextRequest) {
 
     if (paymentError) {
       console.error('Failed to persist Razorpay order:', paymentError.message);
-      return NextResponse.json(
-        { success: false, error: 'Unable to initialize payment safely.' },
-        { status: 500 }
-      );
+      return json({ success: false, error: 'Unable to initialize payment safely.' }, 500);
     }
 
     if (paymentOrder.kind === 'catalog') {
@@ -205,7 +218,7 @@ export async function POST(request: NextRequest) {
         .eq('status', 'accepted');
     }
 
-    return NextResponse.json({
+    return json({
       success: true,
       orderId: razorpayOrder.id,
       fabrictradOrderId: paymentOrder.id,
@@ -216,9 +229,6 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error('Razorpay order creation failed:', error);
-    return NextResponse.json(
-      { success: false, error: 'Unable to create payment order.' },
-      { status: 500 }
-    );
+    return json({ success: false, error: 'Unable to create payment order.' }, 500);
   }
 }

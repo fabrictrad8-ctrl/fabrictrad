@@ -54,6 +54,9 @@ jobs:
             src/app/api/account/enable-selling/route.ts
             src/app/api/registration/seller/finalize/route.ts
             src/app/api/catalog-assistant/parse/route.ts
+            src/app/api/razorpay/order/route.ts
+            src/app/api/razorpay/verify/route.ts
+            src/app/api/razorpay/webhook/route.ts
             src/app/seller-dashboard/components/SellerCatalogAssistant.tsx
             src/app/seller-dashboard/components/SellerProfileReadiness.tsx
             src/app/seller-dashboard/components/SellerCatalogOrders.tsx
@@ -116,6 +119,15 @@ jobs:
           grep -Fq "catalog_order_payments" src/app/api/razorpay/verify/route.ts
           grep -Fq "catalog_order_payments" src/app/api/razorpay/webhook/route.ts
           grep -Fq 'Retail quantity enabled' src/app/product-detail/components/ProductInfo.tsx
+
+          order_auth_line=$(grep -n "const supabase = await createClient" src/app/api/razorpay/order/route.ts | head -1 | cut -d: -f1)
+          order_config_line=$(grep -n "const keyId = process.env.RAZORPAY_KEY_ID" src/app/api/razorpay/order/route.ts | head -1 | cut -d: -f1)
+          verify_auth_line=$(grep -n "const supabase = await createClient" src/app/api/razorpay/verify/route.ts | head -1 | cut -d: -f1)
+          verify_config_line=$(grep -n "const secret = process.env.RAZORPAY_KEY_SECRET" src/app/api/razorpay/verify/route.ts | head -1 | cut -d: -f1)
+          test "$order_auth_line" -lt "$order_config_line"
+          test "$verify_auth_line" -lt "$verify_config_line"
+          grep -Fq "code: 'PAYMENT_SERVICE_UNAVAILABLE'" src/app/api/razorpay/order/route.ts
+          grep -Fq "code: 'PAYMENT_SERVICE_UNAVAILABLE'" src/app/api/razorpay/verify/route.ts
 
           grep -Fq 'CREATE OR REPLACE FUNCTION public.can_current_user_buy()' supabase/migrations/20260730220000_unified_commerce_accounts.sql
           grep -Fq 'CREATE OR REPLACE FUNCTION public.can_current_user_sell()' supabase/migrations/20260730220000_unified_commerce_accounts.sql
@@ -185,6 +197,18 @@ jobs:
             --form 'payload={}' \
             http://127.0.0.1:3000/api/registration/seller/finalize)
           test "$finalize" = '401'
+
+          payment_order=$(curl --silent --output /tmp/payment-order.json --write-out '%{http_code}' \
+            --header 'Content-Type: application/json' --data '{}' \
+            http://127.0.0.1:3000/api/razorpay/order)
+          test "$payment_order" = '401'
+          grep -q 'Authentication required' /tmp/payment-order.json
+
+          payment_verify=$(curl --silent --output /tmp/payment-verify.json --write-out '%{http_code}' \
+            --header 'Content-Type: application/json' --data '{}' \
+            http://127.0.0.1:3000/api/razorpay/verify)
+          test "$payment_verify" = '401'
+          grep -q 'Authentication required' /tmp/payment-verify.json
 
           buyer=$(curl --silent --output /tmp/buyer.json --write-out '%{http_code}' \
             --cookie-jar /tmp/buyer.cookies --header 'Content-Type: application/json' \
