@@ -12,46 +12,54 @@ type PaymentRecord = {
   kind: PaymentKind;
 };
 
+const json = (body: Record<string, unknown>, status = 200) =>
+  NextResponse.json(body, {
+    status,
+    headers: { 'Cache-Control': 'no-store, max-age=0' },
+  });
+
 export async function POST(request: NextRequest) {
   try {
-    const secret = process.env.RAZORPAY_KEY_SECRET;
-    if (!secret) {
-      return NextResponse.json(
-        { success: false, error: 'Payment service is not configured.' },
-        { status: 503 }
-      );
-    }
-
     const supabase = await createClient();
     const {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) {
-      return NextResponse.json({ success: false, error: 'Authentication required.' }, { status: 401 });
+      return json({ success: false, error: 'Authentication required.' }, 401);
     }
 
-    const body = (await request.json()) as Record<string, unknown>;
+    let body: Record<string, unknown>;
+    try {
+      body = (await request.json()) as Record<string, unknown>;
+    } catch {
+      return json({ success: false, error: 'A valid JSON request is required.' }, 400);
+    }
+
     const orderId = typeof body.razorpay_order_id === 'string' ? body.razorpay_order_id : '';
     const paymentId = typeof body.razorpay_payment_id === 'string' ? body.razorpay_payment_id : '';
     const signature = typeof body.razorpay_signature === 'string' ? body.razorpay_signature : '';
 
     if (!orderId || !paymentId || !signature) {
-      return NextResponse.json(
-        { success: false, error: 'Missing payment details.' },
-        { status: 400 }
+      return json({ success: false, error: 'Missing payment details.' }, 400);
+    }
+
+    const secret = process.env.RAZORPAY_KEY_SECRET;
+    if (!secret) {
+      return json(
+        {
+          success: false,
+          error: 'Online payment verification is temporarily unavailable.',
+          code: 'PAYMENT_SERVICE_UNAVAILABLE',
+        },
+        503
       );
     }
 
     const expected = crypto.createHmac('sha256', secret).update(`${orderId}|${paymentId}`).digest();
-    let supplied: Buffer;
-    try {
-      supplied = Buffer.from(signature, 'hex');
-    } catch {
-      return NextResponse.json({ success: false, error: 'Invalid signature.' }, { status: 400 });
-    }
+    const supplied = Buffer.from(signature, 'hex');
 
     if (supplied.length !== expected.length || !crypto.timingSafeEqual(expected, supplied)) {
-      return NextResponse.json({ success: false, error: 'Invalid signature.' }, { status: 400 });
+      return json({ success: false, error: 'Invalid signature.' }, 400);
     }
 
     const admin = createAdminClient();
@@ -90,7 +98,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (!payment) {
-      return NextResponse.json({ success: false, error: 'Payment order not found.' }, { status: 404 });
+      return json({ success: false, error: 'Payment order not found.' }, 404);
     }
 
     const orderTable = payment.kind === 'bulk' ? 'bulk_orders' : 'catalog_order_requests';
@@ -101,7 +109,7 @@ export async function POST(request: NextRequest) {
       .maybeSingle();
     if (orderError) throw orderError;
     if (!fabrictradOrder || fabrictradOrder.buyer_id !== user.id) {
-      return NextResponse.json({ success: false, error: 'Payment order not found.' }, { status: 404 });
+      return json({ success: false, error: 'Payment order not found.' }, 404);
     }
 
     if (payment.status !== 'captured') {
@@ -119,7 +127,7 @@ export async function POST(request: NextRequest) {
       if (error) throw error;
     }
 
-    return NextResponse.json({
+    return json({
       success: true,
       paymentId,
       orderId,
@@ -128,9 +136,6 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error('Razorpay verification failed:', error);
-    return NextResponse.json(
-      { success: false, error: 'Unable to verify payment.' },
-      { status: 500 }
-    );
+    return json({ success: false, error: 'Unable to verify payment.' }, 500);
   }
 }
