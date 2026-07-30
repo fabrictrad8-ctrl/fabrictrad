@@ -25,7 +25,15 @@ BEGIN
   ) INTO nonce_is_valid;
 
   IF nonce_is_valid THEN
+    -- Supabase/PostgREST installations may expose the role through either the
+    -- legacy individual claim setting or the JSON claims setting. Set both for
+    -- this transaction only, after the nonce has been verified.
     PERFORM set_config('request.jwt.claim.role', 'service_role', true);
+    PERFORM set_config(
+      'request.jwt.claims',
+      jsonb_build_object('role', 'service_role', 'sub', p_user_id::text)::text,
+      true
+    );
   END IF;
 
   RETURN nonce_is_valid;
