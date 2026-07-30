@@ -20,8 +20,24 @@ type CatalogOrder = {
   status: 'pending' | 'accepted' | 'rejected' | 'cancelled' | 'paid' | 'fulfilled';
   notes: string | null;
   created_at: string;
+  purchase_order_number: string | null;
+  payment_terms: string;
+  deposit_percent: number;
+  requires_review: boolean;
+  review_status: 'not_required' | 'pending' | 'approved' | 'rejected';
   seller_products?: { name?: string | null; sku?: string | null } | null;
   seller_product_variants?: { color_name?: string | null; design_name?: string | null } | null;
+};
+
+const PAYMENT_TERMS: Record<string, string> = {
+  due_on_order: 'Due on order',
+  due_on_fulfillment: 'Due on fulfilment',
+  net_7: 'Net 7',
+  net_15: 'Net 15',
+  net_30: 'Net 30',
+  net_45: 'Net 45',
+  net_60: 'Net 60',
+  net_90: 'Net 90',
 };
 
 export default function SellerCatalogOrders() {
@@ -52,7 +68,7 @@ export default function SellerCatalogOrders() {
     const { data, error } = await supabase
       .from('catalog_order_requests')
       .select(
-        'id,buyer_id,product_id,variant_id,quantity,unit,price_per_unit,subtotal,gst_amount,total_amount,status,notes,created_at,seller_products(name,sku),seller_product_variants(color_name,design_name)'
+        'id,buyer_id,product_id,variant_id,quantity,unit,price_per_unit,subtotal,gst_amount,total_amount,status,notes,created_at,purchase_order_number,payment_terms,deposit_percent,requires_review,review_status,seller_products(name,sku),seller_product_variants(color_name,design_name)'
       )
       .eq('seller_id', seller.id)
       .order('created_at', { ascending: false })
@@ -67,6 +83,10 @@ export default function SellerCatalogOrders() {
   }, [loadOrders]);
 
   const decideOrder = async (order: CatalogOrder, action: 'accept' | 'reject') => {
+    if (order.requires_review && order.review_status !== 'approved') {
+      toast.error('The buyer company must approve this order before you can act on it.');
+      return;
+    }
     let reason = '';
     if (action === 'reject') {
       reason = window.prompt('Reason for rejecting this request:')?.trim() || '';
@@ -86,7 +106,7 @@ export default function SellerCatalogOrders() {
       if (error) throw error;
       toast.success(
         action === 'accept'
-          ? 'Order accepted and stock reserved. The buyer can now pay.'
+          ? 'Order accepted and stock reserved. The buyer can now pay according to the agreed terms.'
           : 'Order request rejected and the buyer status was updated.'
       );
       await loadOrders();
@@ -127,7 +147,7 @@ export default function SellerCatalogOrders() {
           <p className="text-xs font-800 uppercase tracking-[0.14em] text-primary">Website catalogue</p>
           <h2 className="mt-1 text-lg font-800 text-foreground">Direct buyer orders</h2>
           <p className="mt-1 text-xs text-muted-foreground">
-            Accept only available quantities, reserve inventory, receive payment and fulfil orders.
+            Review company approval, PO, negotiated terms and stock before accepting an order.
           </p>
         </div>
         <button
@@ -151,8 +171,11 @@ export default function SellerCatalogOrders() {
             const variant = order.seller_product_variants;
             const pending = order.status === 'pending';
             const paid = order.status === 'paid';
+            const waitingForReview = order.requires_review && order.review_status === 'pending';
+            const canDecide = pending && !waitingForReview && order.review_status !== 'rejected';
+            const depositAmount = Math.round(Number(order.total_amount) * (Number(order.deposit_percent || 0) / 100) * 100) / 100;
             return (
-              <article key={order.id} className="rounded-xl border border-border p-4">
+              <article key={order.id} className="rounded-xl border border-border p-4 transition hover:border-primary/25 hover:shadow-sm">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
@@ -168,7 +191,7 @@ export default function SellerCatalogOrders() {
                               : 'bg-warning/10 text-warning'
                         }`}
                       >
-                        {order.status === 'accepted' ? 'Awaiting buyer payment' : order.status}
+                        {waitingForReview ? 'Company review pending' : order.status === 'accepted' ? 'Awaiting buyer payment' : order.status}
                       </span>
                     </div>
                     <p className="mt-1 text-xs text-muted-foreground">
@@ -191,13 +214,26 @@ export default function SellerCatalogOrders() {
                   </div>
                 </div>
 
+                <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                  <div className="rounded-lg border border-border bg-muted/30 p-2.5"><p className="text-[10px] uppercase tracking-wider text-muted-foreground">Purchase order</p><p className="mt-1 text-xs font-800">{order.purchase_order_number || 'Not supplied'}</p></div>
+                  <div className="rounded-lg border border-border bg-muted/30 p-2.5"><p className="text-[10px] uppercase tracking-wider text-muted-foreground">Payment terms</p><p className="mt-1 text-xs font-800">{PAYMENT_TERMS[order.payment_terms] || order.payment_terms}</p></div>
+                  <div className="rounded-lg border border-border bg-muted/30 p-2.5"><p className="text-[10px] uppercase tracking-wider text-muted-foreground">Deposit</p><p className="mt-1 text-xs font-800">{Number(order.deposit_percent) ? `${order.deposit_percent}% · ₹${depositAmount.toLocaleString('en-IN')}` : 'No deposit'}</p></div>
+                  <div className="rounded-lg border border-border bg-muted/30 p-2.5"><p className="text-[10px] uppercase tracking-wider text-muted-foreground">Company review</p><p className={`mt-1 text-xs font-800 ${order.review_status === 'approved' ? 'text-success' : waitingForReview ? 'text-warning' : order.review_status === 'rejected' ? 'text-error' : ''}`}>{order.review_status.replaceAll('_', ' ')}</p></div>
+                </div>
+
                 {order.notes && (
                   <p className="mt-3 whitespace-pre-line rounded-lg bg-muted p-2 text-xs text-muted-foreground">
                     {order.notes}
                   </p>
                 )}
 
-                {pending && (
+                {waitingForReview && (
+                  <div className="mt-4 flex items-center gap-2 rounded-xl border border-warning/20 bg-warning/10 p-3 text-xs font-700 text-warning">
+                    <Icon name="ClockIcon" size={15} /> Waiting for an authorised buyer-company admin. Stock has not been reserved.
+                  </div>
+                )}
+
+                {canDecide && (
                   <div className="mt-4 flex flex-wrap gap-2 border-t border-border pt-3">
                     <button
                       type="button"
@@ -220,7 +256,7 @@ export default function SellerCatalogOrders() {
 
                 {order.status === 'accepted' && (
                   <div className="mt-4 flex items-center gap-2 rounded-xl bg-warning/10 p-3 text-xs font-700 text-warning">
-                    <Icon name="ClockIcon" size={15} /> Stock is reserved while the buyer completes payment.
+                    <Icon name="ClockIcon" size={15} /> Stock is reserved while payment proceeds according to {PAYMENT_TERMS[order.payment_terms] || order.payment_terms}.
                   </div>
                 )}
 
