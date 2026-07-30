@@ -8,7 +8,7 @@ on:
       - 'agent/**'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   check:
@@ -27,9 +27,28 @@ jobs:
       OPENAI_CATALOG_MODEL: gpt-4.1-mini
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+
+      - name: Generate unified commerce changes
+        if: github.ref_name == 'agent/unified-buy-sell-retail-catalog-reset' || github.event.pull_request.head.ref == 'agent/unified-buy-sell-retail-catalog-reset'
+        run: node scripts/apply-unified-commerce-ui.mjs
+
+      - name: Commit generated unified commerce changes
+        if: github.event_name == 'push' && github.ref_name == 'agent/unified-buy-sell-retail-catalog-reset'
+        run: |
+          if git diff --quiet; then
+            echo 'No generated changes.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src supabase .github/workflows/quality.yml
+          git commit -m 'Implement unified buy and sell account experience [unified-commerce-patched]'
+          git push origin HEAD:agent/unified-buy-sell-retail-catalog-reset
 
       - name: Install dependencies
         run: npm install --no-audit --no-fund --package-lock=false --legacy-peer-deps
