@@ -1,0 +1,40 @@
+name: Apply account provisioning UI fix
+
+on:
+  push:
+    branches:
+      - agent/fix-production-account-provisioning
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: ${{ !contains(github.event.head_commit.message, '[account-ui-patched]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/fix-production-account-provisioning
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Apply account flow patches
+        run: node scripts/apply-account-provisioning-ui-fix.mjs
+      - name: Commit patches
+        run: |
+          if git diff --quiet; then
+            echo 'No changes needed.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/contexts/AuthContext.tsx \
+            src/app/seller-registration/components/SellerRegistrationFlow.tsx \
+            src/app/buyer-registration/components/BuyerRegistrationFlow.tsx \
+            src/app/seller-dashboard/page.tsx \
+            src/app/buyer-dashboard/page.tsx \
+            src/app/seller-dashboard/components/SellerInventory.tsx
+          git commit -m 'Repair signup and role profile flows [account-ui-patched]'
+          git push origin HEAD:agent/fix-production-account-provisioning
