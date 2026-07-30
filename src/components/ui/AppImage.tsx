@@ -1,9 +1,11 @@
 'use client';
 
 import React, { useState, useCallback, useMemo, memo } from 'react';
-import Image from 'next/image';
+import Image, { type ImageProps } from 'next/image';
 
-interface AppImageProps {
+type NativeImageProps = Omit<ImageProps, 'src' | 'alt' | 'width' | 'height' | 'fill' | 'className' | 'priority' | 'quality' | 'placeholder' | 'blurDataURL' | 'sizes' | 'onClick' | 'loading' | 'unoptimized'>;
+
+interface AppImageProps extends NativeImageProps {
   src: string;
   alt: string;
   width?: number;
@@ -19,7 +21,23 @@ interface AppImageProps {
   fallbackSrc?: string;
   loading?: 'lazy' | 'eager';
   unoptimized?: boolean;
-  [key: string]: any;
+}
+
+const OPTIMIZED_REMOTE_HOSTS = new Set([
+  'images.unsplash.com',
+  'images.pexels.com',
+  'images.pixabay.com',
+  'img.rocket.new',
+  'rdhfwlzhcvwjhkxhhpoo.supabase.co',
+]);
+
+function supportsOptimization(src: string) {
+  if (!src.startsWith('http')) return true;
+  try {
+    return OPTIMIZED_REMOTE_HOSTS.has(new URL(src).hostname);
+  } catch {
+    return false;
+  }
 }
 
 const AppImage = memo(function AppImage({
@@ -43,12 +61,7 @@ const AppImage = memo(function AppImage({
   const [imageSrc, setImageSrc] = useState(src);
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
-
-  const isExternalUrl = useMemo(
-    () => typeof imageSrc === 'string' && imageSrc.startsWith('http'),
-    [imageSrc]
-  );
-  const resolvedUnoptimized = unoptimized || isExternalUrl;
+  const resolvedUnoptimized = useMemo(() => unoptimized || !supportsOptimization(imageSrc), [imageSrc, unoptimized]);
 
   const handleError = useCallback(() => {
     if (!hasError && imageSrc !== fallbackSrc) {
@@ -56,7 +69,7 @@ const AppImage = memo(function AppImage({
       setHasError(true);
     }
     setIsLoading(false);
-  }, [hasError, imageSrc, fallbackSrc]);
+  }, [fallbackSrc, hasError, imageSrc]);
 
   const handleLoad = useCallback(() => {
     setIsLoading(false);
@@ -64,70 +77,37 @@ const AppImage = memo(function AppImage({
   }, []);
 
   const imageClassName = useMemo(() => {
-    const classes = [className];
-    if (isLoading) classes.push('bg-gray-200');
-    if (onClick) classes.push('cursor-pointer hover:opacity-90 transition-opacity duration-200');
+    const classes = [className, 'transition-[opacity,filter] duration-200'];
+    if (isLoading) classes.push('bg-muted opacity-70');
+    if (onClick) classes.push('cursor-pointer hover:opacity-90');
     return classes.filter(Boolean).join(' ');
   }, [className, isLoading, onClick]);
 
-  const imageProps = useMemo(() => {
-    const baseProps: any = {
-      src: imageSrc,
-      alt,
-      className: imageClassName,
-      quality,
-      placeholder,
-      unoptimized: resolvedUnoptimized,
-      onError: handleError,
-      onLoad: handleLoad,
-      onClick,
-    };
-
-    if (priority) {
-      baseProps.priority = true;
-    } else {
-      baseProps.loading = loading;
-    }
-
-    if (blurDataURL && placeholder === 'blur') {
-      baseProps.blurDataURL = blurDataURL;
-    }
-
-    return baseProps;
-  }, [
-    imageSrc,
+  const commonProps = {
+    src: imageSrc,
     alt,
-    imageClassName,
+    className: imageClassName,
     quality,
     placeholder,
-    blurDataURL,
-    resolvedUnoptimized,
-    priority,
-    loading,
-    handleError,
-    handleLoad,
+    unoptimized: resolvedUnoptimized,
+    onError: handleError,
+    onLoad: handleLoad,
     onClick,
-  ]);
+    ...(priority ? { priority: true } : { loading }),
+    ...(blurDataURL && placeholder === 'blur' ? { blurDataURL } : {}),
+    ...props,
+  } satisfies Omit<ImageProps, 'width' | 'height' | 'fill'>;
 
   if (fill) {
     return (
-      <div className="relative" style={{ width: '100%', height: '100%' }}>
-        <Image
-          {...imageProps}
-          fill
-          sizes={sizes || '(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw'}
-          style={{ objectFit: 'cover' }}
-          {...props}
-        />
+      <div className="relative h-full w-full overflow-hidden">
+        <Image {...commonProps} fill sizes={sizes || '(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw'} style={{ objectFit: 'cover', ...commonProps.style }} />
       </div>
     );
   }
 
-  return (
-    <Image {...imageProps} width={width || 400} height={height || 300} sizes={sizes} {...props} />
-  );
+  return <Image {...commonProps} width={width || 400} height={height || 300} sizes={sizes || '(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 400px'} />;
 });
 
 AppImage.displayName = 'AppImage';
-
 export default AppImage;
