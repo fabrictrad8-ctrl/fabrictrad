@@ -1,0 +1,96 @@
+name: Visual UI verification
+
+on:
+  push:
+    branches:
+      - agent/shopify-glass-ui-system
+
+permissions:
+  contents: read
+
+jobs:
+  screenshots:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: test-anon-key
+      SUPABASE_SERVICE_ROLE_KEY: test-service-role-key
+      NEXT_PUBLIC_SITE_URL: http://127.0.0.1:3000
+      NEXT_PUBLIC_ENABLE_GOOGLE_AUTH: 'false'
+      ADMIN_EMAIL: fabrictrad8@gmail.com
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install application and browser
+        run: |
+          npm install --no-audit --no-fund --package-lock=false --legacy-peer-deps
+          npx --yes playwright@1.55.0 install --with-deps chromium
+      - name: Build and start application
+        shell: bash
+        run: |
+          npm run build
+          npm run start > /tmp/fabrictrad-ui.log 2>&1 &
+          echo $! > /tmp/fabrictrad-ui.pid
+          for attempt in $(seq 1 45); do
+            if curl --fail --silent http://127.0.0.1:3000/login >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/fabrictrad-ui.log
+          exit 1
+      - name: Capture desktop and mobile surfaces
+        shell: bash
+        run: |
+          mkdir -p /tmp/ui-screenshots
+          cat > /tmp/capture-ui.mjs <<'EOF'
+          import { chromium } from 'playwright';
+
+          const base = 'http://127.0.0.1:3000';
+          const browser = await chromium.launch({ headless: true });
+
+          async function capturePublic(path, name, viewport = { width: 1440, height: 1000 }) {
+            const context = await browser.newContext({ viewport, colorScheme: 'light' });
+            const page = await context.newPage();
+            await page.goto(`${base}${path}`, { waitUntil: 'networkidle' });
+            await page.screenshot({ path: `/tmp/ui-screenshots/${name}.png`, fullPage: true });
+            await context.close();
+          }
+
+          async function captureDemo(role, email, path, name) {
+            const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, colorScheme: 'light' });
+            const response = await context.request.post(`${base}/api/auth/demo-session`, {
+              data: { email, password: 'FabricDemo@2026' },
+            });
+            if (!response.ok()) throw new Error(`${role} demo login failed: ${response.status()}`);
+            const page = await context.newPage();
+            await page.goto(`${base}${path}`, { waitUntil: 'networkidle' });
+            await page.screenshot({ path: `/tmp/ui-screenshots/${name}.png`, fullPage: true });
+            await context.close();
+          }
+
+          await capturePublic('/', 'home-desktop');
+          await capturePublic('/login', 'login-desktop');
+          await capturePublic('/marketplace', 'marketplace-desktop');
+          await capturePublic('/marketplace', 'marketplace-mobile', { width: 390, height: 844 });
+          await captureDemo('buyer', 'demo.buyer@fabrictrad.com', '/buyer-dashboard', 'buyer-dashboard');
+          await captureDemo('seller', 'demo.seller@fabrictrad.com', '/seller-dashboard', 'seller-dashboard');
+
+          await browser.close();
+          EOF
+          npx --yes -p playwright@1.55.0 node /tmp/capture-ui.mjs
+      - name: Upload screenshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: fabrictrad-shopify-glass-ui
+          path: /tmp/ui-screenshots/*.png
+          if-no-files-found: error
+          retention-days: 1
+      - name: Stop application
+        if: always()
+        shell: bash
+        run: |
+          kill "$(cat /tmp/fabrictrad-ui.pid 2>/dev/null)" 2>/dev/null || true
