@@ -320,7 +320,7 @@ DECLARE
   seller_record_id UUID;
   registration_record_id UUID;
   seller_reference TEXT;
-  business_name TEXT;
+  v_business_name TEXT;
 BEGIN
   IF current_user_id IS NULL THEN RAISE EXCEPTION 'Authentication required' USING ERRCODE = '42501'; END IF;
   IF normalized_gstin !~ '^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$' THEN
@@ -329,7 +329,7 @@ BEGIN
 
   SELECT regexp_replace(COALESCE(phone, ''), '\D', '', 'g')
   INTO normalized_phone FROM public.user_profiles WHERE id = current_user_id;
-  business_name := COALESCE(NULLIF(trim(p_payload->>'businessName'), ''), NULLIF(trim(p_payload->>'ownerName'), ''), 'FabricTrad Seller');
+  v_business_name := COALESCE(NULLIF(trim(p_payload->>'businessName'), ''), NULLIF(trim(p_payload->>'ownerName'), ''), 'FabricTrad Seller');
   seller_reference := 'FT-SLR-' || upper(substr(replace(current_user_id::text, '-', ''), 1, 12));
 
   PERFORM set_config('fabrictrad.trusted_capability_change', '1', true);
@@ -340,7 +340,7 @@ BEGIN
       verification_method = 'gstin',
       verification_status = 'pending',
       identity_reference_last4 = right(normalized_gstin, 4),
-      business_name = business_name,
+      business_name = v_business_name,
       gstin = normalized_gstin,
       address_line1 = COALESCE(NULLIF(trim(p_payload->>'address'), ''), address_line1),
       city = COALESCE(NULLIF(trim(p_payload->>'city'), ''), city),
@@ -353,7 +353,7 @@ BEGIN
   VALUES (
     current_user_id,
     'FT-BYR-' || upper(substr(replace(current_user_id::text, '-', ''), 1, 12)),
-    business_name,
+    v_business_name,
     COALESCE(NULLIF(trim(p_payload->>'businessType'), ''), 'Business buyer'),
     normalized_gstin,
     jsonb_strip_nulls(jsonb_build_object(
@@ -379,8 +379,8 @@ BEGIN
   ) VALUES (
     current_user_id,
     seller_reference,
-    business_name,
-    business_name,
+    v_business_name,
+    v_business_name,
     NULLIF(trim(p_payload->>'businessType'), ''),
     normalized_gstin,
     upper(NULLIF(trim(p_payload->>'pan'), '')),
@@ -417,7 +417,7 @@ BEGIN
     right(normalized_phone, 10),
     NULLIF(trim(p_payload->>'ownerName'), ''),
     profile.email,
-    business_name,
+    v_business_name,
     NULLIF(trim(p_payload->>'businessType'), ''),
     NULLIF(trim(p_payload->>'city'), ''),
     NULLIF(trim(p_payload->>'state'), ''),
@@ -689,7 +689,7 @@ CREATE POLICY public_read_active_seller_products ON public.seller_products
     status = 'active' AND approval_status = 'approved'
     AND EXISTS (
       SELECT 1 FROM public.seller_profiles seller
-      WHERE seller.id = seller_id AND seller.is_active = TRUE
+      WHERE seller.id = seller_products.seller_id AND seller.is_active = TRUE
         AND seller.verification_status = 'verified'::public.seller_status
     )
   );
@@ -744,7 +744,7 @@ CREATE POLICY public_read_active_product_variants ON public.seller_product_varia
     AND EXISTS (
       SELECT 1 FROM public.seller_products product
       JOIN public.seller_profiles seller ON seller.id = product.seller_id
-      WHERE product.id = product_id AND product.seller_id = seller_id
+      WHERE product.id = seller_product_variants.product_id AND product.seller_id = seller_product_variants.seller_id
         AND product.status = 'active' AND product.approval_status = 'approved'
         AND seller.is_active = TRUE AND seller.verification_status = 'verified'::public.seller_status
     )
@@ -755,7 +755,7 @@ CREATE POLICY sellers_manage_own_product_variants ON public.seller_product_varia
   USING (seller_id = public.my_seller_id() AND public.can_current_user_sell())
   WITH CHECK (
     seller_id = public.my_seller_id() AND public.can_current_user_sell()
-    AND EXISTS (SELECT 1 FROM public.seller_products product WHERE product.id = product_id AND product.seller_id = seller_id)
+    AND EXISTS (SELECT 1 FROM public.seller_products product WHERE product.id = seller_product_variants.product_id AND product.seller_id = seller_product_variants.seller_id)
   );
 DROP POLICY IF EXISTS admins_manage_product_variants ON public.seller_product_variants;
 CREATE POLICY admins_manage_product_variants ON public.seller_product_variants
@@ -837,7 +837,7 @@ CREATE POLICY public_read_active_product_media ON public.seller_product_media
   USING (EXISTS (
     SELECT 1 FROM public.seller_products product
     JOIN public.seller_profiles seller ON seller.id = product.seller_id
-    WHERE product.id = product_id AND product.seller_id = seller_id
+    WHERE product.id = seller_product_media.product_id AND product.seller_id = seller_product_media.seller_id
       AND product.status = 'active' AND product.approval_status = 'approved'
       AND seller.is_active = TRUE AND seller.verification_status = 'verified'::public.seller_status
   ));
@@ -903,10 +903,10 @@ CREATE POLICY buyers_create_catalog_order_requests ON public.catalog_order_reque
     buyer_id = auth.uid() AND public.can_current_user_buy() AND status = 'pending'
     AND EXISTS (
       SELECT 1 FROM public.seller_products product
-      WHERE product.id = product_id AND product.seller_id = seller_id
+      WHERE product.id = catalog_order_requests.product_id AND product.seller_id = catalog_order_requests.seller_id
         AND product.status = 'active' AND product.approval_status = 'approved'
-        AND (product.sale_channel IN ('retail','both') OR quantity >= product.moq)
-        AND quantity <= GREATEST(product.available_quantity - product.reserved_quantity, 0)
+        AND (product.sale_channel IN ('retail','both') OR catalog_order_requests.quantity >= product.moq)
+        AND catalog_order_requests.quantity <= GREATEST(product.available_quantity - product.reserved_quantity, 0)
     )
   );
 DROP POLICY IF EXISTS buyers_read_own_catalog_order_requests ON public.catalog_order_requests;

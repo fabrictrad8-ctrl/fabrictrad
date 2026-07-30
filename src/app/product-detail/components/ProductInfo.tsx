@@ -47,8 +47,8 @@ export default function ProductInfo() {
       router.push(`/login?next=${encodeURIComponent(`${pathname}?${searchParams.toString()}`)}`);
       return;
     }
-    if (profile?.role === 'seller') {
-      toast.error('Seller accounts cannot place buyer orders.');
+    if (profile?.can_buy === false) {
+      toast.error('Buying access is not enabled for this account.');
       return;
     }
     if (available <= 0 || qty < minimum || qty > available) {

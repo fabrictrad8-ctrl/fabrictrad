@@ -111,6 +111,12 @@ export default function SellerDashboardLayout() {
           </span>
         </div>
         <div className="ml-auto flex items-center gap-2 sm:gap-3">
+          <Link
+            href="/marketplace"
+            className="hidden sm:inline-flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-xs font-800 text-foreground hover:border-primary/40 hover:text-primary"
+          >
+            <Icon name="ShoppingBagIcon" size={15} /> Buy fabrics
+          </Link>
           <button
             type="button"
             onClick={() => navigateToTab('upload')}

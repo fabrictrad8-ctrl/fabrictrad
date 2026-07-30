@@ -38,7 +38,6 @@ const loginErrorUrl = (origin: string, code: string) => {
 };
 
 const destinationForRole = (origin: string, role: UserRole) => {
-  if (role === 'seller') return `${origin}/seller-dashboard`;
   if (role === 'admin_staff' || role === 'super_admin') return `${origin}/admin-portal`;
   return `${origin}/marketplace`;
 };
@@ -96,7 +95,7 @@ export async function GET(request: NextRequest) {
 
   const { data: profile, error: profileError } = await supabase
     .from('user_profiles')
-    .select('id, phone, role, is_active')
+    .select('id, phone, role, is_active, can_buy, can_sell')
     .eq('id', user.id)
     .maybeSingle();
 
@@ -123,10 +122,8 @@ export async function GET(request: NextRequest) {
     hasGoogleIdentity &&
     (roleParam === 'buyer' || roleParam === 'seller' || roleCookie === 'buyer' || roleCookie === 'seller');
 
-  if (isGoogleCallback && resolvedRole !== 'buyer') {
-    await supabase.auth.signOut();
-    return redirectAfterAuth(loginErrorUrl(origin, 'google_buyer_only'));
-  }
+  // Google authentication identifies the account; database capabilities decide whether it may buy or sell.
+  void isGoogleCallback;
 
   if (!profile.phone && resolvedRole !== 'admin_staff' && resolvedRole !== 'super_admin') {
     return redirectAfterAuth(`${origin}/auth/phone?role=${resolvedRole}`);

@@ -53,11 +53,6 @@ export default function SellerDashboardPage() {
       setAccountReady(true);
       return;
     }
-    if (profile && profile.role !== 'seller') {
-      setAccountReady(true);
-      return;
-    }
-
     let cancelled = false;
     const prepare = async () => {
       try {
@@ -90,8 +85,8 @@ export default function SellerDashboardPage() {
 
     if (!profile) return;
 
-    if (profile.role === 'buyer') {
-      router.replace('/buyer-dashboard');
+    if (!(profile.can_sell ?? profile.role === 'seller')) {
+      router.replace('/seller-registration');
       return;
     }
 
@@ -149,13 +144,13 @@ export default function SellerDashboardPage() {
     );
   }
 
-  if (profile.role === 'buyer') {
+  if (!(profile.can_sell ?? profile.role === 'seller')) {
     return (
       <DashboardRouteState
-        title="Opening buyer dashboard"
-        message="This account is registered as a buyer, so we are taking you to the buyer dashboard."
-        href="/buyer-dashboard"
-        actionLabel="Go to Buyer Dashboard"
+        title="Activate seller access"
+        message="This account can already buy. Add your GST business details once to unlock seller tools on the same mobile number."
+        href="/seller-registration"
+        actionLabel="Activate Selling"
       />
     );
   }

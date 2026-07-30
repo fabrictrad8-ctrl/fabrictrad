@@ -1,5 +1,5 @@
 'use client';
-import React, { useState, useRef } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
 import Icon from '@/components/ui/AppIcon';
 import { useAuth } from '@/contexts/AuthContext';
@@ -147,10 +147,10 @@ function extractStateFromGstin(gstin: string): string {
 }
 
 export default function SellerRegistrationFlow() {
-  const { signUp, checkEmailUnique, checkPhoneUnique } = useAuth();
+  const { user, profile, signUp, checkEmailUnique, checkPhoneUnique, refreshProfile } = useAuth();
   const { language, setLanguage, t } = useAppPreferences();
 
-  const [currentStep, setCurrentStep] = useState<Step>('account');
+  const [currentStep, setCurrentStep] = useState<Step>(user ? 'business' : 'account');
   const [sellerId, setSellerId] = useState(`FT-SLR-${Math.floor(100000 + Math.random() * 900000)}`);
   const [submissionWarning, setSubmissionWarning] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -201,6 +201,23 @@ export default function SellerRegistrationFlow() {
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const currentIndex = STEP_ORDER.indexOf(currentStep);
 
+  useEffect(() => {
+    if (!user) return;
+    setForm((current) => ({
+      ...current,
+      ownerName: current.ownerName || profile?.full_name || '',
+      email: current.email || user.email || '',
+      phone: current.phone || profile?.phone || '',
+      businessName: current.businessName || profile?.business_name || '',
+      city: current.city || profile?.city || '',
+      state: current.state || profile?.state || '',
+      address: current.address || profile?.address_line1 || '',
+      pincode: current.pincode || profile?.pincode || '',
+      gstin: current.gstin || profile?.gstin || '',
+    }));
+    if (currentStep === 'account') setCurrentStep('business');
+  }, [currentStep, profile, user]);
+
   const setField = (key: keyof SellerForm, value: unknown) =>
     setForm((prev) => ({ ...prev, [key]: value }));
 
@@ -241,14 +258,14 @@ export default function SellerRegistrationFlow() {
 
       if (!emailCheck.unique) {
         setError(
-          `This email is already registered as a ${emailCheck.usedAs || 'different'} account. Buyer and seller accounts must use different identity details.`
+          `This email already has a FabricTrad account. Sign in, then activate selling with GST on that same account.`
         );
         return;
       }
 
       if (!phoneCheck.unique) {
         setError(
-          `This phone number is already registered as a ${phoneCheck.usedAs || 'different'} account. Buyer and seller accounts must use different identity details.`
+          `This mobile number already has a FabricTrad account. Sign in instead of registering a second time.`
         );
         return;
       }
@@ -321,15 +338,35 @@ export default function SellerRegistrationFlow() {
     try {
       const email = normalizeEmail(form.email);
       const phone = normalizeIndianPhone(form.phone);
+      if (user?.id) {
+        const application = new FormData();
+        application.set('payload', JSON.stringify({
+          ownerName: form.ownerName, phone, businessName: form.businessName,
+          businessType: form.businessType, city: form.city, state: form.state,
+          pincode: form.pincode, address: form.address, categories: form.categories,
+          monthlyCapacity: form.monthlyCapacity, gstin: form.gstin, pan: form.pan,
+          bankAccountNumber: form.bankAccountNumber, bankIfsc: form.bankIfsc,
+          bankAccountName: form.bankAccountName, bankName: form.bankName,
+        }));
+        Object.entries(documents).forEach(([key, document]) => {
+          if (document.file) application.set(`document_${key}`, document.file);
+        });
+        const response = await fetch('/api/account/enable-selling', { method: 'POST', credentials: 'same-origin', body: application });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok && response.status !== 207) throw new Error(result?.error || 'Seller access could not be activated.');
+        setSellerId(result?.sellerRef || `FT-SLR-${user.id.replaceAll('-', '').slice(0, 12).toUpperCase()}`);
+        setSubmissionWarning(result?.warning || '');
+        await refreshProfile();
+        setCurrentStep('done');
+        return;
+      }
+
       const [emailCheck, phoneCheck] = await Promise.all([
         checkEmailUnique(email),
         checkPhoneUnique(phone),
       ]);
-
       if (!emailCheck.unique || !phoneCheck.unique) {
-        setError(
-          'This seller identity is already in use. Use a different email and phone number from any buyer account.'
-        );
+        setError('This identity already has a FabricTrad account. Sign in and activate selling on that account.');
         return;
       }
 
@@ -441,6 +478,7 @@ export default function SellerRegistrationFlow() {
 
   const goBack = () => {
     const idx = STEP_ORDER.indexOf(currentStep);
+    if (user && idx === 1) return;
     if (idx > 0) setCurrentStep(STEP_ORDER[idx - 1]);
   };
 
@@ -448,9 +486,9 @@ export default function SellerRegistrationFlow() {
     <div className="min-h-screen gradient-hero py-10 px-4">
       <div className="max-w-2xl mx-auto">
         <div className="text-center mb-8">
-          <h1 className="text-2xl font-800 text-foreground mb-1">Become a FabricTrad Seller</h1>
+          <h1 className="text-2xl font-800 text-foreground mb-1">{user ? 'Activate Selling on Your Account' : 'Join FabricTrad'}</h1>
           <p className="text-sm text-muted-foreground">
-            Reach 45,000+ verified B2B buyers across India
+            {user ? 'Keep the same mobile number and buyer access; add GST details once to unlock seller tools.' : 'Create one account that can buy, and can also sell after GST onboarding.'}
           </p>
         </div>
 

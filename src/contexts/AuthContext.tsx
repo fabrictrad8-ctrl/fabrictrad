@@ -19,6 +19,12 @@ export interface UserProfile {
   phone_verified: boolean;
   role: 'buyer' | 'seller' | 'admin_staff' | 'super_admin';
   is_active: boolean;
+  can_buy?: boolean;
+  can_sell?: boolean;
+  account_kind?: 'individual' | 'business';
+  verification_method?: 'none' | 'pan' | 'aadhaar_offline' | 'gstin';
+  verification_status?: 'unverified' | 'pending' | 'verified' | 'rejected';
+  identity_reference_last4?: string | null;
   avatar_url: string | null;
   preferred_language?: string | null;
   preferred_theme?: 'light' | 'dark' | 'system' | null;
@@ -87,6 +93,11 @@ const DEMO_IDENTITIES: Record<DemoRole, { user: any; profile: UserProfile }> = {
       phone_verified: true,
       role: 'buyer',
       is_active: true,
+      can_buy: true,
+      can_sell: false,
+      account_kind: 'individual',
+      verification_method: 'pan',
+      verification_status: 'verified',
       avatar_url: null,
       business_name: 'Demo Buyer Textiles',
       gstin: '24ABCDE1234F1Z5',
@@ -114,6 +125,11 @@ const DEMO_IDENTITIES: Record<DemoRole, { user: any; profile: UserProfile }> = {
       phone_verified: true,
       role: 'seller',
       is_active: true,
+      can_buy: true,
+      can_sell: true,
+      account_kind: 'business',
+      verification_method: 'gstin',
+      verification_status: 'verified',
       avatar_url: null,
       business_name: 'FabricTrad Demo Textiles',
       gstin: '27ABCDE1234F1Z5',
@@ -318,6 +334,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           pan: metadata?.pan || '',
           categories: Array.isArray(metadata?.categories) ? metadata.categories : [],
           monthly_capacity: metadata?.monthlyCapacity || '',
+          verification_method: metadata?.verificationMethod || (metadata?.role === 'seller' ? 'gstin' : 'none'),
+          identity_reference_last4: metadata?.identityReferenceLast4 || '',
           registration_nonce: registrationNonce,
         },
         emailRedirectTo: `${getAuthRedirectBase()}/auth/callback`,

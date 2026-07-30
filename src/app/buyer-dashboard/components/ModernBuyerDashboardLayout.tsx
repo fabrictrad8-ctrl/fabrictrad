@@ -133,6 +133,13 @@ export default function ModernBuyerDashboardLayout() {
         >
           <Icon name="ShoppingBagIcon" size={17} /> {t('nav.marketplace')}
         </Link>
+        <Link
+          href={profile?.can_sell || profile?.role === 'seller' ? '/seller-dashboard' : '/seller-registration'}
+          className="flex items-center justify-center gap-2 rounded-xl bg-secondary px-4 py-3 text-sm font-800 text-white hover:opacity-90"
+        >
+          <Icon name="BuildingStorefrontIcon" size={17} />
+          {profile?.can_sell || profile?.role === 'seller' ? 'Open seller tools' : 'Sell with GST'}
+        </Link>
       </div>
     </div>
   );

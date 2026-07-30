@@ -28,6 +28,8 @@ export default function BuyerRegistrationFlow() {
     phone: '',
     password: '',
     confirmPassword: '',
+    verificationMethod: 'pan' as 'pan' | 'aadhaar_offline',
+    identityReferenceLast4: '',
   });
   const [showPassword, setShowPassword] = useState(false);
   const [address, setAddress] = useState({
@@ -81,6 +83,16 @@ export default function BuyerRegistrationFlow() {
       setError(phoneValidation.message);
       return;
     }
+    const identityLast4 = account.identityReferenceLast4.trim().toUpperCase();
+    const identityValid = account.verificationMethod === 'aadhaar_offline'
+      ? /^\d{4}$/.test(identityLast4)
+      : /^[A-Z0-9]{4}$/.test(identityLast4);
+    if (!identityValid) {
+      setError(account.verificationMethod === 'aadhaar_offline'
+        ? 'Enter only the last 4 digits from the Aadhaar Offline e-KYC reference.'
+        : 'Enter the last 4 characters of the PAN reference.');
+      return;
+    }
     if (account.password.length < 8) {
       setError('Password must be at least 8 characters');
       return;
@@ -99,14 +111,14 @@ export default function BuyerRegistrationFlow() {
 
       if (!emailCheck.unique) {
         setError(
-          `This email is already registered as a ${emailCheck.usedAs || 'different'} account. Buyer and seller accounts must use different identity details.`
+          `This email already belongs to a FabricTrad account. Sign in instead—one account can buy and GST-verified accounts can also sell.`
         );
         return;
       }
 
       if (!phoneCheck.unique) {
         setError(
-          `This phone number is already registered as a ${phoneCheck.usedAs || 'different'} account. Buyer and seller accounts must use different identity details.`
+          `This mobile number already belongs to a FabricTrad account. Sign in instead of registering again.`
         );
         return;
       }
@@ -138,7 +150,7 @@ export default function BuyerRegistrationFlow() {
 
       if (!emailCheck.unique || !phoneCheck.unique) {
         setError(
-          'This buyer identity is already in use. Use a different email and phone number from any seller account.'
+          'This identity already has a FabricTrad account. Sign in to buy or activate GST selling on the same account.'
         );
         return;
       }
@@ -153,6 +165,8 @@ export default function BuyerRegistrationFlow() {
         state: address.state,
         pincode: address.pin,
         preferredLanguage: address.preferredLanguage,
+        verificationMethod: account.verificationMethod,
+        identityReferenceLast4: account.identityReferenceLast4.trim().toUpperCase(),
       });
       if (!signup?.user?.id) throw new Error('The buyer login could not be created.');
       setBuyerId(`FT-BYR-${signup.user.id.replaceAll('-', '').slice(0, 12).toUpperCase()}`);
@@ -323,6 +337,33 @@ export default function BuyerRegistrationFlow() {
                     />
                   </div>
                 </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <label className="block text-sm font-700 text-foreground mb-1.5">Buyer verification *</label>
+                    <select
+                      value={account.verificationMethod}
+                      onChange={(e) => setAccount({ ...account, verificationMethod: e.target.value as 'pan' | 'aadhaar_offline', identityReferenceLast4: '' })}
+                      className="input-base w-full px-4 py-3 text-sm rounded-xl"
+                    >
+                      <option value="pan">PAN Card</option>
+                      <option value="aadhaar_offline">Aadhaar Offline e-KYC</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-700 text-foreground mb-1.5">Reference last 4 *</label>
+                    <input
+                      type="text"
+                      inputMode={account.verificationMethod === 'aadhaar_offline' ? 'numeric' : 'text'}
+                      maxLength={4}
+                      value={account.identityReferenceLast4}
+                      onChange={(e) => setAccount({ ...account, identityReferenceLast4: e.target.value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase() })}
+                      placeholder="Last 4 only"
+                      className="input-base w-full px-4 py-3 text-sm rounded-xl uppercase"
+                      required
+                    />
+                  </div>
+                </div>
+                <p className="-mt-2 text-[11px] leading-5 text-muted-foreground">For Aadhaar, FabricTrad never asks for or stores the full Aadhaar number. Use the UIDAI Paperless Offline e-KYC reference only.</p>
                 <div>
                   <label className="block text-sm font-700 text-foreground mb-1.5">
                     Password *
