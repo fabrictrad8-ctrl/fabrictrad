@@ -1,0 +1,21 @@
+.ft-toast {
+  border: 1px solid color-mix(in srgb, var(--ft-border) 76%, transparent) !important;
+  border-radius: var(--ft-radius-md) !important;
+  background: color-mix(in srgb, var(--ft-surface) 94%, transparent) !important;
+  color: var(--ft-text) !important;
+  box-shadow: var(--ft-shadow-3) !important;
+  -webkit-backdrop-filter: blur(22px) saturate(150%);
+  backdrop-filter: blur(22px) saturate(150%);
+}
+
+@media (max-width: 767px) {
+  body:has(.fixed[aria-label*='Log out']) .ft-command-trigger {
+    bottom: calc(5.15rem + env(safe-area-inset-bottom));
+  }
+}
+
+@media (min-width: 768px) {
+  body:has(.fixed[aria-label*='Log out']) .ft-command-trigger {
+    left: max(1.5rem, env(safe-area-inset-left));
+  }
+}
