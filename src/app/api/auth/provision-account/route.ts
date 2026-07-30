@@ -26,6 +26,11 @@ const adminClientOrNull = () => {
   }
 };
 
+const nonceValues = (body: { userId?: unknown; registrationNonce?: unknown }) => ({
+  userId: typeof body.userId === 'string' ? body.userId.trim() : '',
+  nonce: typeof body.registrationNonce === 'string' ? body.registrationNonce.trim() : '',
+});
+
 export async function POST(request: NextRequest) {
   const serverClient = await createClient();
   const token = bearerToken(request);
@@ -51,16 +56,29 @@ export async function POST(request: NextRequest) {
   }
 
   const admin = adminClientOrNull();
-  if (!user && admin && typeof body.userId === 'string' && typeof body.registrationNonce === 'string') {
-    const { data, error } = await admin.auth.admin.getUserById(body.userId);
+  const { userId, nonce } = nonceValues(body);
+  if (!user && admin && userId && nonce) {
+    const { data, error } = await admin.auth.admin.getUserById(userId);
     const candidate = error ? null : data.user;
     const storedNonce = candidate?.user_metadata?.registration_nonce;
     const createdAt = candidate?.created_at ? new Date(candidate.created_at).getTime() : 0;
     const fresh = createdAt > Date.now() - 2 * 60 * 60 * 1000;
-    if (candidate && fresh && storedNonce === body.registrationNonce) {
+    if (candidate && fresh && storedNonce === nonce) {
       user = candidate;
       nonceAuthenticated = true;
     }
+  }
+
+  if (!user && userId && nonce) {
+    const { data, error } = await serverClient.rpc('get_signup_account_by_nonce', {
+      p_user_id: userId,
+      p_nonce: nonce,
+    });
+    if (!error && data && typeof data === 'object') {
+      return json(data as Record<string, unknown>);
+    }
+    const message = error?.message || 'Registration verification expired or invalid.';
+    return json({ error: message }, error?.code === '42501' ? 401 : 500);
   }
 
   if (!user) {

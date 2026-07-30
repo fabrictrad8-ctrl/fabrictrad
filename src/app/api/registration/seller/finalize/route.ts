@@ -15,6 +15,8 @@ const DOCUMENT_TYPES = [
   'address_proof',
 ] as const;
 
+type DocumentType = (typeof DOCUMENT_TYPES)[number];
+
 type SellerPayload = {
   ownerName?: string;
   phone?: string;
@@ -32,6 +34,12 @@ type SellerPayload = {
   bankIfsc?: string;
   bankAccountName?: string;
   bankName?: string;
+};
+
+type SignupDocument = {
+  documentType: DocumentType;
+  storagePath: string;
+  fileName: string;
 };
 
 const json = (body: Record<string, unknown>, status = 200) =>
@@ -55,6 +63,13 @@ const adminClientOrNull = () => {
     return createAdminClient();
   } catch {
     return null;
+  }
+};
+
+const validateDocument = (file: File) => {
+  if (file.size > 10 * 1024 * 1024) throw new Error(`${file.name} exceeds the 10 MB limit.`);
+  if (!(file.type === 'application/pdf' || file.type.startsWith('image/'))) {
+    throw new Error(`${file.name} must be a PDF or image.`);
   }
 };
 
@@ -94,6 +109,58 @@ async function resolveUser(
   return { user: candidate, nonceAuthenticated: true };
 }
 
+async function finalizeWithSignupNonce(
+  serverClient: SupabaseClient,
+  formData: FormData,
+  payload: SellerPayload,
+  userId: string,
+  nonce: string
+) {
+  if (!/^[0-9a-f-]{36}$/i.test(userId) || nonce.length < 20) {
+    return json({ error: 'Registration verification expired or invalid.' }, 401);
+  }
+
+  const documents: SignupDocument[] = [];
+  try {
+    for (const documentType of DOCUMENT_TYPES) {
+      const file = formData.get(`document_${documentType}`);
+      if (!(file instanceof File) || file.size === 0) continue;
+      validateDocument(file);
+
+      const storagePath = `${userId}/${nonce}/${documentType}-${Date.now()}-${crypto.randomUUID()}-${safeFileName(file.name)}`;
+      const { error: uploadError } = await serverClient.storage
+        .from('seller-registration-documents')
+        .upload(storagePath, file, {
+          upsert: false,
+          contentType: file.type,
+          cacheControl: '3600',
+        });
+      if (uploadError) throw uploadError;
+      documents.push({ documentType, storagePath, fileName: file.name });
+    }
+
+    const { data, error } = await serverClient.rpc('submit_seller_registration_with_nonce', {
+      p_user_id: userId,
+      p_nonce: nonce,
+      p_payload: payload,
+      p_documents: documents,
+    });
+    if (error) {
+      return json(
+        { error: error.message || 'Seller application could not be saved.' },
+        error.code === '42501' ? 401 : 500
+      );
+    }
+    if (!data || typeof data !== 'object') {
+      return json({ error: 'Seller application could not be confirmed.' }, 500);
+    }
+    return json(data as Record<string, unknown>);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Seller application could not be saved.';
+    return json({ error: message }, 500);
+  }
+}
+
 export async function POST(request: NextRequest) {
   let formData: FormData;
   try {
@@ -112,7 +179,15 @@ export async function POST(request: NextRequest) {
   const serverClient = await createClient();
   const admin = adminClientOrNull();
   const { user, nonceAuthenticated } = await resolveUser(request, formData, serverClient, admin);
-  if (!user) return json({ error: 'Authentication is required to submit the seller application.' }, 401);
+
+  if (!user) {
+    const userId = clean(formData.get('userId'), 64);
+    const nonce = clean(formData.get('registrationNonce'), 128);
+    if (userId && nonce) {
+      return finalizeWithSignupNonce(serverClient, formData, payload, userId, nonce);
+    }
+    return json({ error: 'Authentication is required to submit the seller application.' }, 401);
+  }
 
   const role = user.app_metadata?.role || user.user_metadata?.role;
   if (role !== 'seller') return json({ error: 'This account is not registered as a seller.' }, 403);
@@ -214,10 +289,7 @@ export async function POST(request: NextRequest) {
     for (const documentType of DOCUMENT_TYPES) {
       const file = formData.get(`document_${documentType}`);
       if (!(file instanceof File) || file.size === 0) continue;
-      if (file.size > 10 * 1024 * 1024) throw new Error(`${file.name} exceeds the 10 MB limit.`);
-      if (!(file.type === 'application/pdf' || file.type.startsWith('image/'))) {
-        throw new Error(`${file.name} must be a PDF or image.`);
-      }
+      validateDocument(file);
 
       const storagePath = `${user.id}/${registrationId}/${documentType}-${safeFileName(file.name)}`;
       const { error: uploadError } = await client.storage
