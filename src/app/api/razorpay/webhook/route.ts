@@ -162,7 +162,10 @@ export async function POST(request: NextRequest) {
         .single();
       if (orderError || !order) throw new Error('Unable to mark FabricTrad order paid.');
 
-      const gstAmount = Number(order.gst_total || order.gst_amount || 0);
+      const gstAmount =
+        payment.kind === 'bulk'
+          ? Number((order as { gst_total?: number | string | null }).gst_total || 0)
+          : Number((order as { gst_amount?: number | string | null }).gst_amount || 0);
       const { error: splitError } = await admin.from('taxation_splits').upsert(
         {
           order_id: order.id,
