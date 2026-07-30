@@ -1,0 +1,98 @@
+name: Verify live launch routes
+
+on:
+  push:
+    branches:
+      - agent/verify-live-launch-routes
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      LIVE_URL: https://fabrictrad.com
+      SUPABASE_URL: https://rdhfwlzhcvwjhkxhhpoo.supabase.co
+      SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJIUzI1NiIsInJlZiI6InJkaGZ3bHpoY3Z3amhreGhocG9vIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQxMzMwNjMsImV4cCI6MjA5OTcwOTA2M30.jLF4AD-joIbRslei-T55lwZBdRpntrsU-hjyHCZXgVc
+    steps:
+      - name: Verify deployed account and commerce routes
+        shell: bash
+        run: |
+          set -euo pipefail
+          fake_user='00000000-0000-4000-8000-000000000001'
+          fake_nonce='fabrictrad-invalid-launch-nonce-000001'
+          ready=false
+
+          for attempt in $(seq 1 60); do
+            login=$(curl --silent --show-error --output /tmp/login.html --write-out '%{http_code}' "$LIVE_URL/login" || true)
+            seller_registration=$(curl --silent --show-error --output /tmp/seller-registration.html --write-out '%{http_code}' "$LIVE_URL/seller-registration" || true)
+            buyer_registration=$(curl --silent --show-error --output /tmp/buyer-registration.html --write-out '%{http_code}' "$LIVE_URL/buyer-registration" || true)
+
+            provision=$(curl --silent --show-error --output /tmp/provision.json --write-out '%{http_code}' \
+              --request POST --header 'Content-Type: application/json' \
+              --data "$(jq -nc --arg user "$fake_user" --arg nonce "$fake_nonce" '{userId:$user,registrationNonce:$nonce}')" \
+              "$LIVE_URL/api/auth/provision-account" || true)
+
+            finalize=$(curl --silent --show-error --output /tmp/finalize.json --write-out '%{http_code}' \
+              --request POST \
+              --form "userId=$fake_user" \
+              --form "registrationNonce=$fake_nonce" \
+              --form 'payload={"ownerName":"Invalid Launch Test","phone":"9876500000","businessName":"Invalid Launch Test"}' \
+              "$LIVE_URL/api/registration/seller/finalize" || true)
+
+            payments_table=$(curl --silent --show-error --output /tmp/payments-table.json --write-out '%{http_code}' \
+              --header "apikey: $SUPABASE_ANON_KEY" \
+              --header "Authorization: Bearer $SUPABASE_ANON_KEY" \
+              "$SUPABASE_URL/rest/v1/catalog_order_payments?select=id&limit=1" || true)
+
+            nonce_rpc=$(curl --silent --show-error --output /tmp/nonce-rpc.json --write-out '%{http_code}' \
+              --request POST --header "apikey: $SUPABASE_ANON_KEY" \
+              --header "Authorization: Bearer $SUPABASE_ANON_KEY" \
+              --header 'Content-Type: application/json' \
+              --data "$(jq -nc --arg user "$fake_user" --arg nonce "$fake_nonce" '{p_user_id:$user,p_nonce:$nonce}')" \
+              "$SUPABASE_URL/rest/v1/rpc/get_signup_account_by_nonce" || true)
+
+            stock_rpc=$(curl --silent --show-error --output /tmp/stock-rpc.json --write-out '%{http_code}' \
+              --request POST --header "apikey: $SUPABASE_ANON_KEY" \
+              --header "Authorization: Bearer $SUPABASE_ANON_KEY" \
+              --header 'Content-Type: application/json' \
+              --data '{"p_order_id":"00000000-0000-4000-8000-000000000002","p_action":"accept","p_reason":null}' \
+              "$SUPABASE_URL/rest/v1/rpc/seller_decide_catalog_order" || true)
+
+            old_whatsapp=$(curl --silent --show-error --output /tmp/old-whatsapp.txt --write-out '%{http_code}' \
+              "$LIVE_URL/api/whatsapp/catalog/status" || true)
+
+            if [ "$login" = '200' ] \
+              && [ "$seller_registration" = '200' ] \
+              && [ "$buyer_registration" = '200' ] \
+              && [ "$provision" = '401' ] \
+              && [ "$finalize" = '401' ] \
+              && [ "$payments_table" = '200' ] \
+              && { [ "$nonce_rpc" = '400' ] || [ "$nonce_rpc" = '401' ]; } \
+              && { [ "$stock_rpc" = '400' ] || [ "$stock_rpc" = '401' ] || [ "$stock_rpc" = '404' ]; } \
+              && [ "$old_whatsapp" = '404' ] \
+              && grep -qi 'registration verification expired or invalid' /tmp/provision.json \
+              && grep -qi 'registration verification expired or invalid' /tmp/finalize.json; then
+              ready=true
+              break
+            fi
+
+            echo "Attempt $attempt: login=$login seller_reg=$seller_registration buyer_reg=$buyer_registration provision=$provision finalize=$finalize payments=$payments_table nonce_rpc=$nonce_rpc stock_rpc=$stock_rpc old_whatsapp=$old_whatsapp"
+            cat /tmp/provision.json || true
+            cat /tmp/finalize.json || true
+            sleep 10
+          done
+
+          test "$ready" = 'true'
+
+          catalog=$(curl --silent --show-error --output /tmp/catalog.json --write-out '%{http_code}' "$LIVE_URL/api/catalog-assistant/parse")
+          test "$catalog" = '200'
+          grep -q '"available":true' /tmp/catalog.json
+
+          logout=$(curl --silent --show-error --dump-header /tmp/logout.headers --output /dev/null --write-out '%{http_code}' --max-redirs 0 "$LIVE_URL/api/auth/logout")
+          test "$logout" = '303'
+          grep -qi '^location: .*login?logged_out=1' /tmp/logout.headers
+
+          echo "LIVE_LAUNCH_ROUTES_OK login=$login seller_registration=$seller_registration buyer_registration=$buyer_registration provision=$provision finalize=$finalize payments_table=$payments_table nonce_rpc=$nonce_rpc stock_rpc=$stock_rpc old_whatsapp=$old_whatsapp catalog=$catalog logout=$logout"
