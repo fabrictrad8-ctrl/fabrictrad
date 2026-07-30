@@ -1,0 +1,286 @@
+/* Targeted refinements for existing FabricTrad pages and components. */
+
+.ft-storefront > header,
+.ft-storefront > header.bg-transparent,
+.ft-storefront > header.nav-blur {
+  border-bottom: 1px solid var(--ft-border) !important;
+  background: color-mix(in srgb, var(--ft-surface) 92%, transparent) !important;
+  box-shadow: 0 1px 0 rgba(31, 33, 36, 0.04) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(145%);
+  backdrop-filter: blur(20px) saturate(145%);
+}
+
+.ft-storefront > header > div {
+  max-width: 1440px !important;
+  height: 64px !important;
+  padding-inline: 20px !important;
+}
+
+.ft-storefront > header nav a {
+  border-radius: 8px !important;
+  color: var(--ft-text-subdued) !important;
+  font-weight: 650 !important;
+}
+
+.ft-storefront > header nav a:hover {
+  background: var(--ft-surface-subdued) !important;
+  color: var(--ft-text) !important;
+}
+
+.ft-storefront > header form {
+  min-height: 42px;
+  border-color: var(--ft-border-strong) !important;
+  border-radius: 8px !important;
+  background: var(--ft-surface-solid) !important;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04) !important;
+}
+
+.ft-storefront > header form:focus-within {
+  border-color: var(--primary) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 14%, transparent) !important;
+}
+
+.ft-storefront > header form button[type='submit'] {
+  min-height: 40px;
+  border-left: 1px solid var(--ft-border);
+  background: var(--ft-surface-subdued) !important;
+  color: var(--ft-text) !important;
+}
+
+.ft-storefront > header + div[class*='fixed'][class*='bottom-0'] {
+  background: var(--ft-surface-solid) !important;
+}
+
+.ft-storefront :where(aside) {
+  border-color: var(--ft-border) !important;
+}
+
+.ft-storefront :where(button, a) {
+  transition-duration: 140ms !important;
+}
+
+.ft-shell > div > header.sticky,
+.ft-shell > div > header[class*='sticky'] {
+  min-height: 64px !important;
+  height: 64px !important;
+  border-color: var(--ft-border) !important;
+  background: color-mix(in srgb, var(--ft-surface) 92%, transparent) !important;
+  color: var(--ft-text) !important;
+  box-shadow: 0 1px 0 rgba(31, 33, 36, 0.04) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(145%);
+  backdrop-filter: blur(20px) saturate(145%);
+}
+
+.ft-shell > div > header.sticky :where(.text-white),
+.ft-shell > div > header[class*='sticky'] :where(.text-white) {
+  color: var(--ft-text) !important;
+}
+
+.ft-shell > div > header.sticky :where(.bg-white\/10, .bg-white\/20),
+.ft-shell > div > header[class*='sticky'] :where(.bg-white\/10, .bg-white\/20) {
+  background: var(--ft-surface-subdued) !important;
+}
+
+.ft-shell .seller-sidebar,
+.ft-shell .admin-sidebar {
+  border-right: 1px solid var(--ft-border) !important;
+  background: color-mix(in srgb, var(--ft-surface) 92%, transparent) !important;
+  color: var(--ft-text) !important;
+  box-shadow: 1px 0 0 rgba(31, 33, 36, 0.03);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  backdrop-filter: blur(20px) saturate(140%);
+}
+
+.ft-shell .admin-sidebar :where(.text-white, .text-white\/60, .text-white\/40),
+.ft-shell .seller-sidebar :where(.text-white, .text-white\/60, .text-white\/40) {
+  color: var(--ft-text-subdued) !important;
+}
+
+.ft-shell .admin-sidebar :where(.border-white\/10, .border-white\/20),
+.ft-shell .seller-sidebar :where(.border-white\/10, .border-white\/20) {
+  border-color: var(--ft-border) !important;
+}
+
+.ft-shell .admin-sidebar button,
+.ft-shell .admin-sidebar a,
+.ft-shell .seller-sidebar button,
+.ft-shell .seller-sidebar a {
+  min-height: 42px;
+  border: 1px solid transparent;
+  border-radius: 8px !important;
+  color: var(--ft-text-subdued) !important;
+  font-weight: 650 !important;
+}
+
+.ft-shell .admin-sidebar button:hover,
+.ft-shell .admin-sidebar a:hover,
+.ft-shell .seller-sidebar button:hover,
+.ft-shell .seller-sidebar a:hover {
+  border-color: var(--ft-border) !important;
+  background: var(--ft-surface-subdued) !important;
+  color: var(--ft-text) !important;
+}
+
+.ft-shell .admin-sidebar button[class*='bg-primary'],
+.ft-shell .seller-sidebar .sidebar-nav-item.active {
+  border-color: color-mix(in srgb, var(--primary) 24%, var(--ft-border)) !important;
+  background: var(--ft-brand-soft) !important;
+  color: var(--primary) !important;
+  box-shadow: none !important;
+}
+
+.ft-shell .seller-sidebar .sidebar-nav-item.active::before {
+  content: '';
+  position: absolute;
+  inset-block: 8px;
+  inset-inline-start: -1px;
+  width: 3px;
+  border-radius: 0 4px 4px 0;
+  background: var(--primary);
+}
+
+.ft-shell .seller-sidebar .sidebar-nav-item {
+  position: relative;
+}
+
+.ft-shell main[class*='overflow-y-auto'] {
+  background: transparent !important;
+}
+
+.ft-shell main[class*='overflow-y-auto'] > :where(div, section) {
+  max-width: 1440px;
+}
+
+.ft-shell main[class*='overflow-y-auto'] :where(.rounded-xl, .rounded-2xl, .rounded-\[1\.75rem\], .rounded-\[2rem\]) {
+  border-color: var(--ft-border);
+}
+
+.ft-shell main[class*='overflow-y-auto'] :where(.bg-card) {
+  background: var(--ft-surface-solid) !important;
+}
+
+.ft-shell main[class*='overflow-y-auto'] :where(.bg-muted, .bg-muted\/30, .bg-muted\/50, .bg-muted\/60) {
+  background: var(--ft-surface-subdued) !important;
+}
+
+.ft-shell main[class*='overflow-y-auto'] :where(button, a) {
+  transition-duration: 140ms !important;
+}
+
+.ft-shell nav.fixed.bottom-0,
+.ft-shell nav[class*='fixed'][class*='bottom-0'] {
+  min-height: 64px;
+  border-color: var(--ft-border) !important;
+  background: color-mix(in srgb, var(--ft-surface) 94%, transparent) !important;
+  box-shadow: 0 -8px 24px rgba(15, 23, 42, 0.08);
+  -webkit-backdrop-filter: blur(20px) saturate(145%);
+  backdrop-filter: blur(20px) saturate(145%);
+  padding-bottom: max(8px, env(safe-area-inset-bottom)) !important;
+}
+
+.ft-shell :where(.badge-verified) {
+  background: color-mix(in srgb, var(--ft-success) 13%, transparent) !important;
+  color: var(--ft-success) !important;
+  border: 1px solid color-mix(in srgb, var(--ft-success) 22%, transparent);
+  text-transform: none !important;
+  letter-spacing: 0 !important;
+}
+
+.ft-shell :where(.order-status-pending, .order-status-confirmed, .order-status-paid, .order-status-shipped, .order-status-delivered, .order-status-rejected, .order-status-cancelled) {
+  border-radius: 999px;
+  font-weight: 700;
+}
+
+.ft-auth {
+  min-height: 100svh;
+  background:
+    radial-gradient(circle at 12% 0%, color-mix(in srgb, var(--primary) 11%, transparent), transparent 32rem),
+    radial-gradient(circle at 92% 12%, color-mix(in srgb, var(--secondary) 10%, transparent), transparent 30rem),
+    var(--ft-canvas-raised);
+}
+
+.ft-auth > main,
+.ft-auth main[class*='bg-\[#0d1117\]'],
+.ft-auth main[class*='bg-\[#09111f\]'] {
+  background: transparent !important;
+  color: var(--ft-text) !important;
+}
+
+.ft-auth main > div[class*='absolute'][class*='inset-0'] {
+  opacity: 0.55;
+}
+
+.ft-auth :where(.text-white, .text-slate-100) {
+  color: var(--ft-text) !important;
+}
+
+.ft-auth :where(.text-slate-300, .text-slate-400, .text-slate-500) {
+  color: var(--ft-text-subdued) !important;
+}
+
+.ft-auth :where(.text-orange-300, .text-orange-400) {
+  color: var(--primary) !important;
+}
+
+.ft-auth div[class*='bg-\[#151a21\]'] {
+  border-color: var(--ft-border) !important;
+  border-radius: 18px !important;
+  background: color-mix(in srgb, var(--ft-surface) 92%, transparent) !important;
+  box-shadow: var(--ft-shadow-3) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(145%);
+  backdrop-filter: blur(24px) saturate(145%);
+}
+
+.ft-auth :where(input, select, textarea) {
+  border-color: var(--ft-border-strong) !important;
+  background: var(--ft-surface-solid) !important;
+  color: var(--ft-text) !important;
+}
+
+.ft-auth :where(button[type='submit']) {
+  min-height: 44px;
+  border-radius: 8px !important;
+}
+
+.ft-auth :where(.border-white\/10, .border-white\/15, .border-white\/20) {
+  border-color: var(--ft-border) !important;
+}
+
+.ft-auth :where(.bg-white\/5, .bg-white\/10) {
+  background: var(--ft-surface-subdued) !important;
+}
+
+@media (max-width: 767px) {
+  .ft-storefront > header > div {
+    padding-inline: 14px !important;
+  }
+
+  .ft-storefront > div[class*='fixed'][class*='bottom-0'] {
+    top: 64px !important;
+    border-color: var(--ft-border) !important;
+    background: var(--ft-surface-solid) !important;
+  }
+
+  .ft-shell > div > header.sticky,
+  .ft-shell > div > header[class*='sticky'] {
+    padding-inline: 12px !important;
+  }
+
+  .ft-shell aside[class*='fixed'] {
+    width: min(88vw, 320px) !important;
+    background: var(--ft-surface-solid) !important;
+    box-shadow: var(--ft-shadow-3) !important;
+  }
+
+  .ft-shell main[class*='overflow-y-auto'] {
+    padding: 16px 14px 96px !important;
+  }
+
+  .ft-auth main {
+    padding: 20px 14px !important;
+  }
+
+  .ft-auth div[class*='bg-\[#151a21\]'] {
+    padding: 20px !important;
+  }
+}
