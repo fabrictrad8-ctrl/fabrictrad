@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   patch:
-    if: ${{ !contains(github.event.head_commit.message, '[unified-commerce-patched]') }}
+    if: ${{ !contains(github.event.head_commit.message, '[unified-commerce-patched]') && !contains(github.event.head_commit.message, '[patch-diagnostic]') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -21,16 +21,27 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Apply unified commerce patches
-        run: node scripts/apply-unified-commerce-ui.mjs
-      - name: Commit patches
+      - name: Apply and commit unified commerce patches
+        shell: bash
         run: |
+          set +e
+          node scripts/apply-unified-commerce-ui.mjs > /tmp/unified-patch.log 2>&1
+          code=$?
+          cat /tmp/unified-patch.log
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          if [ "$code" -ne 0 ]; then
+            git reset --hard HEAD
+            cp /tmp/unified-patch.log unified-patch-diagnostic.txt
+            git add unified-patch-diagnostic.txt
+            git commit -m 'Record unified commerce patch failure [patch-diagnostic]'
+            git push origin HEAD:agent/unified-buy-sell-retail-catalog-reset
+            exit 1
+          fi
           if git diff --quiet; then
             echo 'No changes needed.'
             exit 0
           fi
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add src supabase .github/workflows/quality.yml
           git commit -m 'Implement unified buy and sell account experience [unified-commerce-patched]'
           git push origin HEAD:agent/unified-buy-sell-retail-catalog-reset
