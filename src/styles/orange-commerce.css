@@ -1,0 +1,456 @@
+/* FabricTrad orange commerce system — applies consistently to every customer, seller and admin route. */
+
+:root {
+  --primary: #c85f0a;
+  --primary-foreground: #ffffff;
+  --ring: #c85f0a;
+  --saffron: #c85f0a;
+  --saffron-light: #e47b21;
+  --gold: #f2ad45;
+  --ft-brand: #c85f0a;
+  --ft-brand-hover: #9f4505;
+  --ft-brand-soft: #fff2e4;
+  --ft-orange-25: #fffaf5;
+  --ft-orange-50: #fff4e8;
+  --ft-orange-100: #ffe3c4;
+  --ft-orange-200: #ffc98b;
+  --ft-orange-300: #f5a351;
+  --ft-orange-500: #c85f0a;
+  --ft-orange-600: #a94c05;
+  --ft-orange-700: #873b05;
+}
+
+.dark {
+  --primary: #f59a4a;
+  --primary-foreground: #1c0d02;
+  --ring: #f59a4a;
+  --saffron: #f59a4a;
+  --saffron-light: #ffb06b;
+  --gold: #f7c870;
+  --ft-brand: #f59a4a;
+  --ft-brand-hover: #ffb06b;
+  --ft-brand-soft: rgba(245, 154, 74, 0.14);
+  --ft-orange-25: rgba(245, 154, 74, 0.035);
+  --ft-orange-50: rgba(245, 154, 74, 0.08);
+  --ft-orange-100: rgba(245, 154, 74, 0.15);
+  --ft-orange-200: rgba(245, 154, 74, 0.24);
+}
+
+body.ft-root {
+  background:
+    radial-gradient(circle at 10% -12%, color-mix(in srgb, var(--primary) 10%, transparent), transparent 34rem),
+    radial-gradient(circle at 96% 0%, color-mix(in srgb, var(--gold) 7%, transparent), transparent 30rem),
+    var(--ft-canvas);
+}
+
+.ft-commerce-header {
+  border-bottom: 1px solid color-mix(in srgb, var(--ft-border) 84%, transparent);
+  background: color-mix(in srgb, var(--ft-surface) 88%, transparent);
+  box-shadow: 0 1px 0 rgba(31, 33, 36, 0.03);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+  backdrop-filter: blur(20px) saturate(150%);
+}
+
+.ft-commerce-header.is-scrolled {
+  background: color-mix(in srgb, var(--ft-surface) 95%, transparent);
+  box-shadow: 0 5px 20px rgba(51, 31, 12, 0.08);
+}
+
+.ft-header-search {
+  min-height: 42px;
+  align-items: center;
+  overflow: hidden;
+  border: 1px solid var(--ft-border-strong);
+  border-radius: 10px;
+  background: var(--ft-surface-solid);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.ft-header-search:focus-within {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 15%, transparent);
+}
+
+.ft-search-submit {
+  align-self: stretch;
+  border-left: 1px solid color-mix(in srgb, var(--primary) 18%, var(--ft-border));
+  background: var(--ft-orange-50);
+  color: var(--primary);
+  transition: 140ms ease;
+}
+
+.ft-search-submit:hover {
+  background: var(--primary);
+  color: white;
+}
+
+.ft-header-link {
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 8px;
+  padding: 0 11px;
+  color: var(--ft-text-subdued);
+  font-size: 0.8125rem;
+  font-weight: 650;
+  transition: 140ms ease;
+}
+
+.ft-header-link:hover,
+.ft-header-link.is-current {
+  background: var(--ft-orange-50);
+  color: var(--primary);
+}
+
+.ft-workspace-button {
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid var(--ft-border);
+  border-radius: 9px;
+  background: var(--ft-surface-solid);
+  padding: 0 11px;
+  color: var(--ft-text);
+  font-size: 0.78rem;
+  font-weight: 700;
+  box-shadow: var(--ft-shadow-1);
+}
+
+.ft-workspace-button:hover {
+  border-color: color-mix(in srgb, var(--primary) 35%, var(--ft-border));
+  background: var(--ft-orange-25);
+}
+
+.ft-workspace-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--primary);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 12%, transparent);
+}
+
+.ft-workspace-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 9px);
+  z-index: 70;
+  width: 286px;
+  overflow: hidden;
+  border: 1px solid var(--ft-border);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--ft-surface) 96%, transparent);
+  box-shadow: var(--ft-shadow-3);
+  -webkit-backdrop-filter: blur(24px) saturate(150%);
+  backdrop-filter: blur(24px) saturate(150%);
+}
+
+.ft-workspace-link,
+.ft-mobile-menu-link {
+  display: flex;
+  min-height: 42px;
+  align-items: center;
+  gap: 10px;
+  border-radius: 8px;
+  padding: 9px 10px;
+  color: var(--ft-text-subdued);
+  font-size: 0.8125rem;
+  font-weight: 650;
+  transition: 130ms ease;
+}
+
+.ft-workspace-link:hover,
+.ft-mobile-menu-link:hover {
+  background: var(--ft-orange-50);
+  color: var(--primary);
+}
+
+.ft-mobile-commerce-menu {
+  border-left: 1px solid var(--ft-border);
+  background: var(--ft-canvas-raised);
+  box-shadow: -18px 0 48px rgba(15, 23, 42, 0.18);
+}
+
+.ft-mobile-account-card {
+  border: 1px solid color-mix(in srgb, var(--primary) 18%, var(--ft-border));
+  border-radius: 14px;
+  background: linear-gradient(135deg, var(--ft-orange-50), var(--ft-surface-solid));
+  padding: 13px;
+}
+
+/* Use orange for brand emphasis. Green remains reserved for actual success states. */
+.ft-marketing :where(.text-success),
+.ft-marketing :where(.bg-success),
+.ft-marketing :where(.border-success\/25),
+.ft-marketing :where(.border-success\/20) {
+  color: var(--primary) !important;
+  border-color: color-mix(in srgb, var(--primary) 24%, transparent) !important;
+}
+
+.ft-marketing :where(.bg-success\/10, .bg-success\/5) {
+  background: var(--ft-orange-50) !important;
+}
+
+/* Shared route canvas and headings. */
+body[data-route='categories'],
+body[data-route='vendors'],
+body[data-route='product-detail'],
+body[data-route='profile'],
+body[data-route='buyer-requirements'] {
+  background:
+    radial-gradient(circle at 92% -10%, color-mix(in srgb, var(--primary) 8%, transparent), transparent 30rem),
+    var(--ft-canvas);
+}
+
+body[data-route='categories'] main,
+body[data-route='vendors'] main,
+body[data-route='product-detail'] main,
+body[data-route='profile'] main,
+body[data-route='buyer-requirements'] main {
+  background: transparent !important;
+}
+
+.ft-route-hero {
+  position: relative;
+  overflow: hidden;
+  border-bottom: 1px solid color-mix(in srgb, var(--primary) 16%, var(--ft-border));
+  background:
+    linear-gradient(120deg, color-mix(in srgb, var(--primary) 12%, var(--ft-surface-solid)), var(--ft-surface-solid) 58%),
+    var(--ft-surface-solid);
+}
+
+.ft-route-hero::after {
+  content: '';
+  position: absolute;
+  width: 280px;
+  height: 280px;
+  right: -90px;
+  top: -150px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--gold) 20%, transparent);
+  filter: blur(12px);
+  pointer-events: none;
+}
+
+.ft-route-title {
+  color: var(--ft-text);
+  font-size: clamp(1.75rem, 4vw, 2.7rem);
+  line-height: 1.08;
+  letter-spacing: -0.035em;
+  font-weight: 800;
+}
+
+.ft-route-kicker {
+  color: var(--primary);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.ft-filter-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  border: 1px solid var(--ft-border);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--ft-surface) 94%, transparent);
+  padding: 12px;
+  box-shadow: var(--ft-shadow-1);
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+}
+
+.ft-filter-control {
+  min-height: 42px;
+  border: 1px solid var(--ft-border-strong) !important;
+  border-radius: 9px !important;
+  background: var(--ft-surface-solid) !important;
+  color: var(--ft-text) !important;
+}
+
+.ft-resource-card {
+  border: 1px solid var(--ft-border);
+  border-radius: 14px;
+  background: var(--ft-surface-solid);
+  box-shadow: var(--ft-shadow-1);
+  transition: 170ms var(--ft-ease);
+}
+
+.ft-resource-card:hover {
+  border-color: color-mix(in srgb, var(--primary) 35%, var(--ft-border));
+  box-shadow: var(--ft-shadow-2);
+  transform: translateY(-2px);
+}
+
+.ft-resource-card .ft-resource-image {
+  background: linear-gradient(135deg, var(--ft-orange-50), var(--ft-surface-subdued));
+}
+
+.ft-orange-chip {
+  display: inline-flex;
+  min-height: 25px;
+  align-items: center;
+  border: 1px solid color-mix(in srgb, var(--primary) 20%, transparent);
+  border-radius: 999px;
+  background: var(--ft-orange-50);
+  padding: 3px 9px;
+  color: var(--primary);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+/* Product detail: compact Shopify-like two-column resource layout. */
+.ft-product-layout {
+  align-items: start;
+}
+
+.ft-product-main,
+.ft-product-aside > * {
+  min-width: 0;
+}
+
+.ft-product-main > :where(div, section),
+.ft-product-aside > :where(div, section) {
+  border-color: var(--ft-border) !important;
+}
+
+.ft-product-aside {
+  position: sticky;
+  top: 84px;
+}
+
+.ft-product-aside :where(.btn-primary) {
+  min-height: 46px;
+}
+
+/* Profile and requirements pages inherit the same app surface. */
+.ft-route-profile > div,
+.ft-route-requirements > div {
+  background: transparent !important;
+}
+
+.ft-route-profile :where(.bg-card.rounded-2xl, .bg-card.rounded-xl),
+.ft-route-requirements :where(.bg-card.rounded-2xl, .bg-card.rounded-xl) {
+  border-color: var(--ft-border) !important;
+  background: var(--ft-surface-solid) !important;
+  box-shadow: var(--ft-shadow-1);
+}
+
+.ft-route-profile :where(button[class*='bg-primary'], a[class*='bg-primary']),
+.ft-route-requirements :where(button[class*='bg-primary'], a[class*='bg-primary']) {
+  background: var(--primary) !important;
+}
+
+.ft-route-profile :where(.text-secondary),
+.ft-route-requirements :where(.text-secondary) {
+  color: var(--primary) !important;
+}
+
+.ft-route-requirements header.sticky {
+  height: 64px !important;
+  border-color: var(--ft-border) !important;
+  background: color-mix(in srgb, var(--ft-surface) 94%, transparent) !important;
+  box-shadow: 0 1px 0 rgba(31, 33, 36, 0.04);
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+}
+
+/* Shopify-style resource tables on seller and admin pages. */
+.ft-shell :where(table) thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--ft-surface-subdued) !important;
+}
+
+.ft-shell :where(table) tbody tr:focus-within {
+  background: var(--ft-orange-25);
+}
+
+.ft-shell :where(.text-secondary) {
+  color: var(--primary) !important;
+}
+
+.ft-shell :where(.bg-secondary\/10, .bg-secondary\/5) {
+  background: var(--ft-orange-50) !important;
+}
+
+.ft-shell :where(.border-secondary\/20, .border-secondary\/10) {
+  border-color: color-mix(in srgb, var(--primary) 20%, var(--ft-border)) !important;
+}
+
+.ft-shell :where(.sidebar-nav-item.active, button[class*='bg-primary']) {
+  background: var(--ft-brand-soft) !important;
+  color: var(--primary) !important;
+}
+
+/* Preserve semantic state colours, but prevent green from becoming the brand colour. */
+.ft-shell :where(.badge-verified, .order-status-confirmed, .order-status-delivered, .text-success),
+.ft-storefront :where(.badge-verified, .order-status-confirmed, .order-status-delivered, .text-success) {
+  --semantic-success: var(--ft-success);
+}
+
+/* Better modal and form behaviour across all pages. */
+body.ft-root :where([class*='fixed'][class*='inset-0'][class*='bg-black']) {
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+}
+
+body.ft-root :where(input, select, textarea) {
+  border-color: var(--ft-border-strong);
+  background: var(--ft-surface-solid);
+  color: var(--ft-text);
+}
+
+body.ft-root :where(input, textarea)::placeholder {
+  color: color-mix(in srgb, var(--ft-text-subdued) 78%, transparent);
+}
+
+body.ft-root :where(label) {
+  color: var(--ft-text);
+}
+
+@media (max-width: 1023px) {
+  .ft-product-aside {
+    position: static;
+  }
+}
+
+@media (max-width: 767px) {
+  .ft-commerce-header > div {
+    padding-inline: 14px !important;
+  }
+
+  .ft-filter-bar {
+    align-items: stretch;
+  }
+
+  .ft-filter-bar > * {
+    min-width: 0;
+    flex: 1 1 100%;
+  }
+
+  .ft-route-hero {
+    padding-top: 8px;
+  }
+
+  .ft-resource-card:hover {
+    transform: none;
+  }
+
+  body[data-route='product-detail'] .ft-storefront-content,
+  body[data-route='categories'] .ft-storefront-content,
+  body[data-route='vendors'] .ft-storefront-content {
+    padding-inline: 14px;
+  }
+}
+
+@supports not (color: color-mix(in srgb, white, black)) {
+  .ft-commerce-header,
+  .ft-workspace-menu,
+  .ft-filter-bar {
+    background: var(--ft-surface-solid);
+  }
+}
