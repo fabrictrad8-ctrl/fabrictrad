@@ -151,7 +151,8 @@ export default function SellerRegistrationFlow() {
   const { language, setLanguage, t } = useAppPreferences();
 
   const [currentStep, setCurrentStep] = useState<Step>('account');
-  const [sellerId] = useState(`FT-SLR-${Math.floor(100000 + Math.random() * 900000)}`);
+  const [sellerId, setSellerId] = useState(`FT-SLR-${Math.floor(100000 + Math.random() * 900000)}`);
+  const [submissionWarning, setSubmissionWarning] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -332,18 +333,70 @@ export default function SellerRegistrationFlow() {
         return;
       }
 
-      await signUp(email, form.password, {
+      const signup = await signUp(email, form.password, {
         fullName: form.ownerName,
         phone,
         role: 'seller',
         businessName: form.businessName,
+        businessType: form.businessType,
         gstin: form.gstin.toUpperCase(),
+        pan: form.pan.toUpperCase(),
+        categories: form.categories,
+        monthlyCapacity: form.monthlyCapacity,
         addressLine1: form.address,
         city: form.city,
         state: form.state,
         pincode: form.pincode,
         preferredLanguage: form.preferredLanguage,
       });
+
+      if (!signup?.user?.id) throw new Error('The seller login could not be created.');
+      const application = new FormData();
+      application.set('userId', signup.user.id);
+      application.set('registrationNonce', signup.registrationNonce || '');
+      application.set(
+        'payload',
+        JSON.stringify({
+          ownerName: form.ownerName,
+          phone,
+          businessName: form.businessName,
+          businessType: form.businessType,
+          city: form.city,
+          state: form.state,
+          pincode: form.pincode,
+          address: form.address,
+          categories: form.categories,
+          monthlyCapacity: form.monthlyCapacity,
+          gstin: form.gstin,
+          pan: form.pan,
+          bankAccountNumber: form.bankAccountNumber,
+          bankIfsc: form.bankIfsc,
+          bankAccountName: form.bankAccountName,
+          bankName: form.bankName,
+        })
+      );
+      Object.entries(documents).forEach(([key, document]) => {
+        if (document.file) application.set(`document_${key}`, document.file);
+      });
+
+      const finalizeResponse = await fetch('/api/registration/seller/finalize', {
+        method: 'POST',
+        headers: signup.session?.access_token
+          ? { Authorization: `Bearer ${signup.session.access_token}` }
+          : undefined,
+        credentials: 'same-origin',
+        body: application,
+      });
+      const finalized = await finalizeResponse.json().catch(() => ({}));
+      if (!finalizeResponse.ok) {
+        setSubmissionWarning(
+          finalized?.error || signup.provisioningWarning ||
+            'Your login was created, but the application needs to be completed after email verification.'
+        );
+      } else {
+        setSellerId(finalized.sellerRef || sellerId);
+        setSubmissionWarning(signup.provisioningWarning || '');
+      }
       setCurrentStep('done');
     } catch (e: any) {
       setError(e.message || 'Registration failed. Please try again.');
@@ -1096,9 +1149,14 @@ export default function SellerRegistrationFlow() {
                 Your seller application is being verified by the system
               </p>
               <p className="text-xs text-muted-foreground mb-4">
-                Check your email to verify your account. Selling tools activate after GSTIN, store,
-                bank, and document checks pass.
+                Verify your email, then sign in to access the seller workspace. You can prepare draft
+                products immediately; products become buyer-visible after seller approval.
               </p>
+              {submissionWarning && (
+                <div className="mb-5 rounded-xl border border-warning/30 bg-warning/10 p-3 text-left text-xs leading-5 text-warning">
+                  {submissionWarning}
+                </div>
+              )}
               <div className="bg-muted/50 rounded-xl border border-border p-4 text-left mb-6 space-y-2">
                 {[
                   { label: 'Seller ID', value: sellerId },
@@ -1117,10 +1175,10 @@ export default function SellerRegistrationFlow() {
               </div>
               <div className="flex flex-col sm:flex-row gap-3">
                 <Link
-                  href="/seller-dashboard"
+                  href="/login?role=seller"
                   className="btn-primary flex-1 py-3 text-sm rounded-xl text-center"
                 >
-                  Go to Seller Dashboard
+                  Verify Email / Sign In
                 </Link>
                 <Link
                   href="/marketplace"
