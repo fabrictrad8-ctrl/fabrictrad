@@ -1,0 +1,183 @@
+name: Verify production account and commerce flow
+
+on:
+  pull_request:
+  push:
+    branches:
+      - agent/verify-production-account-commerce
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    env:
+      SUPABASE_URL: https://rdhfwlzhcvwjhkxhhpoo.supabase.co
+      SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJIUzI1NiIsInJlZiI6InJkaGZ3bHpoY3Z3amhreGhocG9vIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQxMzMwNjMsImV4cCI6MjA5OTcwOTA2M30.jLF4AD-joIbRslei-T55lwZBdRpntrsU-hjyHCZXgVc
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      LIVE_URL: https://fabrictrad.com
+    steps:
+      - name: Verify live buyer, seller and order lifecycle
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ -z "${SUPABASE_SERVICE_ROLE_KEY:-}" ]; then
+            echo '::error::SUPABASE_SERVICE_ROLE_KEY is not configured for production verification.'
+            exit 1
+          fi
+
+          run_suffix="${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          seller_email="launch-seller-${run_suffix}@example.com"
+          buyer_email="launch-buyer-${run_suffix}@example.com"
+          password="FabricLaunch@${GITHUB_RUN_ID}X"
+          seller_id=''
+          buyer_id=''
+
+          admin_curl() {
+            curl --silent --show-error --fail-with-body \
+              --header "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+              --header "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+              "$@"
+          }
+
+          cleanup() {
+            if [ -n "$buyer_id" ]; then
+              admin_curl --request DELETE "${SUPABASE_URL}/auth/v1/admin/users/${buyer_id}" >/dev/null 2>&1 || true
+            fi
+            if [ -n "$seller_id" ]; then
+              admin_curl --request DELETE "${SUPABASE_URL}/auth/v1/admin/users/${seller_id}" >/dev/null 2>&1 || true
+            fi
+          }
+          trap cleanup EXIT
+
+          ready=false
+          for attempt in $(seq 1 60); do
+            route_code=$(curl --silent --show-error --output /tmp/provision-unauth.json --write-out '%{http_code}' \
+              --header 'Content-Type: application/json' --data '{}' \
+              "${LIVE_URL}/api/auth/provision-account" || true)
+            table_code=$(admin_curl --output /tmp/payment-table.json --write-out '%{http_code}' \
+              "${SUPABASE_URL}/rest/v1/catalog_order_payments?select=id&limit=1" || true)
+            rpc_code=$(admin_curl --output /tmp/rpc-check.json --write-out '%{http_code}' \
+              --request POST --header 'Content-Type: application/json' \
+              --data '{"p_order_id":"00000000-0000-0000-0000-000000000000","p_action":"accept","p_reason":null}' \
+              "${SUPABASE_URL}/rest/v1/rpc/seller_decide_catalog_order" || true)
+            if [ "$route_code" = '401' ] && [ "$table_code" = '200' ] && { [ "$rpc_code" = '400' ] || [ "$rpc_code" = '404' ]; }; then
+              ready=true
+              break
+            fi
+            echo "Attempt ${attempt}: provision=${route_code} payment_table=${table_code} rpc=${rpc_code}"
+            sleep 10
+          done
+          test "$ready" = 'true'
+
+          seller_json=$(jq -nc \
+            --arg email "$seller_email" --arg password "$password" \
+            '{email:$email,password:$password,email_confirm:true,user_metadata:{role:"seller",full_name:"Launch Test Seller",business_name:"Launch Test Textiles",business_type:"Manufacturer",phone:"9876501234",gstin:"27ABCDE1234F1Z5",pan:"ABCDE1234F",address_line1:"Launch Test Address",city:"Mumbai",state:"Maharashtra",pincode:"400001"}}')
+          admin_curl --request POST --header 'Content-Type: application/json' \
+            --data "$seller_json" "${SUPABASE_URL}/auth/v1/admin/users" > /tmp/seller-user.json
+          seller_id=$(jq -r '.id // .user.id // empty' /tmp/seller-user.json)
+          test -n "$seller_id"
+
+          buyer_json=$(jq -nc \
+            --arg email "$buyer_email" --arg password "$password" \
+            '{email:$email,password:$password,email_confirm:true,user_metadata:{role:"buyer",full_name:"Launch Test Buyer",phone:"9876501235",address_line1:"Launch Buyer Address",city:"Pune",state:"Maharashtra",pincode:"411001"}}')
+          admin_curl --request POST --header 'Content-Type: application/json' \
+            --data "$buyer_json" "${SUPABASE_URL}/auth/v1/admin/users" > /tmp/buyer-user.json
+          buyer_id=$(jq -r '.id // .user.id // empty' /tmp/buyer-user.json)
+          test -n "$buyer_id"
+
+          for _ in $(seq 1 20); do
+            admin_curl "${SUPABASE_URL}/rest/v1/seller_profiles?select=id,verification_status&user_id=eq.${seller_id}" > /tmp/seller-profile.json
+            admin_curl "${SUPABASE_URL}/rest/v1/buyer_profiles?select=id&user_id=eq.${buyer_id}" > /tmp/buyer-profile.json
+            if [ "$(jq 'length' /tmp/seller-profile.json)" = '1' ] && [ "$(jq 'length' /tmp/buyer-profile.json)" = '1' ]; then
+              break
+            fi
+            sleep 2
+          done
+          seller_profile_id=$(jq -r '.[0].id // empty' /tmp/seller-profile.json)
+          buyer_profile_id=$(jq -r '.[0].id // empty' /tmp/buyer-profile.json)
+          test -n "$seller_profile_id"
+          test -n "$buyer_profile_id"
+          test "$(jq -r '.[0].verification_status' /tmp/seller-profile.json)" = 'registration_started'
+
+          sign_in() {
+            local email="$1"
+            curl --silent --show-error --fail-with-body \
+              --request POST --header "apikey: ${SUPABASE_ANON_KEY}" \
+              --header 'Content-Type: application/json' \
+              --data "$(jq -nc --arg email "$email" --arg password "$password" '{email:$email,password:$password}')" \
+              "${SUPABASE_URL}/auth/v1/token?grant_type=password"
+          }
+          sign_in "$seller_email" > /tmp/seller-session.json
+          sign_in "$buyer_email" > /tmp/buyer-session.json
+          seller_token=$(jq -r '.access_token' /tmp/seller-session.json)
+          buyer_token=$(jq -r '.access_token' /tmp/buyer-session.json)
+          test -n "$seller_token"
+          test -n "$buyer_token"
+
+          seller_provision=$(curl --silent --show-error --output /tmp/seller-provision.json --write-out '%{http_code}' \
+            --request POST --header 'Content-Type: application/json' \
+            --header "Authorization: Bearer ${seller_token}" --data '{}' \
+            "${LIVE_URL}/api/auth/provision-account")
+          buyer_provision=$(curl --silent --show-error --output /tmp/buyer-provision.json --write-out '%{http_code}' \
+            --request POST --header 'Content-Type: application/json' \
+            --header "Authorization: Bearer ${buyer_token}" --data '{}' \
+            "${LIVE_URL}/api/auth/provision-account")
+          test "$seller_provision" = '200'
+          test "$buyer_provision" = '200'
+          grep -q '"ready":true' /tmp/seller-provision.json
+          grep -q '"ready":true' /tmp/buyer-provision.json
+
+          seller_application=$(jq -nc '{ownerName:"Launch Test Seller",phone:"9876501234",businessName:"Launch Test Textiles",businessType:"Manufacturer",city:"Mumbai",state:"Maharashtra",pincode:"400001",address:"Launch Test Address",categories:["Cotton"],monthlyCapacity:"1000 mtr",gstin:"27ABCDE1234F1Z5",pan:"ABCDE1234F",bankAccountNumber:"123456789012",bankIfsc:"HDFC0001234",bankAccountName:"Launch Test Seller",bankName:"HDFC Bank"}')
+          finalize_code=$(curl --silent --show-error --output /tmp/finalize.json --write-out '%{http_code}' \
+            --request POST --header "Authorization: Bearer ${seller_token}" \
+            --form "payload=${seller_application}" \
+            "${LIVE_URL}/api/registration/seller/finalize")
+          test "$finalize_code" = '200'
+          grep -q '"submitted":true' /tmp/finalize.json
+          admin_curl "${SUPABASE_URL}/rest/v1/seller_registrations?select=id,bank_account_number&user_id=eq.${seller_id}" > /tmp/registration.json
+          test "$(jq 'length' /tmp/registration.json)" = '1'
+          test "$(jq -r '.[0].bank_account_number' /tmp/registration.json)" = '****9012'
+
+          sku="LAUNCH-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          product_json=$(jq -nc --arg seller "$seller_profile_id" --arg sku "$sku" \
+            '{seller_id:$seller,name:"Launch Test Cotton",sku:$sku,category:"Cotton",description:"Temporary production verification product",price_per_unit:200,unit:"mtr",available_quantity:10,reserved_quantity:0,min_stock:0,moq:1,work_type:"Plain",dispatch_days:3,status:"draft"}')
+          admin_curl --request POST --header 'Content-Type: application/json' \
+            --header 'Prefer: return=representation' --data "$product_json" \
+            "${SUPABASE_URL}/rest/v1/seller_products" > /tmp/product.json
+          product_id=$(jq -r '.[0].id // empty' /tmp/product.json)
+          test -n "$product_id"
+
+          order_json=$(jq -nc --arg buyer "$buyer_id" --arg seller "$seller_profile_id" --arg product "$product_id" \
+            '{buyer_id:$buyer,seller_id:$seller,product_id:$product,variant_id:null,quantity:3,unit:"mtr",price_per_unit:200,subtotal:600,gst_amount:30,total_amount:630,status:"pending",notes:"Temporary launch verification"}')
+          curl --silent --show-error --fail-with-body --request POST \
+            --header "apikey: ${SUPABASE_ANON_KEY}" --header "Authorization: Bearer ${buyer_token}" \
+            --header 'Content-Type: application/json' --header 'Prefer: return=representation' \
+            --data "$order_json" "${SUPABASE_URL}/rest/v1/catalog_order_requests" > /tmp/order.json
+          order_id=$(jq -r '.[0].id // empty' /tmp/order.json)
+          test -n "$order_id"
+
+          curl --silent --show-error --fail-with-body --request POST \
+            --header "apikey: ${SUPABASE_ANON_KEY}" --header "Authorization: Bearer ${seller_token}" \
+            --header 'Content-Type: application/json' \
+            --data "$(jq -nc --arg id "$order_id" '{p_order_id:$id,p_action:"accept",p_reason:"Launch verification acceptance"}')" \
+            "${SUPABASE_URL}/rest/v1/rpc/seller_decide_catalog_order" > /tmp/accepted.json
+          test "$(jq -r '.status' /tmp/accepted.json)" = 'accepted'
+
+          admin_curl "${SUPABASE_URL}/rest/v1/seller_products?select=available_quantity&id=eq.${product_id}" > /tmp/stock-reserved.json
+          test "$(jq -r '.[0].available_quantity' /tmp/stock-reserved.json)" = '7.00'
+
+          curl --silent --show-error --fail-with-body --request PATCH \
+            --header "apikey: ${SUPABASE_ANON_KEY}" --header "Authorization: Bearer ${buyer_token}" \
+            --header 'Content-Type: application/json' --header 'Prefer: return=representation' \
+            --data '{"status":"cancelled"}' \
+            "${SUPABASE_URL}/rest/v1/catalog_order_requests?id=eq.${order_id}" > /tmp/cancelled.json
+          test "$(jq -r '.[0].status' /tmp/cancelled.json)" = 'cancelled'
+
+          admin_curl "${SUPABASE_URL}/rest/v1/seller_products?select=available_quantity&id=eq.${product_id}" > /tmp/stock-restored.json
+          test "$(jq -r '.[0].available_quantity' /tmp/stock-restored.json)" = '10.00'
+
+          echo "PRODUCTION_FLOW_OK seller_profile=${seller_profile_id} buyer_profile=${buyer_profile_id} registration=created order=accepted_cancelled stock=reserved_restored"
