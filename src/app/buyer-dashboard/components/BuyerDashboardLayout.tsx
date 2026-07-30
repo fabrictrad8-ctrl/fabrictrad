@@ -10,6 +10,7 @@ import BuyerOverview from '@/app/buyer-dashboard/components/BuyerOverview';
 import BuyerOrders from '@/app/buyer-dashboard/components/BuyerOrders';
 import BuyerTracking from '@/app/buyer-dashboard/components/BuyerTracking';
 import BuyerWishlist from '@/app/buyer-dashboard/components/BuyerWishlist';
+import BuyerCompanyPurchasing from '@/app/buyer-dashboard/components/BuyerCompanyPurchasing';
 import DisputeMessaging from '@/app/buyer-dashboard/components/DisputeMessaging';
 import NotificationPreferences from '@/app/components/NotificationPreferences';
 
@@ -18,6 +19,7 @@ type DashTab =
   | 'orders'
   | 'tracking'
   | 'wishlist'
+  | 'company'
   | 'disputes'
   | 'notifications'
   | 'account'
@@ -28,6 +30,7 @@ const navItems: { key: DashTab; label: string; icon: string; badge?: number }[] 
   { key: 'orders', label: 'My Orders', icon: 'ShoppingBagIcon' },
   { key: 'tracking', label: 'Track Shipments', icon: 'TruckIcon' },
   { key: 'wishlist', label: 'Wishlist', icon: 'HeartIcon' },
+  { key: 'company', label: 'Company Purchasing', icon: 'BuildingOffice2Icon' },
   { key: 'disputes', label: 'Disputes & Messages', icon: 'ChatBubbleLeftRightIcon' },
   { key: 'requirements', label: 'Requirements Board', icon: 'MegaphoneIcon' },
   { key: 'notifications', label: 'Notifications', icon: 'BellIcon' },
@@ -62,7 +65,6 @@ export default function BuyerDashboardLayout() {
 
   return (
     <div className="min-h-screen bg-muted/30 flex flex-col">
-      {/* Top Bar */}
       <header className="bg-card border-b border-border sticky top-0 z-40 h-14 flex items-center px-4 sm:px-6 gap-4">
         <button className="md:hidden p-1.5" onClick={() => setSidebarOpen(!sidebarOpen)}>
           <Icon name="Bars3Icon" size={20} className="text-foreground" />
@@ -109,7 +111,6 @@ export default function BuyerDashboardLayout() {
       </header>
 
       <div className="flex flex-1 overflow-hidden">
-        {/* Sidebar */}
         <aside
           className={`fixed md:static inset-y-0 left-0 z-30 w-56 seller-sidebar pt-14 md:pt-0 transition-transform duration-300 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}
         >
@@ -145,7 +146,6 @@ export default function BuyerDashboardLayout() {
               </Link>
             </div>
 
-            {/* Account-scoped try-on credits placeholder */}
             <div className="mt-4 p-3 bg-primary/10 border border-primary/20 rounded-xl">
               <div className="flex items-center gap-2 mb-1">
                 <Icon name="SparklesIcon" size={14} className="text-primary" />
@@ -159,7 +159,6 @@ export default function BuyerDashboardLayout() {
           </div>
         </aside>
 
-        {/* Overlay */}
         {sidebarOpen && (
           <div
             className="fixed inset-0 z-20 bg-black/40 md:hidden"
@@ -167,7 +166,6 @@ export default function BuyerDashboardLayout() {
           />
         )}
 
-        {/* Main Content */}
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 min-w-0">
           {isDemoAccount && (
             <div className="mb-4 rounded-xl border border-primary/20 bg-primary/5 p-3">
@@ -191,6 +189,7 @@ export default function BuyerDashboardLayout() {
           {activeTab === 'orders' && <BuyerOrders />}
           {activeTab === 'tracking' && <BuyerTracking />}
           {activeTab === 'wishlist' && <BuyerWishlist />}
+          {activeTab === 'company' && <BuyerCompanyPurchasing />}
           {activeTab === 'disputes' && <DisputeMessaging mode="buyer" />}
           {activeTab === 'requirements' && (
             <div className="space-y-4">
