@@ -75,11 +75,24 @@ export async function GET(request: NextRequest) {
 
   const normalizedEmail = user.email?.trim().toLowerCase() || '';
   if (normalizedEmail === ADMIN_EMAIL && user.email_confirmed_at) {
+    // The database profile trigger promotes this exact configured mailbox to
+    // super_admin when profile provisioning runs on the first portal request.
+    try {
+      await ensureAuthenticatedAccountProvisioned(supabase, 'buyer');
+    } catch (error) {
+      console.error('Administrator profile bootstrap failed', {
+        userId: user.id,
+        code: typeof error === 'object' && error && 'code' in error ? String(error.code) : undefined,
+      });
+      return redirectAfterAuth(setupRecoveryUrl(origin, 'buyer'));
+    }
     return redirectAfterAuth(`${origin}/admin-portal`);
   }
 
   let account: AuthenticatedProvisionedAccount;
   try {
+    // OAuth uses the authenticated self-service path. ensureAccountProvisioned
+    // remains the trusted administrative/registration fallback elsewhere.
     account = await ensureAuthenticatedAccountProvisioned(supabase, requestedRole);
   } catch (error) {
     // The OAuth session is valid. Preserve it and move to a retry-safe repair
