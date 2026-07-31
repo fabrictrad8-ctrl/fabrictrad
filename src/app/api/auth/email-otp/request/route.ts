@@ -1,6 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
-import { ensureConfiguredAdminAccount, isConfiguredAdminEmail } from '@/lib/adminAccess';
 import { normalizeEmail } from '@/lib/authValidation';
 
 const noStoreJson = (body: Record<string, unknown>, status = 200) =>
@@ -27,17 +26,17 @@ export async function POST(request: NextRequest) {
     return noStoreJson({ error: 'Enter a valid email address.' }, 400);
   }
 
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!supabaseUrl || !anonKey) {
+    return noStoreJson(
+      { error: 'Password recovery is temporarily unavailable. Please contact FabricTrad support.' },
+      503
+    );
+  }
+
   try {
-    if (isConfiguredAdminEmail(email)) {
-      await ensureConfiguredAdminAccount(email);
-    }
-
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    if (!supabaseUrl || !anonKey) {
-      throw new Error('Authentication is not configured.');
-    }
-
     const supabase = createClient(supabaseUrl, anonKey, {
       auth: {
         autoRefreshToken: false,
@@ -60,7 +59,16 @@ export async function POST(request: NextRequest) {
 
     return noStoreJson({ sent: true });
   } catch (caughtError: unknown) {
-    const message = caughtError instanceof Error ? caughtError.message : 'Unable to send the sign-in code.';
-    return noStoreJson({ error: message }, 400);
+    const message = caughtError instanceof Error ? caughtError.message : '';
+    const lowerMessage = message.toLowerCase();
+
+    if (lowerMessage.includes('rate limit')) {
+      return noStoreJson({ error: 'Please wait a minute before requesting another code.' }, 429);
+    }
+
+    return noStoreJson(
+      { error: 'We could not send the reset code. Confirm the email address and try again.' },
+      400
+    );
   }
 }
