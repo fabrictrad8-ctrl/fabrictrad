@@ -1,0 +1,14 @@
+/* Route-specific target sizing that must win over legacy utility combinations. */
+
+.ft-route-requirements header a[href='/marketplace'] {
+  display: inline-flex;
+  min-height: 40px;
+  align-items: center;
+  padding-inline: 8px;
+  border-radius: 8px;
+}
+
+.ft-route-requirements header a[href='/marketplace']:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--primary) 72%, white);
+  outline-offset: 2px;
+}

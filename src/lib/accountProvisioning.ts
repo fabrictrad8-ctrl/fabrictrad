@@ -1,6 +1,7 @@
 import type { SupabaseClient, User } from '@supabase/supabase-js';
 
 export type AccountRole = 'buyer' | 'seller' | 'admin_staff' | 'super_admin';
+export type CommerceRole = 'buyer' | 'seller';
 
 export type ProvisionedAccount = {
   role: AccountRole;
@@ -9,6 +10,12 @@ export type ProvisionedAccount = {
   sellerProfileId: string | null;
   canBuy: boolean;
   canSell: boolean;
+};
+
+export type AuthenticatedProvisionedAccount = ProvisionedAccount & {
+  ready: true;
+  requestedRole: CommerceRole;
+  phonePresent: boolean;
 };
 
 type UserProfileRow = {
@@ -43,6 +50,57 @@ const addressFromMetadata = (metadata: Record<string, unknown>) => {
   return Object.values(address).some((value) => value && value !== 'India') ? address : null;
 };
 
+const accountRole = (value: unknown): AccountRole => {
+  if (value === 'seller' || value === 'admin_staff' || value === 'super_admin') return value;
+  return 'buyer';
+};
+
+const optionalId = (value: unknown) => {
+  const valueText = text(value);
+  return valueText || null;
+};
+
+/**
+ * Completes the signed-in user's own account through a narrowly-scoped,
+ * authenticated SECURITY DEFINER function. This is the preferred path for
+ * OAuth callbacks because it does not require a service-role secret and is
+ * safe to retry.
+ */
+export async function ensureAuthenticatedAccountProvisioned(
+  client: SupabaseClient,
+  requestedRole: CommerceRole
+): Promise<AuthenticatedProvisionedAccount> {
+  const { data, error } = await client.rpc('ensure_current_account_profile', {
+    p_requested_role: requestedRole,
+  });
+  if (error) throw error;
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    throw new Error('Account setup returned an invalid response.');
+  }
+
+  const result = data as Record<string, unknown>;
+  const userProfileId = text(result.userProfileId ?? result.user_profile_id);
+  if (!userProfileId) throw new Error('Account setup did not return a user profile.');
+
+  return {
+    ready: true,
+    role: accountRole(result.role),
+    requestedRole:
+      result.requestedRole === 'seller' || result.requested_role === 'seller' ? 'seller' : 'buyer',
+    userProfileId,
+    buyerProfileId: optionalId(result.buyerProfileId ?? result.buyer_profile_id),
+    sellerProfileId: optionalId(result.sellerProfileId ?? result.seller_profile_id),
+    canBuy: result.canBuy === true || result.can_buy === true,
+    canSell: result.canSell === true || result.can_sell === true,
+    phonePresent: result.phonePresent === true || result.phone_present === true,
+  };
+}
+
+/**
+ * Administrative/registration fallback used when a trusted server client or
+ * signed registration nonce is available. Keep this schema-aligned with the
+ * live database; OAuth callbacks should use ensureAuthenticatedAccountProvisioned.
+ */
 export async function ensureAccountProvisioned(
   client: SupabaseClient,
   user: User
@@ -75,7 +133,7 @@ export async function ensureAccountProvisioned(
     id: user.id,
     email,
     full_name: text(metadata.full_name) || email.split('@')[0],
-    avatar_url: nullableText(metadata.avatar_url),
+    avatar_url: nullableText(metadata.avatar_url) || nullableText(metadata.picture),
     phone: nullableText(metadata.phone),
     role,
     business_name: nullableText(metadata.business_name),
@@ -85,8 +143,6 @@ export async function ensureAccountProvisioned(
     city: nullableText(metadata.city),
     state: nullableText(metadata.state),
     pincode: nullableText(metadata.pincode),
-    preferred_language: text(metadata.preferred_language) || 'en',
-    preferred_theme: text(metadata.preferred_theme) || 'system',
     updated_at: new Date().toISOString(),
   };
 

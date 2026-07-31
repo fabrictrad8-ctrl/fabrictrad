@@ -1,0 +1,297 @@
+/* FabricTrad site-wide motion, accessibility and surface polish.
+   Motion is restrained to opacity and small transforms for compositor-friendly rendering. */
+
+:root {
+  --ft-motion-fast: 140ms;
+  --ft-motion-medium: 220ms;
+  --ft-motion-slow: 420ms;
+  --ft-ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ft-ease-emphasized: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.ft-skip-link {
+  position: fixed;
+  inset-block-start: 10px;
+  inset-inline-start: 12px;
+  z-index: 10000;
+  transform: translateY(-150%);
+  border: 2px solid var(--primary);
+  border-radius: 10px;
+  background: var(--ft-surface-solid, #fff);
+  padding: 10px 14px;
+  color: var(--ft-text, #111827);
+  font-size: 0.875rem;
+  font-weight: 800;
+  box-shadow: 0 12px 32px rgb(15 23 42 / 0.22);
+  transition: transform var(--ft-motion-fast) var(--ft-ease-standard);
+}
+
+.ft-skip-link:focus {
+  transform: translateY(0);
+  outline: none;
+}
+
+.ft-root :where(a, button, input, select, textarea, [role='button'], [tabindex='0']):focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--primary) 72%, white);
+  outline-offset: 2px;
+}
+
+.ft-route-enter {
+  animation: ft-route-enter var(--ft-motion-slow) var(--ft-ease-emphasized) both;
+}
+
+@keyframes ft-route-enter {
+  from {
+    opacity: 0.01;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Consistent premium surfaces across buyer, seller, admin and storefront pages. */
+.ft-card,
+.ft-resource-card,
+.product-card,
+.stat-card,
+.dashboard-card,
+.bg-card.rounded-2xl,
+.bg-card.rounded-xl {
+  transition:
+    transform var(--ft-motion-medium) var(--ft-ease-standard),
+    border-color var(--ft-motion-medium) ease,
+    box-shadow var(--ft-motion-medium) ease,
+    background-color var(--ft-motion-medium) ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .ft-resource-card:hover,
+  .product-card:hover,
+  .dashboard-card:hover,
+  .stat-card:hover {
+    transform: translateY(-3px);
+    border-color: color-mix(in srgb, var(--primary) 28%, var(--ft-border));
+    box-shadow: 0 18px 42px rgb(15 23 42 / 0.12);
+  }
+
+  .ft-card:hover {
+    border-color: color-mix(in srgb, var(--primary) 20%, var(--ft-border));
+  }
+}
+
+.ft-root :where(button, .ft-primary-action, .ft-secondary-action, .btn-primary, .sidebar-nav-item) {
+  transition:
+    transform var(--ft-motion-fast) var(--ft-ease-standard),
+    background-color var(--ft-motion-fast) ease,
+    border-color var(--ft-motion-fast) ease,
+    color var(--ft-motion-fast) ease,
+    box-shadow var(--ft-motion-fast) ease,
+    opacity var(--ft-motion-fast) ease;
+}
+
+.ft-root :where(button, .ft-primary-action, .ft-secondary-action, .btn-primary):active:not(:disabled) {
+  transform: translateY(1px) scale(0.985);
+}
+
+.ft-root :where(button, input, select, textarea):disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+/* Glass is limited to navigation and transient surfaces so body content remains readable. */
+.ft-commerce-header,
+.ft-topbar,
+.ft-command-dialog,
+.ft-workspace-menu,
+.ft-mobile-commerce-menu,
+[role='dialog'] {
+  backdrop-filter: blur(18px) saturate(145%);
+  -webkit-backdrop-filter: blur(18px) saturate(145%);
+}
+
+.ft-commerce-header,
+.ft-topbar {
+  box-shadow: 0 1px 0 rgb(255 255 255 / 0.05), 0 8px 24px rgb(15 23 42 / 0.07);
+}
+
+.ft-workspace-menu,
+.ft-command-dialog,
+[role='dialog'] {
+  transform-origin: top right;
+  animation: ft-popover-in var(--ft-motion-medium) var(--ft-ease-emphasized) both;
+}
+
+@keyframes ft-popover-in {
+  from {
+    opacity: 0;
+    transform: translateY(-5px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.ft-command-backdrop,
+.fixed.inset-0.bg-black\/40,
+.fixed.inset-0.bg-black\/45,
+.fixed.inset-0.bg-black\/50 {
+  animation: ft-fade-in var(--ft-motion-fast) ease-out both;
+}
+
+@keyframes ft-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Portal navigation and selected states. */
+.sidebar-nav-item,
+.ft-sidebar-item,
+.ft-mobile-menu-link,
+.ft-workspace-link {
+  position: relative;
+  overflow: hidden;
+}
+
+.sidebar-nav-item::before,
+.ft-sidebar-item::before {
+  content: '';
+  position: absolute;
+  inset-block: 8px;
+  inset-inline-start: 0;
+  width: 3px;
+  border-radius: 999px;
+  background: var(--primary);
+  opacity: 0;
+  transform: scaleY(0.35);
+  transition: opacity var(--ft-motion-fast) ease, transform var(--ft-motion-medium) var(--ft-ease-emphasized);
+}
+
+.sidebar-nav-item.active::before,
+.ft-sidebar-item.is-active::before {
+  opacity: 1;
+  transform: scaleY(1);
+}
+
+.sidebar-nav-item.active,
+.ft-sidebar-item.is-active {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary) 16%, transparent);
+}
+
+/* Make top bars resilient for long names and translated labels. */
+.ft-topbar,
+.ft-shell > header,
+[data-role-shell] header,
+.ft-root header {
+  min-width: 0;
+}
+
+.ft-topbar > *,
+.ft-shell > header > *,
+[data-role-shell] header > * {
+  min-width: 0;
+}
+
+.ft-shell main,
+[data-role-shell] main,
+.ft-storefront main,
+main#main-content {
+  scroll-margin-top: 76px;
+}
+
+/* Cards and tables receive clearer grouping without excessive decoration. */
+.ft-shell table,
+.ft-table-wrap table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.ft-shell tbody tr,
+.ft-table-wrap tbody tr {
+  transition: background-color var(--ft-motion-fast) ease, box-shadow var(--ft-motion-fast) ease;
+}
+
+@media (hover: hover) {
+  .ft-shell tbody tr:hover,
+  .ft-table-wrap tbody tr:hover {
+    background: color-mix(in srgb, var(--primary) 5%, transparent);
+  }
+}
+
+.ft-empty-state,
+.ft-shell :where([class*='empty'], [data-empty-state]) {
+  animation: ft-soft-rise 360ms var(--ft-ease-emphasized) both;
+}
+
+@keyframes ft-soft-rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Small screen safeguards shared by all roles. */
+@media (max-width: 767px) {
+  .ft-root :where(.ft-primary-action, .ft-secondary-action, .btn-primary, button) {
+    min-height: 40px;
+  }
+
+  .ft-mobile-dock button,
+  .sidebar-nav-item,
+  .ft-mobile-menu-link {
+    min-height: 44px;
+  }
+
+  .ft-shell main,
+  [data-role-shell] main {
+    max-width: 100vw;
+    overflow-x: clip;
+  }
+
+  .ft-shell :where(.grid, .flex),
+  [data-role-shell] :where(.grid, .flex) {
+    min-width: 0;
+  }
+
+  .ft-shell :where(h1, h2, h3, p, span),
+  [data-role-shell] :where(h1, h2, h3, p, span) {
+    overflow-wrap: anywhere;
+  }
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .ft-commerce-header,
+  .ft-topbar,
+  .ft-command-dialog,
+  .ft-workspace-menu,
+  .ft-mobile-commerce-menu,
+  [role='dialog'] {
+    background: var(--ft-surface-solid, #fff) !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ft-root *,
+  .ft-root *::before,
+  .ft-root *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+
+  .ft-route-enter,
+  .ft-resource-card:hover,
+  .product-card:hover,
+  .dashboard-card:hover,
+  .stat-card:hover,
+  .ft-root :where(button, .ft-primary-action, .ft-secondary-action, .btn-primary):active {
+    transform: none !important;
+  }
+}

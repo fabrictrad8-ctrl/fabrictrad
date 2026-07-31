@@ -46,10 +46,15 @@ export default function SellerDashboardPage() {
 
   useEffect(() => {
     if (loading || !user || accountReady) return;
-    if (isDemoAccount) {
+
+    // AuthContext already loads an existing profile. Re-running provisioning
+    // and then fetching the same profile on every visit made seller navigation
+    // unnecessarily slow. Provision only when the signed-in user has no profile.
+    if (isDemoAccount || profile) {
       setAccountReady(true);
       return;
     }
+
     let cancelled = false;
     const prepare = async () => {
       try {
