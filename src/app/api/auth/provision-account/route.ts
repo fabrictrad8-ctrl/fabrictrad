@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import type { SupabaseClient, User } from '@supabase/supabase-js';
-import { ensureAccountProvisioned } from '@/lib/accountProvisioning';
+import {
+  ensureAccountProvisioned,
+  ensureAuthenticatedAccountProvisioned,
+  type CommerceRole,
+} from '@/lib/accountProvisioning';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 
@@ -31,18 +35,25 @@ const nonceValues = (body: { userId?: unknown; registrationNonce?: unknown }) =>
   nonce: typeof body.registrationNonce === 'string' ? body.registrationNonce.trim() : '',
 });
 
+const requestedRoleFrom = (value: unknown): CommerceRole => value === 'seller' ? 'seller' : 'buyer';
+
 export async function POST(request: NextRequest) {
   const serverClient = await createClient();
   const token = bearerToken(request);
-  let body: { userId?: unknown; registrationNonce?: unknown } = {};
+  let body: {
+    userId?: unknown;
+    registrationNonce?: unknown;
+    requestedRole?: unknown;
+  } = {};
   try {
     body = (await request.json()) as typeof body;
   } catch {
     body = {};
   }
 
+  const requestedRole = requestedRoleFrom(body.requestedRole);
   let user: User | null = null;
-  let provisioningClient: SupabaseClient = serverClient;
+  let hasCookieSession = false;
   let nonceAuthenticated = false;
 
   if (token) {
@@ -50,9 +61,10 @@ export async function POST(request: NextRequest) {
     if (!error) user = data.user;
   }
 
-  if (!user) {
-    const { data, error } = await serverClient.auth.getUser();
-    if (!error) user = data.user;
+  const { data: cookieData, error: cookieError } = await serverClient.auth.getUser();
+  if (!cookieError && cookieData.user) {
+    user = cookieData.user;
+    hasCookieSession = true;
   }
 
   const admin = adminClientOrNull();
@@ -74,31 +86,49 @@ export async function POST(request: NextRequest) {
       p_user_id: userId,
       p_nonce: nonce,
     });
-    if (!error && data && typeof data === 'object') {
-      return json(data as Record<string, unknown>);
-    }
-    const message = error?.message || 'Registration verification expired or invalid.';
-    return json({ error: message }, error?.code === '42501' ? 401 : 500);
+    if (!error && data && typeof data === 'object') return json(data as Record<string, unknown>);
+    return json(
+      { error: 'Registration verification expired or invalid.', code: 'registration_verification_failed' },
+      error?.code === '42501' ? 401 : 500
+    );
   }
 
   if (!user) {
-    return json({ error: 'Authentication is required to finish account setup.' }, 401);
+    return json({ error: 'Authentication is required to finish account setup.', code: 'authentication_required' }, 401);
   }
 
-  if (admin) provisioningClient = admin;
-
   try {
-    const provisioned = await ensureAccountProvisioned(provisioningClient, user);
+    if (hasCookieSession && !nonceAuthenticated) {
+      const provisioned = await ensureAuthenticatedAccountProvisioned(serverClient, requestedRole);
+      return json(provisioned);
+    }
 
-    if (nonceAuthenticated && admin) {
+    if (!admin) {
+      return json(
+        { error: 'Account setup needs an authenticated browser session.', code: 'browser_session_required' },
+        401
+      );
+    }
+
+    const provisioned = await ensureAccountProvisioned(admin as SupabaseClient, user);
+    if (nonceAuthenticated) {
       const metadata = { ...(user.user_metadata || {}), registration_nonce: null };
       await admin.auth.admin.updateUserById(user.id, { user_metadata: metadata });
     }
-
-    return json({ ready: true, ...provisioned });
+    return json({ ready: true, phonePresent: Boolean(user.user_metadata?.phone), ...provisioned });
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Account setup could not be completed.';
-    return json({ error: message }, 500);
+    console.error('Account provisioning endpoint failed', {
+      userId: user.id,
+      requestedRole,
+      code: typeof error === 'object' && error && 'code' in error ? String(error.code) : undefined,
+    });
+    return json(
+      {
+        error: 'Your account is signed in, but its workspace could not be prepared yet. Please retry.',
+        code: 'profile_setup_failed',
+      },
+      503
+    );
   }
 }
 
@@ -113,17 +143,26 @@ export async function GET(request: NextRequest) {
   const user = data.user;
   const { data: profile } = await serverClient
     .from('user_profiles')
-    .select('role')
+    .select('role,can_buy,can_sell,phone')
     .eq('id', user.id)
     .maybeSingle();
   const role = profile?.role || user.app_metadata?.role || user.user_metadata?.role || 'buyer';
-  const table = role === 'seller' ? 'seller_profiles' : role === 'buyer' ? 'buyer_profiles' : null;
-  if (!table) return json({ ready: true, role });
+  if (role === 'admin_staff' || role === 'super_admin') return json({ ready: true, role });
 
-  const { data: roleProfile } = await serverClient
-    .from(table)
+  const { data: buyerProfile } = await serverClient
+    .from('buyer_profiles')
     .select('id')
     .eq('user_id', user.id)
     .maybeSingle();
-  return json({ ready: Boolean(roleProfile?.id), role });
+  const { data: sellerProfile } = profile?.can_sell
+    ? await serverClient.from('seller_profiles').select('id').eq('user_id', user.id).maybeSingle()
+    : { data: null };
+
+  return json({
+    ready: Boolean(buyerProfile?.id) && (!profile?.can_sell || Boolean(sellerProfile?.id)),
+    role,
+    canBuy: profile?.can_buy ?? true,
+    canSell: profile?.can_sell ?? false,
+    phonePresent: Boolean(profile?.phone),
+  });
 }
