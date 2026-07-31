@@ -36,10 +36,8 @@ jobs:
       - name: Install application dependencies
         run: npm install --no-audit --no-fund --package-lock=false --legacy-peer-deps
 
-      - name: Install Playwright test runtime
-        run: |
-          npm install --no-save --no-audit --no-fund --legacy-peer-deps @playwright/test
-          npx playwright install --with-deps chromium
+      - name: Install Chromium runtime
+        run: npx playwright install --with-deps chromium
 
       - name: Build production application
         run: npm run build
