@@ -7,6 +7,7 @@ import '../styles/commerce-polish.css';
 import '../styles/global-commerce.css';
 import '../styles/orange-commerce.css';
 import '../styles/premium-commerce.css';
+import '../styles/marketplace-refinement.css';
 import { AuthProvider } from '@/contexts/AuthContext';
 import AppClientEnhancements from '@/components/AppClientEnhancements';
 import { AppPreferencesProvider } from '@/contexts/AppPreferencesContext';
