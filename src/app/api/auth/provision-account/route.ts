@@ -11,6 +11,8 @@ import { createClient } from '@/lib/supabase/server';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
+type BuyerType = 'retail_store' | 'end_user';
+
 const json = (body: Record<string, unknown>, status = 200) =>
   NextResponse.json(body, {
     status,
@@ -37,6 +39,37 @@ const nonceValues = (body: { userId?: unknown; registrationNonce?: unknown }) =>
 
 const requestedRoleFrom = (value: unknown): CommerceRole => value === 'seller' ? 'seller' : 'buyer';
 
+const buyerTypeFrom = (request: NextRequest, value: unknown): BuyerType | null => {
+  const candidate = typeof value === 'string'
+    ? value
+    : request.cookies.get('fabrictrad_buyer_type')?.value;
+  return candidate === 'retail_store' || candidate === 'end_user' ? candidate : null;
+};
+
+const persistBuyerType = async (
+  client: SupabaseClient,
+  userId: string,
+  buyerType: BuyerType | null
+) => {
+  if (!buyerType) return;
+
+  const { error: buyerError } = await client
+    .from('buyer_profiles')
+    .update({ buyer_type: buyerType, updated_at: new Date().toISOString() })
+    .eq('user_id', userId);
+  if (buyerError) throw buyerError;
+
+  // A retail-store buyer is a business account. Never downgrade an account
+  // that may already have seller access when the user chooses End User.
+  if (buyerType === 'retail_store') {
+    const { error: profileError } = await client
+      .from('user_profiles')
+      .update({ account_kind: 'business', updated_at: new Date().toISOString() })
+      .eq('id', userId);
+    if (profileError) throw profileError;
+  }
+};
+
 export async function POST(request: NextRequest) {
   const serverClient = await createClient();
   const token = bearerToken(request);
@@ -44,6 +77,7 @@ export async function POST(request: NextRequest) {
     userId?: unknown;
     registrationNonce?: unknown;
     requestedRole?: unknown;
+    buyerType?: unknown;
   } = {};
   try {
     body = (await request.json()) as typeof body;
@@ -52,6 +86,7 @@ export async function POST(request: NextRequest) {
   }
 
   const requestedRole = requestedRoleFrom(body.requestedRole);
+  const buyerType = buyerTypeFrom(request, body.buyerType);
   let user: User | null = null;
   let hasCookieSession = false;
   let nonceAuthenticated = false;
@@ -100,7 +135,8 @@ export async function POST(request: NextRequest) {
   try {
     if (hasCookieSession && !nonceAuthenticated) {
       const provisioned = await ensureAuthenticatedAccountProvisioned(serverClient, requestedRole);
-      return json(provisioned);
+      await persistBuyerType(serverClient, user.id, buyerType);
+      return json({ ...provisioned, buyerType });
     }
 
     if (!admin) {
@@ -111,15 +147,17 @@ export async function POST(request: NextRequest) {
     }
 
     const provisioned = await ensureAccountProvisioned(admin as SupabaseClient, user);
+    await persistBuyerType(admin as SupabaseClient, user.id, buyerType);
     if (nonceAuthenticated) {
       const metadata = { ...(user.user_metadata || {}), registration_nonce: null };
       await admin.auth.admin.updateUserById(user.id, { user_metadata: metadata });
     }
-    return json({ ready: true, phonePresent: Boolean(user.user_metadata?.phone), ...provisioned });
+    return json({ ready: true, phonePresent: Boolean(user.user_metadata?.phone), buyerType, ...provisioned });
   } catch (error) {
     console.error('Account provisioning endpoint failed', {
       userId: user.id,
       requestedRole,
+      buyerType,
       code: typeof error === 'object' && error && 'code' in error ? String(error.code) : undefined,
     });
     return json(
@@ -151,7 +189,7 @@ export async function GET(request: NextRequest) {
 
   const { data: buyerProfile } = await serverClient
     .from('buyer_profiles')
-    .select('id')
+    .select('id,buyer_type')
     .eq('user_id', user.id)
     .maybeSingle();
   const { data: sellerProfile } = profile?.can_sell
@@ -163,6 +201,7 @@ export async function GET(request: NextRequest) {
     role,
     canBuy: profile?.can_buy ?? true,
     canSell: profile?.can_sell ?? false,
+    buyerType: buyerProfile?.buyer_type || 'end_user',
     phonePresent: Boolean(profile?.phone),
   });
 }
