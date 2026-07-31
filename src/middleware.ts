@@ -8,6 +8,7 @@ const DEMO_COOKIE_NAME = 'fabrictrad_demo_role';
 const PUBLIC_PATHS = new Set([
   '/',
   '/login',
+  '/admin-login',
   '/register',
   '/buyer-registration',
   '/seller-registration',
@@ -16,7 +17,7 @@ const PUBLIC_PATHS = new Set([
   '/privacy',
   '/terms',
 ]);
-const AUTH_ENTRY_PATHS = new Set(['/', '/login', '/register', '/buyer-registration']);
+const AUTH_ENTRY_PATHS = new Set(['/', '/login', '/admin-login', '/register', '/buyer-registration']);
 
 const withRefreshedCookies = (target: NextResponse, source: NextResponse) => {
   source.cookies.getAll().forEach(({ name, value }) => target.cookies.set(name, value));
