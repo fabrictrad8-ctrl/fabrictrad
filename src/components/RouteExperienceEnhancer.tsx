@@ -10,39 +10,45 @@ export default function RouteExperienceEnhancer() {
 
   useEffect(() => {
     let frame = 0;
-    let timeout = 0;
+    let animationTimeout = 0;
+    let currentMain: HTMLElement | null = null;
 
     const prepareMain = () => {
-      const main = document.querySelector<HTMLElement>('main');
-      if (!main) return false;
+      const mains = Array.from(document.querySelectorAll<HTMLElement>('main'));
+      const main = mains[0] || null;
+      if (!main) return;
 
-      if (!main.id) main.id = MAIN_ID;
-      if (!main.hasAttribute('tabindex')) main.tabIndex = -1;
+      // Dynamic route shells can replace their <main> node after hydration.
+      // Keep the skip-link target attached to the current primary main instead
+      // of disconnecting the observer after the first transient render.
+      mains.forEach((candidate, index) => {
+        if (index === 0) {
+          if (candidate.id !== MAIN_ID) candidate.id = MAIN_ID;
+          if (!candidate.hasAttribute('tabindex')) candidate.tabIndex = -1;
+        } else if (candidate.id === MAIN_ID) {
+          candidate.removeAttribute('id');
+        }
+      });
 
+      if (main === currentMain) return;
+      currentMain = main;
+      window.cancelAnimationFrame(frame);
+      window.clearTimeout(animationTimeout);
       main.classList.remove('ft-route-enter');
       frame = window.requestAnimationFrame(() => {
         main.classList.add('ft-route-enter');
-        timeout = window.setTimeout(() => main.classList.remove('ft-route-enter'), 620);
+        animationTimeout = window.setTimeout(() => main.classList.remove('ft-route-enter'), 620);
       });
-      return true;
     };
 
-    if (!prepareMain()) {
-      const observer = new MutationObserver(() => {
-        if (prepareMain()) observer.disconnect();
-      });
-      observer.observe(document.body, { childList: true, subtree: true });
-      timeout = window.setTimeout(() => observer.disconnect(), 1500);
-      return () => {
-        observer.disconnect();
-        window.cancelAnimationFrame(frame);
-        window.clearTimeout(timeout);
-      };
-    }
+    prepareMain();
+    const observer = new MutationObserver(prepareMain);
+    observer.observe(document.body, { childList: true, subtree: true });
 
     return () => {
+      observer.disconnect();
       window.cancelAnimationFrame(frame);
-      window.clearTimeout(timeout);
+      window.clearTimeout(animationTimeout);
     };
   }, [pathname]);
 
