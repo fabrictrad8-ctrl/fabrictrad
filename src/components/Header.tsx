@@ -24,18 +24,11 @@ export default function Header() {
   const router = useRouter();
   const pathname = usePathname();
 
+  const isMarketplace = pathname === '/marketplace';
   const isAdmin = profile?.role === 'admin_staff' || profile?.role === 'super_admin';
   const canBuy = !isAdmin && (profile?.can_buy ?? (profile?.role === 'buyer' || profile?.role === 'seller'));
   const canSell = !isAdmin && (profile?.can_sell ?? profile?.role === 'seller');
   const isLoggedIn = Boolean(user && profile);
-
-  const dashboardHref = isAdmin
-    ? '/admin-portal'
-    : canBuy
-      ? '/buyer-dashboard'
-      : canSell
-        ? '/seller-dashboard'
-        : '/marketplace';
 
   const notificationsHref = isAdmin
     ? '/admin-portal?tab=activity'
@@ -51,12 +44,15 @@ export default function Header() {
         ? 'Seller'
         : 'Buyer';
 
-  const publicNavLinks: NavLink[] = [
-    { label: t('nav.marketplace'), href: '/marketplace', icon: 'ShoppingBagIcon' },
-    { label: 'Categories', href: '/categories', icon: 'Squares2X2Icon' },
-    { label: 'AI Drape', href: '/product-detail#drape-on', icon: 'SparklesIcon' },
-    { label: 'Vendors', href: '/vendors', icon: 'BuildingStorefrontIcon' },
-  ];
+  const publicNavLinks = useMemo<NavLink[]>(
+    () => [
+      { label: t('nav.marketplace'), href: '/marketplace', icon: 'ShoppingBagIcon' },
+      { label: 'Categories', href: '/categories', icon: 'Squares2X2Icon' },
+      { label: 'AI Drape', href: '/product-detail#drape-on', icon: 'SparklesIcon' },
+      { label: 'Vendors', href: '/vendors', icon: 'BuildingStorefrontIcon' },
+    ],
+    [t]
+  );
 
   const navLinks = useMemo<NavLink[]>(() => {
     if (!isLoggedIn) return publicNavLinks;
@@ -75,7 +71,7 @@ export default function Header() {
       links.push({ label: 'Seller tools', href: '/seller-dashboard', icon: 'BuildingOfficeIcon' });
     }
     return links;
-  }, [canBuy, canSell, isAdmin, isLoggedIn, t]);
+  }, [canBuy, canSell, isAdmin, isLoggedIn, publicNavLinks, t]);
 
   const workspaceLinks = useMemo<NavLink[]>(() => {
     if (!isLoggedIn) return [];
@@ -164,13 +160,13 @@ export default function Header() {
           scrolled ? 'is-scrolled' : ''
         }`}
       >
-        <div className="mx-auto flex h-16 max-w-[1440px] items-center gap-3 px-4 sm:px-6 lg:px-8">
-          <Link href="/" className="flex shrink-0 items-center gap-2.5" onClick={closeMenus}>
+        <div className="ft-header-inner mx-auto flex h-16 max-w-[1760px] items-center gap-3 px-4 sm:px-6 lg:px-8">
+          <Link href="/" className="ft-header-brand flex shrink-0 items-center gap-2.5" onClick={closeMenus}>
             <AppLogo size={36} />
             <span className="hidden text-lg font-800 tracking-tight text-foreground sm:block">FabricTrad</span>
           </Link>
 
-          {isLoggedIn && canBuy && (
+          {isLoggedIn && canBuy && !isMarketplace && (
             <form onSubmit={handleSearch} className="ft-header-search ml-2 hidden min-w-0 flex-1 lg:flex">
               <Icon name="MagnifyingGlassIcon" size={18} className="ml-3 shrink-0 text-muted-foreground" />
               <input
@@ -186,7 +182,7 @@ export default function Header() {
             </form>
           )}
 
-          <nav className="ml-auto hidden items-center gap-1 xl:flex" aria-label="Primary navigation">
+          <nav className="ft-header-primary-nav ml-auto hidden items-center gap-1" aria-label="Primary navigation">
             {navLinks.slice(0, 5).map((link) => (
               <Link
                 key={`${link.label}-${link.href}`}
@@ -198,8 +194,18 @@ export default function Header() {
             ))}
           </nav>
 
-          <div className="ml-auto hidden items-center gap-2 md:flex xl:ml-2">
-            <PreferenceControls compact />
+          <div className="ft-header-actions ml-auto hidden items-center gap-2 md:flex">
+            {navLinks.length > 0 && (
+              <Link href="/categories" className="ft-header-browse hidden items-center gap-2 md:inline-flex">
+                <Icon name="Squares2X2Icon" size={16} />
+                <span>Browse</span>
+              </Link>
+            )}
+
+            <div className="ft-header-preferences">
+              <PreferenceControls compact />
+            </div>
+
             {loading ? (
               <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
             ) : isLoggedIn ? (
@@ -213,7 +219,7 @@ export default function Header() {
                     aria-haspopup="menu"
                   >
                     <span className="ft-workspace-dot" />
-                    <span className="hidden lg:block">Workspaces</span>
+                    <span className="ft-workspace-label">Workspaces</span>
                     <Icon name="ChevronDownIcon" size={14} />
                   </button>
 
@@ -242,7 +248,7 @@ export default function Header() {
                 </div>
 
                 {quickAction && (
-                  <Link href={quickAction.href} className="ft-primary-action hidden items-center gap-2 px-3 py-2 text-xs lg:inline-flex">
+                  <Link href={quickAction.href} className="ft-header-quick-action ft-primary-action hidden items-center gap-2 px-3 py-2 text-xs">
                     <Icon name={quickAction.icon as 'PlusIcon'} size={15} />
                     {quickAction.label}
                   </Link>
@@ -252,7 +258,9 @@ export default function Header() {
                 <Link href={notificationsHref} className="ft-icon-button" aria-label="Open notifications">
                   <Icon name="BellIcon" size={18} />
                 </Link>
-                <ProfileMenu />
+                <div className="ft-header-profile">
+                  <ProfileMenu />
+                </div>
               </>
             ) : (
               <>
@@ -268,7 +276,7 @@ export default function Header() {
 
           <button
             type="button"
-            className="ft-icon-button ml-auto md:hidden"
+            className="ft-mobile-menu-trigger ft-icon-button ml-auto md:hidden"
             onClick={() => setMobileOpen((current) => !current)}
             aria-label={mobileOpen ? 'Close menu' : 'Open menu'}
             aria-expanded={mobileOpen}
