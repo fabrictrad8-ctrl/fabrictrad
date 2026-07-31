@@ -155,7 +155,12 @@ export default function AdminPortalLayout() {
   return (
     <div className="min-h-screen bg-transparent">
       <header className="ft-topbar sticky top-0 z-40 flex h-16 items-center gap-3 px-3 sm:px-5 lg:px-6">
-        <button type="button" className="ft-icon-button md:hidden" onClick={() => setSidebarOpen(true)} aria-label="Open admin navigation">
+        <button
+          type="button"
+          className="ft-icon-button !h-10 !w-10 !min-w-10 !shrink-0 md:!hidden"
+          onClick={() => setSidebarOpen(true)}
+          aria-label="Open admin navigation"
+        >
           <Icon name="Bars3Icon" size={20} />
         </button>
         <div className="min-w-0">
@@ -172,7 +177,7 @@ export default function AdminPortalLayout() {
             <Icon name="BellIcon" size={18} />
             <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-primary ring-2 ring-card" />
           </button>
-          <Link href="/profile" className="flex items-center gap-2 rounded-full border border-border bg-card py-1 pl-1 pr-3 shadow-sm hover:border-primary/30">
+          <Link href="/profile" className="flex min-h-10 items-center gap-2 rounded-full border border-border bg-card py-1 pl-1 pr-3 shadow-sm hover:border-primary/30">
             <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-800 text-white">{initials || 'SA'}</span>
             <span className="hidden max-w-32 truncate text-xs font-800 text-foreground sm:block">{adminName}</span>
           </Link>
@@ -186,7 +191,7 @@ export default function AdminPortalLayout() {
           <>
             <button type="button" className="fixed inset-0 z-40 bg-black/50 md:hidden" onClick={() => setSidebarOpen(false)} aria-label="Close admin navigation" />
             <aside className="fixed inset-y-0 left-0 z-50 w-[min(88vw,320px)] bg-card shadow-2xl md:hidden">
-              <button type="button" onClick={() => setSidebarOpen(false)} className="ft-icon-button absolute right-3 top-3 z-10" aria-label="Close admin navigation">
+              <button type="button" onClick={() => setSidebarOpen(false)} className="ft-icon-button absolute right-3 top-3 z-10 !h-10 !w-10 !min-w-10" aria-label="Close admin navigation">
                 <Icon name="XMarkIcon" size={18} />
               </button>
               {sidebar}
