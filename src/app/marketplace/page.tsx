@@ -5,12 +5,14 @@ import MarketplaceFilters from '@/app/marketplace/components/MarketplaceFilters'
 import MarketplaceGrid from '@/app/marketplace/components/MarketplaceGrid';
 import MarketplaceBanner from '@/app/marketplace/components/MarketplaceBanner';
 import MarketplaceActiveFilters from '@/app/marketplace/components/MarketplaceActiveFilters';
+import MarketplaceQueryBridge from '@/app/marketplace/components/MarketplaceQueryBridge';
 import BuyerOnlyGuard from '@/components/BuyerOnlyGuard';
 
 export default function MarketplacePage() {
   return (
     <BuyerOnlyGuard>
       <main className="ft-storefront min-h-screen">
+        <MarketplaceQueryBridge />
         <Header />
         <div className="pt-16">
           <MarketplaceBanner />
