@@ -24,7 +24,6 @@ export default function Header() {
   const router = useRouter();
   const pathname = usePathname();
 
-  const isMarketplace = pathname === '/marketplace';
   const isAdmin = profile?.role === 'admin_staff' || profile?.role === 'super_admin';
   const canBuy = !isAdmin && (profile?.can_buy ?? (profile?.role === 'buyer' || profile?.role === 'seller'));
   const canSell = !isAdmin && (profile?.can_sell ?? profile?.role === 'seller');
@@ -138,7 +137,7 @@ export default function Header() {
   const handleSearch = (event: React.FormEvent) => {
     event.preventDefault();
     const query = searchQuery.trim();
-    router.push(query ? `/marketplace?search=${encodeURIComponent(query)}` : '/marketplace');
+    router.push(query ? `/marketplace?search=${encodeURIComponent(query)}` : '/marketplace#marketplace-search');
     closeMenus();
   };
 
@@ -152,6 +151,7 @@ export default function Header() {
   };
 
   const avatarInitial = (profile?.full_name || user?.email || 'F').charAt(0).toUpperCase();
+  const marketplaceSearchHref = pathname === '/marketplace' ? '#marketplace-search' : '/marketplace#marketplace-search';
 
   return (
     <>
@@ -160,27 +160,11 @@ export default function Header() {
           scrolled ? 'is-scrolled' : ''
         }`}
       >
-        <div className="ft-header-inner mx-auto flex h-16 max-w-[1760px] items-center gap-3 px-4 sm:px-6 lg:px-8">
+        <div className="ft-header-inner mx-auto h-16 max-w-[1760px] gap-3 px-4 sm:px-6 lg:px-8">
           <Link href="/" className="ft-header-brand flex shrink-0 items-center gap-2.5" onClick={closeMenus}>
             <AppLogo size={36} />
             <span className="hidden text-lg font-800 tracking-tight text-foreground sm:block">FabricTrad</span>
           </Link>
-
-          {isLoggedIn && canBuy && !isMarketplace && (
-            <form onSubmit={handleSearch} className="ft-header-search ml-2 hidden min-w-0 flex-1 lg:flex">
-              <Icon name="MagnifyingGlassIcon" size={18} className="ml-3 shrink-0 text-muted-foreground" />
-              <input
-                type="search"
-                value={searchQuery}
-                onChange={(event) => setSearchQuery(event.target.value)}
-                placeholder="Search fabrics, colours, vendors or SKU"
-                className="min-w-0 flex-1 bg-transparent px-3 text-sm text-foreground outline-none placeholder:text-muted-foreground"
-              />
-              <button type="submit" className="ft-search-submit px-4 text-sm font-750">
-                Search
-              </button>
-            </form>
-          )}
 
           <nav className="ft-header-primary-nav ml-auto hidden items-center gap-1" aria-label="Primary navigation">
             {navLinks.slice(0, 5).map((link) => (
@@ -195,6 +179,18 @@ export default function Header() {
           </nav>
 
           <div className="ft-header-actions ml-auto hidden items-center gap-2 md:flex">
+            {isLoggedIn && canBuy && (
+              <Link
+                href={marketplaceSearchHref}
+                onClick={closeMenus}
+                className="ft-header-search-trigger"
+                aria-label="Search FabricTrad marketplace"
+              >
+                <Icon name="MagnifyingGlassIcon" size={17} />
+                <span>Search</span>
+              </Link>
+            )}
+
             {navLinks.length > 0 && (
               <Link href="/categories" className="ft-header-browse hidden items-center gap-2 md:inline-flex">
                 <Icon name="Squares2X2Icon" size={16} />

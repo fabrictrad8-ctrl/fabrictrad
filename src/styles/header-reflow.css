@@ -1,42 +1,88 @@
-/* Collision-proof commerce header. The header progressively compacts before controls can overlap. */
+/* Site-wide collision-proof commerce header and responsive shell safeguards. */
 
 .ft-commerce-header {
   overflow: visible;
 }
 
 .ft-header-inner {
+  display: grid !important;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
   flex-wrap: nowrap !important;
   min-width: 0;
+  width: 100%;
 }
 
-.ft-header-brand,
-.ft-header-actions,
-.ft-header-primary-nav,
-.ft-header-search {
+.ft-header-brand {
+  grid-column: 1;
   min-width: 0;
 }
 
-.ft-header-search {
-  flex: 1 1 360px !important;
-  width: auto !important;
-  max-width: 560px;
-  overflow: hidden;
-}
-
-.ft-header-search input {
+.ft-header-primary-nav {
+  grid-column: 2;
   min-width: 0;
+  justify-self: end;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .ft-header-actions {
+  grid-column: 3;
+  min-width: 0;
+  flex: 0 0 auto;
+  justify-self: end;
+  white-space: nowrap;
+}
+
+/* A full search form does not belong in the fixed utility header. It competed
+   with navigation and account controls on Categories, Vendors and other routes.
+   Each discovery page keeps its own contextual search, while authenticated users
+   retain the mobile search and the workspace command centre. */
+.ft-commerce-header .ft-header-search {
+  display: none !important;
+}
+
+.ft-header-search-trigger {
+  display: inline-flex;
+  width: 42px;
+  min-width: 42px;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid var(--ft-border);
+  border-radius: 10px;
+  background: var(--ft-surface-solid);
+  color: var(--ft-text-subdued);
+  box-shadow: var(--ft-shadow-1);
+  font-size: 0.78rem;
+  font-weight: 750;
+  transition: border-color 150ms ease, background-color 150ms ease, color 150ms ease, transform 150ms ease;
+}
+
+.ft-header-search-trigger span {
+  display: none;
+}
+
+.ft-header-search-trigger:hover {
+  border-color: color-mix(in srgb, var(--primary) 36%, var(--ft-border));
+  background: var(--ft-orange-50);
+  color: var(--primary);
+}
+
+.ft-header-search-trigger:active {
+  transform: scale(0.98);
+}
+
+.ft-header-primary-nav .ft-header-link {
   flex: 0 0 auto;
   white-space: nowrap;
 }
 
 .ft-header-browse {
+  min-width: 42px;
   min-height: 42px;
+  align-items: center;
+  justify-content: center;
   border: 1px solid var(--ft-border);
   border-radius: 10px;
   background: var(--ft-surface-solid);
@@ -53,20 +99,7 @@
   color: var(--primary);
 }
 
-.ft-header-primary-nav {
-  flex: 0 1 auto;
-  overflow: hidden;
-}
-
-.ft-header-primary-nav .ft-header-link {
-  flex: 0 0 auto;
-  white-space: nowrap;
-}
-
-.ft-workspace-label {
-  display: none;
-}
-
+.ft-workspace-label,
 .ft-header-preferences,
 .ft-header-quick-action {
   display: none !important;
@@ -76,10 +109,30 @@
   display: none !important;
 }
 
+.ft-workspace-menu {
+  inset-inline-end: 0;
+  inset-inline-start: auto;
+  width: min(320px, calc(100vw - 24px));
+  max-width: calc(100vw - 24px);
+}
+
+.ft-header-profile > div > div[role='menu'],
+.ft-header-profile > div > div[class*='absolute'] {
+  max-width: calc(100vw - 24px);
+}
+
 @media (min-width: 768px) {
   .ft-mobile-menu-trigger {
     display: none !important;
     position: static !important;
+  }
+
+  .ft-header-actions {
+    display: flex !important;
+  }
+
+  .ft-header-browse {
+    display: inline-flex !important;
   }
 }
 
@@ -88,12 +141,27 @@
     column-gap: 14px !important;
   }
 
-  .ft-header-search {
-    min-width: 260px;
+  .ft-header-search-trigger {
+    width: auto;
+    min-width: 96px;
+    padding-inline: 12px;
+  }
+
+  .ft-header-search-trigger span,
+  .ft-header-browse span {
+    display: inline;
   }
 }
 
-@media (min-width: 1280px) {
+@media (min-width: 1240px) {
+  .ft-header-primary-nav {
+    display: flex !important;
+  }
+
+  .ft-header-browse {
+    display: none !important;
+  }
+
   .ft-workspace-label {
     display: inline !important;
   }
@@ -105,46 +173,17 @@
   }
 }
 
-@media (min-width: 1660px) {
+@media (min-width: 1640px) {
   .ft-header-preferences {
     display: block !important;
-  }
-}
-
-@media (min-width: 1760px) {
-  .ft-header-primary-nav {
-    display: flex !important;
-  }
-
-  .ft-header-browse {
-    display: none !important;
   }
 
   .ft-header-profile [aria-label='Open profile and workspace menu'] > span:nth-child(2) {
     display: block !important;
   }
-
-  .ft-header-search {
-    flex-basis: 440px !important;
-    max-width: 520px;
-  }
 }
 
-/* The marketplace already has a full, prominent search experience in its hero.
-   Duplicating the complete search field in the fixed header caused the collision. */
-body[data-route='marketplace'] .ft-commerce-header .ft-header-search {
-  display: none !important;
-}
-
-body[data-route='marketplace'] .ft-header-inner {
-  max-width: 1760px !important;
-}
-
-body[data-route='marketplace'] .ft-header-primary-nav {
-  margin-left: clamp(8px, 1.5vw, 24px) !important;
-}
-
-/* Defensive rules for browser zoom, translated labels and long account names. */
+/* Defensive compaction for zoom, translated labels and long account names. */
 @media (max-width: 1479px) {
   .ft-header-quick-action,
   .ft-header-preferences {
@@ -158,23 +197,22 @@ body[data-route='marketplace'] .ft-header-primary-nav {
   }
 }
 
-@media (max-width: 1199px) {
-  .ft-workspace-label {
+@media (max-width: 1239px) {
+  .ft-header-primary-nav {
     display: none !important;
   }
 
-  .ft-header-browse span {
-    display: none;
-  }
-
-  .ft-header-browse {
-    width: 42px;
-    justify-content: center;
-    padding-inline: 0;
+  .ft-workspace-label {
+    display: none !important;
   }
 }
 
 @media (max-width: 899px) {
+  .ft-header-inner {
+    column-gap: 8px !important;
+    padding-inline: 14px !important;
+  }
+
   .ft-header-actions {
     gap: 6px !important;
   }
@@ -183,23 +221,117 @@ body[data-route='marketplace'] .ft-header-primary-nav {
     width: 40px;
     min-width: 40px;
   }
+
+  .ft-header-browse span,
+  .ft-header-search-trigger span {
+    display: none;
+  }
+
+  .ft-header-browse,
+  .ft-header-search-trigger {
+    width: 40px;
+    min-width: 40px;
+    padding-inline: 0;
+  }
 }
 
 @media (max-width: 767px) {
   .ft-header-inner {
     display: flex !important;
+    min-width: 0;
   }
 
   .ft-header-actions,
   .ft-header-primary-nav,
   .ft-header-browse,
   .ft-header-preferences,
-  .ft-header-quick-action {
+  .ft-header-quick-action,
+  .ft-header-search-trigger {
     display: none !important;
   }
 
   .ft-mobile-menu-trigger {
     display: inline-flex !important;
     flex: 0 0 auto;
+  }
+
+  /* The mobile drawer search remains available. */
+  .ft-mobile-commerce-menu .ft-header-search {
+    display: flex !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+  }
+}
+
+/* Route-wide reflow safeguards found during the visual audit. */
+.ft-route-title,
+.ft-route-hero h1,
+.ft-page-title,
+.ft-resource-card h2,
+.product-card :where(h2, h3, a) {
+  overflow-wrap: anywhere;
+}
+
+.ft-route-title,
+.ft-route-hero h1 {
+  text-wrap: balance;
+}
+
+.ft-filter-bar {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.ft-filter-bar > * {
+  max-width: 100%;
+}
+
+.ft-storefront-content,
+.ft-page,
+.ft-shell main {
+  min-width: 0;
+}
+
+.ft-resource-card,
+.product-card,
+.ft-card {
+  min-width: 0;
+}
+
+.ft-table-wrap,
+.ft-shell table {
+  max-width: 100%;
+}
+
+@media (max-width: 639px) {
+  .ft-filter-bar > :where(div, label, select, button, span) {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .ft-filter-bar .ft-orange-chip {
+    display: inline-flex;
+    width: auto !important;
+  }
+
+  .ft-route-hero {
+    padding-inline: 16px !important;
+  }
+
+  .ft-route-hero :where(.ft-primary-action, .ft-secondary-action) {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ft-commerce-header *,
+  .ft-route-hero *,
+  .ft-resource-card * {
+    scroll-behavior: auto !important;
   }
 }

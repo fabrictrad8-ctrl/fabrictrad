@@ -1,0 +1,138 @@
+name: Site-wide route audit
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - 'agent/**'
+
+permissions:
+  contents: read
+
+jobs:
+  route-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: test-anon-key
+      SUPABASE_SERVICE_ROLE_KEY: test-service-role-key
+      NEXT_PUBLIC_SITE_URL: http://localhost:3000
+      NEXT_PUBLIC_ENABLE_GOOGLE_AUTH: 'false'
+      ADMIN_EMAIL: fabrictrad8@gmail.com
+      OPENAI_DRAPE_IMAGE_MODEL: gpt-image-2
+      OPENAI_DRAPE_IMAGE_SIZE: 1024x1536
+      OPENAI_DRAPE_IMAGE_QUALITY: medium
+      OPENAI_CATALOG_MODEL: gpt-4.1-mini
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund --package-lock=false --legacy-peer-deps
+
+      - name: Audit literal internal links
+        run: node scripts/audit-internal-links.mjs
+
+      - name: Build application
+        run: npm run build
+
+      - name: Smoke test public, buyer and seller routes
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run start > /tmp/fabrictrad-route-audit.log 2>&1 &
+          server_pid=$!
+          cleanup() {
+            kill "$server_pid" 2>/dev/null || true
+            wait "$server_pid" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+
+          ready=false
+          for _ in $(seq 1 45); do
+            if curl --fail --silent http://127.0.0.1:3000/login > /tmp/route-login.html; then
+              ready=true
+              break
+            fi
+            sleep 1
+          done
+          if [ "$ready" != 'true' ]; then
+            cat /tmp/fabrictrad-route-audit.log
+            exit 1
+          fi
+
+          assert_page() {
+            local cookie_file="$1"
+            local route="$2"
+            local output="/tmp/page-$(echo "$route" | tr '/?=&' '----').html"
+            local status
+            if [ -n "$cookie_file" ]; then
+              status=$(curl --silent --location --cookie "$cookie_file" --output "$output" --write-out '%{http_code}' "http://127.0.0.1:3000$route")
+            else
+              status=$(curl --silent --location --output "$output" --write-out '%{http_code}' "http://127.0.0.1:3000$route")
+            fi
+            test "$status" = '200'
+            ! grep -Eqi 'Application error|Internal Server Error|This page could not be found|NEXT_NOT_FOUND' "$output"
+          }
+
+          public_routes=(
+            /
+            /login
+            /register
+            /help
+            /privacy
+            /terms
+          )
+          for route in "${public_routes[@]}"; do assert_page '' "$route"; done
+
+          buyer_status=$(curl --silent --output /tmp/buyer-session.json --write-out '%{http_code}' \
+            --cookie-jar /tmp/buyer.cookies --header 'Content-Type: application/json' \
+            --data '{"email":"demo.buyer@fabrictrad.com","password":"FabricDemo@2026"}' \
+            http://127.0.0.1:3000/api/auth/demo-session)
+          test "$buyer_status" = '200'
+
+          buyer_routes=(
+            /marketplace
+            /categories
+            /vendors
+            /product-detail
+            /buyer-dashboard
+            /buyer-requirements
+            /profile
+            /company-purchasing
+            '/marketplace?category=cotton'
+            '/marketplace?seller=v1'
+          )
+          for route in "${buyer_routes[@]}"; do assert_page /tmp/buyer.cookies "$route"; done
+
+          seller_status=$(curl --silent --output /tmp/seller-session.json --write-out '%{http_code}' \
+            --cookie-jar /tmp/seller.cookies --header 'Content-Type: application/json' \
+            --data '{"email":"demo.seller@fabrictrad.com","password":"FabricDemo@2026"}' \
+            http://127.0.0.1:3000/api/auth/demo-session)
+          test "$seller_status" = '200'
+
+          seller_routes=(
+            /seller-dashboard
+            '/seller-dashboard?tab=inventory'
+            '/seller-dashboard?tab=orders'
+            /catalogs-pricing
+            /marketplace
+            /categories
+            /vendors
+            /profile
+          )
+          for route in "${seller_routes[@]}"; do assert_page /tmp/seller.cookies "$route"; done
+
+      - name: Verify shared-header invariants
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'ft-header-search-trigger' src/components/Header.tsx
+          grep -Fq '.ft-commerce-header .ft-header-search' src/styles/header-reflow.css
+          grep -Fq 'MarketplaceQueryBridge' src/app/marketplace/page.tsx
+          grep -Fq "v1: 'Surat Textile Mills Pvt Ltd'" src/app/marketplace/components/MarketplaceQueryBridge.tsx
