@@ -9,8 +9,10 @@ import '../styles/orange-commerce.css';
 import '../styles/premium-commerce.css';
 import '../styles/marketplace-refinement.css';
 import '../styles/header-reflow.css';
+import '../styles/site-motion-and-polish.css';
 import { AuthProvider } from '@/contexts/AuthContext';
 import AppClientEnhancements from '@/components/AppClientEnhancements';
+import RouteExperienceEnhancer from '@/components/RouteExperienceEnhancer';
 import { AppPreferencesProvider } from '@/contexts/AppPreferencesContext';
 
 const plusJakartaSans = Plus_Jakarta_Sans({
@@ -72,6 +74,7 @@ export default function RootLayout({
       <body className={`${plusJakartaSans.className} ft-root`}>
         <AuthProvider>
           <AppPreferencesProvider>
+            <RouteExperienceEnhancer />
             <AppClientEnhancements />
             {children}
           </AppPreferencesProvider>
