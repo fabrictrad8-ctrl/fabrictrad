@@ -6,7 +6,15 @@ const ADMIN_EMAIL = 'fabrictrad8@gmail.com';
 const DEMO_COOKIE_NAME = 'fabrictrad_demo_role';
 
 const PUBLIC_PATHS = new Set([
-  '/', '/login', '/register', '/buyer-registration', '/seller-registration', '/auth/callback',
+  '/',
+  '/login',
+  '/register',
+  '/buyer-registration',
+  '/seller-registration',
+  '/auth/callback',
+  '/help',
+  '/privacy',
+  '/terms',
 ]);
 const AUTH_ENTRY_PATHS = new Set(['/', '/login', '/register', '/buyer-registration']);
 
