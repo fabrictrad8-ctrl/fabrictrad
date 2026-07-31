@@ -46,10 +46,15 @@ export default function BuyerDashboardPage() {
 
   useEffect(() => {
     if (loading || !user || accountReady) return;
-    if (isDemoAccount) {
+
+    // Existing signed-in accounts already have the profile loaded by AuthContext.
+    // Avoid re-provisioning and refreshing it on every dashboard visit; that was
+    // causing an unnecessary API round-trip and a visibly slow loading screen.
+    if (isDemoAccount || profile) {
       setAccountReady(true);
       return;
     }
+
     let cancelled = false;
     const prepare = async () => {
       try {
