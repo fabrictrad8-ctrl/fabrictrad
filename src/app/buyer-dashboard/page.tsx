@@ -47,9 +47,6 @@ export default function BuyerDashboardPage() {
   useEffect(() => {
     if (loading || !user || accountReady) return;
 
-    // Existing signed-in accounts already have the profile loaded by AuthContext.
-    // Avoid re-provisioning and refreshing it on every dashboard visit; that was
-    // causing an unnecessary API round-trip and a visibly slow loading screen.
     if (isDemoAccount || profile) {
       setAccountReady(true);
       return;
@@ -115,12 +112,16 @@ export default function BuyerDashboardPage() {
     );
   }
 
-  if (loading || (user && !accountReady)) {
+  // AuthContext already owns the normal session/profile loading state. Only
+  // show the full-page setup screen when a signed-in account genuinely has no
+  // profile and provisioning is still running. This removes the visible flash
+  // seen when switching from seller to buyer on mobile.
+  if (loading || (user && !profile && !accountReady)) {
     return (
       <div className="ft-shell flex min-h-screen items-center justify-center px-4">
         <div className="flex flex-col items-center gap-4 text-center">
           <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-          <p className="text-sm font-600 text-muted-foreground">Loading your buyer workspace…</p>
+          <p className="text-sm font-600 text-muted-foreground">Preparing your buyer workspace…</p>
         </div>
       </div>
     );
