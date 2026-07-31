@@ -97,6 +97,9 @@ export async function GET(request: NextRequest) {
 
   let account: AuthenticatedProvisionedAccount;
   try {
+    // OAuth is a user-owned browser session, so it must use the RLS-protected
+    // authenticated repair function. The service-role ensureAccountProvisioned
+    // path remains limited to trusted registration and administrative code.
     account = await ensureAuthenticatedAccountProvisioned(supabase, requestedRole);
   } catch (error) {
     console.error('OAuth account provisioning failed', {
@@ -114,8 +117,6 @@ export async function GET(request: NextRequest) {
       .eq('user_id', user.id);
 
     if (buyerTypeError) {
-      // Buyer classification is useful commerce metadata, but it must not turn
-      // a valid OAuth login into another authentication failure.
       console.error('Unable to persist OAuth buyer type', {
         userId: user.id,
         buyerType,
