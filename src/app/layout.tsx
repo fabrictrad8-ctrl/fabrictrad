@@ -10,6 +10,7 @@ import '../styles/premium-commerce.css';
 import '../styles/marketplace-refinement.css';
 import '../styles/header-reflow.css';
 import '../styles/site-motion-and-polish.css';
+import '../styles/accessibility-target-fixes.css';
 import { AuthProvider } from '@/contexts/AuthContext';
 import AppClientEnhancements from '@/components/AppClientEnhancements';
 import RouteExperienceEnhancer from '@/components/RouteExperienceEnhancer';
