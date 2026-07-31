@@ -6,7 +6,7 @@ import {
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-type UserRole = 'buyer' | 'seller' | 'admin_staff' | 'super_admin';
+type BuyerType = 'retail_store' | 'end_user';
 
 const ADMIN_EMAIL = 'fabrictrad8@gmail.com';
 
@@ -16,14 +16,21 @@ const getRequestedRole = (request: NextRequest, roleParam: string | null): 'buye
   return roleCookie === 'seller' || roleCookie === 'buyer' ? roleCookie : 'buyer';
 };
 
+const getBuyerType = (request: NextRequest): BuyerType | null => {
+  const value = request.cookies.get('fabrictrad_buyer_type')?.value;
+  return value === 'retail_store' || value === 'end_user' ? value : null;
+};
+
 const redirectAfterAuth = (url: string) => {
   const response = NextResponse.redirect(url);
-  response.cookies.set('fabrictrad_oauth_role', '', {
-    path: '/',
-    maxAge: 0,
-    sameSite: 'lax',
-    secure: process.env.NODE_ENV === 'production',
-  });
+  for (const cookieName of ['fabrictrad_oauth_role', 'fabrictrad_buyer_type']) {
+    response.cookies.set(cookieName, '', {
+      path: '/',
+      maxAge: 0,
+      sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production',
+    });
+  }
   return response;
 };
 
@@ -57,6 +64,7 @@ export async function GET(request: NextRequest) {
   const providerError = searchParams.get('error');
   const errorDescription = searchParams.get('error_description');
   const requestedRole = getRequestedRole(request, searchParams.get('role'));
+  const buyerType = getBuyerType(request);
 
   if (providerError) {
     return redirectAfterAuth(loginErrorUrl(origin, errorDescription || providerError));
@@ -75,8 +83,6 @@ export async function GET(request: NextRequest) {
 
   const normalizedEmail = user.email?.trim().toLowerCase() || '';
   if (normalizedEmail === ADMIN_EMAIL && user.email_confirmed_at) {
-    // The database profile trigger promotes this exact configured mailbox to
-    // super_admin when profile provisioning runs on the first portal request.
     try {
       await ensureAuthenticatedAccountProvisioned(supabase, 'buyer');
     } catch (error) {
@@ -91,18 +97,44 @@ export async function GET(request: NextRequest) {
 
   let account: AuthenticatedProvisionedAccount;
   try {
-    // OAuth uses the authenticated self-service path. ensureAccountProvisioned
-    // remains the trusted administrative/registration fallback elsewhere.
     account = await ensureAuthenticatedAccountProvisioned(supabase, requestedRole);
   } catch (error) {
-    // The OAuth session is valid. Preserve it and move to a retry-safe repair
-    // screen instead of converting an optional profile problem into a logout.
     console.error('OAuth account provisioning failed', {
       userId: user.id,
       requestedRole,
       code: typeof error === 'object' && error && 'code' in error ? String(error.code) : undefined,
     });
     return redirectAfterAuth(setupRecoveryUrl(origin, requestedRole));
+  }
+
+  if (buyerType) {
+    const { error: buyerTypeError } = await supabase
+      .from('buyer_profiles')
+      .update({ buyer_type: buyerType, updated_at: new Date().toISOString() })
+      .eq('user_id', user.id);
+
+    if (buyerTypeError) {
+      // Buyer classification is useful commerce metadata, but it must not turn
+      // a valid OAuth login into another authentication failure.
+      console.error('Unable to persist OAuth buyer type', {
+        userId: user.id,
+        buyerType,
+        code: buyerTypeError.code,
+      });
+    }
+
+    if (buyerType === 'retail_store') {
+      const { error: accountKindError } = await supabase
+        .from('user_profiles')
+        .update({ account_kind: 'business', updated_at: new Date().toISOString() })
+        .eq('id', user.id);
+      if (accountKindError) {
+        console.error('Unable to persist OAuth business account kind', {
+          userId: user.id,
+          code: accountKindError.code,
+        });
+      }
+    }
   }
 
   const { data: profile, error: profileError } = await supabase
