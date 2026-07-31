@@ -1,7 +1,5 @@
 import { expect, test } from '@playwright/test';
 
-const demoBuyerSession = async (request: Parameters<typeof test>[0] extends never ? never : never) => request;
-
 test.beforeEach(async ({ page }) => {
   const response = await page.request.post('/api/auth/demo-session', {
     data: {
