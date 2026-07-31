@@ -1,0 +1,205 @@
+/* Collision-proof commerce header. The header progressively compacts before controls can overlap. */
+
+.ft-commerce-header {
+  overflow: visible;
+}
+
+.ft-header-inner {
+  flex-wrap: nowrap !important;
+  min-width: 0;
+}
+
+.ft-header-brand,
+.ft-header-actions,
+.ft-header-primary-nav,
+.ft-header-search {
+  min-width: 0;
+}
+
+.ft-header-search {
+  flex: 1 1 360px !important;
+  width: auto !important;
+  max-width: 560px;
+  overflow: hidden;
+}
+
+.ft-header-search input {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ft-header-actions {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.ft-header-browse {
+  min-height: 42px;
+  border: 1px solid var(--ft-border);
+  border-radius: 10px;
+  background: var(--ft-surface-solid);
+  padding: 0 12px;
+  color: var(--ft-text);
+  font-size: 0.78rem;
+  font-weight: 750;
+  box-shadow: var(--ft-shadow-1);
+}
+
+.ft-header-browse:hover {
+  border-color: color-mix(in srgb, var(--primary) 35%, var(--ft-border));
+  background: var(--ft-orange-50);
+  color: var(--primary);
+}
+
+.ft-header-primary-nav {
+  flex: 0 1 auto;
+  overflow: hidden;
+}
+
+.ft-header-primary-nav .ft-header-link {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.ft-workspace-label {
+  display: none;
+}
+
+.ft-header-preferences,
+.ft-header-quick-action {
+  display: none !important;
+}
+
+.ft-header-profile [aria-label='Open profile and workspace menu'] > span:nth-child(2) {
+  display: none !important;
+}
+
+@media (min-width: 768px) {
+  .ft-mobile-menu-trigger {
+    display: none !important;
+    position: static !important;
+  }
+}
+
+@media (min-width: 1024px) {
+  .ft-header-inner {
+    column-gap: 14px !important;
+  }
+
+  .ft-header-search {
+    min-width: 260px;
+  }
+}
+
+@media (min-width: 1280px) {
+  .ft-workspace-label {
+    display: inline !important;
+  }
+}
+
+@media (min-width: 1480px) {
+  .ft-header-quick-action {
+    display: inline-flex !important;
+  }
+}
+
+@media (min-width: 1660px) {
+  .ft-header-preferences {
+    display: block !important;
+  }
+}
+
+@media (min-width: 1760px) {
+  .ft-header-primary-nav {
+    display: flex !important;
+  }
+
+  .ft-header-browse {
+    display: none !important;
+  }
+
+  .ft-header-profile [aria-label='Open profile and workspace menu'] > span:nth-child(2) {
+    display: block !important;
+  }
+
+  .ft-header-search {
+    flex-basis: 440px !important;
+    max-width: 520px;
+  }
+}
+
+/* The marketplace already has a full, prominent search experience in its hero.
+   Duplicating the complete search field in the fixed header caused the collision. */
+body[data-route='marketplace'] .ft-commerce-header .ft-header-search {
+  display: none !important;
+}
+
+body[data-route='marketplace'] .ft-header-inner {
+  max-width: 1760px !important;
+}
+
+body[data-route='marketplace'] .ft-header-primary-nav {
+  margin-left: clamp(8px, 1.5vw, 24px) !important;
+}
+
+/* Defensive rules for browser zoom, translated labels and long account names. */
+@media (max-width: 1479px) {
+  .ft-header-quick-action,
+  .ft-header-preferences {
+    display: none !important;
+  }
+
+  .ft-workspace-button {
+    min-width: 42px;
+    justify-content: center;
+    padding-inline: 10px !important;
+  }
+}
+
+@media (max-width: 1199px) {
+  .ft-workspace-label {
+    display: none !important;
+  }
+
+  .ft-header-browse span {
+    display: none;
+  }
+
+  .ft-header-browse {
+    width: 42px;
+    justify-content: center;
+    padding-inline: 0;
+  }
+}
+
+@media (max-width: 899px) {
+  .ft-header-actions {
+    gap: 6px !important;
+  }
+
+  .ft-header-actions .ft-icon-button {
+    width: 40px;
+    min-width: 40px;
+  }
+}
+
+@media (max-width: 767px) {
+  .ft-header-inner {
+    display: flex !important;
+  }
+
+  .ft-header-actions,
+  .ft-header-primary-nav,
+  .ft-header-browse,
+  .ft-header-preferences,
+  .ft-header-quick-action {
+    display: none !important;
+  }
+
+  .ft-mobile-menu-trigger {
+    display: inline-flex !important;
+    flex: 0 0 auto;
+  }
+}

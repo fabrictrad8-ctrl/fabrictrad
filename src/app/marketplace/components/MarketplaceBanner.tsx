@@ -82,14 +82,16 @@ export default function MarketplaceBanner() {
           </p>
         </div>
 
-        <form className="ft-marketplace-search" onSubmit={handleSearch} role="search">
+        <form className="ft-marketplace-search" onSubmit={handleSearch} role="search" aria-label="Marketplace product search">
           <Icon name="MagnifyingGlassIcon" size={20} className="text-slate-500" />
           <input
+            id="marketplace-search"
             type="search"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Search fabric, colour, work type, seller or SKU"
             aria-label="Search marketplace products"
+            autoComplete="off"
           />
           <button type="submit">Search marketplace</button>
         </form>
