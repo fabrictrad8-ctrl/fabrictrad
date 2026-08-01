@@ -11,6 +11,15 @@ const endpoint = read('src/app/api/auth/provision-account/route.ts');
 const migration = read('supabase/migrations/20260731090000_oauth_account_recovery.sql');
 const recoveryUi = read('src/app/auth/setup/AccountSetupClient.tsx');
 const adminOtpRequest = read('src/app/api/auth/admin-otp/request/route.ts');
+const phoneVerification = read('src/app/auth/phone/PhoneCollectionPage.tsx');
+const sellerReadiness = read('src/app/seller-dashboard/components/SellerProfileReadiness.tsx');
+const sellerStatusEndpoint = read('src/app/api/seller/verification-status/route.ts');
+const sellerRepairMigration = read(
+  'supabase/migrations/20260801233500_repair_legacy_seller_verification_and_phone_sync.sql'
+);
+const sellerApprovalMigration = read(
+  'supabase/migrations/20260801234000_enforce_seller_verification_before_approval.sql'
+);
 
 assert(
   provisioning.includes("client.rpc('ensure_current_account_profile'"),
@@ -47,4 +56,47 @@ assert(
   'The public admin email-code endpoint must not require or instantiate a service-role client.'
 );
 
-console.log('OAuth and administrator email-code regression checks passed.');
+assert(
+  phoneVerification.includes("supabase.auth.updateUser({") && phoneVerification.includes("type: 'phone_change'"),
+  'Phone verification must use Supabase phone-change OTP rather than marking a stored number verified.'
+);
+assert(
+  phoneVerification.includes('phone_verified: true') && phoneVerification.includes('phone_confirmed_at'),
+  'The user profile may be marked phone-verified only after Supabase confirms the auth phone.'
+);
+assert(
+  !phoneVerification.includes('Phone number verification (OTP) will be added soon'),
+  'The seller flow must not ship the old non-verifying phone placeholder.'
+);
+assert(
+  phoneVerification.includes('That same account can buy and sell'),
+  'Phone verification must preserve the unified buyer and seller account model.'
+);
+assert(
+  sellerStatusEndpoint.includes("rpc('ensure_current_seller_verification_state')"),
+  'Seller readiness must come from the protected server-authoritative verification function.'
+);
+assert(
+  sellerReadiness.includes('Profile completeness and business verification are separate'),
+  'Seller readiness must clearly separate saved profile fields from actual verification.'
+);
+assert(
+  sellerReadiness.includes('requiredDocumentsApproved') && sellerReadiness.includes('bankVerified'),
+  'Seller readiness must report document and settlement-bank review instead of only basic fields.'
+);
+assert(
+  sellerRepairMigration.includes('sync_confirmed_auth_phone_to_profile') &&
+    sellerRepairMigration.includes('ensure_current_seller_verification_state'),
+  'The database must repair legacy sellers and synchronise confirmed auth phone state.'
+);
+assert(
+  sellerRepairMigration.includes('grant execute') && sellerRepairMigration.includes('to authenticated'),
+  'Only authenticated accounts may request their seller verification summary.'
+);
+assert(
+  sellerApprovalMigration.includes('enforce_seller_verification_before_approval') &&
+    sellerApprovalMigration.includes('GST certificate, PAN card and cancelled cheque'),
+  'Seller approval must be blocked in PostgreSQL until phone, GST, documents and bank checks pass.'
+);
+
+console.log('OAuth, admin login and seller verification regression checks passed.');
