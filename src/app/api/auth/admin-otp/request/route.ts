@@ -1,6 +1,9 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
-import { configuredAdminEmail } from '@/lib/adminAccess';
+import {
+  configuredAdminEmail,
+  ensureConfiguredAdminAccount,
+} from '@/lib/adminAccess';
 import { normalizeEmail } from '@/lib/authValidation';
 
 const noStoreJson = (body: Record<string, unknown>, status = 200) =>
@@ -30,6 +33,19 @@ export async function POST(request: NextRequest) {
     return noStoreJson({ error: 'Administrator authentication is temporarily unavailable.' }, 503);
   }
 
+  try {
+    const prepared = await ensureConfiguredAdminAccount(email);
+    if (!prepared) {
+      return noStoreJson({ error: 'The configured administrator account could not be prepared.' }, 503);
+    }
+  } catch (error) {
+    console.error('Administrator account preparation failed', {
+      email,
+      message: error instanceof Error ? error.message : 'Unknown error',
+    });
+    return noStoreJson({ error: 'Administrator account preparation failed. Please try again shortly.' }, 503);
+  }
+
   const supabase = createClient(supabaseUrl, publishableKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
@@ -39,12 +55,8 @@ export async function POST(request: NextRequest) {
   const { error } = await supabase.auth.signInWithOtp({
     email,
     options: {
-      shouldCreateUser: true,
-      emailRedirectTo: `${redirectBase}/auth/callback`,
-      data: {
-        full_name: 'FabricTrad Administrator',
-        role: 'buyer',
-      },
+      shouldCreateUser: false,
+      emailRedirectTo: `${redirectBase}/admin-login`,
     },
   });
 
@@ -55,5 +67,8 @@ export async function POST(request: NextRequest) {
     return noStoreJson({ error: message }, 400);
   }
 
-  return noStoreJson({ sent: true });
+  return noStoreJson({
+    sent: true,
+    destination: email.replace(/^(.{2}).*(@.*)$/, '$1••••$2'),
+  });
 }
