@@ -20,6 +20,7 @@ const preflightWindows = new Map<string, { startedAt: number; count: number }>()
 
 type SubjectType = 'buyer' | 'seller';
 type ProviderPayload = Record<string, unknown>;
+type ProfileReference = { id: string; user_id: string; buyer_type?: string | null };
 
 type ProviderResult = {
   status: GstinStatus;
@@ -185,12 +186,13 @@ async function persistResult(
 ) {
   const table = subjectType === 'seller' ? 'seller_profiles' : 'buyer_profiles';
   const selectColumns = subjectType === 'seller' ? 'id,user_id' : 'id,user_id,buyer_type';
-  const { data: profile, error: profileError } = await client
+  const { data: rawProfile, error: profileError } = await client
     .from(table)
     .select(selectColumns)
     .eq('user_id', userId)
     .maybeSingle();
   if (profileError) throw profileError;
+  const profile = rawProfile as unknown as ProfileReference | null;
   if (!profile?.id) throw new Error(`${subjectType === 'seller' ? 'Seller' : 'Buyer'} profile is not ready.`);
   if (subjectType === 'buyer' && profile.buyer_type !== 'retail_store') {
     throw new Error('GSTIN is available only on the Retail Store buying profile.');
