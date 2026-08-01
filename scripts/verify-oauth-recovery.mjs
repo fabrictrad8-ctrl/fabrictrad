@@ -10,6 +10,7 @@ const callback = read('src/app/auth/callback/route.ts');
 const endpoint = read('src/app/api/auth/provision-account/route.ts');
 const migration = read('supabase/migrations/20260731090000_oauth_account_recovery.sql');
 const recoveryUi = read('src/app/auth/setup/AccountSetupClient.tsx');
+const adminOtpRequest = read('src/app/api/auth/admin-otp/request/route.ts');
 
 assert(
   provisioning.includes("client.rpc('ensure_current_account_profile'"),
@@ -29,4 +30,21 @@ assert(migration.includes('grant execute') && migration.includes('to authenticat
 assert(recoveryUi.includes('Session preserved'), 'Recovery UI must explain that the authenticated session is preserved.');
 assert(recoveryUi.includes('aria-live'), 'Recovery status must be announced accessibly.');
 
-console.log('OAuth account recovery regression checks passed.');
+assert(
+  adminOtpRequest.includes('shouldCreateUser: false'),
+  'Admin email-code login must never create an unintended account.'
+);
+assert(
+  adminOtpRequest.includes('configuredAdminEmail()'),
+  'Admin email-code login must remain restricted to the configured administrator.'
+);
+assert(
+  !adminOtpRequest.includes('ensureConfiguredAdminAccount'),
+  'Sending an admin email code must not depend on the service-role provisioning path.'
+);
+assert(
+  !adminOtpRequest.includes('createAdminClient'),
+  'The public admin email-code endpoint must not require or instantiate a service-role client.'
+);
+
+console.log('OAuth and administrator email-code regression checks passed.');
