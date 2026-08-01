@@ -8,7 +8,6 @@ import { useAuth } from '@/contexts/AuthContext';
 type SellerVerificationState = {
   profileComplete?: boolean;
   phonePresent?: boolean;
-  phoneVerified?: boolean;
   gstinEntered?: boolean;
   gstinVerified?: boolean;
   gstinStatus?: string;
@@ -110,16 +109,13 @@ export default function SellerProfileReadiness() {
   const documentTotal = verification?.requiredDocumentsTotal ?? 3;
   const documentsUploaded = verification?.requiredDocumentsUploaded ?? 0;
   const documentsApproved = verification?.requiredDocumentsApproved ?? 0;
+  const phonePresent = Boolean(verification?.phonePresent || profile?.phone?.trim());
 
   const items: VerificationItem[] = [
     {
       label: 'Mobile number',
-      state: verification?.phoneVerified ? 'complete' : verification?.phonePresent || profile?.phone ? 'pending' : 'missing',
-      detail: verification?.phoneVerified
-        ? 'OTP verified'
-        : verification?.phonePresent || profile?.phone
-          ? 'OTP verification required'
-          : 'Mobile number missing',
+      state: phonePresent ? 'complete' : 'missing',
+      detail: phonePresent ? 'Contact number added' : 'Mobile number missing',
     },
     {
       label: 'GST registration',
@@ -171,10 +167,10 @@ export default function SellerProfileReadiness() {
 
   const nextAction = verification?.nextAction;
   const action =
-    nextAction === 'verify_phone'
+    nextAction === 'add_phone'
       ? {
           href: '/auth/phone?role=seller&returnTo=/seller-dashboard',
-          label: 'Verify mobile now',
+          label: 'Add mobile number',
           icon: 'DevicePhoneMobileIcon',
         }
       : nextAction === 'contact_support'
@@ -202,7 +198,7 @@ export default function SellerProfileReadiness() {
               </span>
             </div>
             <p className="mt-2 max-w-3xl text-xs leading-5 text-muted-foreground">
-              Profile completeness and business verification are separate. Your saved business details are not counted as verified until the corresponding OTP, GST, document and bank checks finish.
+              Your mobile number is stored as contact information and does not require an SMS code. GST, business documents and settlement-bank checks remain separate verification requirements.
             </p>
 
             <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
