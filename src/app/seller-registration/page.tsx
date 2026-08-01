@@ -1,12 +1,12 @@
 'use client';
 
 import React from 'react';
-import SellerRegistrationFlow from './components/SellerRegistrationFlow';
+import SellerRegistrationFlowV2 from './components/SellerRegistrationFlowV2';
 
 export default function SellerRegistrationPage() {
   return (
     <main className="ft-auth min-h-screen">
-      <SellerRegistrationFlow />
+      <SellerRegistrationFlowV2 />
     </main>
   );
 }

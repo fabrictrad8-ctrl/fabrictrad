@@ -2,7 +2,7 @@ import React from 'react';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import ProductGallery from '@/app/product-detail/components/ProductGallery';
-import ProductInfo from '@/app/product-detail/components/ProductInfo';
+import ProductInfoV2 from '@/app/product-detail/components/ProductInfoV2';
 import ProductSpecs from '@/app/product-detail/components/ProductSpecs';
 import SellerCard from '@/app/product-detail/components/SellerCard';
 import RelatedProducts from '@/app/product-detail/components/RelatedProducts';
@@ -31,10 +31,13 @@ export default function ProductDetailPage() {
             <div className="mb-5 flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
               <div>
                 <p className="ft-route-kicker">Product workspace</p>
-                <p className="mt-1 text-sm text-muted-foreground">Review media, colour stock, specifications, seller trust and ordering options together.</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Review media, colour stock, verified identifiers, seller-specific buyer limits and server-calculated tax together.
+                </p>
               </div>
               <div className="flex flex-wrap gap-2">
                 <span className="ft-orange-chip"><Icon name="ShieldCheckIcon" size={13} /> Protected order flow</span>
+                <span className="ft-orange-chip"><Icon name="ReceiptPercentIcon" size={13} /> Server tax calculation</span>
                 <span className="ft-orange-chip"><Icon name="TruckIcon" size={13} /> Shipment tracking</span>
               </div>
             </div>
@@ -53,7 +56,7 @@ export default function ProductDetailPage() {
               </div>
 
               <aside className="ft-product-aside space-y-4">
-                <ProductInfo />
+                <ProductInfoV2 />
                 <SellerCard />
                 <div className="rounded-xl border border-primary/20 bg-primary/5 p-4">
                   <div className="flex items-start gap-3">
@@ -62,7 +65,9 @@ export default function ProductDetailPage() {
                     </div>
                     <div>
                       <p className="text-sm font-800 text-foreground">Need a custom quantity or colour?</p>
-                      <p className="mt-1 text-xs leading-5 text-muted-foreground">Post a buyer requirement so verified sellers can respond with stock, pricing and dispatch details.</p>
+                      <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                        Post a buyer requirement so verified sellers can respond with stock, pricing and dispatch details.
+                      </p>
                       <a href="/buyer-requirements" className="mt-3 inline-flex items-center gap-1 text-xs font-800 text-primary">
                         Post requirement <Icon name="ArrowRightIcon" size={13} />
                       </a>
