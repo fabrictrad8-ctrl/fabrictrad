@@ -9,6 +9,15 @@ export const configuredAdminEmail = () =>
 export const isConfiguredAdminEmail = (email?: string | null) =>
   Boolean(email && email.trim().toLowerCase() === configuredAdminEmail());
 
+const configuredAdminPassword = () => {
+  const password = process.env.ADMIN_PASSWORD?.trim();
+  if (!password) return null;
+  if (password.length < 12) {
+    throw new Error('ADMIN_PASSWORD must contain at least 12 characters.');
+  }
+  return password;
+};
+
 const findUserByEmail = async (email: string): Promise<User | null> => {
   const admin = createAdminClient();
 
@@ -31,11 +40,13 @@ export const ensureConfiguredAdminAccount = async (emailInput?: string | null) =
   const admin = createAdminClient();
   const existingUser = await findUserByEmail(email);
   const fullName = 'FabricTrad Administrator';
+  const password = configuredAdminPassword();
 
   let user: User | null = existingUser;
 
   if (existingUser) {
     const { data, error } = await admin.auth.admin.updateUserById(existingUser.id, {
+      ...(password ? { password } : {}),
       email_confirm: true,
       app_metadata: {
         ...(existingUser.app_metadata || {}),
@@ -51,6 +62,7 @@ export const ensureConfiguredAdminAccount = async (emailInput?: string | null) =
   } else {
     const { data, error } = await admin.auth.admin.createUser({
       email,
+      ...(password ? { password } : {}),
       email_confirm: true,
       app_metadata: { role: 'super_admin' },
       user_metadata: { full_name: fullName },
@@ -68,6 +80,8 @@ export const ensureConfiguredAdminAccount = async (emailInput?: string | null) =
       full_name: user.user_metadata?.full_name || fullName,
       role: 'super_admin',
       is_active: true,
+      can_buy: false,
+      can_sell: false,
       phone_verified: false,
       updated_at: new Date().toISOString(),
     },
