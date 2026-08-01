@@ -112,9 +112,6 @@ export default function SellerDashboardPage() {
     );
   }
 
-  // Existing profiles are already available from AuthContext, so switching
-  // workspaces should render immediately. Reserve the full-page setup state for
-  // the rare case where a signed-in account genuinely has no profile yet.
   if (loading || (user && !profile && !accountReady)) {
     return (
       <div className="ft-shell flex min-h-screen items-center justify-center px-4">
@@ -152,7 +149,7 @@ export default function SellerDashboardPage() {
     return (
       <DashboardRouteState
         title="Activate seller access"
-        message="This account can already buy. Add your GST business details once to unlock seller tools on the same mobile number."
+        message="This account can already buy. Add and verify your GST business details once to unlock seller tools on the same mobile number."
         href="/seller-registration"
         actionLabel="Activate selling"
       />
@@ -182,7 +179,7 @@ export default function SellerDashboardPage() {
   }
 
   return (
-    <div className="ft-shell">
+    <div className="ft-shell relative">
       <Suspense
         fallback={
           <div className="flex min-h-screen items-center justify-center px-4">
@@ -192,6 +189,14 @@ export default function SellerDashboardPage() {
       >
         <SellerDashboardLayout />
       </Suspense>
+      <Link
+        href="/seller-product-rules"
+        className="fixed bottom-24 right-4 z-40 inline-flex min-h-12 items-center gap-2 rounded-full border border-primary/30 bg-card/95 px-4 py-3 text-xs font-800 text-primary shadow-xl backdrop-blur-xl transition hover:-translate-y-0.5 hover:bg-primary hover:text-white md:bottom-6 md:right-6"
+        aria-label="Open product buyer quantity rules"
+      >
+        <Icon name="AdjustmentsHorizontalIcon" size={17} />
+        GTIN & buyer limits
+      </Link>
     </div>
   );
 }
