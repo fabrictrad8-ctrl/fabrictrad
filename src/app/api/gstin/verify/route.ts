@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import type { SupabaseClient, User } from '@supabase/supabase-js';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 import {
   gstinStateCode,
@@ -17,8 +19,21 @@ const MAX_PREFLIGHTS_PER_WINDOW = 12;
 const preflightWindows = new Map<string, { startedAt: number; count: number }>();
 
 type SubjectType = 'buyer' | 'seller';
-
 type ProviderPayload = Record<string, unknown>;
+
+type ProviderResult = {
+  status: GstinStatus;
+  legalName: string | null;
+  tradeName: string | null;
+  stateCode: string | null;
+  taxpayerType: string | null;
+  registrationDate: string | null;
+  cancellationDate: string | null;
+  principalPlace: string | null;
+  provider: string;
+  providerReference: string | null;
+  raw: ProviderPayload;
+};
 
 const json = (body: Record<string, unknown>, status = 200) =>
   NextResponse.json(body, {
@@ -82,7 +97,32 @@ const limitedPreflight = (request: NextRequest) => {
   return current.count > MAX_PREFLIGHTS_PER_WINDOW;
 };
 
-async function queryConfiguredProvider(gstin: string) {
+const bearerToken = (request: NextRequest) => {
+  const authorization = request.headers.get('authorization') || '';
+  return authorization.toLowerCase().startsWith('bearer ')
+    ? authorization.slice(7).trim()
+    : '';
+};
+
+async function resolveUser(request: NextRequest, client: SupabaseClient): Promise<User | null> {
+  const token = bearerToken(request);
+  if (token) {
+    const { data, error } = await client.auth.getUser(token);
+    if (!error && data.user) return data.user;
+  }
+  const { data, error } = await client.auth.getUser();
+  return error ? null : data.user;
+}
+
+const adminClientOrNull = () => {
+  try {
+    return createAdminClient();
+  } catch {
+    return null;
+  }
+};
+
+async function queryConfiguredProvider(gstin: string): Promise<ProviderResult | null> {
   const template = process.env.GSTIN_VERIFICATION_API_URL?.trim();
   const apiKey = process.env.GSTIN_VERIFICATION_API_KEY?.trim();
   if (!template || !apiKey) return null;
@@ -90,8 +130,7 @@ async function queryConfiguredProvider(gstin: string) {
   const method = (process.env.GSTIN_VERIFICATION_API_METHOD || 'GET').toUpperCase();
   const keyHeader = process.env.GSTIN_VERIFICATION_API_KEY_HEADER || 'x-api-key';
   const providerName = process.env.GSTIN_VERIFICATION_PROVIDER_NAME || 'configured_gsp';
-  const hasPlaceholder = template.includes('{gstin}');
-  const endpoint = hasPlaceholder
+  const endpoint = template.includes('{gstin}')
     ? template.replace('{gstin}', encodeURIComponent(gstin))
     : `${template}${template.includes('?') ? '&' : '?'}gstin=${encodeURIComponent(gstin)}`;
 
@@ -106,7 +145,6 @@ async function queryConfiguredProvider(gstin: string) {
     cache: 'no-store',
     signal: AbortSignal.timeout(12_000),
   });
-
   const payload = (await response.json().catch(() => ({}))) as ProviderPayload;
   if (!response.ok) {
     throw new Error(
@@ -139,16 +177,17 @@ async function queryConfiguredProvider(gstin: string) {
 }
 
 async function persistResult(
+  client: SupabaseClient,
   result: GstinVerificationResult,
   subjectType: SubjectType,
   userId: string,
-  rawResponse: Record<string, unknown>
+  rawResponse: ProviderPayload
 ) {
-  const supabase = await createClient();
   const table = subjectType === 'seller' ? 'seller_profiles' : 'buyer_profiles';
-  const { data: profile, error: profileError } = await supabase
+  const selectColumns = subjectType === 'seller' ? 'id,user_id' : 'id,user_id,buyer_type';
+  const { data: profile, error: profileError } = await client
     .from(table)
-    .select('id,user_id,buyer_type')
+    .select(selectColumns)
     .eq('user_id', userId)
     .maybeSingle();
   if (profileError) throw profileError;
@@ -172,16 +211,13 @@ async function persistResult(
     gstin_verification_provider: result.provider,
     updated_at: checkedAt,
     ...(subjectType === 'buyer'
-      ? {
-          gst_registration_status: 'registered',
-          business_kyc_status: result.status === 'active' ? 'pending' : 'pending',
-        }
+      ? { gst_registration_status: 'registered', business_kyc_status: 'pending' }
       : {}),
   };
-  const { error: updateError } = await supabase.from(table).update(profileValues).eq('id', profile.id);
+  const { error: updateError } = await client.from(table).update(profileValues).eq('id', profile.id);
   if (updateError) throw updateError;
 
-  const { error: verificationError } = await supabase.from('gstin_verifications').upsert(
+  const { error: verificationError } = await client.from('gstin_verifications').upsert(
     {
       owner_user_id: userId,
       subject_type: subjectType,
@@ -237,16 +273,14 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const serverClient = await createClient();
+  const user = await resolveUser(request, serverClient);
   const shouldPersist = input.persist === true;
   if (!user && shouldPersist) return json({ error: 'Sign in before saving GST verification.' }, 401);
   if (!user && limitedPreflight(request)) return json({ error: 'Too many verification attempts. Try again shortly.' }, 429);
 
   const checkedAt = new Date().toISOString();
-  let providerData: Awaited<ReturnType<typeof queryConfiguredProvider>> = null;
+  let providerData: ProviderResult | null = null;
   let providerWarning = '';
   try {
     providerData = await queryConfiguredProvider(gstin);
@@ -280,7 +314,8 @@ export async function POST(request: NextRequest) {
 
   if (user && shouldPersist) {
     try {
-      await persistResult(result, subjectType, user.id, providerData?.raw || {});
+      const persistenceClient = adminClientOrNull() || serverClient;
+      await persistResult(persistenceClient, result, subjectType, user.id, providerData?.raw || {});
     } catch (error) {
       return json({ error: error instanceof Error ? error.message : 'GST verification could not be saved.' }, 400);
     }
