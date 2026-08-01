@@ -1,6 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
-import { ensureConfiguredAdminAccount, isConfiguredAdminEmail } from '@/lib/adminAccess';
 import { normalizeEmail } from '@/lib/authValidation';
 
 const noStoreJson = (body: Record<string, unknown>, status = 200) =>
@@ -28,17 +27,19 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    if (isConfiguredAdminEmail(email)) {
-      await ensureConfiguredAdminAccount(email);
-    }
-
+    // Password recovery is a public Supabase Auth operation. It must never
+    // initialise or mutate an administrator account and therefore must not
+    // depend on the server-only service-role key.
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    if (!supabaseUrl || !anonKey) {
-      throw new Error('Authentication is not configured.');
+    const publishableKey =
+      process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+    if (!supabaseUrl || !publishableKey) {
+      throw new Error('Authentication is temporarily unavailable. Please contact FabricTrad support.');
     }
 
-    const supabase = createClient(supabaseUrl, anonKey, {
+    const supabase = createClient(supabaseUrl, publishableKey, {
       auth: {
         autoRefreshToken: false,
         persistSession: false,
@@ -60,7 +61,11 @@ export async function POST(request: NextRequest) {
 
     return noStoreJson({ sent: true });
   } catch (caughtError: unknown) {
-    const message = caughtError instanceof Error ? caughtError.message : 'Unable to send the sign-in code.';
+    const rawMessage =
+      caughtError instanceof Error ? caughtError.message : 'Unable to send the reset code.';
+    const message = /rate limit/i.test(rawMessage)
+      ? 'Too many reset attempts. Please wait a few minutes and try again.'
+      : rawMessage;
     return noStoreJson({ error: message }, 400);
   }
 }

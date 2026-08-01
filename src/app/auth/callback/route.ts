@@ -1,33 +1,36 @@
 import { createClient } from '@/lib/supabase/server';
-import { createAdminClient } from '@/lib/supabase/admin';
-import { ensureAccountProvisioned } from '@/lib/accountProvisioning';
+import {
+  ensureAuthenticatedAccountProvisioned,
+  type AuthenticatedProvisionedAccount,
+} from '@/lib/accountProvisioning';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-type UserRole = 'buyer' | 'seller' | 'admin_staff' | 'super_admin';
+type BuyerType = 'retail_store' | 'end_user';
 
 const ADMIN_EMAIL = 'fabrictrad8@gmail.com';
 
-const isUserRole = (role: unknown): role is UserRole =>
-  role === 'buyer' || role === 'seller' || role === 'admin_staff' || role === 'super_admin';
-
 const getRequestedRole = (request: NextRequest, roleParam: string | null): 'buyer' | 'seller' => {
   if (roleParam === 'seller' || roleParam === 'buyer') return roleParam;
-
   const roleCookie = request.cookies.get('fabrictrad_oauth_role')?.value;
-  if (roleCookie === 'seller' || roleCookie === 'buyer') return roleCookie;
+  return roleCookie === 'seller' || roleCookie === 'buyer' ? roleCookie : 'buyer';
+};
 
-  return 'buyer';
+const getBuyerType = (request: NextRequest): BuyerType | null => {
+  const value = request.cookies.get('fabrictrad_buyer_type')?.value;
+  return value === 'retail_store' || value === 'end_user' ? value : null;
 };
 
 const redirectAfterAuth = (url: string) => {
   const response = NextResponse.redirect(url);
-  response.cookies.set('fabrictrad_oauth_role', '', {
-    path: '/',
-    maxAge: 0,
-    sameSite: 'lax',
-    secure: process.env.NODE_ENV === 'production',
-  });
+  for (const cookieName of ['fabrictrad_oauth_role', 'fabrictrad_buyer_type']) {
+    response.cookies.set(cookieName, '', {
+      path: '/',
+      maxAge: 0,
+      sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production',
+    });
+  }
   return response;
 };
 
@@ -37,8 +40,21 @@ const loginErrorUrl = (origin: string, code: string) => {
   return loginUrl.toString();
 };
 
-const destinationForRole = (origin: string, role: UserRole) => {
-  if (role === 'admin_staff' || role === 'super_admin') return `${origin}/admin-portal`;
+const setupRecoveryUrl = (origin: string, requestedRole: 'buyer' | 'seller') => {
+  const setupUrl = new URL('/auth/setup', origin);
+  setupUrl.searchParams.set('role', requestedRole);
+  setupUrl.searchParams.set('reason', 'profile_setup');
+  return setupUrl.toString();
+};
+
+const destinationForAccount = (
+  origin: string,
+  requestedRole: 'buyer' | 'seller',
+  account: AuthenticatedProvisionedAccount
+) => {
+  if (account.role === 'admin_staff' || account.role === 'super_admin') return `${origin}/admin-portal`;
+  if (!account.phonePresent) return `${origin}/auth/phone?role=${requestedRole}`;
+  if (requestedRole === 'seller' && !account.canSell) return `${origin}/seller-registration`;
   return `${origin}/marketplace`;
 };
 
@@ -47,66 +63,89 @@ export async function GET(request: NextRequest) {
   const code = searchParams.get('code');
   const providerError = searchParams.get('error');
   const errorDescription = searchParams.get('error_description');
-  const roleParam = searchParams.get('role');
-  const roleCookie = request.cookies.get('fabrictrad_oauth_role')?.value;
-  const requestedRole = getRequestedRole(request, roleParam);
+  const requestedRole = getRequestedRole(request, searchParams.get('role'));
+  const buyerType = getBuyerType(request);
 
   if (providerError) {
     return redirectAfterAuth(loginErrorUrl(origin, errorDescription || providerError));
   }
-
-  if (!code) {
-    return redirectAfterAuth(loginErrorUrl(origin, 'auth_failed'));
-  }
+  if (!code) return redirectAfterAuth(loginErrorUrl(origin, 'auth_failed'));
 
   const supabase = await createClient();
   const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
-  if (exchangeError) {
-    return redirectAfterAuth(loginErrorUrl(origin, 'auth_failed'));
-  }
+  if (exchangeError) return redirectAfterAuth(loginErrorUrl(origin, 'auth_failed'));
 
   const {
     data: { user },
     error: userError,
   } = await supabase.auth.getUser();
-
-  if (userError || !user) {
-    return redirectAfterAuth(loginErrorUrl(origin, 'auth_failed'));
-  }
+  if (userError || !user) return redirectAfterAuth(loginErrorUrl(origin, 'auth_failed'));
 
   const normalizedEmail = user.email?.trim().toLowerCase() || '';
-
   if (normalizedEmail === ADMIN_EMAIL && user.email_confirmed_at) {
+    try {
+      await ensureAuthenticatedAccountProvisioned(supabase, 'buyer');
+    } catch (error) {
+      console.error('Administrator profile bootstrap failed', {
+        userId: user.id,
+        code: typeof error === 'object' && error && 'code' in error ? String(error.code) : undefined,
+      });
+      return redirectAfterAuth(setupRecoveryUrl(origin, 'buyer'));
+    }
     return redirectAfterAuth(`${origin}/admin-portal`);
   }
 
+  let account: AuthenticatedProvisionedAccount;
   try {
-    let provisioningClient = supabase;
-    try {
-      provisioningClient = createAdminClient();
-    } catch {
-      // An authenticated user can safely create their own role profile through RLS.
+    // OAuth is a user-owned browser session, so it must use the RLS-protected
+    // authenticated repair function. The service-role ensureAccountProvisioned
+    // path remains limited to trusted registration and administrative code.
+    account = await ensureAuthenticatedAccountProvisioned(supabase, requestedRole);
+  } catch (error) {
+    console.error('OAuth account provisioning failed', {
+      userId: user.id,
+      requestedRole,
+      code: typeof error === 'object' && error && 'code' in error ? String(error.code) : undefined,
+    });
+    return redirectAfterAuth(setupRecoveryUrl(origin, requestedRole));
+  }
+
+  if (buyerType) {
+    const { error: buyerTypeError } = await supabase
+      .from('buyer_profiles')
+      .update({ buyer_type: buyerType, updated_at: new Date().toISOString() })
+      .eq('user_id', user.id);
+
+    if (buyerTypeError) {
+      console.error('Unable to persist OAuth buyer type', {
+        userId: user.id,
+        buyerType,
+        code: buyerTypeError.code,
+      });
     }
-    await ensureAccountProvisioned(provisioningClient, user);
-  } catch {
-    await supabase.auth.signOut();
-    return redirectAfterAuth(loginErrorUrl(origin, 'account_setup_failed'));
+
+    if (buyerType === 'retail_store') {
+      const { error: accountKindError } = await supabase
+        .from('user_profiles')
+        .update({ account_kind: 'business', updated_at: new Date().toISOString() })
+        .eq('id', user.id);
+      if (accountKindError) {
+        console.error('Unable to persist OAuth business account kind', {
+          userId: user.id,
+          code: accountKindError.code,
+        });
+      }
+    }
   }
 
   const { data: profile, error: profileError } = await supabase
     .from('user_profiles')
-    .select('id, phone, role, is_active, can_buy, can_sell')
+    .select('is_active')
     .eq('id', user.id)
     .maybeSingle();
 
-  if (profileError) {
-    await supabase.auth.signOut();
-    return redirectAfterAuth(loginErrorUrl(origin, 'auth_failed'));
-  }
-
-  if (!profile) {
-    await supabase.auth.signOut();
-    return redirectAfterAuth(loginErrorUrl(origin, 'account_not_found'));
+  if (profileError || !profile) {
+    return redirectAfterAuth(setupRecoveryUrl(origin, requestedRole));
   }
 
   if (profile.is_active === false) {
@@ -114,20 +153,5 @@ export async function GET(request: NextRequest) {
     return redirectAfterAuth(loginErrorUrl(origin, 'account_inactive'));
   }
 
-  const resolvedRole = isUserRole(profile.role) ? profile.role : requestedRole;
-  const hasGoogleIdentity =
-    user.app_metadata?.provider === 'google' ||
-    user.identities?.some((identity) => identity.provider === 'google') === true;
-  const isGoogleCallback =
-    hasGoogleIdentity &&
-    (roleParam === 'buyer' || roleParam === 'seller' || roleCookie === 'buyer' || roleCookie === 'seller');
-
-  // Google authentication identifies the account; database capabilities decide whether it may buy or sell.
-  void isGoogleCallback;
-
-  if (!profile.phone && resolvedRole !== 'admin_staff' && resolvedRole !== 'super_admin') {
-    return redirectAfterAuth(`${origin}/auth/phone?role=${resolvedRole}`);
-  }
-
-  return redirectAfterAuth(destinationForRole(origin, resolvedRole));
+  return redirectAfterAuth(destinationForAccount(origin, requestedRole, account));
 }

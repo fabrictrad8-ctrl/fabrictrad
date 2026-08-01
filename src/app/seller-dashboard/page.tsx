@@ -46,10 +46,12 @@ export default function SellerDashboardPage() {
 
   useEffect(() => {
     if (loading || !user || accountReady) return;
-    if (isDemoAccount) {
+
+    if (isDemoAccount || profile) {
       setAccountReady(true);
       return;
     }
+
     let cancelled = false;
     const prepare = async () => {
       try {
@@ -110,12 +112,15 @@ export default function SellerDashboardPage() {
     );
   }
 
-  if (loading || (user && !accountReady)) {
+  // Existing profiles are already available from AuthContext, so switching
+  // workspaces should render immediately. Reserve the full-page setup state for
+  // the rare case where a signed-in account genuinely has no profile yet.
+  if (loading || (user && !profile && !accountReady)) {
     return (
       <div className="ft-shell flex min-h-screen items-center justify-center px-4">
         <div className="flex flex-col items-center gap-4 text-center">
           <div className="h-8 w-8 animate-spin rounded-full border-2 border-secondary border-t-transparent" />
-          <p className="text-sm font-600 text-muted-foreground">Loading your seller workspace…</p>
+          <p className="text-sm font-600 text-muted-foreground">Preparing your seller workspace…</p>
         </div>
       </div>
     );

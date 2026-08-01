@@ -6,9 +6,18 @@ const ADMIN_EMAIL = 'fabrictrad8@gmail.com';
 const DEMO_COOKIE_NAME = 'fabrictrad_demo_role';
 
 const PUBLIC_PATHS = new Set([
-  '/', '/login', '/register', '/buyer-registration', '/seller-registration', '/auth/callback',
+  '/',
+  '/login',
+  '/admin-login',
+  '/register',
+  '/buyer-registration',
+  '/seller-registration',
+  '/auth/callback',
+  '/help',
+  '/privacy',
+  '/terms',
 ]);
-const AUTH_ENTRY_PATHS = new Set(['/', '/login', '/register', '/buyer-registration']);
+const AUTH_ENTRY_PATHS = new Set(['/', '/login', '/admin-login', '/register', '/buyer-registration']);
 
 const withRefreshedCookies = (target: NextResponse, source: NextResponse) => {
   source.cookies.getAll().forEach(({ name, value }) => target.cookies.set(name, value));
@@ -31,7 +40,18 @@ export async function middleware(request: NextRequest) {
   }
 
   const demoCookieValue = request.cookies.get(DEMO_COOKIE_NAME)?.value;
+  const auditAdminEnabled = process.env.FABRICTRAD_ENABLE_AUDIT_ADMIN === 'true';
+  const isAuditAdmin = auditAdminEnabled && demoCookieValue === 'admin';
   const demoRole = demoCookieValue === 'buyer' || demoCookieValue === 'seller' ? demoCookieValue : null;
+
+  if (isAuditAdmin) {
+    if (AUTH_ENTRY_PATHS.has(pathname)) return redirect(request, '/admin-portal');
+    if (pathname.startsWith('/seller-dashboard') || pathname.startsWith('/buyer-dashboard')) {
+      return redirect(request, '/admin-portal');
+    }
+    return NextResponse.next({ request });
+  }
+
   if (demoRole) {
     const canBuy = true;
     const canSell = demoRole === 'seller';
@@ -108,5 +128,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!api|_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml|.*\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)'],
+  matcher: ['/((?!api|_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)'],
 };

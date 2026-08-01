@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { Toaster } from 'react-hot-toast';
 import Icon from '@/components/ui/AppIcon';
@@ -35,8 +35,11 @@ export default function AppClientEnhancements() {
   const pathname = usePathname();
   const router = useRouter();
   const { user, profile, loading } = useAuth();
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const [commandOpen, setCommandOpen] = useState(false);
   const [query, setQuery] = useState('');
+  const [compactViewport, setCompactViewport] = useState(true);
+  const [finePointer, setFinePointer] = useState(false);
 
   const isAuthenticationPage = AUTH_PATH_PREFIXES.some(
     (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)
@@ -152,6 +155,22 @@ export default function AppClientEnhancements() {
   }, [commands, query]);
 
   useEffect(() => {
+    const compactQuery = window.matchMedia('(max-width: 767px)');
+    const pointerQuery = window.matchMedia('(pointer: fine)');
+    const syncEnvironment = () => {
+      setCompactViewport(compactQuery.matches);
+      setFinePointer(pointerQuery.matches);
+    };
+    syncEnvironment();
+    compactQuery.addEventListener('change', syncEnvironment);
+    pointerQuery.addEventListener('change', syncEnvironment);
+    return () => {
+      compactQuery.removeEventListener('change', syncEnvironment);
+      pointerQuery.removeEventListener('change', syncEnvironment);
+    };
+  }, []);
+
+  useEffect(() => {
     const name = routeName(pathname || '/');
     document.body.dataset.route = name;
     document.documentElement.dataset.route = name;
@@ -167,6 +186,16 @@ export default function AppClientEnhancements() {
       setQuery('');
     }
   }, [commandEnabled]);
+
+  useEffect(() => {
+    commands.forEach((command) => router.prefetch(command.href));
+  }, [commands, router]);
+
+  useEffect(() => {
+    if (!commandOpen || compactViewport || !finePointer) return;
+    const frame = window.requestAnimationFrame(() => searchInputRef.current?.focus());
+    return () => window.cancelAnimationFrame(frame);
+  }, [commandOpen, compactViewport, finePointer]);
 
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
@@ -212,7 +241,7 @@ export default function AppClientEnhancements() {
         }}
       />
 
-      {commandEnabled && (
+      {commandEnabled && !compactViewport && (
         <button
           type="button"
           onClick={() => setCommandOpen(true)}
@@ -237,7 +266,7 @@ export default function AppClientEnhancements() {
             <div className="ft-command-search-row">
               <Icon name="MagnifyingGlassIcon" size={20} className="text-primary" />
               <input
-                autoFocus
+                ref={searchInputRef}
                 type="search"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}

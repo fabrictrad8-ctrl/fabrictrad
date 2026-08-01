@@ -35,9 +35,46 @@ const footerGroups = [
 
 export default function Footer() {
   return (
-    <footer className="border-t border-border bg-card/75 backdrop-blur-xl">
-      <div className="mx-auto max-w-[1440px] px-4 py-12 sm:px-6 lg:px-8 lg:py-14">
-        <div className="grid gap-10 lg:grid-cols-[1.2fr_2fr]">
+    <footer className="ft-site-footer border-t border-border bg-card/90 backdrop-blur-xl">
+      <div className="mx-auto max-w-[1440px] px-4 py-7 sm:px-6 sm:py-12 lg:px-8 lg:py-14">
+        <div className="flex items-center justify-between gap-4 sm:hidden">
+          <Link href="/" className="inline-flex min-w-0 items-center gap-2.5">
+            <AppLogo size={31} />
+            <span className="truncate text-base font-800 tracking-tight text-foreground">FabricTrad</span>
+          </Link>
+          <div className="flex items-center gap-1.5">
+            <a href="mailto:fabrictrad8@gmail.com" className="ft-icon-button" aria-label="Email FabricTrad support">
+              <Icon name="EnvelopeIcon" size={16} />
+            </a>
+            <Link href="/help" className="ft-icon-button" aria-label="Open help centre">
+              <Icon name="QuestionMarkCircleIcon" size={16} />
+            </Link>
+          </div>
+        </div>
+
+        <p className="mt-3 text-xs leading-5 text-muted-foreground sm:hidden">
+          Verified textile sourcing, catalogues, orders, payments and fulfilment.
+        </p>
+
+        <div className="mt-5 divide-y divide-border border-y border-border sm:hidden">
+          {footerGroups.map((group) => (
+            <details key={group.label} className="group py-1">
+              <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 py-2 text-sm font-800 text-foreground marker:content-none">
+                {group.label}
+                <Icon name="ChevronDownIcon" size={16} className="text-muted-foreground transition-transform group-open:rotate-180" />
+              </summary>
+              <nav className="grid grid-cols-2 gap-x-4 gap-y-1 pb-3" aria-label={`${group.label} footer links`}>
+                {group.links.map((link) => (
+                  <Link key={link.label} href={link.href} className="min-h-10 py-2 text-xs font-600 text-muted-foreground hover:text-primary">
+                    {link.label}
+                  </Link>
+                ))}
+              </nav>
+            </details>
+          ))}
+        </div>
+
+        <div className="hidden gap-10 sm:grid lg:grid-cols-[1.2fr_2fr]">
           <div className="max-w-sm">
             <Link href="/" className="inline-flex items-center gap-2.5">
               <AppLogo size={36} />
@@ -59,7 +96,7 @@ export default function Footer() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-8 sm:grid-cols-3">
+          <div className="grid grid-cols-3 gap-8">
             {footerGroups.map((group) => (
               <div key={group.label}>
                 <p className="text-xs font-800 uppercase tracking-[0.14em] text-primary">{group.label}</p>
@@ -75,19 +112,22 @@ export default function Footer() {
           </div>
         </div>
 
-        <div className="mt-10 flex flex-col gap-4 border-t border-border pt-6 sm:flex-row sm:items-end sm:justify-between">
+        <div className="mt-5 flex flex-col gap-2 text-xs text-muted-foreground sm:mt-10 sm:flex-row sm:items-end sm:justify-between sm:gap-4 sm:border-t sm:border-border sm:pt-6">
           <div>
-            <p className="text-sm text-muted-foreground">© 2026 FabricTrad. All rights reserved.</p>
-            <p className="mt-1 text-xs text-muted-foreground">Support: fabrictrad8@gmail.com</p>
+            <p>© 2026 FabricTrad. All rights reserved.</p>
+            <p className="mt-1 hidden sm:block">Support: fabrictrad8@gmail.com</p>
           </div>
-          <div className="max-w-xl text-left sm:text-right">
-            <p className="text-xs leading-5 text-muted-foreground">
+          <div className="hidden max-w-xl text-left sm:block sm:text-right">
+            <p className="leading-5">
               FabricTrad provides marketplace technology. Sellers remain responsible for product accuracy, GST, packing, fulfilment and applicable legal obligations.
             </p>
-            <p className="mt-1 text-xs font-700 text-warning">
+            <p className="mt-1 font-700 text-warning">
               Payment, cancellation, return and exchange eligibility is shown in the applicable order and product flow.
             </p>
           </div>
+          <p className="leading-5 sm:hidden">
+            Order-specific payment, cancellation, return and exchange terms appear before purchase.
+          </p>
         </div>
       </div>
     </footer>
