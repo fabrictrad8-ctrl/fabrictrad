@@ -33,10 +33,8 @@ export async function POST(request: NextRequest) {
     return noStoreJson({ error: 'Administrator email access is temporarily unavailable.' }, 503);
   }
 
-  // Email-code authentication must never depend on the service-role secret.
-  // The configured administrator is an existing, confirmed Supabase user and
-  // shouldCreateUser=false prevents this public route from creating accounts.
-  // Profile/role repair remains a separate trusted-server operation.
+  // Supabase currently delivers the configured Magic Link template. This public
+  // route must not depend on the service-role secret and may not create users.
   const supabase = createClient(supabaseUrl, publishableKey, {
     auth: {
       autoRefreshToken: false,
@@ -56,22 +54,23 @@ export async function POST(request: NextRequest) {
   });
 
   if (error) {
-    console.error('Administrator email-code request failed', {
+    console.error('Administrator email-link request failed', {
       code: error.code,
       status: error.status,
       message: error.message,
     });
 
-    const message = /rate limit/i.test(error.message)
-      ? 'Too many code requests. Please wait a few minutes and try again.'
+    const message = /rate limit|security purposes/i.test(error.message)
+      ? 'A secure link was requested recently. Wait about one minute, then try again.'
       : /signup|not found|registered/i.test(error.message)
         ? 'The configured administrator account is not available. Contact the platform owner.'
-        : 'The administrator code could not be sent. Please try again shortly.';
+        : 'The administrator sign-in link could not be sent. Please try again shortly.';
     return noStoreJson({ error: message }, error.status && error.status >= 400 ? error.status : 400);
   }
 
   return noStoreJson({
     sent: true,
+    method: 'magic_link',
     destination: email.replace(/^(.{2}).*(@.*)$/, '$1••••$2'),
   });
 }
