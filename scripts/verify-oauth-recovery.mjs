@@ -11,14 +11,12 @@ const endpoint = read('src/app/api/auth/provision-account/route.ts');
 const migration = read('supabase/migrations/20260731090000_oauth_account_recovery.sql');
 const recoveryUi = read('src/app/auth/setup/AccountSetupClient.tsx');
 const adminOtpRequest = read('src/app/api/auth/admin-otp/request/route.ts');
-const phoneVerification = read('src/app/auth/phone/PhoneCollectionPage.tsx');
+const adminLogin = read('src/app/admin-login/AdminLoginClient.tsx');
+const phoneCollection = read('src/app/auth/phone/PhoneCollectionPage.tsx');
 const sellerReadiness = read('src/app/seller-dashboard/components/SellerProfileReadiness.tsx');
 const sellerStatusEndpoint = read('src/app/api/seller/verification-status/route.ts');
-const sellerRepairMigration = read(
-  'supabase/migrations/20260801233500_repair_legacy_seller_verification_and_phone_sync.sql'
-);
-const sellerApprovalMigration = read(
-  'supabase/migrations/20260801234000_enforce_seller_verification_before_approval.sql'
+const contactPhoneMigration = read(
+  'supabase/migrations/20260802010500_remove_phone_otp_and_use_contact_number.sql'
 );
 
 assert(
@@ -39,64 +37,28 @@ assert(migration.includes('grant execute') && migration.includes('to authenticat
 assert(recoveryUi.includes('Session preserved'), 'Recovery UI must explain that the authenticated session is preserved.');
 assert(recoveryUi.includes('aria-live'), 'Recovery status must be announced accessibly.');
 
-assert(
-  adminOtpRequest.includes('shouldCreateUser: false'),
-  'Admin email-code login must never create an unintended account.'
-);
-assert(
-  adminOtpRequest.includes('configuredAdminEmail()'),
-  'Admin email-code login must remain restricted to the configured administrator.'
-);
-assert(
-  !adminOtpRequest.includes('ensureConfiguredAdminAccount'),
-  'Sending an admin email code must not depend on the service-role provisioning path.'
-);
-assert(
-  !adminOtpRequest.includes('createAdminClient'),
-  'The public admin email-code endpoint must not require or instantiate a service-role client.'
-);
+assert(adminOtpRequest.includes('shouldCreateUser: false'), 'Admin email-link login must never create an account.');
+assert(adminOtpRequest.includes('configuredAdminEmail()'), 'Admin email-link login must remain restricted.');
+assert(!adminOtpRequest.includes('createAdminClient'), 'The public admin email-link endpoint must not instantiate a service-role client.');
+assert(adminLogin.includes("type AccessMode = 'password' | 'email-link'"), 'Admin UI must match the delivered magic-link template.');
+assert(adminLogin.includes('Send secure admin sign-in link'), 'Admin UI must clearly request the secure link.');
+assert(!adminLogin.includes('six-digit') && !adminLogin.includes('verifyEmailOtp'), 'Admin UI must not ask for a code when Supabase sends a magic link.');
+assert(adminLogin.includes("router.replace('/admin-portal')"), 'A completed admin magic-link session must open the admin portal.');
 
-assert(
-  phoneVerification.includes("supabase.auth.updateUser({") && phoneVerification.includes("type: 'phone_change'"),
-  'Phone verification must use Supabase phone-change OTP rather than marking a stored number verified.'
-);
-assert(
-  phoneVerification.includes('phone_verified: true') && phoneVerification.includes('phone_confirmed_at'),
-  'The user profile may be marked phone-verified only after Supabase confirms the auth phone.'
-);
-assert(
-  !phoneVerification.includes('Phone number verification (OTP) will be added soon'),
-  'The seller flow must not ship the old non-verifying phone placeholder.'
-);
-assert(
-  phoneVerification.includes('That same account can buy and sell'),
-  'Phone verification must preserve the unified buyer and seller account model.'
-);
-assert(
-  sellerStatusEndpoint.includes("rpc('ensure_current_seller_verification_state')"),
-  'Seller readiness must come from the protected server-authoritative verification function.'
-);
-assert(
-  sellerReadiness.includes('Profile completeness and business verification are separate'),
-  'Seller readiness must clearly separate saved profile fields from actual verification.'
-);
-assert(
-  sellerReadiness.includes('requiredDocumentsApproved') && sellerReadiness.includes('bankVerified'),
-  'Seller readiness must report document and settlement-bank review instead of only basic fields.'
-);
-assert(
-  sellerRepairMigration.includes('sync_confirmed_auth_phone_to_profile') &&
-    sellerRepairMigration.includes('ensure_current_seller_verification_state'),
-  'The database must repair legacy sellers and synchronise confirmed auth phone state.'
-);
-assert(
-  sellerRepairMigration.includes('grant execute') && sellerRepairMigration.includes('to authenticated'),
-  'Only authenticated accounts may request their seller verification summary.'
-);
-assert(
-  sellerApprovalMigration.includes('enforce_seller_verification_before_approval') &&
-    sellerApprovalMigration.includes('GST certificate, PAN card and cancelled cheque'),
-  'Seller approval must be blocked in PostgreSQL until phone, GST, documents and bank checks pass.'
-);
+assert(phoneCollection.includes("rpc('set_current_account_phone'"), 'Phone collection must use the authenticated contact-number RPC.');
+assert(!phoneCollection.includes('auth.updateUser') && !phoneCollection.includes("type: 'phone_change'"), 'Phone collection must not start an SMS verification flow.');
+assert(!phoneCollection.includes('verifyOtp') && !phoneCollection.includes('Send verification code'), 'Phone collection must remain provider-free.');
+assert(phoneCollection.includes('SMS verification is not required'), 'The contact-number flow must explain that SMS is not required.');
+assert(sellerStatusEndpoint.includes("rpc('ensure_current_seller_verification_state')"), 'Seller readiness must come from the protected verification function.');
+assert(sellerReadiness.includes('Contact number added'), 'Seller readiness must count a saved phone as complete.');
+assert(!sellerReadiness.includes('OTP verification required'), 'Seller readiness must not retain the removed OTP blocker.');
+assert(sellerReadiness.includes('requiredDocumentsApproved') && sellerReadiness.includes('bankVerified'), 'Seller readiness must still report business checks.');
 
-console.log('OAuth, admin login and seller verification regression checks passed.');
+assert(contactPhoneMigration.includes('set_current_account_phone'), 'Database must expose a protected contact-number RPC.');
+assert(contactPhoneMigration.includes('grant execute') && contactPhoneMigration.includes('to authenticated'), 'Only authenticated accounts may save their contact phone.');
+assert(contactPhoneMigration.includes('drop trigger if exists sync_confirmed_auth_phone_to_profile'), 'The obsolete Auth phone-sync trigger must be removed.');
+assert(contactPhoneMigration.includes("v_next_action := 'add_phone'"), 'A missing phone must remain an explicit profile action.');
+assert(contactPhoneMigration.includes("Seller mobile number must be added before approval"), 'Seller approval must require a contact number without claiming OTP verification.');
+assert(!contactPhoneMigration.includes('must be OTP verified'), 'Post-migration seller rules must not require SMS OTP.');
+
+console.log('OAuth, admin magic-link and provider-free seller phone regression checks passed.');
