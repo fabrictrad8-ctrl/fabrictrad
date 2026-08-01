@@ -1,10 +1,10 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
-import {
-  configuredAdminEmail,
-  ensureConfiguredAdminAccount,
-} from '@/lib/adminAccess';
+import { configuredAdminEmail } from '@/lib/adminAccess';
 import { normalizeEmail } from '@/lib/authValidation';
+
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
 const noStoreJson = (body: Record<string, unknown>, status = 200) =>
   NextResponse.json(body, {
@@ -30,24 +30,19 @@ export async function POST(request: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!supabaseUrl || !publishableKey) {
-    return noStoreJson({ error: 'Administrator authentication is temporarily unavailable.' }, 503);
+    return noStoreJson({ error: 'Administrator email access is temporarily unavailable.' }, 503);
   }
 
-  try {
-    const prepared = await ensureConfiguredAdminAccount(email);
-    if (!prepared) {
-      return noStoreJson({ error: 'The configured administrator account could not be prepared.' }, 503);
-    }
-  } catch (error) {
-    console.error('Administrator account preparation failed', {
-      email,
-      message: error instanceof Error ? error.message : 'Unknown error',
-    });
-    return noStoreJson({ error: 'Administrator account preparation failed. Please try again shortly.' }, 503);
-  }
-
+  // Email-code authentication must never depend on the service-role secret.
+  // The configured administrator is an existing, confirmed Supabase user and
+  // shouldCreateUser=false prevents this public route from creating accounts.
+  // Profile/role repair remains a separate trusted-server operation.
   const supabase = createClient(supabaseUrl, publishableKey, {
-    auth: { autoRefreshToken: false, persistSession: false },
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+      detectSessionInUrl: false,
+    },
   });
   const redirectBase =
     process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '') || request.nextUrl.origin;
@@ -61,10 +56,18 @@ export async function POST(request: NextRequest) {
   });
 
   if (error) {
+    console.error('Administrator email-code request failed', {
+      code: error.code,
+      status: error.status,
+      message: error.message,
+    });
+
     const message = /rate limit/i.test(error.message)
       ? 'Too many code requests. Please wait a few minutes and try again.'
-      : error.message;
-    return noStoreJson({ error: message }, 400);
+      : /signup|not found|registered/i.test(error.message)
+        ? 'The configured administrator account is not available. Contact the platform owner.'
+        : 'The administrator code could not be sent. Please try again shortly.';
+    return noStoreJson({ error: message }, error.status && error.status >= 400 ? error.status : 400);
   }
 
   return noStoreJson({
