@@ -1,13 +1,16 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
 import AppLogo from '@/components/ui/AppLogo';
 import Icon from '@/components/ui/AppIcon';
 import PreferenceControls from '@/components/PreferenceControls';
+import ProfileMenu from '@/components/ProfileMenu';
 import { useAuth } from '@/contexts/AuthContext';
+import AdminCommandSearch from '@/app/admin-portal/components/AdminCommandSearch';
 import AdminDashboard from '@/app/admin-portal/components/AdminDashboard';
+import AdminCustomers from '@/app/admin-portal/components/AdminCustomers';
 import AdminSellers from '@/app/admin-portal/components/AdminSellers';
 import AdminOrders from '@/app/admin-portal/components/AdminOrders';
 import AdminDiscounts from '@/app/admin-portal/components/AdminDiscounts';
@@ -23,175 +26,204 @@ import AdminSellerMetrics from '@/app/admin-portal/components/AdminSellerMetrics
 
 type AdminTab =
   | 'dashboard'
-  | 'sellers'
-  | 'top-sellers'
-  | 'seller-metrics'
-  | 'listings'
   | 'orders'
+  | 'listings'
+  | 'customers'
+  | 'sellers'
   | 'payments'
   | 'reconciliation'
   | 'fulfillment'
+  | 'seller-metrics'
+  | 'top-sellers'
   | 'discounts'
   | 'activity'
   | 'errors'
   | 'settings';
 
-type AdminNavItem = { key: AdminTab; label: string; icon: string };
+type NavItem = {
+  key: AdminTab;
+  label: string;
+  icon: string;
+  description: string;
+};
 
-const navGroups: { label: string; items: AdminNavItem[] }[] = [
+type NavGroup = {
+  label: string;
+  items: NavItem[];
+};
+
+const navGroups: NavGroup[] = [
   {
-    label: 'Overview',
+    label: 'Home',
     items: [
-      { key: 'dashboard', label: 'Dashboard', icon: 'ChartPieIcon' },
-      { key: 'activity', label: 'Activity feed', icon: 'BoltIcon' },
+      { key: 'dashboard', label: 'Home', icon: 'HomeIcon', description: 'Live metrics and tasks' },
+      { key: 'activity', label: 'Activity', icon: 'BoltIcon', description: 'Operational timeline' },
     ],
   },
   {
     label: 'Commerce',
     items: [
-      { key: 'sellers', label: 'Seller verification', icon: 'BuildingStorefrontIcon' },
-      { key: 'listings', label: 'Listings', icon: 'TagIcon' },
-      { key: 'orders', label: 'Orders', icon: 'ShoppingBagIcon' },
-      { key: 'payments', label: 'Payments', icon: 'CreditCardIcon' },
-      { key: 'reconciliation', label: 'Reconciliation', icon: 'ArrowsRightLeftIcon' },
+      { key: 'orders', label: 'Orders', icon: 'ShoppingBagIcon', description: 'Payment and fulfillment state' },
+      { key: 'listings', label: 'Products', icon: 'TagIcon', description: 'Listings, inventory and GTIN' },
+      { key: 'customers', label: 'Customers', icon: 'UsersIcon', description: 'Buyer and business accounts' },
+      { key: 'sellers', label: 'Sellers', icon: 'BuildingStorefrontIcon', description: 'Verification and eligibility' },
     ],
   },
   {
-    label: 'Performance',
+    label: 'Finance',
     items: [
-      { key: 'top-sellers', label: 'Top sellers', icon: 'TrophyIcon' },
-      { key: 'seller-metrics', label: 'Seller metrics', icon: 'PresentationChartLineIcon' },
-      { key: 'fulfillment', label: 'Fulfilment analytics', icon: 'TruckIcon' },
-      { key: 'discounts', label: 'Discounts', icon: 'ReceiptPercentIcon' },
+      { key: 'payments', label: 'Payments', icon: 'CreditCardIcon', description: 'Captures, failures and refunds' },
+      { key: 'reconciliation', label: 'Reconciliation', icon: 'ArrowsRightLeftIcon', description: 'Commission and settlements' },
+    ],
+  },
+  {
+    label: 'Operations',
+    items: [
+      { key: 'fulfillment', label: 'Fulfillment', icon: 'TruckIcon', description: 'Shipments and delivery' },
+      { key: 'seller-metrics', label: 'Analytics', icon: 'PresentationChartLineIcon', description: 'Seller performance' },
+      { key: 'top-sellers', label: 'Top sellers', icon: 'TrophyIcon', description: 'Marketplace leaders' },
+      { key: 'discounts', label: 'Discounts', icon: 'ReceiptPercentIcon', description: 'Campaigns and promotions' },
     ],
   },
   {
     label: 'Platform',
     items: [
-      { key: 'errors', label: 'Error monitor', icon: 'ExclamationTriangleIcon' },
-      { key: 'settings', label: 'Settings', icon: 'CogIcon' },
+      { key: 'errors', label: 'Error monitor', icon: 'ExclamationTriangleIcon', description: 'Runtime and webhook issues' },
+      { key: 'settings', label: 'Settings', icon: 'CogIcon', description: 'Platform policy and controls' },
     ],
   },
 ];
 
-const allAdminTabs = navGroups.flatMap((group) => group.items.map((item) => item.key));
-const getValidTab = (tab: string | null): AdminTab =>
-  allAdminTabs.includes(tab as AdminTab) ? (tab as AdminTab) : 'dashboard';
+const flatItems = navGroups.flatMap((group) => group.items);
+const validTabs = flatItems.map((item) => item.key);
+const normaliseTab = (value: string | null): AdminTab =>
+  validTabs.includes(value as AdminTab) ? (value as AdminTab) : 'dashboard';
 
 export default function AdminPortalLayout() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user, profile } = useAuth();
-  const [activeTab, setActiveTab] = useState<AdminTab>(() => getValidTab(searchParams?.get('tab') || null));
+  const { user, profile, signOut } = useAuth();
+  const [activeTab, setActiveTab] = useState<AdminTab>(() => normaliseTab(searchParams.get('tab')));
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
+
+  useEffect(() => {
+    setActiveTab(normaliseTab(searchParams.get('tab')));
+  }, [searchParams]);
+
   const activeItem = useMemo(
-    () => navGroups.flatMap((group) => group.items).find((item) => item.key === activeTab),
+    () => flatItems.find((item) => item.key === activeTab) || flatItems[0],
     [activeTab]
   );
 
-  useEffect(() => {
-    setActiveTab(getValidTab(searchParams?.get('tab') || null));
-  }, [searchParams]);
-
-  const navigateToTab = (tab: AdminTab) => {
+  const navigateTo = (tab: AdminTab) => {
     setActiveTab(tab);
     setSidebarOpen(false);
-    router.replace(tab === 'dashboard' ? '/admin-portal' : `/admin-portal?tab=${tab}`, { scroll: false });
+    router.replace(tab === 'dashboard' ? '/admin-portal' : `/admin-portal?tab=${tab}`, {
+      scroll: false,
+    });
   };
 
-  const adminName = profile?.full_name || user?.email?.split('@')[0] || 'Super Admin';
-  const initials = adminName
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((part: string) => part[0]?.toUpperCase())
-    .join('');
+  const logout = async () => {
+    if (signingOut) return;
+    setSigningOut(true);
+    try {
+      await signOut();
+    } finally {
+      window.location.replace('/admin-login');
+    }
+  };
+
+  const adminName = profile?.full_name || user?.email?.split('@')[0] || 'Administrator';
 
   const sidebar = (
-    <div className="flex h-full flex-col">
-      <div className="border-b border-border px-4 py-4">
-        <Link href="/admin-portal" className="flex items-center gap-3" onClick={() => setSidebarOpen(false)}>
-          <AppLogo size={34} />
-          <div className="min-w-0">
+    <div className="flex h-full flex-col bg-[#f6f6f7] dark:bg-card">
+      <div className="border-b border-border px-3 py-3">
+        <Link href="/admin-portal" onClick={() => setSidebarOpen(false)} className="flex min-h-11 items-center gap-3 rounded-xl px-2 hover:bg-card">
+          <AppLogo size={32} />
+          <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-800 text-foreground">FabricTrad</p>
-            <p className="truncate text-xs text-muted-foreground">Admin operations</p>
+            <p className="truncate text-[11px] text-muted-foreground">Commerce administration</p>
           </div>
+          <Icon name="ChevronUpDownIcon" size={15} className="text-muted-foreground" />
         </Link>
       </div>
 
-      <nav className="ft-sidebar-scroll flex-1 overflow-y-auto p-3">
+      <nav className="ft-sidebar-scroll flex-1 overflow-y-auto px-2 py-3" aria-label="Administrator navigation">
         {navGroups.map((group) => (
-          <div key={group.label} className="mb-4 last:mb-0">
-            <p className="mb-1.5 px-3 text-[10px] font-800 uppercase tracking-[0.16em] text-muted-foreground">{group.label}</p>
-            <div className="space-y-1">
+          <section key={group.label} className="mb-4 last:mb-0">
+            <p className="mb-1 px-2 text-[10px] font-800 uppercase tracking-[0.14em] text-muted-foreground">{group.label}</p>
+            <div className="space-y-0.5">
               {group.items.map((item) => (
                 <button
                   key={item.key}
                   type="button"
-                  onClick={() => navigateToTab(item.key)}
-                  className={`ft-sidebar-item flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm ${activeTab === item.key ? 'is-active' : ''}`}
+                  onClick={() => navigateTo(item.key)}
+                  className={`group flex min-h-10 w-full items-center gap-3 rounded-lg px-2.5 text-left text-sm font-650 transition ${
+                    activeTab === item.key
+                      ? 'bg-[#e1e3e5] text-foreground shadow-sm dark:bg-muted'
+                      : 'text-foreground/80 hover:bg-[#ebebeb] hover:text-foreground dark:hover:bg-muted'
+                  }`}
                 >
-                  <Icon name={item.icon as 'ChartPieIcon'} size={18} />
+                  <Icon name={item.icon as 'HomeIcon'} size={18} className={activeTab === item.key ? 'text-foreground' : 'text-muted-foreground group-hover:text-foreground'} />
                   <span className="min-w-0 flex-1 truncate">{item.label}</span>
                 </button>
               ))}
             </div>
-          </div>
+          </section>
         ))}
       </nav>
 
-      <div className="space-y-2 border-t border-border p-3">
-        <Link href="/marketplace" className="ft-sidebar-item flex items-center gap-3 px-3 py-2.5 text-sm">
-          <Icon name="GlobeAltIcon" size={18} />
-          <span>View marketplace</span>
+      <div className="space-y-1 border-t border-border p-2">
+        <Link href="/marketplace" className="flex min-h-10 items-center gap-3 rounded-lg px-2.5 text-sm font-650 text-foreground/80 hover:bg-card hover:text-foreground">
+          <Icon name="ArrowTopRightOnSquareIcon" size={18} className="text-muted-foreground" />
+          View marketplace
         </Link>
-        <Link href="/profile" className="ft-sidebar-item flex items-center gap-3 px-3 py-2.5 text-sm">
-          <Icon name="UserCircleIcon" size={18} />
-          <span>Admin profile</span>
-        </Link>
+        <button
+          type="button"
+          onClick={() => void logout()}
+          disabled={signingOut}
+          className="flex min-h-10 w-full items-center gap-3 rounded-lg px-2.5 text-left text-sm font-700 text-error hover:bg-error/10 disabled:opacity-50"
+        >
+          <Icon name="ArrowRightOnRectangleIcon" size={18} />
+          {signingOut ? 'Signing out…' : 'Sign out'}
+        </button>
       </div>
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-transparent">
-      <header className="ft-topbar sticky top-0 z-40 flex h-16 items-center gap-3 px-3 sm:px-5 lg:px-6">
-        <button
-          type="button"
-          className="ft-icon-button !h-10 !w-10 !min-w-10 !shrink-0 md:!hidden"
-          onClick={() => setSidebarOpen(true)}
-          aria-label="Open admin navigation"
-        >
+    <div className="min-h-screen bg-[#f1f1f1] text-foreground dark:bg-background">
+      <header className="sticky top-0 z-40 flex h-14 items-center gap-3 border-b border-border bg-card/95 px-3 shadow-sm backdrop-blur-xl sm:px-4">
+        <button type="button" onClick={() => setSidebarOpen(true)} className="ft-icon-button md:hidden" aria-label="Open admin navigation">
           <Icon name="Bars3Icon" size={20} />
         </button>
-        <div className="min-w-0">
-          <p className="truncate text-sm font-800 text-foreground">{activeItem?.label || 'Admin dashboard'}</p>
-          <p className="hidden text-xs text-muted-foreground sm:block">Platform commerce, trust, payments and operations</p>
+
+        <div className="hidden min-w-0 md:block lg:w-52">
+          <p className="truncate text-sm font-800 text-foreground">{activeItem.label}</p>
+          <p className="truncate text-[11px] text-muted-foreground">{activeItem.description}</p>
         </div>
+
+        <AdminCommandSearch />
 
         <div className="ml-auto flex items-center gap-2">
           <PreferenceControls compact />
-          <Link href="/admin-portal?tab=sellers" className="ft-primary-action hidden items-center gap-2 px-3 py-2 text-xs sm:inline-flex">
-            <Icon name="ShieldCheckIcon" size={15} /> Review sellers
-          </Link>
-          <button type="button" onClick={() => navigateToTab('activity')} className="ft-icon-button relative" aria-label="Open activity feed">
+          <button type="button" onClick={() => navigateTo('activity')} className="ft-icon-button relative" aria-label="Open administrator alerts">
             <Icon name="BellIcon" size={18} />
-            <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-primary ring-2 ring-card" />
+            <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-error ring-2 ring-card" />
           </button>
-          <Link href="/profile" className="flex min-h-10 items-center gap-2 rounded-full border border-border bg-card py-1 pl-1 pr-3 shadow-sm hover:border-primary/30">
-            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-800 text-white">{initials || 'SA'}</span>
-            <span className="hidden max-w-32 truncate text-xs font-800 text-foreground sm:block">{adminName}</span>
-          </Link>
+          <ProfileMenu />
         </div>
       </header>
 
-      <div className="flex min-h-[calc(100vh-4rem)]">
-        <aside className="ft-sidebar hidden w-64 shrink-0 border-r md:block">{sidebar}</aside>
+      <div className="flex min-h-[calc(100vh-3.5rem)]">
+        <aside className="hidden w-[240px] shrink-0 border-r border-border md:block">{sidebar}</aside>
 
         {sidebarOpen && (
           <>
-            <button type="button" className="fixed inset-0 z-40 bg-black/50 md:hidden" onClick={() => setSidebarOpen(false)} aria-label="Close admin navigation" />
-            <aside className="fixed inset-y-0 left-0 z-50 w-[min(88vw,320px)] bg-card shadow-2xl md:hidden">
-              <button type="button" onClick={() => setSidebarOpen(false)} className="ft-icon-button absolute right-3 top-3 z-10 !h-10 !w-10 !min-w-10" aria-label="Close admin navigation">
+            <button type="button" className="fixed inset-0 z-40 bg-black/45 md:hidden" onClick={() => setSidebarOpen(false)} aria-label="Close admin navigation" />
+            <aside className="fixed inset-y-0 left-0 z-50 w-[min(88vw,290px)] border-r border-border shadow-2xl md:hidden">
+              <button type="button" onClick={() => setSidebarOpen(false)} className="ft-icon-button absolute right-3 top-3 z-10" aria-label="Close admin navigation">
                 <Icon name="XMarkIcon" size={18} />
               </button>
               {sidebar}
@@ -199,38 +231,42 @@ export default function AdminPortalLayout() {
           </>
         )}
 
-        <main className="min-w-0 flex-1 overflow-y-auto p-4 pb-24 sm:p-6 lg:p-8">
-          <div className="mx-auto max-w-[1440px]">
+        <main className="min-w-0 flex-1 overflow-y-auto px-3 py-4 pb-24 sm:px-5 sm:py-6 lg:px-7">
+          <div className="mx-auto max-w-[1500px]">
             {activeTab === 'dashboard' && <AdminDashboard />}
-            {activeTab === 'sellers' && <AdminSellers />}
-            {activeTab === 'listings' && <AdminListings />}
             {activeTab === 'orders' && <AdminOrders />}
+            {activeTab === 'listings' && <AdminListings />}
+            {activeTab === 'customers' && <AdminCustomers />}
+            {activeTab === 'sellers' && <AdminSellers />}
             {activeTab === 'payments' && <AdminPayments />}
             {activeTab === 'reconciliation' && <AdminReconciliation />}
+            {activeTab === 'fulfillment' && <AdminFulfillmentAnalytics />}
+            {activeTab === 'seller-metrics' && <AdminSellerMetrics />}
+            {activeTab === 'top-sellers' && <AdminTopSellers />}
             {activeTab === 'discounts' && <AdminDiscounts />}
             {activeTab === 'activity' && <AdminActivityFeed />}
-            {activeTab === 'top-sellers' && <AdminTopSellers />}
-            {activeTab === 'seller-metrics' && <AdminSellerMetrics />}
-            {activeTab === 'fulfillment' && <AdminFulfillmentAnalytics />}
             {activeTab === 'errors' && <AdminErrorMonitor />}
             {activeTab === 'settings' && <AdminSettings />}
           </div>
         </main>
       </div>
 
-      <nav className="ft-mobile-dock fixed inset-x-0 bottom-0 z-40 grid grid-cols-4 p-2 md:hidden">
+      <nav className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t border-border bg-card/95 p-1.5 backdrop-blur-xl md:hidden">
         {[
-          { key: 'dashboard' as AdminTab, label: 'Home', icon: 'ChartPieIcon' },
-          { key: 'sellers' as AdminTab, label: 'Sellers', icon: 'BuildingStorefrontIcon' },
+          { key: 'dashboard' as AdminTab, label: 'Home', icon: 'HomeIcon' },
           { key: 'orders' as AdminTab, label: 'Orders', icon: 'ShoppingBagIcon' },
-          { key: 'payments' as AdminTab, label: 'Payments', icon: 'CreditCardIcon' },
+          { key: 'listings' as AdminTab, label: 'Products', icon: 'TagIcon' },
+          { key: 'customers' as AdminTab, label: 'Customers', icon: 'UsersIcon' },
+          { key: 'sellers' as AdminTab, label: 'Sellers', icon: 'BuildingStorefrontIcon' },
         ].map((item) => (
-          <button key={item.key} type="button" onClick={() => navigateToTab(item.key)} className={`flex flex-col items-center gap-1 rounded-lg py-2 text-[10px] font-800 ${activeTab === item.key ? 'bg-primary/10 text-primary' : 'text-muted-foreground'}`}>
-            <Icon name={item.icon as 'ChartPieIcon'} size={19} />
+          <button key={item.key} type="button" onClick={() => navigateTo(item.key)} className={`flex flex-col items-center gap-1 rounded-lg py-2 text-[10px] font-800 ${activeTab === item.key ? 'bg-primary/10 text-primary' : 'text-muted-foreground'}`}>
+            <Icon name={item.icon as 'HomeIcon'} size={18} />
             {item.label}
           </button>
         ))}
       </nav>
+
+      <span className="sr-only">Signed in as {adminName}</span>
     </div>
   );
 }
