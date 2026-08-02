@@ -14,6 +14,12 @@ const passwordResetRequest = read('src/app/api/auth/email-otp/request/route.ts')
 const passwordResetPage = read('src/app/auth/reset-password/page.tsx');
 const accountLogin = read('src/app/login/EmailOtpLoginClient.tsx');
 const adminOtpRequest = read('src/app/api/auth/admin-otp/request/route.ts');
+const authEmailServer = read('src/lib/server/authEmail.ts');
+const authEmailMigration = read(
+  'supabase/migrations/20260802014500_auth_email_delivery_rate_limits.sql'
+);
+const authEmailDocs = read('docs/AUTH_EMAIL_SERVER.md');
+const environmentExample = read('.env.example');
 const adminLogin = read('src/app/admin-login/AdminLoginClient.tsx');
 const adminPortal = read('src/app/admin-portal/page.tsx');
 const middleware = read('src/middleware.ts');
@@ -42,7 +48,12 @@ assert(migration.includes('grant execute') && migration.includes('to authenticat
 assert(recoveryUi.includes('Session preserved'), 'Recovery UI must explain that the authenticated session is preserved.');
 assert(recoveryUi.includes('aria-live'), 'Recovery status must be announced accessibly.');
 
-assert(passwordResetRequest.includes('resetPasswordForEmail'), 'Forgot password must use the Supabase recovery flow.');
+assert(passwordResetRequest.includes('createAdminClient'), 'Forgot password must generate recovery links on the trusted server.');
+assert(passwordResetRequest.includes('auth.admin.generateLink'), 'Forgot password must use Supabase Admin recovery-link generation.');
+assert(passwordResetRequest.includes("type: 'recovery'"), 'Forgot password must generate a recovery-purpose token.');
+assert(passwordResetRequest.includes('properties?.action_link'), 'Forgot password must deliver the generated recovery action link.');
+assert(passwordResetRequest.includes('sendPasswordRecoveryEmail'), 'Forgot password must use the FabricTrad email server.');
+assert(!passwordResetRequest.includes('resetPasswordForEmail'), 'Forgot password must not invoke the locked Supabase hosted email template.');
 assert(!passwordResetRequest.includes('signInWithOtp'), 'Forgot password must never send a passwordless sign-in email.');
 assert(passwordResetRequest.includes("method: 'password_recovery'"), 'Recovery endpoint must identify the correct email purpose.');
 assert(passwordResetRequest.includes('/auth/reset-password'), 'Recovery email must return to the new-password screen.');
@@ -50,16 +61,36 @@ assert(passwordResetPage.includes('updatePassword(password)'), 'Recovery screen 
 assert(passwordResetPage.includes("window.location.replace('/login?password_updated=1')"), 'Successful recovery must return to normal password login.');
 assert(accountLogin.includes('Send password reset email'), 'Buyer and seller login must request a recovery email.');
 assert(accountLogin.includes('It will not sign you into the marketplace'), 'Recovery UI must distinguish reset from passwordless login.');
-assert(!accountLogin.includes('Verify code') && !accountLogin.includes('six-digit password reset code'), 'Locked default recovery emails must not be represented as numeric OTP emails.');
+assert(!accountLogin.includes('Verify code') && !accountLogin.includes('six-digit password reset code'), 'Password recovery must not claim a numeric code is sent.');
 assert(middleware.includes("'/auth/reset-password'"), 'The public recovery page must load before browser auth tokens are persisted.');
 
-assert(adminOtpRequest.includes('shouldCreateUser: false'), 'Administrator email OTP must never create an account.');
 assert(adminOtpRequest.includes('configuredAdminEmail()'), 'Administrator email OTP must remain restricted to the configured address.');
-assert(adminOtpRequest.includes('signInWithOtp'), 'Administrator access must use native Supabase email OTP generation.');
+assert(adminOtpRequest.includes('createAdminClient'), 'Administrator OTP generation must stay on the trusted server.');
+assert(adminOtpRequest.includes('auth.admin.generateLink'), 'Administrator access must generate the real Supabase token server-side.');
+assert(adminOtpRequest.includes("type: 'magiclink'"), 'Administrator OTP must use the Supabase email-token purpose.');
+assert(adminOtpRequest.includes('properties?.email_otp'), 'Administrator delivery must extract the generated six-digit email OTP.');
+assert(adminOtpRequest.includes('sendAdminOtpEmail'), 'Administrator OTP must be sent through the FabricTrad email server.');
 assert(adminOtpRequest.includes("method: 'email_otp'"), 'Administrator OTP endpoint must identify email OTP delivery.');
-assert(!adminOtpRequest.includes('createAdminClient'), 'Public administrator OTP requests must not instantiate a service-role client.');
-assert(!adminOtpRequest.includes('SUPABASE_SERVICE_ROLE_KEY'), 'Public administrator OTP requests must not expose the service-role key.');
+assert(!adminOtpRequest.includes('signInWithOtp'), 'Administrator OTP must bypass the locked Supabase hosted email template.');
 assert(!adminOtpRequest.includes('phone:'), 'Administrator OTP generation must not use phone authentication.');
+
+assert(authEmailServer.includes('RESEND_API_KEY'), 'Authentication email delivery must use a server-only Resend API key.');
+assert(authEmailServer.includes('https://api.resend.com/emails'), 'Authentication email delivery must call the Resend email API.');
+assert(authEmailServer.includes('FABRICTRAD_AUTH_EMAIL_FROM'), 'Authentication email delivery must require a verified sender address.');
+assert(authEmailServer.includes('Idempotency-Key'), 'Authentication email delivery must protect provider retries from duplicates.');
+assert(authEmailServer.includes("rpc('claim_auth_email_delivery'"), 'Authentication email delivery must enforce database rate limits.');
+assert(authEmailServer.includes('sendAdminOtpEmail') && authEmailServer.includes('sendPasswordRecoveryEmail'), 'Both authentication message types must have branded email senders.');
+assert(!authEmailServer.includes('NEXT_PUBLIC_RESEND'), 'The Resend API key must never be exposed to browser code.');
+
+assert(authEmailMigration.includes('auth_email_delivery_state'), 'Database must persist authentication email delivery limits.');
+assert(authEmailMigration.includes('claim_auth_email_delivery'), 'Database must expose an atomic delivery claim function.');
+assert(authEmailMigration.includes("auth.role() <> 'service_role'"), 'Only the service role may claim an authentication email delivery.');
+assert(authEmailMigration.includes("purpose in ('admin_otp', 'password_recovery')"), 'Only approved authentication email purposes may be rate-limited.');
+assert(authEmailMigration.includes('enable row level security'), 'Authentication email delivery state must use RLS.');
+assert(authEmailMigration.includes('grant execute') && authEmailMigration.includes('to service_role'), 'Only the service role may execute the delivery claim.');
+assert(environmentExample.includes('RESEND_API_KEY='), 'Environment example must include the server-only Resend key.');
+assert(environmentExample.includes('FABRICTRAD_AUTH_EMAIL_FROM='), 'Environment example must include the verified sender address.');
+assert(authEmailDocs.includes('updates.fabrictrad.com') && authEmailDocs.includes('SPF') && authEmailDocs.includes('DKIM'), 'Deployment documentation must cover sender-domain verification.');
 
 assert(adminLogin.includes('Send administrator OTP'), 'Administrator UI must request a one-time email code.');
 assert(adminLogin.includes('Six-digit administrator code'), 'Administrator UI must provide a six-digit OTP input.');
@@ -87,4 +118,4 @@ assert(contactPhoneMigration.includes("v_next_action := 'add_phone'"), 'A missin
 assert(contactPhoneMigration.includes('Seller mobile number must be added before approval'), 'Seller approval must require a contact number without claiming OTP verification.');
 assert(!contactPhoneMigration.includes('must be OTP verified'), 'Post-migration seller rules must not require SMS OTP.');
 
-console.log('OAuth, password recovery, administrator auth and provider-free seller phone regression checks passed.');
+console.log('OAuth, Resend authentication email, password recovery, administrator OTP and provider-free seller phone regression checks passed.');
