@@ -12,7 +12,7 @@ permissions:
 jobs:
   diagnose:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 45
     env:
       NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
       NEXT_PUBLIC_SUPABASE_ANON_KEY: test-anon-key
@@ -41,11 +41,11 @@ jobs:
       - name: Build production application
         run: npm run build
 
-      - name: Run Playwright with compact line output
+      - name: Capture first Playwright failure
         shell: bash
         run: |
           set +e
-          npx playwright test --reporter=line 2>&1 | tee playwright-line.log
+          npx playwright test --reporter=line --max-failures=1 2>&1 | tee playwright-line.log
           status=${PIPESTATUS[0]}
           printf '%s\n' "$status" > playwright-exit-code.txt
           exit 0
@@ -54,7 +54,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: browser-qa-compact-log
+          name: browser-qa-first-failure
           path: |
             playwright-line.log
             playwright-exit-code.txt
