@@ -13,6 +13,7 @@ const PUBLIC_PATHS = new Set([
   '/buyer-registration',
   '/seller-registration',
   '/auth/callback',
+  '/auth/reset-password',
   '/help',
   '/privacy',
   '/terms',
