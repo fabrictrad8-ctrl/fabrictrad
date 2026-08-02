@@ -44,7 +44,10 @@ export default function AppClientEnhancements() {
   const isAuthenticationPage = AUTH_PATH_PREFIXES.some(
     (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)
   );
-  const commandEnabled = !loading && !!user && !!profile && !isAuthenticationPage;
+  const hasDedicatedCommandSearch =
+    pathname === '/admin-portal' || pathname.startsWith('/admin-portal/');
+  const commandEnabled =
+    !loading && !!user && !!profile && !isAuthenticationPage && !hasDedicatedCommandSearch;
 
   const commands = useMemo<CommandItem[]>(() => {
     const shared: CommandItem[] = [
