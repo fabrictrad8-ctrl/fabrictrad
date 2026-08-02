@@ -1,9 +1,9 @@
 name: Post-config administrator OTP probe
 
 on:
-  push:
+  pull_request:
     branches:
-      - agent/postconfig-otp-probe
+      - main
 
 permissions:
   contents: read
