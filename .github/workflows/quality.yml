@@ -95,7 +95,7 @@ jobs:
           grep -Fq 'profile?.can_buy === false' src/app/product-detail/components/ProductInfo.tsx
           grep -Fq "select('role,is_active,can_buy,can_sell')" src/middleware.ts
 
-          grep -Fq 'AI Catalog Studio' src/app/seller-dashboard/components/SellerDashboardLayout.tsx
+          grep -Fq "description: 'AI-assisted catalogue creation'" src/app/seller-dashboard/components/SellerDashboardLayout.tsx
           grep -Fq '<SellerCatalogAssistant />' src/app/seller-dashboard/components/SellerDashboardLayout.tsx
           grep -Fq '<SellerProfileReadiness />' src/app/seller-dashboard/components/SellerDashboardLayout.tsx
           grep -Fq '<SellerCatalogOrders />' src/app/seller-dashboard/components/SellerDashboardLayout.tsx
