@@ -1,97 +1,67 @@
 'use client';
 
-import { useEffect, useState, type FormEvent } from 'react';
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type ClipboardEvent,
+  type FormEvent,
+  type KeyboardEvent,
+} from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import AppLogo from '@/components/ui/AppLogo';
 import { useAuth } from '@/contexts/AuthContext';
 
 type AdminRole = 'admin_staff' | 'super_admin';
-type AccessMode = 'password' | 'email-link';
 
-type RoleResponse = {
-  role?: string;
+type OtpResponse = {
   error?: string;
+  destination?: string;
+  method?: string;
 };
 
 const DEFAULT_ADMIN_EMAIL = 'fabrictrad8@gmail.com';
+const emptyOtp = () => ['', '', '', '', '', ''];
 
 export default function AdminLoginClient() {
-  const router = useRouter();
-  const { user, profile, loading, signIn, signOut } = useAuth();
-  const [mode, setMode] = useState<AccessMode>('email-link');
-  const [email, setEmail] = useState(DEFAULT_ADMIN_EMAIL);
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [linkSent, setLinkSent] = useState(false);
+  const { user, profile, loading, verifyEmailOtp, signOut } = useAuth();
+  const [otp, setOtp] = useState(emptyOtp);
+  const [codeSent, setCodeSent] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [resendSeconds, setResendSeconds] = useState(0);
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
 
-  const openAdminPortal = () => router.replace('/admin-portal');
+  const token = useMemo(() => otp.join(''), [otp]);
 
   useEffect(() => {
     if (loading || !user) return;
     const signedInEmail = String(user.email || '').trim().toLowerCase();
     const role = profile?.role as AdminRole | undefined;
-    if (signedInEmail === DEFAULT_ADMIN_EMAIL || role === 'admin_staff' || role === 'super_admin') {
-      openAdminPortal();
+    if (
+      signedInEmail === DEFAULT_ADMIN_EMAIL ||
+      role === 'admin_staff' ||
+      role === 'super_admin'
+    ) {
+      window.location.replace('/admin-portal');
     }
   }, [loading, profile?.role, user]);
+
+  useEffect(() => {
+    if (resendSeconds <= 0) return;
+    const timer = window.setInterval(() => {
+      setResendSeconds((current) => Math.max(0, current - 1));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [resendSeconds]);
 
   const clearMessages = () => {
     setError('');
     setInfo('');
   };
 
-  const handlePasswordSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const normalizedEmail = email.trim().toLowerCase();
-
-    if (!normalizedEmail || !password) {
-      setError('Enter your administrator email and password.');
-      return;
-    }
-
-    clearMessages();
-    setSubmitting(true);
-
-    try {
-      const result = await signIn(normalizedEmail, password);
-      const signedInEmail = String(result?.user?.email || normalizedEmail).trim().toLowerCase();
-
-      if (signedInEmail === DEFAULT_ADMIN_EMAIL) {
-        openAdminPortal();
-        return;
-      }
-
-      const response = await fetch('/api/auth/resolve-role', {
-        method: 'POST',
-        credentials: 'same-origin',
-        cache: 'no-store',
-      });
-      const payload = (await response.json().catch(() => ({}))) as RoleResponse;
-      if (!response.ok) throw new Error(payload.error || 'Unable to verify administrator access.');
-
-      const role = payload.role as AdminRole | undefined;
-      if (role !== 'admin_staff' && role !== 'super_admin') {
-        await signOut();
-        throw new Error('This account does not have administrator access.');
-      }
-
-      openAdminPortal();
-    } catch (caughtError: unknown) {
-      setError(caughtError instanceof Error ? caughtError.message : 'Administrator sign-in failed.');
-      setSubmitting(false);
-    }
-  };
-
-  const sendAdminLink = async () => {
-    const normalizedEmail = email.trim().toLowerCase();
-    if (!normalizedEmail) {
-      setError('Enter the configured administrator email.');
-      return;
-    }
+  const sendAdminCode = async () => {
+    if (resendSeconds > 0) return;
 
     clearMessages();
     setSubmitting(true);
@@ -101,25 +71,89 @@ export default function AdminLoginClient() {
         headers: { 'Content-Type': 'application/json' },
         credentials: 'same-origin',
         cache: 'no-store',
-        body: JSON.stringify({ email: normalizedEmail }),
+        body: JSON.stringify({ email: DEFAULT_ADMIN_EMAIL }),
       });
-      const payload = (await response.json().catch(() => ({}))) as { error?: string };
-      if (!response.ok) throw new Error(payload.error || 'Unable to send the administrator sign-in link.');
+      const payload = (await response.json().catch(() => ({}))) as OtpResponse;
+      if (!response.ok) {
+        throw new Error(payload.error || 'Unable to send the administrator email OTP.');
+      }
+      if (payload.method && payload.method !== 'email_otp') {
+        throw new Error('The administrator authentication service returned an unexpected method.');
+      }
 
-      setEmail(normalizedEmail);
-      setLinkSent(true);
-      setInfo('Secure administrator sign-in link sent. Open the newest FabricTrad email to continue.');
+      setOtp(emptyOtp());
+      setCodeSent(true);
+      setResendSeconds(60);
+      setInfo(
+        `A six-digit administrator OTP was sent to ${payload.destination || DEFAULT_ADMIN_EMAIL}.`
+      );
+      window.setTimeout(() => document.getElementById('admin-otp-0')?.focus(), 50);
     } catch (caughtError: unknown) {
-      setError(caughtError instanceof Error ? caughtError.message : 'Unable to send the administrator sign-in link.');
+      setError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : 'Unable to send the administrator email OTP.'
+      );
     } finally {
       setSubmitting(false);
     }
   };
 
-  const switchMode = (nextMode: AccessMode) => {
-    setMode(nextMode);
-    setLinkSent(false);
+  const changeOtp = (index: number, value: string) => {
+    const digit = value.replace(/\D/g, '').slice(-1);
+    setOtp((current) =>
+      current.map((item, itemIndex) => (itemIndex === index ? digit : item))
+    );
+    if (digit && index < 5) {
+      document.getElementById(`admin-otp-${index + 1}`)?.focus();
+    }
+  };
+
+  const handleOtpKey = (index: number, event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Backspace' && !otp[index] && index > 0) {
+      document.getElementById(`admin-otp-${index - 1}`)?.focus();
+    }
+  };
+
+  const handleOtpPaste = (event: ClipboardEvent<HTMLDivElement>) => {
+    const pasted = event.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
+    if (!pasted) return;
+    event.preventDefault();
+    const next = emptyOtp();
+    pasted.split('').forEach((digit, index) => {
+      next[index] = digit;
+    });
+    setOtp(next);
+    document.getElementById(`admin-otp-${Math.min(pasted.length, 6) - 1}`)?.focus();
+  };
+
+  const verifyAdminCode = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (token.length !== 6) {
+      setError('Enter the complete six-digit administrator OTP.');
+      return;
+    }
+
     clearMessages();
+    setSubmitting(true);
+    try {
+      const result = await verifyEmailOtp(DEFAULT_ADMIN_EMAIL, token);
+      const signedInEmail = String(result?.user?.email || '').trim().toLowerCase();
+      if (signedInEmail !== DEFAULT_ADMIN_EMAIL) {
+        await signOut();
+        throw new Error('This email OTP does not belong to the FabricTrad administrator.');
+      }
+
+      window.location.replace('/admin-portal');
+    } catch (caughtError: unknown) {
+      const message = caughtError instanceof Error ? caughtError.message : '';
+      setError(
+        /expired|invalid|token/i.test(message)
+          ? 'That administrator OTP is invalid or expired. Request a new code and try again.'
+          : message || 'Administrator OTP verification failed.'
+      );
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -133,12 +167,15 @@ export default function AdminLoginClient() {
             <AppLogo size={44} />
             <span className="text-2xl font-800 tracking-tight text-white">FabricTrad</span>
           </Link>
-          <p className="mt-8 text-xs font-800 uppercase tracking-[0.18em] text-orange-300">Restricted administration</p>
+          <p className="mt-8 text-xs font-800 uppercase tracking-[0.18em] text-orange-300">
+            Restricted administration
+          </p>
           <h1 className="mt-4 max-w-xl text-5xl font-800 leading-[1.02] tracking-[-0.04em] text-white">
             FabricTrad Admin Portal
           </h1>
           <p className="mt-6 max-w-lg text-base leading-7 text-slate-400">
-            Manage users, catalogue approvals, orders, settlements, platform operations and business analytics from the secure administrator workspace.
+            Administrator access uses a single-use six-digit code sent only to the configured
+            FabricTrad administrator email address.
           </p>
         </section>
 
@@ -151,103 +188,96 @@ export default function AdminLoginClient() {
           </div>
 
           <div className="rounded-[1.75rem] border border-white/10 bg-[#151a21]/95 p-6 shadow-2xl shadow-black/35 backdrop-blur-xl sm:p-7">
-            <p className="text-xs font-800 uppercase tracking-[0.16em] text-orange-300">Administrator access</p>
-            <h2 className="mt-2 text-3xl font-800 tracking-tight text-white">Open admin dashboard</h2>
+            <p className="text-xs font-800 uppercase tracking-[0.16em] text-orange-300">
+              Administrator access
+            </p>
+            <h2 className="mt-2 text-3xl font-800 tracking-tight text-white">
+              Sign in with email OTP
+            </h2>
             <p className="mt-2 text-sm leading-6 text-slate-400">
-              Use the secure email link or administrator password. Buyer and seller accounts cannot enter this portal.
+              No password or mobile-number OTP is used. The code is delivered to the configured
+              administrator inbox.
             </p>
 
-            <div className="mt-6 grid grid-cols-2 rounded-xl border border-white/10 bg-black/10 p-1">
-              <button
-                type="button"
-                onClick={() => switchMode('email-link')}
-                className={`rounded-lg px-3 py-2.5 text-sm font-700 transition ${mode === 'email-link' ? 'bg-[#c65330] text-white' : 'text-slate-400 hover:text-white'}`}
-              >
-                Email link
-              </button>
-              <button
-                type="button"
-                onClick={() => switchMode('password')}
-                className={`rounded-lg px-3 py-2.5 text-sm font-700 transition ${mode === 'password' ? 'bg-[#c65330] text-white' : 'text-slate-400 hover:text-white'}`}
-              >
-                Password
-              </button>
+            <div className="mt-6 rounded-xl border border-white/10 bg-black/10 px-4 py-3.5">
+              <p className="text-xs font-700 uppercase tracking-[0.12em] text-slate-500">
+                Administrator email
+              </p>
+              <p className="mt-1 font-700 text-white">{DEFAULT_ADMIN_EMAIL}</p>
             </div>
 
             {error && (
-              <div role="alert" className="mt-5 rounded-xl border border-rose-300/20 bg-rose-300/10 px-4 py-3 text-sm text-rose-200">
+              <div
+                role="alert"
+                className="mt-5 rounded-xl border border-rose-300/20 bg-rose-300/10 px-4 py-3 text-sm text-rose-200"
+              >
                 {error}
               </div>
             )}
             {info && (
-              <div aria-live="polite" className="mt-5 rounded-xl border border-emerald-300/20 bg-emerald-300/10 px-4 py-3 text-sm text-emerald-200">
+              <div
+                aria-live="polite"
+                className="mt-5 rounded-xl border border-emerald-300/20 bg-emerald-300/10 px-4 py-3 text-sm text-emerald-200"
+              >
                 {info}
               </div>
             )}
 
-            {mode === 'password' ? (
-              <form className="mt-6 space-y-5" onSubmit={handlePasswordSubmit}>
-                <label className="block text-sm text-slate-300">
-                  Administrator email
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(event) => setEmail(event.target.value)}
-                    autoComplete="username"
-                    className="mt-2 w-full rounded-xl border border-white/10 bg-[#252d3a] px-4 py-3.5 text-white outline-none transition placeholder:text-slate-500 focus:border-orange-400/60 focus:ring-2 focus:ring-orange-400/10"
-                    required
-                  />
-                </label>
-                <label className="block text-sm text-slate-300">
-                  Password
-                  <span className="relative mt-2 block">
-                    <input
-                      type={showPassword ? 'text' : 'password'}
-                      value={password}
-                      onChange={(event) => setPassword(event.target.value)}
-                      autoComplete="current-password"
-                      className="w-full rounded-xl border border-white/10 bg-[#252d3a] px-4 py-3.5 pr-16 text-white outline-none transition placeholder:text-slate-500 focus:border-orange-400/60 focus:ring-2 focus:ring-orange-400/10"
-                      placeholder="Enter your password"
-                      required
-                    />
-                    <button type="button" onClick={() => setShowPassword((current) => !current)} className="absolute inset-y-0 right-0 px-4 text-xs font-700 text-slate-400 hover:text-white">
-                      {showPassword ? 'Hide' : 'Show'}
-                    </button>
-                  </span>
-                </label>
-                <button type="submit" disabled={submitting} className="w-full rounded-xl bg-[#c65330] px-4 py-3.5 font-700 text-white transition hover:bg-[#d45c36] disabled:cursor-not-allowed disabled:opacity-60">
-                  {submitting ? 'Verifying access…' : 'Enter admin dashboard'}
+            {!codeSent ? (
+              <button
+                type="button"
+                onClick={sendAdminCode}
+                disabled={submitting}
+                className="mt-6 w-full rounded-xl bg-[#c65330] px-4 py-3.5 font-700 text-white transition hover:bg-[#d45c36] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {submitting ? 'Sending email OTP…' : 'Send administrator OTP'}
+              </button>
+            ) : (
+              <form className="mt-6 space-y-5" onSubmit={verifyAdminCode}>
+                <div>
+                  <label className="text-sm font-700 text-slate-300">
+                    Six-digit administrator code
+                  </label>
+                  <div className="mt-2 grid grid-cols-6 gap-2" onPaste={handleOtpPaste}>
+                    {otp.map((digit, index) => (
+                      <input
+                        key={index}
+                        id={`admin-otp-${index}`}
+                        value={digit}
+                        onChange={(event) => changeOtp(index, event.target.value)}
+                        onKeyDown={(event) => handleOtpKey(index, event)}
+                        inputMode="numeric"
+                        autoComplete={index === 0 ? 'one-time-code' : 'off'}
+                        maxLength={1}
+                        aria-label={`Administrator OTP digit ${index + 1}`}
+                        className="h-12 min-w-0 rounded-lg border border-white/10 bg-[#252d3a] text-center text-lg font-800 text-white outline-none transition focus:border-orange-400/60 focus:ring-2 focus:ring-orange-400/10"
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={submitting || token.length !== 6}
+                  className="w-full rounded-xl bg-[#c65330] px-4 py-3.5 font-700 text-white transition hover:bg-[#d45c36] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {submitting ? 'Verifying OTP…' : 'Verify OTP and open admin portal'}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={sendAdminCode}
+                  disabled={submitting || resendSeconds > 0}
+                  className="w-full text-sm font-700 text-orange-300 hover:text-orange-200 disabled:cursor-not-allowed disabled:text-slate-500"
+                >
+                  {resendSeconds > 0 ? `Send a new OTP in ${resendSeconds}s` : 'Send a new OTP'}
                 </button>
               </form>
-            ) : (
-              <div className="mt-6 space-y-5">
-                <label className="block text-sm text-slate-300">
-                  Configured administrator email
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(event) => setEmail(event.target.value)}
-                    autoComplete="email"
-                    className="mt-2 w-full rounded-xl border border-white/10 bg-[#252d3a] px-4 py-3.5 text-white outline-none transition placeholder:text-slate-500 focus:border-orange-400/60 focus:ring-2 focus:ring-orange-400/10"
-                    required
-                  />
-                </label>
-
-                <button type="button" onClick={sendAdminLink} disabled={submitting} className="w-full rounded-xl bg-[#c65330] px-4 py-3.5 font-700 text-white transition hover:bg-[#d45c36] disabled:cursor-not-allowed disabled:opacity-60">
-                  {submitting ? 'Sending secure link…' : linkSent ? 'Send a new secure link' : 'Send secure admin sign-in link'}
-                </button>
-
-                {linkSent && (
-                  <div className="rounded-xl border border-white/10 bg-black/10 p-4 text-sm leading-6 text-slate-300">
-                    Open the newest email from Supabase Auth and press <strong className="text-white">Sign in</strong>. The link is single-use and will return you directly to FabricTrad.
-                  </div>
-                )}
-              </div>
             )}
 
             <div className="mt-6 grid gap-3 border-t border-white/10 pt-5 text-center text-sm">
               <Link href="/login" className="font-700 text-orange-300 hover:text-orange-200">
-                Main buyer and seller sign in
+                Buyer and seller sign in
               </Link>
               <Link href="/" className="text-slate-400 hover:text-white">
                 Back to FabricTrad
