@@ -2,20 +2,26 @@
 
 import React, { useEffect } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import AppLogo from '@/components/ui/AppLogo';
 import Icon from '@/components/ui/AppIcon';
 import { useAuth } from '@/contexts/AuthContext';
 
 export default function BuyerOnlyGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { user, profile, loading, profileLoading } = useAuth();
   const buyingDisabled = !!profile && profile.can_buy === false;
 
   useEffect(() => {
-    if (!loading && !profileLoading && !user) router.replace('/login');
+    if (!loading && !profileLoading && !user) {
+      const query = searchParams.toString();
+      const next = `${pathname || '/marketplace'}${query ? `?${query}` : ''}`;
+      router.replace(`/login?next=${encodeURIComponent(next)}`);
+    }
     if (!loading && !profileLoading && buyingDisabled) router.replace('/profile');
-  }, [buyingDisabled, loading, profileLoading, router, user]);
+  }, [buyingDisabled, loading, pathname, profileLoading, router, searchParams, user]);
 
   if (loading || profileLoading) {
     return (
