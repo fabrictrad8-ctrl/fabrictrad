@@ -1,6 +1,7 @@
 name: Browser QA diagnostic
 
 on:
+  pull_request:
   push:
     branches:
       - agent/shopify-platform-overhaul
