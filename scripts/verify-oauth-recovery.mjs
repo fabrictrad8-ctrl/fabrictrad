@@ -12,6 +12,8 @@ const migration = read('supabase/migrations/20260731090000_oauth_account_recover
 const recoveryUi = read('src/app/auth/setup/AccountSetupClient.tsx');
 const adminOtpRequest = read('src/app/api/auth/admin-otp/request/route.ts');
 const adminLogin = read('src/app/admin-login/AdminLoginClient.tsx');
+const adminPortal = read('src/app/admin-portal/page.tsx');
+const middleware = read('src/middleware.ts');
 const phoneCollection = read('src/app/auth/phone/PhoneCollectionPage.tsx');
 const sellerReadiness = read('src/app/seller-dashboard/components/SellerProfileReadiness.tsx');
 const sellerStatusEndpoint = read('src/app/api/seller/verification-status/route.ts');
@@ -37,13 +39,23 @@ assert(migration.includes('grant execute') && migration.includes('to authenticat
 assert(recoveryUi.includes('Session preserved'), 'Recovery UI must explain that the authenticated session is preserved.');
 assert(recoveryUi.includes('aria-live'), 'Recovery status must be announced accessibly.');
 
-assert(adminOtpRequest.includes('shouldCreateUser: false'), 'Admin email-link login must never create an account.');
-assert(adminOtpRequest.includes('configuredAdminEmail()'), 'Admin email-link login must remain restricted.');
-assert(!adminOtpRequest.includes('createAdminClient'), 'The public admin email-link endpoint must not instantiate a service-role client.');
-assert(adminLogin.includes("type AccessMode = 'password' | 'email-link'"), 'Admin UI must match the delivered magic-link template.');
-assert(adminLogin.includes('Send secure admin sign-in link'), 'Admin UI must clearly request the secure link.');
-assert(!adminLogin.includes('six-digit') && !adminLogin.includes('verifyEmailOtp'), 'Admin UI must not ask for a code when Supabase sends a magic link.');
-assert(adminLogin.includes("router.replace('/admin-portal')"), 'A completed admin magic-link session must open the admin portal.');
+assert(adminOtpRequest.includes('shouldCreateUser: false'), 'Administrator email OTP must never create an account.');
+assert(adminOtpRequest.includes('configuredAdminEmail()'), 'Administrator email OTP must remain restricted to the configured address.');
+assert(adminOtpRequest.includes('signInWithOtp'), 'Administrator access must use native Supabase email OTP generation.');
+assert(adminOtpRequest.includes("method: 'email_otp'"), 'Administrator OTP endpoint must identify email OTP delivery.');
+assert(!adminOtpRequest.includes('createAdminClient'), 'Public administrator OTP requests must not instantiate a service-role client.');
+assert(!adminOtpRequest.includes('SUPABASE_SERVICE_ROLE_KEY'), 'Public administrator OTP requests must not expose the service-role key.');
+assert(!adminOtpRequest.includes('phone:'), 'Administrator OTP generation must not use phone authentication.');
+
+assert(adminLogin.includes('Send administrator OTP'), 'Administrator UI must request a one-time email code.');
+assert(adminLogin.includes('Six-digit administrator code'), 'Administrator UI must provide a six-digit OTP input.');
+assert(adminLogin.includes('verifyEmailOtp'), 'Administrator UI must verify the email OTP with Supabase Auth.');
+assert(adminLogin.includes("window.location.replace('/admin-portal')"), 'Successful OTP verification must reload into the admin portal.');
+assert(!adminLogin.includes('email-link') && !adminLogin.includes('Send secure admin sign-in link'), 'The obsolete magic-link UI must not return.');
+assert(!adminLogin.includes('current-password') && !adminLogin.includes('Enter admin dashboard'), 'Administrator access must remain OTP-only.');
+assert(adminLogin.includes('No password or mobile-number OTP is used'), 'Administrator UI must distinguish email OTP from mobile OTP.');
+assert(adminPortal.includes("redirect('/admin-login')"), 'Unauthenticated administrator portal access must return to the administrator OTP page.');
+assert(middleware.includes("pathname.startsWith('/admin-portal') ? '/admin-login' : '/login'"), 'Middleware must route unauthenticated administrator traffic to the OTP page.');
 
 assert(phoneCollection.includes("rpc('set_current_account_phone'"), 'Phone collection must use the authenticated contact-number RPC.');
 assert(!phoneCollection.includes('auth.updateUser') && !phoneCollection.includes("type: 'phone_change'"), 'Phone collection must not start an SMS verification flow.');
@@ -58,7 +70,7 @@ assert(contactPhoneMigration.includes('set_current_account_phone'), 'Database mu
 assert(contactPhoneMigration.includes('grant execute') && contactPhoneMigration.includes('to authenticated'), 'Only authenticated accounts may save their contact phone.');
 assert(contactPhoneMigration.includes('drop trigger if exists sync_confirmed_auth_phone_to_profile'), 'The obsolete Auth phone-sync trigger must be removed.');
 assert(contactPhoneMigration.includes("v_next_action := 'add_phone'"), 'A missing phone must remain an explicit profile action.');
-assert(contactPhoneMigration.includes("Seller mobile number must be added before approval"), 'Seller approval must require a contact number without claiming OTP verification.');
+assert(contactPhoneMigration.includes('Seller mobile number must be added before approval'), 'Seller approval must require a contact number without claiming OTP verification.');
 assert(!contactPhoneMigration.includes('must be OTP verified'), 'Post-migration seller rules must not require SMS OTP.');
 
-console.log('OAuth, admin magic-link and provider-free seller phone regression checks passed.');
+console.log('OAuth, native administrator email OTP and provider-free seller phone regression checks passed.');

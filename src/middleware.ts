@@ -84,7 +84,7 @@ export async function middleware(request: NextRequest) {
   if (!user) {
     if (PUBLIC_PATHS.has(pathname)) return response;
     const loginUrl = request.nextUrl.clone();
-    loginUrl.pathname = '/login';
+    loginUrl.pathname = pathname.startsWith('/admin-portal') ? '/admin-login' : '/login';
     loginUrl.search = '';
     loginUrl.searchParams.set('next', `${pathname}${request.nextUrl.search}`);
     return withRefreshedCookies(NextResponse.redirect(loginUrl), response);
