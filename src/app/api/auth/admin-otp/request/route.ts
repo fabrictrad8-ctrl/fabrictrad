@@ -30,11 +30,12 @@ export async function POST(request: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!supabaseUrl || !publishableKey) {
-    return noStoreJson({ error: 'Administrator email access is temporarily unavailable.' }, 503);
+    return noStoreJson({ error: 'Administrator email OTP is temporarily unavailable.' }, 503);
   }
 
-  // Supabase currently delivers the configured Magic Link template. This public
-  // route must not depend on the service-role secret and may not create users.
+  // The configured Supabase Magic Link / OTP template contains {{ .Token }}, so
+  // signInWithOtp sends a six-digit email OTP. This endpoint never creates users
+  // and remains restricted to the configured administrator address.
   const supabase = createClient(supabaseUrl, publishableKey, {
     auth: {
       autoRefreshToken: false,
@@ -42,35 +43,32 @@ export async function POST(request: NextRequest) {
       detectSessionInUrl: false,
     },
   });
-  const redirectBase =
-    process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '') || request.nextUrl.origin;
 
   const { error } = await supabase.auth.signInWithOtp({
     email,
     options: {
       shouldCreateUser: false,
-      emailRedirectTo: `${redirectBase}/admin-login`,
     },
   });
 
   if (error) {
-    console.error('Administrator email-link request failed', {
+    console.error('Administrator email OTP request failed', {
       code: error.code,
       status: error.status,
       message: error.message,
     });
 
     const message = /rate limit|security purposes/i.test(error.message)
-      ? 'A secure link was requested recently. Wait about one minute, then try again.'
+      ? 'An OTP was requested recently. Wait about one minute, then request a new code.'
       : /signup|not found|registered/i.test(error.message)
         ? 'The configured administrator account is not available. Contact the platform owner.'
-        : 'The administrator sign-in link could not be sent. Please try again shortly.';
+        : 'The administrator email OTP could not be sent. Please try again shortly.';
     return noStoreJson({ error: message }, error.status && error.status >= 400 ? error.status : 400);
   }
 
   return noStoreJson({
     sent: true,
-    method: 'magic_link',
+    method: 'email_otp',
     destination: email.replace(/^(.{2}).*(@.*)$/, '$1••••$2'),
   });
 }
