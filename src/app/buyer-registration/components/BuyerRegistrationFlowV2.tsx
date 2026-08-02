@@ -8,10 +8,12 @@ import { INDIAN_STATES_AND_UTS } from '@/lib/india';
 import {
   normalizeGstin,
   normalizePan,
+  panFromGstin,
   validateGstinChecksum,
   validateGstinFormat,
   validatePan,
 } from '@/lib/commerceIdentifiers';
+import { OFFICIAL_GST_PORTAL_REFERENCE } from '@/lib/gstVerification';
 import { normalizeEmail, normalizeIndianPhone, validateIndianPhone } from '@/lib/authValidation';
 
 type BuyerType = 'retail_store' | 'end_user';
@@ -144,12 +146,17 @@ export default function BuyerRegistrationFlowV2({ buyerType }: Props) {
 
   const verifyGstin = async () => {
     const gstin = normalizeGstin(business.gstin);
-    setBusiness((current) => ({ ...current, gstin }));
+    setError('');
+    setBusiness((current) => ({
+      ...current,
+      gstin,
+      pan: current.identityMethod === 'pan' && validateGstinFormat(gstin) ? panFromGstin(gstin) : current.pan,
+    }));
     if (!validateGstinFormat(gstin) || !validateGstinChecksum(gstin)) {
-      setGstCheck({ status: 'invalid', message: 'The GSTIN format or check digit is invalid.' });
+      setGstCheck({ status: 'invalid', message: 'The GSTIN format or check digit is invalid. Recheck the GST certificate.' });
       return;
     }
-    setGstCheck({ status: 'checking', message: 'Checking GST registration status…' });
+    setGstCheck({ status: 'checking', message: 'Checking the configured authorised GST verification service…' });
     try {
       const response = await fetch('/api/gstin/verify', {
         method: 'POST',
@@ -165,19 +172,20 @@ export default function BuyerRegistrationFlowV2({ buyerType }: Props) {
         error?: string;
       };
       if (!response.ok) throw new Error(payload.error || payload.message || 'GSTIN could not be checked.');
+      const status = payload.status || 'manual_review';
       setGstCheck({
-        status: payload.status || 'manual_review',
-        message: payload.message || 'GSTIN queued for official review.',
+        status,
+        message: payload.message || 'Open the free official GST Portal to confirm the registration status.',
         legalName: payload.legalName,
         tradeName: payload.tradeName,
       });
-      if (payload.legalName && !business.businessName.trim()) {
+      if (status === 'active' && payload.legalName && !business.businessName.trim()) {
         setBusiness((current) => ({ ...current, businessName: payload.legalName || current.businessName }));
       }
     } catch (caught) {
       setGstCheck({
         status: 'manual_review',
-        message: `${caught instanceof Error ? caught.message : 'Provider unavailable.'} The number will be checked against the official GST portal during review.`,
+        message: `${caught instanceof Error ? caught.message : 'The authorised provider is unavailable.'} Use the free official GST Portal reference below and upload the GST certificate for review.`,
       });
     }
   };
@@ -191,7 +199,7 @@ export default function BuyerRegistrationFlowV2({ buyerType }: Props) {
     if (business.gstRegistrationStatus === 'registered') {
       const gstin = normalizeGstin(business.gstin);
       if (!validateGstinFormat(gstin) || !validateGstinChecksum(gstin)) {
-        return setError('Enter and verify the GSTIN shown on the GST certificate.');
+        return setError('Enter and check the GSTIN shown on the GST certificate.');
       }
       if (business.identityMethod === 'pan' && normalizePan(business.pan) !== gstin.slice(2, 12)) {
         return setError('The PAN must match characters 3–12 of the GSTIN.');
@@ -441,7 +449,7 @@ export default function BuyerRegistrationFlowV2({ buyerType }: Props) {
                 {(['registered', 'unregistered'] as GstRegistrationStatus[]).map((status) => (
                   <button key={status} type="button" onClick={() => { setBusiness({ ...business, gstRegistrationStatus: status }); setGstCheck({ status: 'idle', message: '' }); }} className={`rounded-2xl border p-4 text-left ${business.gstRegistrationStatus === status ? 'border-primary bg-primary/5' : 'border-border'}`}>
                     <p className="font-800 text-foreground">{status === 'registered' ? 'GST registered' : 'Not GST registered'}</p>
-                    <p className="mt-1 text-xs leading-5 text-muted-foreground">{status === 'registered' ? 'GSTIN will be verified for B2B tax invoices.' : 'Business KYC is still required, but no GSTIN or ITC claim is shown.'}</p>
+                    <p className="mt-1 text-xs leading-5 text-muted-foreground">{status === 'registered' ? 'GSTIN will be checked for B2B tax invoices.' : 'Business KYC is still required, but no GSTIN or ITC claim is shown.'}</p>
                   </button>
                 ))}
               </div>
@@ -449,14 +457,16 @@ export default function BuyerRegistrationFlowV2({ buyerType }: Props) {
                 <div className="rounded-2xl border border-border bg-muted/30 p-4">
                   <label className="block text-sm font-700 text-foreground">GSTIN *
                     <div className="mt-1.5 flex flex-col gap-2 sm:flex-row">
-                      <input value={business.gstin} onChange={(event) => { setBusiness({ ...business, gstin: normalizeGstin(event.target.value) }); setGstCheck({ status: 'idle', message: '' }); }} className="input-base min-w-0 flex-1 px-4 py-3 font-mono uppercase" maxLength={15} placeholder="27AAPFU0939F1ZV" />
-                      <button type="button" onClick={verifyGstin} disabled={gstCheck.status === 'checking'} className="btn-secondary px-5 py-3 text-sm disabled:opacity-50">{gstCheck.status === 'checking' ? 'Checking…' : 'Verify GSTIN'}</button>
+                      <input value={business.gstin} onChange={(event) => { setBusiness({ ...business, gstin: normalizeGstin(event.target.value) }); setGstCheck({ status: 'idle', message: '' }); }} className="input-base min-w-0 flex-1 px-4 py-3 font-mono uppercase" maxLength={15} placeholder="27AAPFU0939F1ZV" autoComplete="off" />
+                      <button type="button" onClick={verifyGstin} disabled={gstCheck.status === 'checking'} className="btn-secondary px-5 py-3 text-sm disabled:opacity-50">{gstCheck.status === 'checking' ? 'Checking…' : 'Check GSTIN'}</button>
                     </div>
                   </label>
+                  <div className="mt-3 flex flex-col gap-2 rounded-xl border border-border bg-card p-3 text-xs leading-5 text-muted-foreground sm:flex-row sm:items-center sm:justify-between"><span><strong className="text-foreground">Free official reference:</strong> GST Portal Search Taxpayer requires the GSTIN and a captcha. It is not a payment-gateway service.</span><a href={OFFICIAL_GST_PORTAL_REFERENCE.url} target="_blank" rel="noreferrer" className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg border border-primary/30 px-3 py-2 font-800 text-primary hover:bg-primary/5"><Icon name="ArrowTopRightOnSquareIcon" size={15} />Open official GST Portal</a></div>
                   {gstCheck.message && (
-                    <div className={`mt-3 rounded-xl border p-3 text-xs leading-5 ${gstCheck.status === 'active' ? 'border-success/30 bg-success/10 text-success' : gstCheck.status === 'invalid' || gstCheck.status === 'cancelled' || gstCheck.status === 'inactive' ? 'border-error/30 bg-error/10 text-error' : 'border-amber-300 bg-amber-50 text-amber-800'}`}>
+                    <div aria-live="polite" className={`mt-3 rounded-xl border p-3 text-xs leading-5 ${gstCheck.status === 'active' ? 'border-success/30 bg-success/10 text-success' : gstCheck.status === 'invalid' || gstCheck.status === 'cancelled' || gstCheck.status === 'inactive' ? 'border-error/30 bg-error/10 text-error' : 'border-amber-300 bg-amber-50 text-amber-800'}`}>
                       <p className="font-800">{gstCheck.message}</p>
                       {(gstCheck.legalName || gstCheck.tradeName) && <p className="mt-1">{gstCheck.legalName}{gstCheck.tradeName ? ` · ${gstCheck.tradeName}` : ''}</p>}
+                      {gstCheck.status === 'manual_review' && <p className="mt-2">Confirm that the portal shows <strong>Active</strong>, then continue and upload the GST registration certificate.</p>}
                     </div>
                   )}
                   <p className="mt-3 text-xs leading-5 text-muted-foreground"><strong>Tax note:</strong> GST is still charged. A verified GSTIN is printed on the B2B invoice and may support eligible input tax credit.</p>
@@ -465,7 +475,7 @@ export default function BuyerRegistrationFlowV2({ buyerType }: Props) {
               <div>
                 <p className="text-sm font-700 text-foreground">Identity verification *</p>
                 <div className="mt-2 grid gap-3 sm:grid-cols-2">
-                  <button type="button" onClick={() => setBusiness({ ...business, identityMethod: 'pan' })} className={`rounded-xl border p-3 text-left ${business.identityMethod === 'pan' ? 'border-primary bg-primary/5' : 'border-border'}`}><p className="font-800 text-foreground">PAN</p><p className="mt-1 text-xs text-muted-foreground">Business/proprietor PAN plus card document.</p></button>
+                  <button type="button" onClick={() => setBusiness({ ...business, identityMethod: 'pan', pan: validateGstinFormat(business.gstin) ? panFromGstin(business.gstin) : business.pan })} className={`rounded-xl border p-3 text-left ${business.identityMethod === 'pan' ? 'border-primary bg-primary/5' : 'border-border'}`}><p className="font-800 text-foreground">PAN</p><p className="mt-1 text-xs text-muted-foreground">Business/proprietor PAN plus card document.</p></button>
                   <button type="button" onClick={() => setBusiness({ ...business, identityMethod: 'aadhaar_offline', pan: '' })} className={`rounded-xl border p-3 text-left ${business.identityMethod === 'aadhaar_offline' ? 'border-primary bg-primary/5' : 'border-border'}`}><p className="font-800 text-foreground">Aadhaar Offline e-KYC</p><p className="mt-1 text-xs text-muted-foreground">Voluntary UIDAI XML/ZIP. The full Aadhaar number is not requested or stored.</p></button>
                 </div>
               </div>
@@ -518,7 +528,7 @@ export default function BuyerRegistrationFlowV2({ buyerType }: Props) {
               <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-success/10 text-success"><Icon name="CheckCircleIcon" size={34} /></div>
               <h2 className="mt-5 text-2xl font-800 text-foreground">Account created</h2>
               <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-muted-foreground">{resultMessage}</p>
-              {buyerType === 'retail_store' && <div className="mx-auto mt-5 max-w-xl rounded-xl border border-amber-300 bg-amber-50 p-3 text-left text-xs leading-5 text-amber-900">Business purchases are available while review is pending. GSTIN-based B2B invoice details and eligible ITC messaging appear only after the GSTIN is confirmed active.</div>}
+              {buyerType === 'retail_store' && <div className="mx-auto mt-5 max-w-xl rounded-xl border border-amber-300 bg-amber-50 p-3 text-left text-xs leading-5 text-amber-900">Business purchases are available while review is pending. GSTIN-based B2B invoice details and eligible ITC messaging appear only after the GSTIN is confirmed Active.</div>}
               <div className="mt-6 flex flex-col justify-center gap-3 sm:flex-row"><Link href="/login" className="btn-primary px-6 py-3 text-sm">Sign in</Link><Link href="/marketplace" className="btn-secondary px-6 py-3 text-sm">Browse marketplace</Link></div>
             </div>
           )}
