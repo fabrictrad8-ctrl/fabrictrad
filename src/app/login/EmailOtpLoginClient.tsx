@@ -29,9 +29,10 @@ const safeNextPath = (value: string | null) => {
   }
 };
 
+const defaultDestinationForRole = (role?: AccountRole | null) => role === 'admin_staff' || role === 'super_admin' ? '/admin-portal' : '/account';
 const destinationForRole = (role?: AccountRole | null, requestedNext?: string | null) => {
-  if (role === 'admin_staff' || role === 'super_admin') return '/admin-portal';
-  return requestedNext || '/account';
+  const fallback = defaultDestinationForRole(role);
+  return fallback === '/account' && requestedNext ? requestedNext : fallback;
 };
 
 function GoogleMark() {
@@ -219,56 +220,24 @@ export default function EmailOtpLoginClient() {
                   : 'Enter your registered email to receive a secure reset link.'}
             </p>
 
-            {error && (
-              <div role="alert" className="mt-5 rounded-xl border border-rose-300/20 bg-rose-300/10 px-4 py-3 text-sm text-rose-200">{error}</div>
-            )}
-            {info && (
-              <div aria-live="polite" className="mt-5 rounded-xl border border-emerald-300/20 bg-emerald-300/10 px-4 py-3 text-sm text-emerald-200">{info}</div>
-            )}
+            {error && <div role="alert" className="mt-5 rounded-xl border border-rose-300/20 bg-rose-300/10 px-4 py-3 text-sm text-rose-200">{error}</div>}
+            {info && <div aria-live="polite" className="mt-5 rounded-xl border border-emerald-300/20 bg-emerald-300/10 px-4 py-3 text-sm text-emerald-200">{info}</div>}
 
             {mode === 'login' ? (
               <form className="mt-6 space-y-5" onSubmit={handleLogin}>
                 <label className="block text-sm text-slate-300">
                   Email
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(event) => setEmail(event.target.value)}
-                    autoComplete="email"
-                    required
-                    className="mt-2 w-full rounded-xl border border-white/10 bg-[#252d3a] px-4 py-3.5 text-white outline-none transition placeholder:text-slate-500 focus:border-orange-400/60 focus:ring-2 focus:ring-orange-400/10"
-                    placeholder="you@business.com"
-                  />
+                  <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" required className="mt-2 w-full rounded-xl border border-white/10 bg-[#252d3a] px-4 py-3.5 text-white outline-none transition placeholder:text-slate-500 focus:border-orange-400/60 focus:ring-2 focus:ring-orange-400/10" placeholder="you@business.com" />
                 </label>
 
                 <label className="block text-sm text-slate-300">
                   <span className="flex items-center justify-between gap-4">
                     <span>Password</span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setMode('forgot');
-                        setResetSent(false);
-                        clearMessages();
-                      }}
-                      className="text-xs font-700 text-orange-300 hover:text-orange-200"
-                    >
-                      Forgot password?
-                    </button>
+                    <button type="button" onClick={() => { setMode('forgot'); setResetSent(false); clearMessages(); }} className="text-xs font-700 text-orange-300 hover:text-orange-200">Forgot password?</button>
                   </span>
                   <span className="relative mt-2 block">
-                    <input
-                      type={showPassword ? 'text' : 'password'}
-                      value={password}
-                      onChange={(event) => setPassword(event.target.value)}
-                      autoComplete="current-password"
-                      required
-                      className="w-full rounded-xl border border-white/10 bg-[#252d3a] px-4 py-3.5 pr-16 text-white outline-none transition placeholder:text-slate-500 focus:border-orange-400/60 focus:ring-2 focus:ring-orange-400/10"
-                      placeholder="Enter your password"
-                    />
-                    <button type="button" onClick={() => setShowPassword((current) => !current)} className="absolute inset-y-0 right-0 px-4 text-xs font-700 text-slate-400 hover:text-white">
-                      {showPassword ? 'Hide' : 'Show'}
-                    </button>
+                    <input type={showPassword ? 'text' : 'password'} value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" required className="w-full rounded-xl border border-white/10 bg-[#252d3a] px-4 py-3.5 pr-16 text-white outline-none transition placeholder:text-slate-500 focus:border-orange-400/60 focus:ring-2 focus:ring-orange-400/10" placeholder="Enter your password" />
+                    <button type="button" onClick={() => setShowPassword((current) => !current)} className="absolute inset-y-0 right-0 px-4 text-xs font-700 text-slate-400 hover:text-white">{showPassword ? 'Hide' : 'Show'}</button>
                   </span>
                 </label>
 
@@ -294,30 +263,12 @@ export default function EmailOtpLoginClient() {
               <div className="mt-6 space-y-5">
                 <label className="block text-sm text-slate-300">
                   Registered email
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(event) => setEmail(event.target.value)}
-                    autoComplete="email"
-                    className="mt-2 w-full rounded-xl border border-white/10 bg-[#252d3a] px-4 py-3.5 text-white outline-none focus:border-orange-400/60"
-                    placeholder="you@business.com"
-                  />
+                  <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" className="mt-2 w-full rounded-xl border border-white/10 bg-[#252d3a] px-4 py-3.5 text-white outline-none focus:border-orange-400/60" placeholder="you@business.com" />
                 </label>
                 <button type="button" onClick={sendPasswordReset} disabled={submitting} className="w-full rounded-xl bg-[#c65330] px-4 py-3.5 font-700 text-white hover:bg-[#d45c36] disabled:opacity-60">
                   {submitting ? 'Sending reset email…' : resetSent ? 'Send another reset email' : 'Send password reset email'}
                 </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMode('login');
-                    setPassword('');
-                    setResetSent(false);
-                    clearMessages();
-                  }}
-                  className="w-full text-sm font-700 text-orange-300 hover:text-orange-200"
-                >
-                  Back to sign in
-                </button>
+                <button type="button" onClick={() => { setMode('login'); setPassword(''); setResetSent(false); clearMessages(); }} className="w-full text-sm font-700 text-orange-300 hover:text-orange-200">Back to sign in</button>
               </div>
             )}
 
