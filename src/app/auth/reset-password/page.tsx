@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import AppLogo from '@/components/ui/AppLogo';
 import { useAuth } from '@/contexts/AuthContext';
@@ -12,6 +12,11 @@ export default function ResetPasswordPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [isAdminRecovery, setIsAdminRecovery] = useState(false);
+
+  useEffect(() => {
+    setIsAdminRecovery(new URLSearchParams(window.location.search).get('admin') === '1');
+  }, []);
 
   const savePassword = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -29,7 +34,9 @@ export default function ResetPasswordPage() {
     try {
       await updatePassword(password);
       await signOut();
-      window.location.replace('/login?password_updated=1');
+      window.location.replace(
+        isAdminRecovery ? '/admin-login?password_updated=1' : '/login?password_updated=1'
+      );
     } catch (caughtError: unknown) {
       setError(caughtError instanceof Error ? caughtError.message : 'Unable to update your password.');
       setSubmitting(false);
@@ -37,6 +44,9 @@ export default function ResetPasswordPage() {
   };
 
   const recoverySessionReady = Boolean(user && session);
+  const recoveryLoginHref = isAdminRecovery
+    ? '/admin-login?error=recovery_failed'
+    : '/login?error=recovery_failed';
 
   return (
     <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#0d1117] px-4 py-10 text-slate-100">
@@ -114,7 +124,7 @@ export default function ResetPasswordPage() {
               This password reset link is invalid, expired, or has already been used. Request a new recovery email from the sign-in page.
             </div>
             <Link
-              href="/login?error=recovery_failed"
+              href={recoveryLoginHref}
               className="block w-full rounded-xl bg-[#c65330] px-4 py-3.5 text-center font-700 text-white transition hover:bg-[#d45c36]"
             >
               Request a new reset email
