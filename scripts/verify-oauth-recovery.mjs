@@ -14,6 +14,9 @@ const passwordResetRequest = read('src/app/api/auth/email-otp/request/route.ts')
 const passwordResetPage = read('src/app/auth/reset-password/page.tsx');
 const accountLogin = read('src/app/login/EmailOtpLoginClient.tsx');
 const adminOtpRequest = read('src/app/api/auth/admin-otp/request/route.ts');
+const adminPasswordRecovery = read(
+  'src/app/api/auth/admin-password-recovery/request/route.ts'
+);
 const authEmailServer = read('src/lib/server/authEmail.ts');
 const authEmailMigration = read(
   'supabase/migrations/20260802014500_auth_email_delivery_rate_limits.sql'
@@ -62,12 +65,13 @@ assert(passwordResetRequest.includes('auth.admin.generateLink'), 'Forgot passwor
 assert(passwordResetRequest.includes("type: 'recovery'"), 'Forgot password must generate a recovery-purpose token.');
 assert(passwordResetRequest.includes('properties?.action_link'), 'Forgot password must deliver the generated recovery action link.');
 assert(passwordResetRequest.includes('sendPasswordRecoveryEmail'), 'Forgot password must use the FabricTrad email server.');
-assert(!passwordResetRequest.includes('resetPasswordForEmail'), 'Forgot password must not invoke the locked Supabase hosted email template.');
+assert(!passwordResetRequest.includes('resetPasswordForEmail'), 'Buyer and seller password recovery must not invoke the locked Supabase hosted email template.');
 assert(!passwordResetRequest.includes('signInWithOtp'), 'Forgot password must never send a passwordless sign-in email.');
 assert(passwordResetRequest.includes("method: 'password_recovery'"), 'Recovery endpoint must identify the correct email purpose.');
 assert(passwordResetRequest.includes('/auth/reset-password'), 'Recovery email must return to the new-password screen.');
 assert(passwordResetPage.includes('updatePassword(password)'), 'Recovery screen must save the new password through Supabase Auth.');
-assert(passwordResetPage.includes("window.location.replace('/login?password_updated=1')"), 'Successful recovery must return to normal password login.');
+assert(passwordResetPage.includes("'/login?password_updated=1'"), 'Buyer and seller recovery must return to normal password login.');
+assert(passwordResetPage.includes("'/admin-login?password_updated=1'"), 'Administrator recovery must return to administrator password login.');
 assert(accountLogin.includes('Send password reset email'), 'Buyer and seller login must request a recovery email.');
 assert(accountLogin.includes('It will not sign you into the marketplace'), 'Recovery UI must distinguish reset from passwordless login.');
 assert(!accountLogin.includes('Verify code') && !accountLogin.includes('six-digit password reset code'), 'Password recovery must not claim a numeric code is sent.');
@@ -82,6 +86,11 @@ assert(adminOtpRequest.includes('sendAdminOtpEmail'), 'Optional administrator OT
 assert(adminOtpRequest.includes("method: 'email_otp'"), 'Optional administrator OTP endpoint must identify email OTP delivery.');
 assert(!adminOtpRequest.includes('signInWithOtp'), 'Optional administrator OTP must bypass the locked Supabase hosted email template.');
 assert(!adminOtpRequest.includes('phone:'), 'Administrator authentication must not use phone authentication.');
+
+assert(adminPasswordRecovery.includes('resetPasswordForEmail(configuredAdminEmail()'), 'Administrator password recovery must use the fixed configured admin account.');
+assert(adminPasswordRecovery.includes('/auth/reset-password?admin=1'), 'Administrator recovery must return to the shared new-password screen in admin mode.');
+assert(adminPasswordRecovery.includes("method: 'supabase_password_recovery'"), 'Administrator recovery must identify its provider-free fallback method.');
+assert(!adminPasswordRecovery.includes('SUPABASE_SERVICE_ROLE_KEY'), 'Administrator recovery must not expose or require the service-role key.');
 
 assert(authEmailServer.includes('RESEND_API_KEY'), 'Authentication email delivery must use a server-only Resend API key.');
 assert(authEmailServer.includes('https://api.resend.com/emails'), 'Authentication email delivery must call the Resend email API.');
@@ -107,6 +116,8 @@ assert(adminLogin.includes('await signIn(normalizedEmail, password)'), 'Administ
 assert(adminLogin.includes('isAdminRole(role)'), 'Administrator UI must reject authenticated non-admin accounts.');
 assert(adminLogin.includes('await signOut().catch'), 'Rejected non-admin sessions must be cleared immediately.');
 assert(adminLogin.includes("window.location.replace('/admin-portal')"), 'Successful administrator authentication must reload into the admin portal.');
+assert(adminLogin.includes('Forgot administrator password?'), 'Administrator UI must provide a recovery path when the current password is unknown.');
+assert(adminLogin.includes('/api/auth/admin-password-recovery/request'), 'Administrator recovery must call the dedicated fixed-account endpoint.');
 assert(!adminLogin.includes('Send administrator OTP') && !adminLogin.includes('Six-digit administrator code'), 'Unavailable email delivery must not block the primary administrator login.');
 assert(adminPortal.includes("redirect('/admin-login')"), 'Unauthenticated administrator portal access must return to the administrator login page.');
 assert(adminPortal.includes('profile?.is_active === true'), 'The server must require an active administrator profile.');
