@@ -4,7 +4,6 @@ import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import AdminPortalLayout from '@/app/admin-portal/components/AdminPortalLayout';
 
-const ADMIN_EMAIL = 'fabrictrad8@gmail.com';
 const DEMO_COOKIE_NAME = 'fabrictrad_demo_role';
 
 function AdminLoading() {
@@ -29,19 +28,20 @@ export default async function AdminPortalPage() {
 
     if (!user) redirect('/admin-login');
 
-    const normalizedEmail = user.email?.trim().toLowerCase() || '';
     const { data: profile } = await supabase
       .from('user_profiles')
       .select('role, is_active')
       .eq('id', user.id)
       .maybeSingle();
 
-    const authorisedByEmail = normalizedEmail === ADMIN_EMAIL && Boolean(user.email_confirmed_at);
-    const authorisedByRole =
-      profile?.is_active !== false &&
-      (profile?.role === 'super_admin' || profile?.role === 'admin_staff');
+    const authorisedAdministrator =
+      profile?.is_active === true &&
+      (profile.role === 'super_admin' || profile.role === 'admin_staff');
 
-    if (!authorisedByEmail && !authorisedByRole) redirect('/admin-login');
+    if (!authorisedAdministrator) {
+      await supabase.auth.signOut();
+      redirect('/admin-login');
+    }
   }
 
   return (
