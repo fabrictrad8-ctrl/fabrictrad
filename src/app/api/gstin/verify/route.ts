@@ -10,6 +10,11 @@ import {
   validateGstinChecksum,
   validateGstinFormat,
 } from '@/lib/commerceIdentifiers';
+import {
+  GST_MANUAL_REVIEW_MESSAGE,
+  OFFICIAL_GST_PORTAL_REFERENCE,
+  type GstVerificationMode,
+} from '@/lib/gstVerification';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -123,6 +128,16 @@ const adminClientOrNull = () => {
   }
 };
 
+const verifiedProviderEndpoint = (value: string) => {
+  const url = new URL(value);
+  const localDevelopment =
+    process.env.NODE_ENV !== 'production' && ['localhost', '127.0.0.1'].includes(url.hostname);
+  if (url.protocol !== 'https:' && !localDevelopment) {
+    throw new Error('GST verification provider URL must use HTTPS.');
+  }
+  return url.toString();
+};
+
 async function queryConfiguredProvider(gstin: string): Promise<ProviderResult | null> {
   const template = process.env.GSTIN_VERIFICATION_API_URL?.trim();
   const apiKey = process.env.GSTIN_VERIFICATION_API_KEY?.trim();
@@ -131,9 +146,10 @@ async function queryConfiguredProvider(gstin: string): Promise<ProviderResult | 
   const method = (process.env.GSTIN_VERIFICATION_API_METHOD || 'GET').toUpperCase();
   const keyHeader = process.env.GSTIN_VERIFICATION_API_KEY_HEADER || 'x-api-key';
   const providerName = process.env.GSTIN_VERIFICATION_PROVIDER_NAME || 'configured_gsp';
-  const endpoint = template.includes('{gstin}')
+  const candidate = template.includes('{gstin}')
     ? template.replace('{gstin}', encodeURIComponent(gstin))
     : `${template}${template.includes('?') ? '&' : '?'}gstin=${encodeURIComponent(gstin)}`;
+  const endpoint = verifiedProviderEndpoint(candidate);
 
   const response = await fetch(endpoint, {
     method,
@@ -267,6 +283,8 @@ export async function POST(request: NextRequest) {
         gstin,
         formatValid,
         checksumValid,
+        verificationMode: 'official_manual' satisfies GstVerificationMode,
+        officialPortal: OFFICIAL_GST_PORTAL_REFERENCE,
         message: !formatValid
           ? 'GSTIN format is invalid.'
           : 'GSTIN check digit is invalid. Recheck the number on the GST certificate.',
@@ -291,6 +309,7 @@ export async function POST(request: NextRequest) {
   }
 
   const status: GstinStatus = providerData?.status || 'manual_review';
+  const verificationMode: GstVerificationMode = providerData ? 'authorised_api' : 'official_manual';
   const result: GstinVerificationResult = {
     gstin,
     formatValid,
@@ -303,21 +322,24 @@ export async function POST(request: NextRequest) {
     registrationDate: providerData?.registrationDate || null,
     cancellationDate: providerData?.cancellationDate || null,
     principalPlace: providerData?.principalPlace || null,
-    provider: providerData?.provider || 'manual_gst_portal',
+    provider: providerData?.provider || 'official_gst_portal_manual',
     providerReference: providerData?.providerReference || null,
     checkedAt,
     message:
       status === 'active'
-        ? 'GSTIN is active. The legal business details have been matched.'
+        ? 'GSTIN is active. The legal business details have been matched through the configured authorised provider.'
         : providerData
           ? `GST registration status returned as ${status}. Selling and B2B tax benefits remain restricted until active.`
-          : 'The GSTIN format and check digit are valid. Official status is queued for GST portal or authorised GSP review.',
+          : GST_MANUAL_REVIEW_MESSAGE,
   };
 
   if (user && shouldPersist) {
     try {
       const persistenceClient = adminClientOrNull() || serverClient;
-      await persistResult(persistenceClient, result, subjectType, user.id, providerData?.raw || {});
+      await persistResult(persistenceClient, result, subjectType, user.id, providerData?.raw || {
+        officialPortal: OFFICIAL_GST_PORTAL_REFERENCE.url,
+        verificationMode,
+      });
     } catch (error) {
       return json({ error: error instanceof Error ? error.message : 'GST verification could not be saved.' }, 400);
     }
@@ -326,6 +348,8 @@ export async function POST(request: NextRequest) {
   return json({
     verified: status === 'active',
     persisted: Boolean(user && shouldPersist),
+    verificationMode,
+    officialPortal: OFFICIAL_GST_PORTAL_REFERENCE,
     ...result,
     providerWarning: providerWarning || undefined,
     taxNotice:
