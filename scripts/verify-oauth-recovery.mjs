@@ -29,6 +29,15 @@ const sellerStatusEndpoint = read('src/app/api/seller/verification-status/route.
 const contactPhoneMigration = read(
   'supabase/migrations/20260802010500_remove_phone_otp_and_use_contact_number.sql'
 );
+const gstVerificationRoute = read('src/app/api/gstin/verify/route.ts');
+const gstVerificationReference = read('src/lib/gstVerification.ts');
+const sellerRegistration = read(
+  'src/app/seller-registration/components/SellerRegistrationFlowV2.tsx'
+);
+const buyerRegistration = read(
+  'src/app/buyer-registration/components/BuyerRegistrationFlowV2.tsx'
+);
+const gstVerificationDocs = read('docs/GSTIN_VERIFICATION.md');
 
 assert(
   provisioning.includes("client.rpc('ensure_current_account_profile'"),
@@ -118,4 +127,20 @@ assert(contactPhoneMigration.includes("v_next_action := 'add_phone'"), 'A missin
 assert(contactPhoneMigration.includes('Seller mobile number must be added before approval'), 'Seller approval must require a contact number without claiming OTP verification.');
 assert(!contactPhoneMigration.includes('must be OTP verified'), 'Post-migration seller rules must not require SMS OTP.');
 
-console.log('OAuth, Resend authentication email, password recovery, administrator OTP and provider-free seller phone regression checks passed.');
+assert(gstVerificationReference.includes('https://services.gst.gov.in/services/searchtp'), 'GST verification must point to the official Search Taxpayer portal.');
+assert(gstVerificationReference.includes('captchaRequired: true'), 'The free official portal flow must disclose its captcha requirement.');
+assert(gstVerificationRoute.includes('OFFICIAL_GST_PORTAL_REFERENCE'), 'GST API responses must include the official portal reference.');
+assert(gstVerificationRoute.includes("verificationMode: 'official_manual'"), 'Invalid and manual GST results must not be represented as provider verified.');
+assert(gstVerificationRoute.includes("'authorised_api' : 'official_manual'"), 'GST results must distinguish authorised API verification from manual review.');
+assert(gstVerificationRoute.includes('GST verification provider URL must use HTTPS'), 'Production GST provider URLs must be HTTPS protected.');
+assert(!gstVerificationRoute.includes("fetch('https://services.gst.gov.in"), 'FabricTrad must not scrape or bypass the official GST captcha.');
+assert(sellerRegistration.includes('Open official GST Portal'), 'Seller onboarding must expose the free official GST reference.');
+assert(sellerRegistration.includes('Select the business type before continuing.'), 'Seller onboarding must give a precise business-type error.');
+assert(sellerRegistration.includes('readOnly aria-readonly="true"'), 'Seller PAN derived from GSTIN must not be accidentally edited.');
+assert(buyerRegistration.includes('Open official GST Portal'), 'Business buyer onboarding must expose the free official GST reference.');
+assert(buyerRegistration.includes('panFromGstin'), 'Registered business buyer PAN should be derived from the GSTIN when PAN verification is selected.');
+assert(environmentExample.includes('GSTIN_VERIFICATION_API_URL='), 'Environment example must document the optional authorised GST provider.');
+assert(gstVerificationDocs.includes('captcha-protected') && gstVerificationDocs.includes('payment-gateway'), 'GST documentation must distinguish the free manual portal from payment infrastructure.');
+assert(gstVerificationDocs.includes('GST Suvidha Providers'), 'GST documentation must explain the authorised GSP option.');
+
+console.log('OAuth, email, GST reference, password recovery, administrator OTP and seller verification regression checks passed.');

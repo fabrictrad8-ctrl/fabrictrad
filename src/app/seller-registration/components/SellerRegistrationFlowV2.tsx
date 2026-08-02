@@ -13,6 +13,7 @@ import {
   validateGstinFormat,
   validatePan,
 } from '@/lib/commerceIdentifiers';
+import { OFFICIAL_GST_PORTAL_REFERENCE } from '@/lib/gstVerification';
 import { normalizeEmail, normalizeIndianPhone, validateIndianPhone } from '@/lib/authValidation';
 
 type Step = 'account' | 'business' | 'bank' | 'documents' | 'done';
@@ -139,14 +140,15 @@ export default function SellerRegistrationFlowV2() {
   const checkGstin = async () => {
     const gstin = normalizeGstin(form.gstin);
     update('gstin', gstin);
+    setError('');
     if (!validateGstinFormat(gstin) || !validateGstinChecksum(gstin)) {
       setGstStatus('invalid');
-      setGstMessage('The GSTIN format or check digit is invalid.');
+      setGstMessage('The GSTIN format or check digit is invalid. Recheck the GST certificate.');
       return;
     }
     update('pan', panFromGstin(gstin));
     setGstStatus('checking');
-    setGstMessage('Checking GST registration status…');
+    setGstMessage('Checking the configured authorised GST verification service…');
     try {
       const response = await fetch('/api/gstin/verify', {
         method: 'POST',
@@ -159,17 +161,20 @@ export default function SellerRegistrationFlowV2() {
         message?: string;
         legalName?: string | null;
         tradeName?: string | null;
+        verificationMode?: 'authorised_api' | 'official_manual';
         error?: string;
       };
       if (!response.ok) throw new Error(payload.error || payload.message || 'GSTIN could not be checked.');
       const nextStatus = payload.status || 'manual_review';
       setGstStatus(nextStatus);
-      setGstMessage(payload.message || 'GSTIN queued for official review.');
+      setGstMessage(payload.message || 'Open the free official GST Portal to confirm the registration status.');
       setGstNames({ legalName: payload.legalName || '', tradeName: payload.tradeName || '' });
-      if (payload.legalName && !form.businessName.trim()) update('businessName', payload.legalName);
+      if (nextStatus === 'active' && payload.legalName && !form.businessName.trim()) {
+        update('businessName', payload.legalName);
+      }
     } catch (caught) {
       setGstStatus('manual_review');
-      setGstMessage(`${caught instanceof Error ? caught.message : 'Provider unavailable.'} The application may be saved, but live publishing remains locked until official review.`);
+      setGstMessage(`${caught instanceof Error ? caught.message : 'The authorised provider is unavailable.'} Use the free official GST Portal reference below. The application can be saved, but live publishing stays locked until Active status is confirmed.`);
     }
   };
 
@@ -177,7 +182,8 @@ export default function SellerRegistrationFlowV2() {
     setError('');
     const gstin = normalizeGstin(form.gstin);
     const pan = normalizePan(form.pan);
-    if (!form.businessName.trim() || !form.businessType) return setError('Enter the legal business name and type.');
+    if (!form.businessName.trim()) return setError('Enter the legal business name exactly as shown on the GST certificate.');
+    if (!form.businessType) return setError('Select the business type before continuing.');
     if (!form.address.trim() || !form.city.trim() || !form.state || !/^\d{6}$/.test(form.pincode)) {
       return setError('Enter the complete registered or pickup address.');
     }
@@ -292,7 +298,7 @@ export default function SellerRegistrationFlowV2() {
       setResultMessage(
         gstStatus === 'active'
           ? 'GSTIN and seller application submitted. Document and bank review will determine settlement eligibility.'
-          : 'Seller application saved for official GST review. You may prepare drafts, but live publishing and settlements remain locked until the GSTIN is confirmed active.'
+          : 'Seller application saved for official GST review. You may prepare drafts, but live publishing and settlements remain locked until the GSTIN is confirmed Active.'
       );
       goTo('done');
     } catch (caught) {
@@ -327,14 +333,14 @@ export default function SellerRegistrationFlowV2() {
         </div>
 
         <div className="rounded-3xl border border-border bg-card p-5 shadow-sm sm:p-8">
-          {error && <div role="alert" className="mb-5 flex gap-2 rounded-xl border border-error/20 bg-error/10 p-3 text-sm text-error"><Icon name="ExclamationTriangleIcon" size={17} className="mt-0.5 shrink-0" />{error}</div>}
+          {error && <div role="alert" className="mb-5 flex gap-2 rounded-xl border border-error/20 bg-error/10 p-3 text-sm text-error"><Icon name="ExclamationTriangleIcon" size={17} className="mt-0.5 shrink-0" /><span>{error}</span></div>}
 
           {step === 'account' && !user && (
             <form onSubmit={continueAccount} className="space-y-4">
               <div><h2 className="text-xl font-800 text-foreground">Account details</h2><p className="mt-1 text-sm text-muted-foreground">Already buying on FabricTrad? Sign in instead and activate selling on the same account.</p></div>
               <div className="grid gap-4 sm:grid-cols-2"><label className="text-sm font-700 text-foreground">Owner / contact name *<input value={form.ownerName} onChange={(event) => update('ownerName', event.target.value)} className="input-base mt-1.5 w-full px-4 py-3 font-400" /></label><label className="text-sm font-700 text-foreground">Mobile number *<input value={form.phone} onChange={(event) => update('phone', normalizeIndianPhone(event.target.value))} className="input-base mt-1.5 w-full px-4 py-3 font-400" inputMode="numeric" maxLength={10} /></label></div>
               <label className="block text-sm font-700 text-foreground">Email address *<input type="email" value={form.email} onChange={(event) => update('email', normalizeEmail(event.target.value))} className="input-base mt-1.5 w-full px-4 py-3 font-400" /></label>
-              <div className="grid gap-4 sm:grid-cols-2"><label className="text-sm font-700 text-foreground">Password *<span className="relative mt-1.5 block"><input type={showPassword ? 'text' : 'password'} value={form.password} onChange={(event) => update('password', event.target.value)} className="input-base w-full px-4 py-3 pr-11 font-400" /><button type="button" onClick={() => setShowPassword((current) => !current)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"><Icon name={showPassword ? 'EyeSlashIcon' : 'EyeIcon'} size={17} /></button></span></label><label className="text-sm font-700 text-foreground">Confirm password *<input type="password" value={form.confirmPassword} onChange={(event) => update('confirmPassword', event.target.value)} className="input-base mt-1.5 w-full px-4 py-3 font-400" /></label></div>
+              <div className="grid gap-4 sm:grid-cols-2"><label className="text-sm font-700 text-foreground">Password *<span className="relative mt-1.5 block"><input type={showPassword ? 'text' : 'password'} value={form.password} onChange={(event) => update('password', event.target.value)} className="input-base w-full px-4 py-3 pr-11 font-400" /><button type="button" onClick={() => setShowPassword((current) => !current)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground" aria-label={showPassword ? 'Hide password' : 'Show password'}><Icon name={showPassword ? 'EyeSlashIcon' : 'EyeIcon'} size={17} /></button></span></label><label className="text-sm font-700 text-foreground">Confirm password *<input type="password" value={form.confirmPassword} onChange={(event) => update('confirmPassword', event.target.value)} className="input-base mt-1.5 w-full px-4 py-3 font-400" /></label></div>
               <button type="submit" disabled={submitting} className="btn-primary w-full py-3 text-sm disabled:opacity-50">{submitting ? 'Checking…' : 'Continue'}</button>
               <p className="text-center text-xs text-muted-foreground">Existing account? <Link href="/login?next=/seller-registration" className="font-800 text-primary">Sign in and activate selling</Link></p>
             </form>
@@ -342,15 +348,16 @@ export default function SellerRegistrationFlowV2() {
 
           {step === 'business' && (
             <div className="space-y-5">
-              <div><h2 className="text-xl font-800 text-foreground">GST business identity</h2><p className="mt-1 text-sm text-muted-foreground">The legal name and registration state are checked through a configured authorised provider or queued for official GST portal review.</p></div>
-              <div className="grid gap-4 sm:grid-cols-2"><label className="text-sm font-700 text-foreground">Legal business name *<input value={form.businessName} onChange={(event) => update('businessName', event.target.value)} className="input-base mt-1.5 w-full px-4 py-3 font-400" /></label><label className="text-sm font-700 text-foreground">Business type *<select value={form.businessType} onChange={(event) => update('businessType', event.target.value)} className="input-base mt-1.5 w-full px-3 py-3 font-400"><option value="">Select</option>{businessTypes.map((value) => <option key={value}>{value}</option>)}</select></label></div>
-              <label className="block text-sm font-700 text-foreground">GSTIN *<div className="mt-1.5 flex flex-col gap-2 sm:flex-row"><input value={form.gstin} onChange={(event) => { update('gstin', normalizeGstin(event.target.value)); setGstStatus('idle'); setGstMessage(''); }} className="input-base min-w-0 flex-1 px-4 py-3 font-mono uppercase" maxLength={15} placeholder="27AAPFU0939F1ZV" /><button type="button" onClick={checkGstin} disabled={gstStatus === 'checking'} className="btn-secondary px-5 py-3 text-sm disabled:opacity-50">{gstStatus === 'checking' ? 'Checking…' : 'Verify GSTIN'}</button></div></label>
-              {gstMessage && <div className={`rounded-xl border p-3 text-xs leading-5 ${gstStatus === 'active' ? 'border-success/30 bg-success/10 text-success' : gstStatus === 'invalid' || gstStatus === 'inactive' || gstStatus === 'cancelled' ? 'border-error/30 bg-error/10 text-error' : 'border-amber-300 bg-amber-50 text-amber-900'}`}><p className="font-800">{gstMessage}</p>{(gstNames.legalName || gstNames.tradeName) && <p className="mt-1">{gstNames.legalName}{gstNames.tradeName ? ` · ${gstNames.tradeName}` : ''}</p>}</div>}
-              <label className="block text-sm font-700 text-foreground">PAN embedded in GSTIN *<input value={form.pan} onChange={(event) => update('pan', normalizePan(event.target.value))} className="input-base mt-1.5 w-full px-4 py-3 font-mono uppercase" maxLength={10} /></label>
-              <div className="grid gap-4 sm:grid-cols-2"><label className="text-sm font-700 text-foreground">Registered / pickup address *<textarea value={form.address} onChange={(event) => update('address', event.target.value)} rows={3} className="input-base mt-1.5 w-full px-4 py-3 font-400" /></label><div className="space-y-4"><label className="block text-sm font-700 text-foreground">City *<input value={form.city} onChange={(event) => update('city', event.target.value)} className="input-base mt-1.5 w-full px-4 py-3 font-400" /></label><div className="grid grid-cols-2 gap-3"><label className="text-sm font-700 text-foreground">State *<select value={form.state} onChange={(event) => update('state', event.target.value)} className="input-base mt-1.5 w-full px-2 py-3 font-400"><option value="">Select</option>{INDIAN_STATES_AND_UTS.map((value) => <option key={value}>{value}</option>)}</select></label><label className="text-sm font-700 text-foreground">PIN *<input value={form.pincode} onChange={(event) => update('pincode', event.target.value.replace(/\D/g, '').slice(0, 6))} className="input-base mt-1.5 w-full px-3 py-3 font-mono font-400" /></label></div></div></div>
+              <div><h2 className="text-xl font-800 text-foreground">GST business identity</h2><p className="mt-1 text-sm leading-6 text-muted-foreground">FabricTrad checks an authorised GST API when configured. Otherwise, use the free official GST Portal search below; it requires a captcha and therefore cannot be silently automated or routed through a payment gateway.</p></div>
+              <div className="grid gap-4 sm:grid-cols-2"><label className="text-sm font-700 text-foreground">Legal business name *<input value={form.businessName} onChange={(event) => update('businessName', event.target.value)} className="input-base mt-1.5 w-full px-4 py-3 font-400" required /></label><label className="text-sm font-700 text-foreground">Business type *<select value={form.businessType} onChange={(event) => update('businessType', event.target.value)} className="input-base mt-1.5 w-full px-3 py-3 font-400" required aria-invalid={!form.businessType}><option value="">Select business type</option>{businessTypes.map((value) => <option key={value} value={value}>{value}</option>)}</select></label></div>
+              <label className="block text-sm font-700 text-foreground">GSTIN *<div className="mt-1.5 flex flex-col gap-2 sm:flex-row"><input value={form.gstin} onChange={(event) => { update('gstin', normalizeGstin(event.target.value)); setGstStatus('idle'); setGstMessage(''); setGstNames({ legalName: '', tradeName: '' }); }} className="input-base min-w-0 flex-1 px-4 py-3 font-mono uppercase" maxLength={15} placeholder="27AAPFU0939F1ZV" inputMode="text" autoComplete="off" /><button type="button" onClick={checkGstin} disabled={gstStatus === 'checking'} className="btn-secondary px-5 py-3 text-sm disabled:opacity-50">{gstStatus === 'checking' ? 'Checking…' : 'Check GSTIN'}</button></div></label>
+              <div className="flex flex-col gap-2 rounded-xl border border-border bg-muted/30 p-3 text-xs leading-5 text-muted-foreground sm:flex-row sm:items-center sm:justify-between"><span><strong className="text-foreground">Free official reference:</strong> paste the GSTIN into GST Portal Search Taxpayer and complete its captcha.</span><a href={OFFICIAL_GST_PORTAL_REFERENCE.url} target="_blank" rel="noreferrer" className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg border border-primary/30 bg-card px-3 py-2 font-800 text-primary hover:bg-primary/5"><Icon name="ArrowTopRightOnSquareIcon" size={15} />Open official GST Portal</a></div>
+              {gstMessage && <div aria-live="polite" className={`rounded-xl border p-3 text-xs leading-5 ${gstStatus === 'active' ? 'border-success/30 bg-success/10 text-success' : gstStatus === 'invalid' || gstStatus === 'inactive' || gstStatus === 'cancelled' ? 'border-error/30 bg-error/10 text-error' : 'border-amber-300 bg-amber-50 text-amber-900'}`}><p className="font-800">{gstMessage}</p>{(gstNames.legalName || gstNames.tradeName) && <p className="mt-1">{gstNames.legalName}{gstNames.tradeName ? ` · ${gstNames.tradeName}` : ''}</p>}{gstStatus === 'manual_review' && <p className="mt-2">After confirming <strong>Active</strong> on the official portal, continue and upload the GST registration certificate. FabricTrad will keep listings as drafts until review is complete.</p>}</div>}
+              <label className="block text-sm font-700 text-foreground">PAN embedded in GSTIN *<input value={form.pan} onChange={(event) => update('pan', normalizePan(event.target.value))} className="input-base mt-1.5 w-full px-4 py-3 font-mono uppercase" maxLength={10} readOnly aria-readonly="true" /></label>
+              <div className="grid gap-4 sm:grid-cols-2"><label className="text-sm font-700 text-foreground">Registered / pickup address *<textarea value={form.address} onChange={(event) => update('address', event.target.value)} rows={3} className="input-base mt-1.5 w-full px-4 py-3 font-400" /></label><div className="space-y-4"><label className="block text-sm font-700 text-foreground">City *<input value={form.city} onChange={(event) => update('city', event.target.value)} className="input-base mt-1.5 w-full px-4 py-3 font-400" /></label><div className="grid grid-cols-2 gap-3"><label className="text-sm font-700 text-foreground">State *<select value={form.state} onChange={(event) => update('state', event.target.value)} className="input-base mt-1.5 w-full px-2 py-3 font-400"><option value="">Select</option>{INDIAN_STATES_AND_UTS.map((value) => <option key={value} value={value}>{value}</option>)}</select></label><label className="text-sm font-700 text-foreground">PIN *<input value={form.pincode} onChange={(event) => update('pincode', event.target.value.replace(/\D/g, '').slice(0, 6))} className="input-base mt-1.5 w-full px-3 py-3 font-mono font-400" inputMode="numeric" /></label></div></div></div>
               <div><p className="text-sm font-700 text-foreground">Product categories *</p><div className="mt-2 flex flex-wrap gap-2">{categories.map((category) => { const selected = form.categories.includes(category); return <button key={category} type="button" onClick={() => update('categories', selected ? form.categories.filter((item) => item !== category) : [...form.categories, category])} className={`rounded-full border px-3 py-2 text-xs font-700 ${selected ? 'border-primary bg-primary text-white' : 'border-border text-muted-foreground'}`}>{category}</button>; })}</div></div>
               <label className="block text-sm font-700 text-foreground">Approximate monthly capacity<input value={form.monthlyCapacity} onChange={(event) => update('monthlyCapacity', event.target.value)} className="input-base mt-1.5 w-full px-4 py-3 font-400" placeholder="e.g. 2,000 metres" /></label>
-              <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 text-xs leading-5 text-muted-foreground"><strong className="text-foreground">Publishing gate:</strong> a valid format alone does not unlock live listings. Until the GST registration is confirmed active, products can only remain drafts.</div>
+              <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 text-xs leading-5 text-muted-foreground"><strong className="text-foreground">Publishing gate:</strong> a valid format alone does not unlock live listings. Until the GST registration is confirmed Active, products can only remain drafts.</div>
               <div className="flex gap-3">{!user && <button type="button" onClick={() => goTo('account')} className="btn-secondary flex-1 py-3 text-sm">Back</button>}<button type="button" onClick={continueBusiness} className="btn-primary flex-1 py-3 text-sm">Continue</button></div>
             </div>
           )}
