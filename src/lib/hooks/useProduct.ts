@@ -1,15 +1,52 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import {
-  CATALOG_PRODUCTS,
-  getCatalogProduct,
-  type CatalogMedia,
-  type CatalogProduct,
-  type CatalogVariant,
+import type {
+  CatalogMedia,
+  CatalogProduct,
+  CatalogVariant,
 } from '@/lib/catalog';
 import { createClient } from '@/lib/supabase/client';
+
+const EMPTY_PRODUCT: CatalogProduct = {
+  id: 'unavailable',
+  rawProductId: null,
+  source: 'seller',
+  sellerId: null,
+  name: 'Product unavailable',
+  seller: 'FabricTrad marketplace',
+  city: 'India',
+  category: 'Other',
+  price: 0,
+  priceMax: 0,
+  unit: 'mtr',
+  moq: 1,
+  available: 0,
+  gsm: 0,
+  width: 'Not available',
+  work: 'Not available',
+  rating: 0,
+  reviews: 0,
+  badge: null,
+  verified: false,
+  image: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64',
+  images: [],
+  media: [],
+  alt: 'Product unavailable',
+  dispatchDays: 0,
+  gst: false,
+  description:
+    'This product is no longer active, has not been approved, or the link is invalid. Return to the marketplace to select an available product.',
+  sku: null,
+  variantCount: 0,
+  colors: [],
+  variants: [],
+  selectedVariantId: null,
+  searchTerms: '',
+  saleChannel: 'b2b',
+  packageFormat: 'Fabric Only',
+};
 
 function mapMedia(row: Record<string, unknown>): CatalogMedia {
   return {
@@ -43,7 +80,10 @@ function mapVariant(row: Record<string, unknown>, media: CatalogMedia[]): Catalo
     description: String(row.description || ''),
     price: Number(row.price_per_unit || 0),
     unit: String(row.unit || 'mtr'),
-    available: Math.max(0, Number(row.available_quantity || 0) - Number(row.reserved_quantity || 0)),
+    available: Math.max(
+      0,
+      Number(row.available_quantity || 0) - Number(row.reserved_quantity || 0)
+    ),
     moq: Number(row.moq || 1),
     image: mediaImages[0] || image,
     images: [...new Set(images)],
@@ -81,22 +121,27 @@ function mapSellerProduct(
     ...parentMedia,
     ...variants.flatMap((variant) => variant.media || []),
   ];
-  const uniqueMedia = [...new Map(combinedMedia.map((item) => [item.url, item])).values()].filter(
-    (item) => item.url
-  );
+  const uniqueMedia = [
+    ...new Map(combinedMedia.map((item) => [item.url, item])).values(),
+  ].filter((item) => item.url);
   const fallbackImages = [
     ...(selectedVariant?.images || []),
     ...variantImages,
     parentImage,
     ...parentImages,
   ].filter(Boolean);
-  const media = uniqueMedia.length ? uniqueMedia : imageMedia(fallbackImages, String(row.name || 'Fabric'));
+  const media = uniqueMedia.length
+    ? uniqueMedia
+    : imageMedia(fallbackImages, String(row.name || 'Fabric'));
   const imageUrls = media.filter((item) => item.type === 'image').map((item) => item.url);
   const displayImage = imageUrls[0] || selectedVariant?.image || parentImage;
   const prices = variants.map((variant) => variant.price).filter((price) => price > 0);
   const available = variants.length
     ? variants.reduce((sum, variant) => sum + variant.available, 0)
-    : Number(row.available_quantity || 0);
+    : Math.max(
+        0,
+        Number(row.available_quantity || 0) - Number(row.reserved_quantity || 0)
+      );
 
   return {
     id: `seller-${String(row.id)}`,
@@ -107,7 +152,9 @@ function mapSellerProduct(
     seller: sellerName,
     city: [row.origin_city, row.origin_state].filter(Boolean).join(', ') || 'India',
     category: String(row.category || 'Other'),
-    price: selectedVariant?.price || (prices.length ? Math.min(...prices) : Number(row.price_per_unit || 0)),
+    price:
+      selectedVariant?.price ||
+      (prices.length ? Math.min(...prices) : Number(row.price_per_unit || 0)),
     priceMax: prices.length ? Math.max(...prices) : Number(row.price_per_unit || 0),
     unit: selectedVariant?.unit || String(row.unit || 'mtr'),
     moq: selectedVariant?.moq || Number(row.moq || 1),
@@ -124,7 +171,7 @@ function mapSellerProduct(
     media,
     alt: `${String(row.name || 'Fabric')} supplied by ${sellerName}`,
     dispatchDays: Number(row.dispatch_days || 3),
-    gst: true,
+    gst: Number(row.gst_rate || 0) > 0,
     description: selectedVariant?.description || String(row.description || ''),
     sku: selectedVariant?.code || (row.sku ? String(row.sku) : null),
     variantCount: variants.length || Number(row.variant_count || 0),
@@ -133,28 +180,24 @@ function mapSellerProduct(
     selectedVariantId: selectedVariant?.id || null,
     searchTerms: String(row.search_terms || ''),
     saleChannel:
-      row.sale_channel === 'retail' || row.sale_channel === 'both' ? row.sale_channel : 'b2b',
+      row.sale_channel === 'retail' || row.sale_channel === 'both'
+        ? row.sale_channel
+        : 'b2b',
     packageFormat: (row.package_format || 'Fabric Only') as CatalogProduct['packageFormat'],
   };
 }
 
 export function useProduct() {
   const searchParams = useSearchParams();
-  const requestedId = searchParams.get('id') || CATALOG_PRODUCTS[0].id;
+  const requestedId = searchParams.get('id') || '';
   const selectedVariantId = searchParams.get('variant');
-  const initial = useMemo(() => getCatalogProduct(requestedId), [requestedId]);
-  const [product, setProduct] = useState<CatalogProduct>(initial);
-  const [loading, setLoading] = useState(requestedId.startsWith('seller-'));
+  const [product, setProduct] = useState<CatalogProduct>(EMPTY_PRODUCT);
+  const [loading, setLoading] = useState(Boolean(requestedId));
 
   useEffect(() => {
     let mounted = true;
     if (!requestedId.startsWith('seller-')) {
-      const catalogProduct = getCatalogProduct(requestedId);
-      setProduct({
-        ...catalogProduct,
-        media:
-          catalogProduct.media || imageMedia(catalogProduct.images, catalogProduct.name),
-      });
+      setProduct(EMPTY_PRODUCT);
       setLoading(false);
       return;
     }
@@ -168,33 +211,38 @@ export function useProduct() {
         .select('*')
         .eq('id', id)
         .eq('status', 'active')
+        .eq('approval_status', 'approved')
+        .gt('available_quantity', 0)
         .maybeSingle();
       if (!mounted) return;
       if (error || !row) {
-        setProduct(CATALOG_PRODUCTS[0]);
+        setProduct(EMPTY_PRODUCT);
         setLoading(false);
         return;
       }
 
-      const [{ data: seller }, { data: variantRows }, { data: mediaRows }] = await Promise.all([
-        supabase
-          .from('seller_directory')
-          .select('display_name,legal_business_name')
-          .eq('id', row.seller_id)
-          .maybeSingle(),
-        supabase
-          .from('seller_product_variants')
-          .select('*')
-          .eq('product_id', id)
-          .eq('status', 'active')
-          .eq('approval_status', 'approved')
-          .order('color_name', { ascending: true }),
-        supabase
-          .from('seller_product_media')
-          .select('id,variant_id,media_type,view_type,public_url,alt_text,duration_seconds,sort_order')
-          .eq('product_id', id)
-          .order('sort_order', { ascending: true }),
-      ]);
+      const [{ data: seller }, { data: variantRows }, { data: mediaRows }] =
+        await Promise.all([
+          supabase
+            .from('seller_directory')
+            .select('display_name,legal_business_name')
+            .eq('id', row.seller_id)
+            .maybeSingle(),
+          supabase
+            .from('seller_product_variants')
+            .select('*')
+            .eq('product_id', id)
+            .eq('status', 'active')
+            .eq('approval_status', 'approved')
+            .order('color_name', { ascending: true }),
+          supabase
+            .from('seller_product_media')
+            .select(
+              'id,variant_id,media_type,view_type,public_url,alt_text,duration_seconds,sort_order'
+            )
+            .eq('product_id', id)
+            .order('sort_order', { ascending: true }),
+        ]);
       if (!mounted) return;
 
       const media = (mediaRows || []).map((entry) => ({
@@ -205,7 +253,11 @@ export function useProduct() {
         const variantId = String(variant.id);
         return mapVariant(
           variant as Record<string, unknown>,
-          media.filter(({ row: mediaRow }) => String(mediaRow.variant_id || '') === variantId).map(({ item }) => item)
+          media
+            .filter(
+              ({ row: mediaRow }) => String(mediaRow.variant_id || '') === variantId
+            )
+            .map(({ item }) => item)
         );
       });
       const parentMedia = media
@@ -215,7 +267,9 @@ export function useProduct() {
       setProduct(
         mapSellerProduct(
           row,
-          seller?.display_name || seller?.legal_business_name || 'Verified FabricTrad Seller',
+          seller?.display_name ||
+            seller?.legal_business_name ||
+            'Verified FabricTrad Seller',
           variants,
           parentMedia,
           selectedVariantId
