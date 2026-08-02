@@ -10,7 +10,6 @@ import SellerRatings from '@/app/product-detail/components/SellerRatings';
 import ComparisonWidget from '@/app/product-detail/components/ComparisonWidget';
 import ModernFabricDrapeViewer from '@/app/product-detail/components/ModernFabricDrapeViewer';
 import BuyerFeedbackWidget from '@/app/product-detail/components/BuyerFeedbackWidget';
-import BulkOrderCart from '@/app/product-detail/components/BulkOrderCart';
 import BuyerOnlyGuard from '@/components/BuyerOnlyGuard';
 import ProductBreadcrumb from '@/app/product-detail/components/ProductBreadcrumb';
 import Icon from '@/components/ui/AppIcon';
@@ -32,7 +31,7 @@ export default function ProductDetailPage() {
               <div>
                 <p className="ft-route-kicker">Product workspace</p>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Review media, colour stock, verified identifiers, seller-specific buyer limits and server-calculated tax together.
+                  Review live media, colour-level stock, verified identifiers, seller-specific buyer limits and server-calculated tax together.
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -52,7 +51,6 @@ export default function ProductDetailPage() {
                 <SellerRatings />
                 <BuyerFeedbackWidget />
                 <ComparisonWidget />
-                <BulkOrderCart />
               </div>
 
               <aside className="ft-product-aside space-y-4">
@@ -73,6 +71,17 @@ export default function ProductDetailPage() {
                       </a>
                     </div>
                   </div>
+                </div>
+                <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+                  <p className="text-xs font-800 uppercase tracking-wider text-muted-foreground">How checkout works</p>
+                  <ol className="mt-3 space-y-3 text-xs leading-5 text-muted-foreground">
+                    <li className="flex gap-2"><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10 font-800 text-primary">1</span><span>Choose the live variant and quantity shown above.</span></li>
+                    <li className="flex gap-2"><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10 font-800 text-primary">2</span><span>The seller confirms stock, final quantity and dispatch readiness.</span></li>
+                    <li className="flex gap-2"><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10 font-800 text-primary">3</span><span>Pay through the secured order page, then track shipment and documents from your buyer dashboard.</span></li>
+                  </ol>
+                  <a href="/cart" className="mt-4 inline-flex items-center gap-1 text-xs font-800 text-primary">
+                    Open order hub <Icon name="ArrowRightIcon" size={13} />
+                  </a>
                 </div>
               </aside>
             </div>
