@@ -1,65 +1,61 @@
-# FabricTrad authentication SMTP server
+# FabricTrad authentication email
 
-FabricTrad sends administrator OTP and buyer/seller password-recovery messages through authenticated SMTP over implicit TLS. Supabase Auth still generates and validates every one-time token; FabricTrad only controls delivery so the administrator receives a six-digit code instead of a magic link.
+FabricTrad delegates authentication email delivery directly to Supabase Auth using Resend as the custom SMTP provider. This is simpler than relaying mail through the Cloudflare Worker and does not require `SMTP_PASS` or `SUPABASE_SECRET_KEY` in Cloudflare for administrator OTP delivery.
 
-The Worker contains a small SMTP client built on `node:tls`, so no browser-visible credential or third-party JavaScript SDK is used. Only ports 465 and 2465 are accepted.
+## Supabase custom SMTP
 
-## Recommended provider: Cloudflare Email Service
-
-FabricTrad already runs on Cloudflare and uses Cloudflare DNS, so the recommended production SMTP endpoint is Cloudflare Email Service:
+Open **Supabase Dashboard → Authentication → SMTP Settings**, enable custom SMTP and enter:
 
 ```text
-SMTP_HOST=smtp.mx.cloudflare.net
-SMTP_PORT=465
-SMTP_USER=api_token
-SMTP_PASS=<Cloudflare API token with Email Sending: Edit>
-SMTP_EHLO_NAME=fabrictrad.com
-FABRICTRAD_AUTH_EMAIL_FROM=FabricTrad <auth@fabrictrad.com>
-FABRICTRAD_AUTH_EMAIL_REPLY_TO=fabrictrad8@gmail.com
+Sender name: FabricTrad
+Sender email: auth@fabrictrad.com
+Host: smtp.resend.com
+Port: 465
+Username: resend
+Password: the existing Resend API key
 ```
 
-Before the token can send mail, onboard `fabrictrad.com` or a dedicated subdomain such as `auth.fabrictrad.com` under **Cloudflare Dashboard → Compute → Email Service → Email Sending**. Cloudflare adds the required SPF, DKIM, bounce-domain and DMARC DNS records. The sender address must belong to the onboarded domain.
+The `fabrictrad.com` domain must be verified in Resend. Port 465 uses implicit TLS.
 
-`SMTP_PASS` is a secret. Store it only in the Cloudflare Worker production secrets and never commit it or expose it as a `NEXT_PUBLIC_` value.
+## Administrator OTP template
 
-## Alternative provider: Resend SMTP
+Open **Authentication → Email Templates → Magic Link** and replace the link-based body with a numeric-code template that contains `{{ .Token }}` and does not contain `{{ .ConfirmationURL }}`.
+
+Suggested subject:
 
 ```text
-SMTP_HOST=smtp.resend.com
-SMTP_PORT=465
-SMTP_USER=resend
-SMTP_PASS=<Resend API key>
-SMTP_EHLO_NAME=fabrictrad.com
-FABRICTRAD_AUTH_EMAIL_FROM=FabricTrad <auth@updates.fabrictrad.com>
-FABRICTRAD_AUTH_EMAIL_REPLY_TO=fabrictrad8@gmail.com
+Your FabricTrad administrator code
 ```
 
-The sending domain must be verified in Resend first. For backwards compatibility, setting `RESEND_API_KEY` without the SMTP variables automatically selects `smtp.resend.com:465` with username `resend`; delivery still uses SMTP, not the Resend HTTP API.
+Suggested body:
 
-## Message flows
+```html
+<h2>Your FabricTrad administrator code</h2>
+<p>Enter this one-time code on the FabricTrad administrator login page:</p>
+<p style="font-size:32px;font-weight:700;letter-spacing:8px">{{ .Token }}</p>
+<p>This code expires shortly and can be used only once.</p>
+```
 
-- `/api/auth/admin-otp/request` verifies the configured active administrator profile, applies database rate limits, uses the Supabase service-role client to generate a real six-digit `email_otp`, and sends only that code through SMTP.
-- The admin page verifies the submitted code using `supabase.auth.verifyOtp({ email, token, type: 'email' })` and then opens `/admin-portal`.
-- `/admin-portal` performs the authoritative server-side check for an active `super_admin` or `admin_staff` profile before showing operational data.
-- `/api/auth/email-otp/request` generates a Supabase recovery-purpose action link for buyer/seller password recovery and sends it through the same SMTP transport. It never sends a marketplace sign-in link.
+Supabase sends a numeric OTP when the Magic Link/OTP template contains `{{ .Token }}`. FabricTrad requests it with `signInWithOtp({ shouldCreateUser: false })` and validates it with `verifyOtp({ email, token, type: 'email' })`.
 
-## Abuse and security controls
+## Buyer and seller password recovery
 
-- A 60-second resend cooldown is enforced in the database.
-- Administrator OTP delivery is capped at 20 messages per UTC day.
-- Password recovery is capped at five messages per address per UTC day.
-- SMTP uses implicit TLS from connection start.
-- Credentials are read only from server-side environment variables.
-- Header values are rejected when they contain CR/LF characters.
-- Email bodies use MIME base64 encoding and SMTP dot-stuffing.
-- OTP values and SMTP passwords are never written to application logs.
+The buyer/seller **Forgot password?** endpoint uses `resetPasswordForEmail` and Supabase's Recovery template. Keep the Recovery template as a password-reset message and ensure it points to the generated `{{ .ConfirmationURL }}`. It must not describe the link as a marketplace sign-in.
+
+## Security boundary
+
+- The administrator request endpoint accepts only the configured administrator email.
+- `shouldCreateUser: false` prevents OTP requests from creating accounts.
+- Supabase applies email send rate limits.
+- `/admin-portal` independently requires an authenticated, active `super_admin` or `admin_staff` profile.
+- Resend credentials remain only inside Supabase's encrypted SMTP settings.
+- No Resend credential or Supabase privileged key is required in Cloudflare for these email flows.
 
 ## Production verification
 
-1. Request a code from `/admin-login`.
-2. Confirm the message subject is **Your FabricTrad administrator code** and the body contains six digits, not a link.
-3. Enter the code and confirm it opens `/admin-portal` only for the configured active administrator.
+1. Request an OTP from `/admin-login`.
+2. Confirm the email body contains a numeric code and no sign-in link.
+3. Enter the code and confirm `/admin-portal` opens.
 4. Enter an incorrect code and confirm access is denied.
-5. Request another code before 60 seconds and confirm the rate-limit message appears.
-6. Check the SMTP provider delivery log and Supabase Auth log without recording the token value.
-7. Test buyer/seller **Forgot password?** and confirm it opens only the new-password page.
+5. Test buyer/seller **Forgot password?** and confirm it opens the new-password page rather than logging the person into the marketplace.
+6. Review Supabase Auth logs and Resend delivery logs when a message is delayed or rejected.
