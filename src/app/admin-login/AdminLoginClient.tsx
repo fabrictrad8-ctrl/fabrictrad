@@ -6,6 +6,7 @@ import AppLogo from '@/components/ui/AppLogo';
 import { useAuth } from '@/contexts/AuthContext';
 
 type AdminRole = 'admin_staff' | 'super_admin';
+type RecoveryResponse = { error?: string; sent?: boolean; method?: string };
 
 const DEFAULT_ADMIN_EMAIL = 'fabrictrad8@gmail.com';
 const isAdminRole = (role: unknown): role is AdminRole =>
@@ -17,7 +18,18 @@ export default function AdminLoginClient() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [recoverySubmitting, setRecoverySubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [info, setInfo] = useState('');
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const passwordUpdated = new URLSearchParams(window.location.search).get('password_updated');
+      if (passwordUpdated === '1') {
+        setInfo('Administrator password updated. Sign in with the new password.');
+      }
+    }
+  }, []);
 
   useEffect(() => {
     if (loading || !user || !profile) return;
@@ -29,6 +41,7 @@ export default function AdminLoginClient() {
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError('');
+    setInfo('');
 
     const normalizedEmail = email.trim().toLowerCase();
     if (!normalizedEmail || !password) {
@@ -56,6 +69,35 @@ export default function AdminLoginClient() {
           : message || 'Administrator sign-in failed. Please try again.'
       );
       setSubmitting(false);
+    }
+  };
+
+  const sendRecoveryEmail = async () => {
+    setError('');
+    setInfo('');
+    setRecoverySubmitting(true);
+
+    try {
+      const response = await fetch('/api/auth/admin-password-recovery/request', {
+        method: 'POST',
+        credentials: 'same-origin',
+        cache: 'no-store',
+      });
+      const payload = (await response.json().catch(() => ({}))) as RecoveryResponse;
+      if (!response.ok) {
+        throw new Error(payload.error || 'Unable to send the administrator recovery email.');
+      }
+      setInfo(
+        `A password-reset email was sent to the configured administrator inbox (${DEFAULT_ADMIN_EMAIL}).`
+      );
+    } catch (caughtError: unknown) {
+      setError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : 'Unable to send the administrator recovery email.'
+      );
+    } finally {
+      setRecoverySubmitting(false);
     }
   };
 
@@ -98,8 +140,8 @@ export default function AdminLoginClient() {
               Sign in to Admin Portal
             </h2>
             <p className="mt-2 text-sm leading-6 text-slate-400">
-              Use your administrator email and password. Email delivery is no longer required to
-              enter the portal.
+              Use your administrator email and password. Email delivery is no longer required for
+              normal access.
             </p>
 
             {error && (
@@ -108,6 +150,14 @@ export default function AdminLoginClient() {
                 className="mt-5 rounded-xl border border-rose-300/20 bg-rose-300/10 px-4 py-3 text-sm text-rose-200"
               >
                 {error}
+              </div>
+            )}
+            {info && (
+              <div
+                aria-live="polite"
+                className="mt-5 rounded-xl border border-emerald-300/20 bg-emerald-300/10 px-4 py-3 text-sm text-emerald-200"
+              >
+                {info}
               </div>
             )}
 
@@ -148,12 +198,21 @@ export default function AdminLoginClient() {
 
               <button
                 type="submit"
-                disabled={submitting}
+                disabled={submitting || recoverySubmitting}
                 className="w-full rounded-xl bg-[#c65330] px-4 py-3.5 font-700 text-white transition hover:bg-[#d45c36] disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {submitting ? 'Checking administrator access…' : 'Open Admin Portal'}
               </button>
             </form>
+
+            <button
+              type="button"
+              onClick={sendRecoveryEmail}
+              disabled={submitting || recoverySubmitting}
+              className="mt-4 w-full text-sm font-700 text-orange-300 hover:text-orange-200 disabled:cursor-not-allowed disabled:text-slate-500"
+            >
+              {recoverySubmitting ? 'Sending recovery email…' : 'Forgot administrator password?'}
+            </button>
 
             <p className="mt-4 text-center text-xs leading-5 text-slate-500">
               For launch security, enable authenticator-app MFA for administrator accounts after
