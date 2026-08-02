@@ -27,7 +27,7 @@ export default async function AdminPortalPage() {
       data: { user },
     } = await supabase.auth.getUser();
 
-    if (!user) redirect('/login');
+    if (!user) redirect('/admin-login');
 
     const normalizedEmail = user.email?.trim().toLowerCase() || '';
     const { data: profile } = await supabase
@@ -41,7 +41,7 @@ export default async function AdminPortalPage() {
       profile?.is_active !== false &&
       (profile?.role === 'super_admin' || profile?.role === 'admin_staff');
 
-    if (!authorisedByEmail && !authorisedByRole) redirect('/login');
+    if (!authorisedByEmail && !authorisedByRole) redirect('/admin-login');
   }
 
   return (
