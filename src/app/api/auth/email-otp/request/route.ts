@@ -2,6 +2,9 @@ import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 import { normalizeEmail } from '@/lib/authValidation';
 
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 const noStoreJson = (body: Record<string, unknown>, status = 200) =>
   NextResponse.json(body, {
     status,
@@ -26,46 +29,45 @@ export async function POST(request: NextRequest) {
     return noStoreJson({ error: 'Enter a valid email address.' }, 400);
   }
 
-  try {
-    // Password recovery is a public Supabase Auth operation. It must never
-    // initialise or mutate an administrator account and therefore must not
-    // depend on the server-only service-role key.
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const publishableKey =
-      process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const publishableKey =
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-    if (!supabaseUrl || !publishableKey) {
-      throw new Error('Authentication is temporarily unavailable. Please contact FabricTrad support.');
-    }
-
-    const supabase = createClient(supabaseUrl, publishableKey, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false,
-      },
-    });
-
-    const redirectBase =
-      process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '') || request.nextUrl.origin;
-
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: {
-        shouldCreateUser: false,
-        emailRedirectTo: `${redirectBase}/auth/callback`,
-      },
-    });
-
-    if (error) throw error;
-
-    return noStoreJson({ sent: true });
-  } catch (caughtError: unknown) {
-    const rawMessage =
-      caughtError instanceof Error ? caughtError.message : 'Unable to send the reset code.';
-    const message = /rate limit/i.test(rawMessage)
-      ? 'Too many reset attempts. Please wait a few minutes and try again.'
-      : rawMessage;
-    return noStoreJson({ error: message }, 400);
+  if (!supabaseUrl || !publishableKey) {
+    return noStoreJson(
+      { error: 'Password recovery is temporarily unavailable. Please contact FabricTrad support.' },
+      503
+    );
   }
+
+  const supabase = createClient(supabaseUrl, publishableKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+      detectSessionInUrl: false,
+    },
+  });
+
+  const redirectBase =
+    process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '') || request.nextUrl.origin;
+
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: `${redirectBase}/auth/reset-password`,
+  });
+
+  if (error) {
+    const rawMessage = error.message || 'Unable to send the password reset email.';
+    const message = /rate limit|security purposes/i.test(rawMessage)
+      ? 'A reset email was requested recently. Please wait about one minute and try again.'
+      : 'The password reset email could not be sent. Please try again shortly.';
+    return noStoreJson({ error: message }, error.status && error.status >= 400 ? error.status : 400);
+  }
+
+  // Keep the response non-enumerating: Supabase intentionally does not reveal
+  // whether an address belongs to an account.
+  return noStoreJson({
+    sent: true,
+    method: 'password_recovery',
+  });
 }

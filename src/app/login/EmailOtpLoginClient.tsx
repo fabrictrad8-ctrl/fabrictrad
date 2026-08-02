@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, type FormEvent, type KeyboardEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import AppLogo from '@/components/ui/AppLogo';
@@ -9,7 +9,12 @@ import { useAuth } from '@/contexts/AuthContext';
 type LoginRole = 'buyer' | 'seller';
 type AccountRole = LoginRole | 'admin_staff' | 'super_admin';
 type ScreenMode = 'login' | 'forgot';
-type ResetStep = 'request' | 'verify' | 'new-password';
+
+type RecoveryResponse = {
+  sent?: boolean;
+  method?: string;
+  error?: string;
+};
 
 const destinationForRole = (role?: AccountRole | null) => {
   if (role === 'seller') return '/seller-dashboard';
@@ -42,8 +47,6 @@ function GoogleMark() {
   );
 }
 
-const emptyOtp = () => ['', '', '', '', '', ''];
-
 export default function EmailOtpLoginClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -51,9 +54,6 @@ export default function EmailOtpLoginClient() {
     signIn,
     signInWithGoogle,
     googleAuthEnabled,
-    verifyEmailOtp,
-    updatePassword,
-    signOut,
     user,
     profile,
     loading,
@@ -61,22 +61,24 @@ export default function EmailOtpLoginClient() {
 
   const [role, setRole] = useState<LoginRole>('buyer');
   const [mode, setMode] = useState<ScreenMode>('login');
-  const [resetStep, setResetStep] = useState<ResetStep>('request');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [otp, setOtp] = useState(emptyOtp);
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [showNewPassword, setShowNewPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [googleSubmitting, setGoogleSubmitting] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
 
   useEffect(() => {
     if (searchParams.get('role') === 'seller') setRole('seller');
     const authError = searchParams.get('error');
+    const passwordUpdated = searchParams.get('password_updated');
+
+    if (passwordUpdated === '1') {
+      setInfo('Password updated successfully. Sign in with your new password.');
+    }
+
     if (authError === 'account_inactive') {
       setError('This account is inactive. Please contact FabricTrad support.');
     } else if (authError === 'account_not_found') {
@@ -85,6 +87,9 @@ export default function EmailOtpLoginClient() {
       setError('Google sign-in is available for buyer accounts only.');
     } else if (authError === 'account_setup_failed') {
       setError('Your login was verified, but the buyer or seller profile could not be prepared. Please sign in again.');
+    } else if (authError === 'recovery_failed') {
+      setError('That password reset link is invalid or expired. Request a new reset email.');
+      setMode('forgot');
     } else if (authError) {
       setError('Authentication failed. Please try again.');
     }
@@ -143,23 +148,18 @@ export default function EmailOtpLoginClient() {
 
   const openForgotPassword = () => {
     setMode('forgot');
-    setResetStep('request');
-    setOtp(emptyOtp());
-    setNewPassword('');
-    setConfirmPassword('');
+    setResetSent(false);
     clearMessages();
   };
 
   const returnToLogin = () => {
     setMode('login');
-    setResetStep('request');
-    setOtp(emptyOtp());
-    setNewPassword('');
-    setConfirmPassword('');
+    setResetSent(false);
+    setPassword('');
     clearMessages();
   };
 
-  const sendResetCode = async () => {
+  const sendPasswordReset = async () => {
     const normalizedEmail = email.trim().toLowerCase();
     if (!normalizedEmail) {
       setError('Enter the email address linked to your FabricTrad account.');
@@ -173,80 +173,28 @@ export default function EmailOtpLoginClient() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'same-origin',
+        cache: 'no-store',
         body: JSON.stringify({ email: normalizedEmail }),
       });
-      const payload = (await response.json().catch(() => ({}))) as { error?: string };
-      if (!response.ok) throw new Error(payload.error || 'Unable to send the reset code.');
+      const payload = (await response.json().catch(() => ({}))) as RecoveryResponse;
+      if (!response.ok) {
+        throw new Error(payload.error || 'Unable to send the password reset email.');
+      }
+      if (payload.method && payload.method !== 'password_recovery') {
+        throw new Error('The password recovery service returned an unexpected response.');
+      }
 
       setEmail(normalizedEmail);
-      setOtp(emptyOtp());
-      setResetStep('verify');
-      setInfo(`A six-digit password reset code was sent to ${normalizedEmail}.`);
-      window.setTimeout(() => document.getElementById('reset-otp-0')?.focus(), 50);
+      setResetSent(true);
+      setInfo(
+        'Password reset email sent. Open the newest FabricTrad recovery email and choose a new password. It will not sign you into the marketplace.'
+      );
     } catch (caughtError: unknown) {
-      setError(caughtError instanceof Error ? caughtError.message : 'Unable to send the reset code.');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const changeOtp = (index: number, value: string) => {
-    const digit = value.replace(/\D/g, '').slice(-1);
-    setOtp((current) => current.map((item, itemIndex) => (itemIndex === index ? digit : item)));
-    if (digit && index < 5) document.getElementById(`reset-otp-${index + 1}`)?.focus();
-  };
-
-  const handleOtpKey = (index: number, event: KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === 'Backspace' && !otp[index] && index > 0) {
-      document.getElementById(`reset-otp-${index - 1}`)?.focus();
-    }
-  };
-
-  const verifyResetCode = async () => {
-    const token = otp.join('');
-    if (token.length !== 6) {
-      setError('Enter the complete six-digit code.');
-      return;
-    }
-
-    clearMessages();
-    setSubmitting(true);
-    try {
-      await verifyEmailOtp(email, token);
-      setResetStep('new-password');
-      setInfo('Email verified. Create a new password for your account.');
-    } catch (caughtError: unknown) {
-      setError(caughtError instanceof Error ? caughtError.message : 'The code is invalid or expired.');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const saveNewPassword = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (newPassword.length < 8) {
-      setError('Your new password must contain at least 8 characters.');
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      setError('The two password entries do not match.');
-      return;
-    }
-
-    clearMessages();
-    setSubmitting(true);
-    try {
-      await updatePassword(newPassword);
-      await signOut();
-      setMode('login');
-      setResetStep('request');
-      setPassword('');
-      setNewPassword('');
-      setConfirmPassword('');
-      setOtp(emptyOtp());
-      setInfo('Password updated successfully. Sign in with your new password.');
-    } catch (caughtError: unknown) {
-      setError(caughtError instanceof Error ? caughtError.message : 'Unable to update the password.');
+      setError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : 'Unable to send the password reset email.'
+      );
     } finally {
       setSubmitting(false);
     }
@@ -298,11 +246,9 @@ export default function EmailOtpLoginClient() {
             <p className="mt-2 text-sm leading-6 text-slate-400">
               {mode === 'login'
                 ? 'Use the email and password registered with your account.'
-                : resetStep === 'request'
-                  ? 'We will send a one-time code to your registered email.'
-                  : resetStep === 'verify'
-                    ? 'Enter the six-digit code sent to your email.'
-                    : 'Choose a secure new password for your account.'}
+                : resetSent
+                  ? 'Check your inbox for the password recovery email.'
+                  : 'Enter your registered email. The recovery email opens a secure new-password screen.'}
             </p>
 
             {mode === 'login' && (
@@ -332,7 +278,7 @@ export default function EmailOtpLoginClient() {
               </div>
             )}
             {info && (
-              <div className="mt-4 rounded-xl border border-emerald-300/20 bg-emerald-300/10 px-4 py-3 text-sm text-emerald-200">
+              <div aria-live="polite" className="mt-4 rounded-xl border border-emerald-300/20 bg-emerald-300/10 px-4 py-3 text-sm text-emerald-200">
                 {info}
               </div>
             )}
@@ -395,8 +341,7 @@ export default function EmailOtpLoginClient() {
                     <button
                       type="button"
                       onClick={handleGoogleLogin}
-                      disabled={submitting || googleSubmitting}
-                      aria-disabled={!googleAuthEnabled}
+                      disabled={submitting || googleSubmitting || !googleAuthEnabled}
                       className="flex w-full items-center justify-center gap-3 rounded-xl bg-white px-4 py-3.5 font-700 text-slate-800 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       <GoogleMark />
@@ -406,103 +351,38 @@ export default function EmailOtpLoginClient() {
                 )}
               </form>
             ) : (
-              <div className="mt-6">
-                {resetStep === 'request' && (
-                  <div className="space-y-5">
-                    <label className="block text-sm text-slate-300">
-                      Registered email
-                      <input
-                        type="email"
-                        value={email}
-                        onChange={(event) => setEmail(event.target.value)}
-                        autoComplete="email"
-                        className="mt-2 w-full rounded-xl border border-white/10 bg-[#252d3a] px-4 py-3.5 text-white outline-none focus:border-orange-400/60"
-                        placeholder="name@business.com"
-                      />
-                    </label>
-                    <button
-                      type="button"
-                      onClick={sendResetCode}
-                      disabled={submitting}
-                      className="w-full rounded-xl bg-[#c65330] px-4 py-3.5 font-700 text-white disabled:opacity-60"
-                    >
-                      {submitting ? 'Sending code…' : 'Send reset code'}
-                    </button>
+              <div className="mt-6 space-y-5">
+                <label className="block text-sm text-slate-300">
+                  Registered email
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(event) => {
+                      setEmail(event.target.value);
+                      setResetSent(false);
+                    }}
+                    autoComplete="email"
+                    className="mt-2 w-full rounded-xl border border-white/10 bg-[#252d3a] px-4 py-3.5 text-white outline-none focus:border-orange-400/60"
+                    placeholder="name@business.com"
+                  />
+                </label>
+
+                <button
+                  type="button"
+                  onClick={sendPasswordReset}
+                  disabled={submitting}
+                  className="w-full rounded-xl bg-[#c65330] px-4 py-3.5 font-700 text-white disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {submitting ? 'Sending recovery email…' : resetSent ? 'Send a new recovery email' : 'Send password reset email'}
+                </button>
+
+                {resetSent && (
+                  <div className="rounded-xl border border-white/10 bg-black/10 p-4 text-sm leading-6 text-slate-300">
+                    Use the newest email with the subject <strong className="text-white">Reset your password</strong>. The link opens FabricTrad only to choose a new password; it is not a buyer or seller login shortcut.
                   </div>
                 )}
 
-                {resetStep === 'verify' && (
-                  <div className="space-y-5">
-                    <div className="grid grid-cols-6 gap-2">
-                      {otp.map((digit, index) => (
-                        <input
-                          key={index}
-                          id={`reset-otp-${index}`}
-                          value={digit}
-                          onChange={(event) => changeOtp(index, event.target.value)}
-                          onKeyDown={(event) => handleOtpKey(index, event)}
-                          inputMode="numeric"
-                          maxLength={1}
-                          aria-label={`Code digit ${index + 1}`}
-                          className="h-12 min-w-0 rounded-lg border border-white/10 bg-[#252d3a] text-center text-lg font-800 text-white outline-none focus:border-orange-400/60"
-                        />
-                      ))}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={verifyResetCode}
-                      disabled={submitting}
-                      className="w-full rounded-xl bg-[#c65330] px-4 py-3.5 font-700 text-white disabled:opacity-60"
-                    >
-                      {submitting ? 'Verifying…' : 'Verify code'}
-                    </button>
-                  </div>
-                )}
-
-                {resetStep === 'new-password' && (
-                  <form className="space-y-5" onSubmit={saveNewPassword}>
-                    <label className="block text-sm text-slate-300">
-                      New password
-                      <span className="relative mt-2 block">
-                        <input
-                          type={showNewPassword ? 'text' : 'password'}
-                          value={newPassword}
-                          onChange={(event) => setNewPassword(event.target.value)}
-                          autoComplete="new-password"
-                          className="w-full rounded-xl border border-white/10 bg-[#252d3a] px-4 py-3.5 pr-16 text-white outline-none focus:border-orange-400/60"
-                          placeholder="At least 8 characters"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowNewPassword((current) => !current)}
-                          className="absolute inset-y-0 right-0 px-4 text-xs font-700 text-slate-400 hover:text-white"
-                        >
-                          {showNewPassword ? 'Hide' : 'Show'}
-                        </button>
-                      </span>
-                    </label>
-                    <label className="block text-sm text-slate-300">
-                      Confirm new password
-                      <input
-                        type="password"
-                        value={confirmPassword}
-                        onChange={(event) => setConfirmPassword(event.target.value)}
-                        autoComplete="new-password"
-                        className="mt-2 w-full rounded-xl border border-white/10 bg-[#252d3a] px-4 py-3.5 text-white outline-none focus:border-orange-400/60"
-                        placeholder="Repeat your new password"
-                      />
-                    </label>
-                    <button
-                      type="submit"
-                      disabled={submitting}
-                      className="w-full rounded-xl bg-[#c65330] px-4 py-3.5 font-700 text-white disabled:opacity-60"
-                    >
-                      {submitting ? 'Updating password…' : 'Save new password'}
-                    </button>
-                  </form>
-                )}
-
-                <button type="button" onClick={returnToLogin} className="mt-5 w-full text-sm font-700 text-orange-300 hover:text-orange-200">
+                <button type="button" onClick={returnToLogin} className="w-full text-sm font-700 text-orange-300 hover:text-orange-200">
                   Back to sign in
                 </button>
               </div>

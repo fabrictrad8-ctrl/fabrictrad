@@ -10,6 +10,9 @@ const callback = read('src/app/auth/callback/route.ts');
 const endpoint = read('src/app/api/auth/provision-account/route.ts');
 const migration = read('supabase/migrations/20260731090000_oauth_account_recovery.sql');
 const recoveryUi = read('src/app/auth/setup/AccountSetupClient.tsx');
+const passwordResetRequest = read('src/app/api/auth/email-otp/request/route.ts');
+const passwordResetPage = read('src/app/auth/reset-password/page.tsx');
+const accountLogin = read('src/app/login/EmailOtpLoginClient.tsx');
 const adminOtpRequest = read('src/app/api/auth/admin-otp/request/route.ts');
 const adminLogin = read('src/app/admin-login/AdminLoginClient.tsx');
 const adminPortal = read('src/app/admin-portal/page.tsx');
@@ -38,6 +41,17 @@ assert(migration.includes('revoke all on function'), 'Recovery function must rev
 assert(migration.includes('grant execute') && migration.includes('to authenticated'), 'Only authenticated users may call recovery.');
 assert(recoveryUi.includes('Session preserved'), 'Recovery UI must explain that the authenticated session is preserved.');
 assert(recoveryUi.includes('aria-live'), 'Recovery status must be announced accessibly.');
+
+assert(passwordResetRequest.includes('resetPasswordForEmail'), 'Forgot password must use the Supabase recovery flow.');
+assert(!passwordResetRequest.includes('signInWithOtp'), 'Forgot password must never send a passwordless sign-in email.');
+assert(passwordResetRequest.includes("method: 'password_recovery'"), 'Recovery endpoint must identify the correct email purpose.');
+assert(passwordResetRequest.includes('/auth/reset-password'), 'Recovery email must return to the new-password screen.');
+assert(passwordResetPage.includes('updatePassword(password)'), 'Recovery screen must save the new password through Supabase Auth.');
+assert(passwordResetPage.includes("window.location.replace('/login?password_updated=1')"), 'Successful recovery must return to normal password login.');
+assert(accountLogin.includes('Send password reset email'), 'Buyer and seller login must request a recovery email.');
+assert(accountLogin.includes('It will not sign you into the marketplace'), 'Recovery UI must distinguish reset from passwordless login.');
+assert(!accountLogin.includes('Verify code') && !accountLogin.includes('six-digit password reset code'), 'Locked default recovery emails must not be represented as numeric OTP emails.');
+assert(middleware.includes("'/auth/reset-password'"), 'The public recovery page must load before browser auth tokens are persisted.');
 
 assert(adminOtpRequest.includes('shouldCreateUser: false'), 'Administrator email OTP must never create an account.');
 assert(adminOtpRequest.includes('configuredAdminEmail()'), 'Administrator email OTP must remain restricted to the configured address.');
@@ -73,4 +87,4 @@ assert(contactPhoneMigration.includes("v_next_action := 'add_phone'"), 'A missin
 assert(contactPhoneMigration.includes('Seller mobile number must be added before approval'), 'Seller approval must require a contact number without claiming OTP verification.');
 assert(!contactPhoneMigration.includes('must be OTP verified'), 'Post-migration seller rules must not require SMS OTP.');
 
-console.log('OAuth, native administrator email OTP and provider-free seller phone regression checks passed.');
+console.log('OAuth, password recovery, administrator auth and provider-free seller phone regression checks passed.');
