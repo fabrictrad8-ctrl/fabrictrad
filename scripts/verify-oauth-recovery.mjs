@@ -14,6 +14,9 @@ const passwordResetRequest = read('src/app/api/auth/email-otp/request/route.ts')
 const passwordResetPage = read('src/app/auth/reset-password/page.tsx');
 const accountLogin = read('src/app/login/EmailOtpLoginClient.tsx');
 const adminOtpRequest = read('src/app/api/auth/admin-otp/request/route.ts');
+const adminPasswordRecovery = read(
+  'src/app/api/auth/admin-password-recovery/request/route.ts'
+);
 const authEmailServer = read('src/lib/server/authEmail.ts');
 const authEmailMigration = read(
   'supabase/migrations/20260802014500_auth_email_delivery_rate_limits.sql'
@@ -62,26 +65,32 @@ assert(passwordResetRequest.includes('auth.admin.generateLink'), 'Forgot passwor
 assert(passwordResetRequest.includes("type: 'recovery'"), 'Forgot password must generate a recovery-purpose token.');
 assert(passwordResetRequest.includes('properties?.action_link'), 'Forgot password must deliver the generated recovery action link.');
 assert(passwordResetRequest.includes('sendPasswordRecoveryEmail'), 'Forgot password must use the FabricTrad email server.');
-assert(!passwordResetRequest.includes('resetPasswordForEmail'), 'Forgot password must not invoke the locked Supabase hosted email template.');
+assert(!passwordResetRequest.includes('resetPasswordForEmail'), 'Buyer and seller password recovery must not invoke the locked Supabase hosted email template.');
 assert(!passwordResetRequest.includes('signInWithOtp'), 'Forgot password must never send a passwordless sign-in email.');
 assert(passwordResetRequest.includes("method: 'password_recovery'"), 'Recovery endpoint must identify the correct email purpose.');
 assert(passwordResetRequest.includes('/auth/reset-password'), 'Recovery email must return to the new-password screen.');
 assert(passwordResetPage.includes('updatePassword(password)'), 'Recovery screen must save the new password through Supabase Auth.');
-assert(passwordResetPage.includes("window.location.replace('/login?password_updated=1')"), 'Successful recovery must return to normal password login.');
+assert(passwordResetPage.includes("'/login?password_updated=1'"), 'Buyer and seller recovery must return to normal password login.');
+assert(passwordResetPage.includes("'/admin-login?password_updated=1'"), 'Administrator recovery must return to administrator password login.');
 assert(accountLogin.includes('Send password reset email'), 'Buyer and seller login must request a recovery email.');
 assert(accountLogin.includes('It will not sign you into the marketplace'), 'Recovery UI must distinguish reset from passwordless login.');
 assert(!accountLogin.includes('Verify code') && !accountLogin.includes('six-digit password reset code'), 'Password recovery must not claim a numeric code is sent.');
 assert(middleware.includes("'/auth/reset-password'"), 'The public recovery page must load before browser auth tokens are persisted.');
 
-assert(adminOtpRequest.includes('configuredAdminEmail()'), 'Administrator email OTP must remain restricted to the configured address.');
-assert(adminOtpRequest.includes('createAdminClient'), 'Administrator OTP generation must stay on the trusted server.');
-assert(adminOtpRequest.includes('auth.admin.generateLink'), 'Administrator access must generate the real Supabase token server-side.');
-assert(adminOtpRequest.includes("type: 'magiclink'"), 'Administrator OTP must use the Supabase email-token purpose.');
-assert(adminOtpRequest.includes('properties?.email_otp'), 'Administrator delivery must extract the generated six-digit email OTP.');
-assert(adminOtpRequest.includes('sendAdminOtpEmail'), 'Administrator OTP must be sent through the FabricTrad email server.');
-assert(adminOtpRequest.includes("method: 'email_otp'"), 'Administrator OTP endpoint must identify email OTP delivery.');
-assert(!adminOtpRequest.includes('signInWithOtp'), 'Administrator OTP must bypass the locked Supabase hosted email template.');
-assert(!adminOtpRequest.includes('phone:'), 'Administrator OTP generation must not use phone authentication.');
+assert(adminOtpRequest.includes('configuredAdminEmail()'), 'Optional administrator email OTP must remain restricted to the configured address.');
+assert(adminOtpRequest.includes('createAdminClient'), 'Optional administrator OTP generation must stay on the trusted server.');
+assert(adminOtpRequest.includes('auth.admin.generateLink'), 'Optional administrator access must generate the real Supabase token server-side.');
+assert(adminOtpRequest.includes("type: 'magiclink'"), 'Optional administrator OTP must use the Supabase email-token purpose.');
+assert(adminOtpRequest.includes('properties?.email_otp'), 'Optional administrator delivery must extract the generated six-digit email OTP.');
+assert(adminOtpRequest.includes('sendAdminOtpEmail'), 'Optional administrator OTP must be sent through the FabricTrad email server.');
+assert(adminOtpRequest.includes("method: 'email_otp'"), 'Optional administrator OTP endpoint must identify email OTP delivery.');
+assert(!adminOtpRequest.includes('signInWithOtp'), 'Optional administrator OTP must bypass the locked Supabase hosted email template.');
+assert(!adminOtpRequest.includes('phone:'), 'Administrator authentication must not use phone authentication.');
+
+assert(adminPasswordRecovery.includes('resetPasswordForEmail(configuredAdminEmail()'), 'Administrator password recovery must use the fixed configured admin account.');
+assert(adminPasswordRecovery.includes('/auth/reset-password?admin=1'), 'Administrator recovery must return to the shared new-password screen in admin mode.');
+assert(adminPasswordRecovery.includes("method: 'supabase_password_recovery'"), 'Administrator recovery must identify its provider-free fallback method.');
+assert(!adminPasswordRecovery.includes('SUPABASE_SERVICE_ROLE_KEY'), 'Administrator recovery must not expose or require the service-role key.');
 
 assert(authEmailServer.includes('RESEND_API_KEY'), 'Authentication email delivery must use a server-only Resend API key.');
 assert(authEmailServer.includes('https://api.resend.com/emails'), 'Authentication email delivery must call the Resend email API.');
@@ -101,15 +110,20 @@ assert(environmentExample.includes('RESEND_API_KEY='), 'Environment example must
 assert(environmentExample.includes('FABRICTRAD_AUTH_EMAIL_FROM='), 'Environment example must include the verified sender address.');
 assert(authEmailDocs.includes('updates.fabrictrad.com') && authEmailDocs.includes('SPF') && authEmailDocs.includes('DKIM'), 'Deployment documentation must cover sender-domain verification.');
 
-assert(adminLogin.includes('Send administrator OTP'), 'Administrator UI must request a one-time email code.');
-assert(adminLogin.includes('Six-digit administrator code'), 'Administrator UI must provide a six-digit OTP input.');
-assert(adminLogin.includes('verifyEmailOtp'), 'Administrator UI must verify the email OTP with Supabase Auth.');
-assert(adminLogin.includes("window.location.replace('/admin-portal')"), 'Successful OTP verification must reload into the admin portal.');
-assert(!adminLogin.includes('email-link') && !adminLogin.includes('Send secure admin sign-in link'), 'The obsolete magic-link UI must not return.');
-assert(!adminLogin.includes('current-password') && !adminLogin.includes('Enter admin dashboard'), 'Administrator access must remain OTP-only.');
-assert(adminLogin.includes('No password or mobile-number OTP is used'), 'Administrator UI must distinguish email OTP from mobile OTP.');
-assert(adminPortal.includes("redirect('/admin-login')"), 'Unauthenticated administrator portal access must return to the administrator OTP page.');
-assert(middleware.includes("pathname.startsWith('/admin-portal') ? '/admin-login' : '/login'"), 'Middleware must route unauthenticated administrator traffic to the OTP page.');
+assert(adminLogin.includes('Sign in to Admin Portal'), 'Administrator UI must provide a clear password sign-in screen.');
+assert(adminLogin.includes('current-password'), 'Administrator UI must use the browser password autofill contract.');
+assert(adminLogin.includes('await signIn(normalizedEmail, password)'), 'Administrator UI must authenticate through Supabase password login.');
+assert(adminLogin.includes('isAdminRole(role)'), 'Administrator UI must reject authenticated non-admin accounts.');
+assert(adminLogin.includes('await signOut().catch'), 'Rejected non-admin sessions must be cleared immediately.');
+assert(adminLogin.includes("window.location.replace('/admin-portal')"), 'Successful administrator authentication must reload into the admin portal.');
+assert(adminLogin.includes('Forgot administrator password?'), 'Administrator UI must provide a recovery path when the current password is unknown.');
+assert(adminLogin.includes('/api/auth/admin-password-recovery/request'), 'Administrator recovery must call the dedicated fixed-account endpoint.');
+assert(!adminLogin.includes('Send administrator OTP') && !adminLogin.includes('Six-digit administrator code'), 'Unavailable email delivery must not block the primary administrator login.');
+assert(adminPortal.includes("redirect('/admin-login')"), 'Unauthenticated administrator portal access must return to the administrator login page.');
+assert(adminPortal.includes('profile?.is_active === true'), 'The server must require an active administrator profile.');
+assert(adminPortal.includes("profile.role === 'super_admin'") && adminPortal.includes("profile.role === 'admin_staff'"), 'The server must require an administrator role.');
+assert(!adminPortal.includes('authorisedByEmail'), 'A matching email address alone must never grant administrator access.');
+assert(middleware.includes("pathname.startsWith('/admin-portal') ? '/admin-login' : '/login'"), 'Middleware must route unauthenticated administrator traffic to the administrator login page.');
 
 assert(phoneCollection.includes("rpc('set_current_account_phone'"), 'Phone collection must use the authenticated contact-number RPC.');
 assert(!phoneCollection.includes('auth.updateUser') && !phoneCollection.includes("type: 'phone_change'"), 'Phone collection must not start an SMS verification flow.');
@@ -143,4 +157,4 @@ assert(environmentExample.includes('GSTIN_VERIFICATION_API_URL='), 'Environment 
 assert(gstVerificationDocs.includes('captcha-protected') && gstVerificationDocs.includes('payment-gateway'), 'GST documentation must distinguish the free manual portal from payment infrastructure.');
 assert(gstVerificationDocs.includes('GST Suvidha Providers'), 'GST documentation must explain the authorised GSP option.');
 
-console.log('OAuth, email, GST reference, password recovery, administrator OTP and seller verification regression checks passed.');
+console.log('OAuth, email, GST reference, password recovery, administrator password access and seller verification regression checks passed.');
