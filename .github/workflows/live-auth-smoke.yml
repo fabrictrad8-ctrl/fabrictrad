@@ -54,12 +54,12 @@ jobs:
                 break
               fi
 
-              echo "Attempt $attempt: $base_url has not served the working demo-login release yet"
+              echo "Attempt $attempt: $base_url has not served the working authentication release yet"
               sleep 15
             done
 
             if [ "$deployed" != "true" ]; then
-              echo "$base_url did not serve the working demo-login release in time."
+              echo "$base_url did not serve the working authentication release in time."
               cat "/tmp/${safe_name}-invalid-reset.json" 2>/dev/null || true
               cat "/tmp/${safe_name}-buyer-demo.json" 2>/dev/null || true
               return 1
@@ -106,17 +106,17 @@ jobs:
             grep -qi '^location: .*login' "/tmp/${safe_name}-public-marketplace.headers"
 
             admin_login_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
-              --dump-header "/tmp/${safe_name}-admin-login.headers" --output /dev/null \
-              --write-out '%{http_code}' --max-redirs 0 "$base_url/admin-login")
-            test "$admin_login_status" = "307" -o "$admin_login_status" = "308"
-            grep -qi '^location: .*login' "/tmp/${safe_name}-admin-login.headers"
+              --output "/tmp/${safe_name}-admin-login.html" --write-out '%{http_code}' \
+              "$base_url/admin-login")
+            test "$admin_login_status" = "200"
+            grep -q 'Send administrator OTP' "/tmp/${safe_name}-admin-login.html"
 
             google_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
               --output "/tmp/${safe_name}-google-status.json" --write-out '%{http_code}' \
               "$base_url/api/auth/google/status")
             test "$google_status" = "200"
 
-            echo "$base_url passed live buyer and seller authentication checks."
+            echo "$base_url passed live buyer, seller and administrator entry checks."
           }
 
           verify_domain 'https://fabrictrad.com'
@@ -132,7 +132,7 @@ jobs:
           set -euo pipefail
           if [ "$SMOKE_OUTCOME" = "success" ]; then
             state=success
-            description='Both production domains passed buyer and seller login checks'
+            description='Production buyer, seller and administrator entry checks passed'
           else
             state=failure
             description='A production domain or live authentication check failed'

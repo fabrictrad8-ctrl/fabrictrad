@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { configuredAdminEmail } from '@/lib/adminAccess';
 import { normalizeEmail } from '@/lib/authValidation';
-import { createAdminClient } from '@/lib/supabase/admin';
+import {
+  createAdminClient,
+  SupabaseServerConfigurationError,
+} from '@/lib/supabase/admin';
 import {
   assertAuthEmailServerConfigured,
   AuthEmailConfigurationError,
@@ -40,11 +43,10 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    // Fail before consuming a delivery allowance when the external mail server
-    // has not been configured in the production environment.
+    // Check both trusted services before consuming a delivery allowance.
     assertAuthEmailServerConfigured();
-
     const supabase = createAdminClient();
+
     const rateLimit = await claimAuthEmailDelivery(supabase, email, 'admin_otp');
     if (!rateLimit.allowed) {
       const message = rateLimit.reason === 'daily_limit'
@@ -106,8 +108,27 @@ export async function POST(request: NextRequest) {
     });
   } catch (error: unknown) {
     if (error instanceof AuthEmailConfigurationError) {
+      console.error('Administrator SMTP configuration is incomplete', {
+        message: error.message,
+      });
       return noStoreJson(
-        { error: 'Administrator email delivery is not configured yet.' },
+        {
+          error: 'Administrator email delivery is not configured. Add a valid SMTP_PASS production secret.',
+          code: 'SMTP_NOT_CONFIGURED',
+        },
+        503
+      );
+    }
+
+    if (error instanceof SupabaseServerConfigurationError) {
+      console.error('Administrator Supabase server configuration is incomplete', {
+        message: error.message,
+      });
+      return noStoreJson(
+        {
+          error: 'Administrator OTP generation is not configured. Add the Supabase server secret in production.',
+          code: 'SUPABASE_SERVER_SECRET_MISSING',
+        },
         503
       );
     }
@@ -115,10 +136,14 @@ export async function POST(request: NextRequest) {
     if (error instanceof AuthEmailDeliveryError) {
       console.error('Administrator OTP email delivery failed', {
         status: error.providerStatus,
+        smtpCode: error.smtpCode,
         message: error.message,
       });
       return noStoreJson(
-        { error: 'The administrator OTP could not be emailed. Please try again shortly.' },
+        {
+          error: 'The administrator OTP was generated but could not be emailed. Check the Resend SMTP key and delivery log.',
+          code: 'SMTP_DELIVERY_FAILED',
+        },
         error.providerStatus && error.providerStatus >= 500 ? 502 : 503
       );
     }
@@ -130,7 +155,10 @@ export async function POST(request: NextRequest) {
       message: authError.message,
     });
     return noStoreJson(
-      { error: 'The administrator OTP could not be generated. Please try again shortly.' },
+      {
+        error: 'The administrator OTP could not be generated. Check the Supabase server credentials and try again.',
+        code: 'OTP_GENERATION_FAILED',
+      },
       503
     );
   }
