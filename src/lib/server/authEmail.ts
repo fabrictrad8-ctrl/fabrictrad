@@ -1,4 +1,5 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
+import { connect, type TLSSocket } from 'node:tls';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 export type AuthEmailPurpose = 'admin_otp' | 'password_recovery';
@@ -17,8 +18,24 @@ type SendEmailInput = {
   idempotencySeed: string;
 };
 
+type SmtpConfiguration = {
+  host: string;
+  port: number;
+  user: string;
+  password: string;
+  from: string;
+  fromAddress: string;
+  replyTo?: string;
+  ehloName: string;
+};
+
+type SmtpResponse = {
+  code: number;
+  lines: string[];
+};
+
 export class AuthEmailConfigurationError extends Error {
-  constructor(message = 'The FabricTrad email server is not configured.') {
+  constructor(message = 'The FabricTrad SMTP server is not configured.') {
     super(message);
     this.name = 'AuthEmailConfigurationError';
   }
@@ -26,11 +43,17 @@ export class AuthEmailConfigurationError extends Error {
 
 export class AuthEmailDeliveryError extends Error {
   readonly providerStatus?: number;
+  readonly smtpCode?: number;
 
-  constructor(message = 'The authentication email could not be delivered.', providerStatus?: number) {
+  constructor(
+    message = 'The authentication email could not be delivered.',
+    providerStatus?: number,
+    smtpCode?: number
+  ) {
     super(message);
     this.name = 'AuthEmailDeliveryError';
     this.providerStatus = providerStatus;
+    this.smtpCode = smtpCode;
   }
 }
 
@@ -46,16 +69,64 @@ const escapeHtml = (value: string) =>
     return entities[character] || character;
   });
 
-const emailConfiguration = () => {
-  const apiKey = process.env.RESEND_API_KEY?.trim();
-  const from = process.env.FABRICTRAD_AUTH_EMAIL_FROM?.trim();
-  const replyTo = process.env.FABRICTRAD_AUTH_EMAIL_REPLY_TO?.trim();
+const singleLineHeader = (value: string, field: string) => {
+  const normalized = value.trim();
+  if (!normalized || /[\r\n]/.test(normalized)) {
+    throw new AuthEmailConfigurationError(`Invalid ${field} email configuration.`);
+  }
+  return normalized;
+};
 
-  if (!apiKey || !from) {
+const extractMailbox = (value: string) => {
+  const bracketed = value.match(/<([^<>]+)>/);
+  const mailbox = (bracketed?.[1] || value).trim().toLowerCase();
+  if (!/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(mailbox)) {
+    throw new AuthEmailConfigurationError('FABRICTRAD_AUTH_EMAIL_FROM must contain a valid email address.');
+  }
+  return mailbox;
+};
+
+const emailConfiguration = (): SmtpConfiguration => {
+  // RESEND_API_KEY remains a convenient compatibility option, but delivery is
+  // still performed over Resend's authenticated SMTP endpoint rather than its
+  // HTTP API. Explicit SMTP_* settings take precedence and also support
+  // Cloudflare Email Service, Google Workspace, SES, Postmark and similar hosts.
+  const resendKey = process.env.RESEND_API_KEY?.trim();
+  const host = process.env.SMTP_HOST?.trim() || (resendKey ? 'smtp.resend.com' : '');
+  const portValue = process.env.SMTP_PORT?.trim() || '465';
+  const user = process.env.SMTP_USER?.trim() || (resendKey ? 'resend' : '');
+  const password = process.env.SMTP_PASS?.trim() || resendKey || '';
+  const from = process.env.FABRICTRAD_AUTH_EMAIL_FROM?.trim() || '';
+  const replyTo = process.env.FABRICTRAD_AUTH_EMAIL_REPLY_TO?.trim();
+  const ehloName = process.env.SMTP_EHLO_NAME?.trim() || 'fabrictrad.com';
+  const port = Number(portValue);
+
+  if (!host || !user || !password || !from) {
     throw new AuthEmailConfigurationError();
   }
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    throw new AuthEmailConfigurationError('SMTP_PORT must be a valid TCP port.');
+  }
+  // The Worker deliberately uses implicit TLS. Cloudflare Email Service and
+  // Resend both support port 465, avoiding plaintext SMTP and STARTTLS downgrade
+  // mistakes in production authentication mail.
+  if (port !== 465 && port !== 2465) {
+    throw new AuthEmailConfigurationError('FabricTrad authentication SMTP requires implicit TLS on port 465 or 2465.');
+  }
+  if (!/^[a-z0-9.-]+$/i.test(host) || !/^[a-z0-9.-]+$/i.test(ehloName)) {
+    throw new AuthEmailConfigurationError('Invalid SMTP host configuration.');
+  }
 
-  return { apiKey, from, replyTo };
+  return {
+    host,
+    port,
+    user: singleLineHeader(user, 'SMTP user'),
+    password: singleLineHeader(password, 'SMTP password'),
+    from: singleLineHeader(from, 'sender'),
+    fromAddress: extractMailbox(from),
+    replyTo: replyTo ? singleLineHeader(replyTo, 'reply-to') : undefined,
+    ehloName,
+  };
 };
 
 export const assertAuthEmailServerConfigured = () => {
@@ -90,62 +161,188 @@ const brandedEmail = (content: string) => `<!doctype html>
   </body>
 </html>`;
 
-const sendEmail = async ({ to, subject, html, text, idempotencySeed }: SendEmailInput) => {
-  const { apiKey, from, replyTo } = emailConfiguration();
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 12_000);
-  const idempotencyKey = `fabrictrad-auth-${createHash('sha256')
-    .update(idempotencySeed)
-    .digest('hex')
-    .slice(0, 48)}`;
+const wrapBase64 = (value: string) =>
+  Buffer.from(value, 'utf8')
+    .toString('base64')
+    .match(/.{1,76}/g)
+    ?.join('\r\n') || '';
 
-  try {
-    const response = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-        'Idempotency-Key': idempotencyKey,
-      },
-      body: JSON.stringify({
-        from,
-        to: [to],
-        subject,
-        html,
-        text,
-        ...(replyTo ? { reply_to: replyTo } : {}),
-      }),
-      signal: controller.signal,
+const buildMimeMessage = (
+  input: SendEmailInput,
+  config: SmtpConfiguration,
+  messageId: string
+) => {
+  const to = singleLineHeader(input.to, 'recipient');
+  const subject = singleLineHeader(input.subject, 'subject');
+  const boundary = `fabrictrad_${randomUUID().replace(/-/g, '')}`;
+  const headers = [
+    `From: ${config.from}`,
+    `To: ${to}`,
+    `Subject: ${subject}`,
+    `Date: ${new Date().toUTCString()}`,
+    `Message-ID: <${messageId}@fabrictrad.com>`,
+    'MIME-Version: 1.0',
+    `Content-Type: multipart/alternative; boundary="${boundary}"`,
+    'X-Auto-Response-Suppress: All',
+    'Auto-Submitted: auto-generated',
+    `X-Entity-Ref-ID: ${messageId}`,
+  ];
+  if (config.replyTo) headers.splice(3, 0, `Reply-To: ${config.replyTo}`);
+
+  return [
+    ...headers,
+    '',
+    `--${boundary}`,
+    'Content-Type: text/plain; charset="UTF-8"',
+    'Content-Transfer-Encoding: base64',
+    '',
+    wrapBase64(input.text),
+    `--${boundary}`,
+    'Content-Type: text/html; charset="UTF-8"',
+    'Content-Transfer-Encoding: base64',
+    '',
+    wrapBase64(input.html),
+    `--${boundary}--`,
+    '',
+  ].join('\r\n');
+};
+
+const smtpSession = (socket: TLSSocket) => {
+  let buffer = '';
+  let responseLines: string[] = [];
+  const queued: SmtpResponse[] = [];
+  const waiting: Array<{
+    resolve: (response: SmtpResponse) => void;
+    reject: (error: Error) => void;
+    timer: ReturnType<typeof setTimeout>;
+  }> = [];
+
+  const rejectAll = (error: Error) => {
+    while (waiting.length) {
+      const waiter = waiting.shift();
+      if (!waiter) continue;
+      clearTimeout(waiter.timer);
+      waiter.reject(error);
+    }
+  };
+
+  const publish = (response: SmtpResponse) => {
+    const waiter = waiting.shift();
+    if (!waiter) {
+      queued.push(response);
+      return;
+    }
+    clearTimeout(waiter.timer);
+    waiter.resolve(response);
+  };
+
+  socket.on('data', (chunk) => {
+    buffer += chunk.toString('utf8');
+    let boundary = buffer.indexOf('\r\n');
+    while (boundary >= 0) {
+      const line = buffer.slice(0, boundary);
+      buffer = buffer.slice(boundary + 2);
+      responseLines.push(line);
+      const complete = /^(\d{3}) /.exec(line);
+      if (complete) {
+        publish({ code: Number(complete[1]), lines: responseLines });
+        responseLines = [];
+      }
+      boundary = buffer.indexOf('\r\n');
+    }
+  });
+  socket.on('error', (error) => rejectAll(error));
+  socket.on('close', () => rejectAll(new Error('SMTP connection closed unexpectedly.')));
+
+  const nextResponse = async (allowedCodes: number[], timeoutMs = 12_000) => {
+    const response = queued.shift() || await new Promise<SmtpResponse>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        const index = waiting.findIndex((entry) => entry.resolve === resolve);
+        if (index >= 0) waiting.splice(index, 1);
+        reject(new Error('SMTP server response timed out.'));
+      }, timeoutMs);
+      waiting.push({ resolve, reject, timer });
     });
 
-    const payload = (await response.json().catch(() => ({}))) as {
-      id?: string;
-      message?: string;
-      name?: string;
-    };
-
-    if (!response.ok || !payload.id) {
-      console.error('Resend authentication email delivery failed', {
-        status: response.status,
-        providerError: payload.name || payload.message || 'unknown_error',
-      });
+    if (!allowedCodes.includes(response.code)) {
+      const safeMessage = response.lines.join(' ').replace(/[\r\n]/g, ' ').slice(0, 300);
       throw new AuthEmailDeliveryError(
-        'The FabricTrad email server rejected the message.',
-        response.status
+        `SMTP server rejected the message (${response.code}: ${safeMessage}).`,
+        502,
+        response.code
       );
     }
+    return response;
+  };
 
-    return { id: payload.id };
+  const command = async (value: string, allowedCodes: number[]) => {
+    socket.write(`${value}\r\n`);
+    return nextResponse(allowedCodes);
+  };
+
+  return { nextResponse, command, rejectAll };
+};
+
+const sendEmail = async (input: SendEmailInput) => {
+  const config = emailConfiguration();
+  const recipient = singleLineHeader(input.to, 'recipient').toLowerCase();
+  if (!/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(recipient)) {
+    throw new AuthEmailDeliveryError('The recipient email address is invalid.');
+  }
+
+  const messageId = createHash('sha256')
+    .update(`${input.idempotencySeed}:${Date.now()}:${randomUUID()}`)
+    .digest('hex')
+    .slice(0, 40);
+  const message = buildMimeMessage(input, config, messageId);
+  const socket = connect({
+    host: config.host,
+    port: config.port,
+    servername: config.host,
+  });
+  const session = smtpSession(socket);
+
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('SMTP TLS connection timed out.')), 12_000);
+      socket.once('secureConnect', () => {
+        clearTimeout(timer);
+        resolve();
+      });
+      socket.once('error', (error) => {
+        clearTimeout(timer);
+        reject(error);
+      });
+    });
+
+    await session.nextResponse([220]);
+    await session.command(`EHLO ${config.ehloName}`, [250]);
+    await session.command('AUTH LOGIN', [334]);
+    await session.command(Buffer.from(config.user, 'utf8').toString('base64'), [334]);
+    await session.command(Buffer.from(config.password, 'utf8').toString('base64'), [235]);
+    await session.command(`MAIL FROM:<${config.fromAddress}>`, [250]);
+    await session.command(`RCPT TO:<${recipient}>`, [250, 251]);
+    await session.command('DATA', [354]);
+
+    const dotStuffed = message.replace(/^\./gm, '..');
+    socket.write(`${dotStuffed}\r\n.\r\n`);
+    await session.nextResponse([250], 20_000);
+    await session.command('QUIT', [221]).catch(() => undefined);
+    socket.end();
+
+    return { id: messageId };
   } catch (error: unknown) {
+    socket.destroy();
     if (error instanceof AuthEmailDeliveryError || error instanceof AuthEmailConfigurationError) {
       throw error;
     }
-    const message = error instanceof Error && error.name === 'AbortError'
-      ? 'The FabricTrad email server timed out.'
-      : 'The FabricTrad email server could not be reached.';
-    throw new AuthEmailDeliveryError(message);
-  } finally {
-    clearTimeout(timeout);
+    const message = error instanceof Error ? error.message : 'Unknown SMTP error.';
+    console.error('FabricTrad authentication SMTP delivery failed', {
+      host: config.host,
+      port: config.port,
+      message,
+    });
+    throw new AuthEmailDeliveryError('The FabricTrad SMTP server could not deliver the message.', 502);
   }
 };
 
