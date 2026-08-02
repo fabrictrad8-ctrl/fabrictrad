@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import AppLogo from '@/components/ui/AppLogo';
@@ -16,8 +16,23 @@ type RecoveryResponse = {
   error?: string;
 };
 
-const destinationForRole = (role?: AccountRole | null) =>
-  role === 'admin_staff' || role === 'super_admin' ? '/admin-portal' : '/account';
+const safeNextPath = (value: string | null) => {
+  if (!value || !value.startsWith('/') || value.startsWith('//')) return null;
+  try {
+    const parsed = new URL(value, 'https://fabrictrad.com');
+    if (parsed.origin !== 'https://fabrictrad.com') return null;
+    if (parsed.pathname.startsWith('/admin-')) return null;
+    if (parsed.pathname === '/login' || parsed.pathname.startsWith('/auth/')) return null;
+    return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+  } catch {
+    return null;
+  }
+};
+
+const destinationForRole = (role?: AccountRole | null, requestedNext?: string | null) => {
+  if (role === 'admin_staff' || role === 'super_admin') return '/admin-portal';
+  return requestedNext || '/account';
+};
 
 function GoogleMark() {
   return (
@@ -43,6 +58,10 @@ export default function EmailOtpLoginClient() {
   const [resetSent, setResetSent] = useState(false);
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
+  const requestedNext = useMemo(
+    () => safeNextPath(searchParams.get('next')),
+    [searchParams]
+  );
 
   useEffect(() => {
     const authError = searchParams.get('error');
@@ -59,8 +78,8 @@ export default function EmailOtpLoginClient() {
 
   useEffect(() => {
     if (loading || mode !== 'login' || !user || !profile) return;
-    router.replace(destinationForRole(profile.role));
-  }, [loading, mode, profile, router, user]);
+    router.replace(destinationForRole(profile.role, requestedNext));
+  }, [loading, mode, profile, requestedNext, router, user]);
 
   const clearMessages = () => {
     setError('');
@@ -84,7 +103,7 @@ export default function EmailOtpLoginClient() {
         (result?.user?.app_metadata?.role as AccountRole | undefined) ||
         (result?.user?.user_metadata?.role as AccountRole | undefined) ||
         'buyer';
-      router.replace(destinationForRole(role));
+      router.replace(destinationForRole(role, requestedNext));
       router.refresh();
     } catch (caughtError) {
       const message = caughtError instanceof Error ? caughtError.message : 'Invalid email or password.';
@@ -192,7 +211,9 @@ export default function EmailOtpLoginClient() {
             </h2>
             <p className="mt-2 text-sm leading-6 text-slate-400">
               {mode === 'login'
-                ? 'Use the email and password registered with your FabricTrad account.'
+                ? requestedNext
+                  ? 'Sign in to continue to the page you selected.'
+                  : 'Use the email and password registered with your FabricTrad account.'
                 : resetSent
                   ? 'Check your inbox for the secure password recovery email.'
                   : 'Enter your registered email to receive a secure reset link.'}
@@ -252,7 +273,7 @@ export default function EmailOtpLoginClient() {
                 </label>
 
                 <button type="submit" disabled={submitting || googleSubmitting} className="w-full rounded-xl bg-[#c65330] px-4 py-3.5 font-700 text-white transition hover:bg-[#d45c36] disabled:cursor-not-allowed disabled:opacity-60">
-                  {submitting ? 'Opening your account…' : 'Continue to FabricTrad'}
+                  {submitting ? 'Opening your account…' : requestedNext ? 'Sign in and continue' : 'Continue to FabricTrad'}
                 </button>
 
                 {googleAuthEnabled && (
