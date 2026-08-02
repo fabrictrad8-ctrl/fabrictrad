@@ -80,7 +80,12 @@ assert(!wrangler.includes('SMTP_HOST') && !wrangler.includes('SMTP_USER'), 'Wran
 
 assert(adminLogin.includes('Sign in with email OTP'), 'Administrator UI must provide an email OTP sign-in screen.');
 assert(adminLogin.includes('Send administrator OTP'), 'Administrator UI must request the code.');
-assert(adminLogin.includes('Six-digit administrator code'), 'Administrator UI must provide an OTP input.');
+assert(adminLogin.includes('Administrator email OTP'), 'Administrator UI must provide a numeric OTP input.');
+assert(adminLogin.includes('MIN_EMAIL_OTP_LENGTH = 6'), 'Administrator UI must accept the minimum supported Supabase OTP length.');
+assert(adminLogin.includes('MAX_EMAIL_OTP_LENGTH = 10'), 'Administrator UI must accept the maximum supported Supabase OTP length.');
+assert(adminLogin.includes('EMAIL_OTP_PATTERN = /^\\d{6,10}$/'), 'Administrator UI must validate the full configurable OTP range.');
+assert(adminLogin.includes('pattern="[0-9]{6,10}"'), 'Administrator OTP input must expose the correct browser validation pattern.');
+assert(!adminLogin.includes('token.length !== 6'), 'Administrator OTP verification must not be hard-coded to six digits.');
 assert(adminLogin.includes('verifyEmailOtp'), 'Administrator UI must validate the OTP with Supabase Auth.');
 assert(adminLogin.includes("window.location.replace('/admin-portal')"), 'Successful OTP verification must open the admin portal.');
 assert(adminPortal.includes("redirect('/admin-login')"), 'Unauthenticated administrator access must return to admin login.');
@@ -107,4 +112,4 @@ assert(sellerRegistration.includes('Open official GST Portal'), 'Seller onboardi
 assert(buyerRegistration.includes('Open official GST Portal'), 'Business buyer onboarding must expose the official GST reference.');
 assert(gstVerificationDocs.includes('GST Suvidha Providers'), 'GST documentation must explain the authorised GSP option.');
 
-console.log('OAuth, Supabase-managed email, password recovery, administrator OTP, GST and seller verification checks passed.');
+console.log('OAuth, Supabase-managed email, password recovery, variable-length administrator OTP, GST and seller verification checks passed.');
