@@ -20,10 +20,10 @@ const navigationResults: SearchResult[] = [
   { id: 'nav-customers', kind: 'Navigation', title: 'Customers', subtitle: 'Buyer, seller and business accounts', href: '/admin-portal?tab=customers', icon: 'UsersIcon' },
   { id: 'nav-sellers', kind: 'Navigation', title: 'Seller verification', subtitle: 'GST, documents, bank and publishing access', href: '/admin-portal?tab=sellers', icon: 'BuildingStorefrontIcon' },
   { id: 'nav-payments', kind: 'Navigation', title: 'Payments', subtitle: 'Razorpay captures, failures and refunds', href: '/admin-portal?tab=payments', icon: 'CreditCardIcon' },
-  { id: 'nav-reconciliation', kind: 'Navigation', title: 'Reconciliation', subtitle: 'Commissions, transfers and discrepancies', href: '/admin-portal?tab=reconciliation', icon: 'ArrowsRightLeftIcon' },
+  { id: 'nav-reconciliation', kind: 'Navigation', title: 'Reconciliation', subtitle: 'Commission and settlements', href: '/admin-portal?tab=reconciliation', icon: 'ArrowsRightLeftIcon' },
   { id: 'nav-analytics', kind: 'Navigation', title: 'Analytics', subtitle: 'Seller and fulfillment performance', href: '/admin-portal?tab=seller-metrics', icon: 'PresentationChartLineIcon' },
   { id: 'nav-discounts', kind: 'Navigation', title: 'Discounts', subtitle: 'Campaigns and promotion controls', href: '/admin-portal?tab=discounts', icon: 'ReceiptPercentIcon' },
-  { id: 'nav-settings', kind: 'Navigation', title: 'Settings', subtitle: 'Platform policy and operational settings', href: '/admin-portal?tab=settings', icon: 'Cog6ToothIcon' },
+  { id: 'nav-settings', kind: 'Navigation', title: 'Settings', subtitle: 'Platform policy and operational settings', href: '/admin-portal?tab=settings', icon: 'CogIcon' },
 ];
 
 export default function AdminCommandSearch() {
