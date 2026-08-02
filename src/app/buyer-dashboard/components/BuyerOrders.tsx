@@ -7,6 +7,8 @@ import Icon from '@/components/ui/AppIcon';
 import { RazorpayCheckout } from '@/components/RazorpayCheckout';
 import BuyerCatalogOrders from '@/app/buyer-dashboard/components/BuyerCatalogOrders';
 import { exportToCSV } from '@/lib/exportUtils';
+import { openPrintableOrderDocument } from '@/lib/orderDocuments';
+import { useAuth } from '@/contexts/AuthContext';
 import {
   firstOrderItem,
   formatMoney,
@@ -35,34 +37,9 @@ function statusGroup(status: string): Exclude<Filter, 'All'> {
   return 'Cancelled';
 }
 
-function downloadOrderReceipt(order: AccountBulkOrder) {
-  const item = firstOrderItem(order);
-  const content = [
-    'FABRICTRAD ORDER SUMMARY',
-    `Order: FT-BULK-${order.id.slice(0, 8).toUpperCase()}`,
-    `Created: ${formatOrderDate(order.created_at)}`,
-    `Status: ${statusLabels[order.status || 'draft'] || order.status}`,
-    `Product: ${item?.product_name || 'Bulk fabric order'}`,
-    `Quantity: ${item?.quantity_mtrs || 0} metres`,
-    `Subtotal: ${formatMoney(order.gross_total)}`,
-    `GST: ${formatMoney(order.gst_total)}`,
-    `Total: ${formatMoney(order.net_total)}`,
-    '',
-    ['paid', 'shipped', 'delivered'].includes(order.status || '')
-      ? 'This is an order receipt. The seller billing document will appear when uploaded.'
-      : 'This is an order summary, not a tax invoice.',
-  ].join('\n');
-  const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = `FabricTrad-${order.id.slice(0, 8)}-summary.txt`;
-  link.click();
-  URL.revokeObjectURL(url);
-}
-
 export default function BuyerOrders() {
   const router = useRouter();
+  const { user, profile } = useAuth();
   const { orders, loading, error, refresh, cancelOrder } = useBuyerBulkOrders();
   const [filter, setFilter] = useState<Filter>('All');
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -95,6 +72,44 @@ export default function BuyerOrders() {
     );
   };
 
+  const printOrderDocument = (order: AccountBulkOrder) => {
+    const paid = ['paid', 'shipped', 'delivered'].includes(order.status || '');
+    try {
+      openPrintableOrderDocument({
+        documentType: paid ? 'payment_receipt' : 'order_summary',
+        orderReference: `FT-BULK-${order.id.slice(0, 8).toUpperCase()}`,
+        createdAt: order.created_at,
+        status: statusLabels[order.status || 'draft'] || order.status || 'Pending',
+        buyerName: order.buyer_name || profile?.full_name || null,
+        buyerBusiness: order.buyer_company || profile?.business_name || null,
+        buyerEmail: order.buyer_email || user?.email || null,
+        buyerGstin: profile?.gstin || null,
+        sellerName: order.seller_id ? `FabricTrad seller ${order.seller_id.slice(0, 8)}` : null,
+        subtotal: Number(order.gross_total || 0),
+        gst: Number(order.gst_total || 0),
+        total: Number(order.net_total || 0),
+        lines: (order.bulk_order_items || []).map((item) => ({
+          name: item.product_name || 'Bulk fabric order',
+          sku: item.sku || null,
+          quantity: Number(item.quantity_mtrs || 0),
+          unit: 'metres',
+          unitPrice: item.price_per_mtr == null ? null : Number(item.price_per_mtr),
+          lineTotal:
+            item.price_per_mtr == null
+              ? null
+              : Number(item.price_per_mtr || 0) * Number(item.quantity_mtrs || 0),
+        })),
+        note: order.notes || null,
+      });
+    } catch (documentError) {
+      toast.error(
+        documentError instanceof Error
+          ? documentError.message
+          : 'The printable order document could not be opened.'
+      );
+    }
+  };
+
   return (
     <div>
       <BuyerCatalogOrders />
@@ -103,9 +118,9 @@ export default function BuyerOrders() {
         <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="text-xs font-800 uppercase tracking-[0.14em] text-secondary">Bulk sourcing</p>
-            <h1 className="mt-1 text-xl font-800 text-foreground">Bulk Orders</h1>
+            <h1 className="mt-1 text-xl font-800 text-foreground">Bulk orders</h1>
             <p className="mt-1 text-xs text-muted-foreground">
-              Quotes, confirmed orders, secure payments and shipment progress.
+              Quotes, seller confirmation, secure payment, documents and shipment progress.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -123,7 +138,7 @@ export default function BuyerOrders() {
               onClick={exportOrders}
               className="flex items-center gap-1.5 rounded-xl border border-border px-3 py-2 text-xs"
             >
-              <Icon name="ArrowDownTrayIcon" size={14} /> Export
+              <Icon name="ArrowDownTrayIcon" size={14} /> Export CSV
             </button>
           </div>
         </div>
@@ -176,7 +191,7 @@ export default function BuyerOrders() {
                 onClick={() => router.push('/marketplace')}
                 className="btn-primary mt-4 rounded-xl px-4 py-2 text-xs"
               >
-                Browse Fabrics
+                Browse fabrics
               </button>
             </div>
           )}
@@ -221,7 +236,7 @@ export default function BuyerOrders() {
                   </div>
                   <div className="shrink-0 text-right">
                     <p className="text-base font-800">{formatMoney(order.net_total)}</p>
-                    <p className="text-xs text-muted-foreground">incl. GST</p>
+                    <p className="text-xs text-muted-foreground">including GST</p>
                   </div>
                   <Icon name={expanded ? 'ChevronUpIcon' : 'ChevronDownIcon'} size={16} />
                 </button>
@@ -230,11 +245,11 @@ export default function BuyerOrders() {
                   <div className="border-t border-border px-5 pb-5 pt-4">
                     <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
                       {[
-                        ['Unit Price', item?.price_per_mtr ? `${formatMoney(item.price_per_mtr)}/mtr` : 'Quote pending'],
+                        ['Unit price', item?.price_per_mtr ? `${formatMoney(item.price_per_mtr)}/mtr` : 'Quote pending'],
                         ['Subtotal', formatMoney(order.gross_total)],
                         ['GST', formatMoney(order.gst_total)],
                         [
-                          'Next Step',
+                          'Next step',
                           status === 'draft'
                             ? 'Seller assignment'
                             : status === 'quote_sent'
@@ -270,14 +285,18 @@ export default function BuyerOrders() {
                       </div>
                     )}
 
+                    <div className="mb-4 rounded-xl border border-primary/20 bg-primary/5 p-3 text-xs leading-5 text-muted-foreground">
+                      <strong className="text-foreground">Documents:</strong> FabricTrad provides a printable order summary or payment receipt. The seller-issued GST tax invoice appears separately after the seller uploads or generates it.
+                    </div>
+
                     <div className="flex flex-wrap gap-2">
                       <button
                         type="button"
-                        onClick={() => downloadOrderReceipt(order)}
+                        onClick={() => printOrderDocument(order)}
                         className="btn-secondary rounded-xl px-3 py-2 text-xs"
                       >
-                        <Icon name="DocumentArrowDownIcon" size={14} className="mr-1 inline" />
-                        {paid ? 'Download Receipt' : 'Download Summary'}
+                        <Icon name="PrinterIcon" size={14} className="mr-1 inline" />
+                        {paid ? 'Print / save payment receipt' : 'Print / save order summary'}
                       </button>
                       {canCancel && (
                         <button
@@ -300,7 +319,7 @@ export default function BuyerOrders() {
                           className="rounded-xl border border-error/20 bg-error/10 px-3 py-2 text-xs text-error disabled:opacity-50"
                         >
                           <Icon name="XMarkIcon" size={14} className="mr-1 inline" />
-                          {cancellingId === order.id ? 'Cancelling…' : 'Cancel Order'}
+                          {cancellingId === order.id ? 'Cancelling…' : 'Cancel order'}
                         </button>
                       )}
                       <button
@@ -309,7 +328,7 @@ export default function BuyerOrders() {
                         className="rounded-xl border border-border bg-muted px-3 py-2 text-xs"
                       >
                         <Icon name="ChatBubbleLeftIcon" size={14} className="mr-1 inline" />
-                        Contact Support
+                        Contact support
                       </button>
                     </div>
                   </div>
