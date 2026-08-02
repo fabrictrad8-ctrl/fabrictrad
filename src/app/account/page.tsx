@@ -21,7 +21,9 @@ export default function AccountHomePage() {
     }
   }, [loading, profile, router, user]);
 
-  const canBuy = Boolean(profile?.can_buy ?? profile?.role === 'buyer' || profile?.role === 'seller');
+  const canBuy = Boolean(
+    profile?.can_buy ?? (profile?.role === 'buyer' || profile?.role === 'seller')
+  );
   const canSell = Boolean(profile?.can_sell || profile?.role === 'seller');
   const displayName = profile?.business_name || profile?.full_name || user?.email?.split('@')[0] || 'FabricTrad account';
 
