@@ -13,12 +13,23 @@ const recoveryUi = read('src/app/auth/setup/AccountSetupClient.tsx');
 const passwordResetRequest = read('src/app/api/auth/email-otp/request/route.ts');
 const passwordResetPage = read('src/app/auth/reset-password/page.tsx');
 const accountLogin = read('src/app/login/EmailOtpLoginClient.tsx');
+const accountHome = read('src/app/account/page.tsx');
 const adminOtpRequest = read('src/app/api/auth/admin-otp/request/route.ts');
 const authEmailDocs = read('docs/AUTH_EMAIL_SERVER.md');
 const environmentExample = read('.env.example');
 const wrangler = read('wrangler.jsonc');
 const adminLogin = read('src/app/admin-login/AdminLoginClient.tsx');
 const adminPortal = read('src/app/admin-portal/page.tsx');
+const adminLayout = read('src/app/admin-portal/components/AdminPortalLayout.tsx');
+const adminOverview = read('src/app/api/admin/overview/route.ts');
+const adminSearch = read('src/app/api/admin/search/route.ts');
+const adminCustomers = read('src/app/admin-portal/components/AdminCustomers.tsx');
+const adminProductReview = read('src/app/api/admin/products/[id]/review/route.ts');
+const adminListings = read('src/app/admin-portal/components/AdminListings.tsx');
+const buyerLayout = read('src/app/buyer-dashboard/components/ModernBuyerDashboardLayout.tsx');
+const sellerLayout = read('src/app/seller-dashboard/components/SellerDashboardLayout.tsx');
+const buyerOrders = read('src/app/buyer-dashboard/components/BuyerOrders.tsx');
+const orderDocuments = read('src/lib/orderDocuments.ts');
 const middleware = read('src/middleware.ts');
 const phoneCollection = read('src/app/auth/phone/PhoneCollectionPage.tsx');
 const sellerReadiness = read('src/app/seller-dashboard/components/SellerProfileReadiness.tsx');
@@ -56,9 +67,17 @@ assert(!passwordResetRequest.includes('auth.admin.generateLink'), 'Password reco
 assert(!passwordResetRequest.includes('SMTP_PASS'), 'Password recovery must not require a Cloudflare SMTP secret.');
 assert(passwordResetRequest.includes("method: 'password_recovery'"), 'Recovery endpoint must identify the correct email purpose.');
 assert(passwordResetPage.includes('updatePassword(password)'), 'Recovery screen must save the new password through Supabase Auth.');
-assert(accountLogin.includes('Send password reset email'), 'Buyer and seller login must request a recovery email.');
-assert(accountLogin.includes('It will not sign you into the marketplace'), 'Recovery UI must distinguish reset from login.');
+assert(accountLogin.includes('Send password reset email'), 'Account login must request a recovery email.');
+assert(accountLogin.includes('One account for textile commerce'), 'Sign-in must present one unified buyer and seller account.');
+assert(accountLogin.includes("role === 'admin_staff' || role === 'super_admin' ? '/admin-portal' : '/account'"), 'Non-admin accounts must open the unified account home.');
+assert(!accountLogin.includes("type LoginRole = 'buyer' | 'seller'"), 'Login must not require the user to choose a duplicate buyer/seller identity.');
 assert(middleware.includes("'/auth/reset-password'"), 'The public recovery page must load before browser auth tokens are persisted.');
+
+// Unified account and logout access.
+assert(accountHome.includes('One account · multiple workspaces'), 'Account home must explain shared buyer and seller access.');
+assert(accountHome.includes("profile?.can_buy ?? (profile?.role === 'buyer' || profile?.role === 'seller')"), 'Account home must resolve buyer capability safely.');
+assert(accountHome.includes("window.location.replace('/login')"), 'Unified account home must provide reliable logout.');
+assert(accountHome.includes("canSell ? '/seller-dashboard' : '/seller-registration'"), 'Account home must open or activate seller access from the same account.');
 
 // Administrator OTP must use Supabase custom SMTP directly.
 assert(adminOtpRequest.includes('configuredAdminEmail()'), 'Administrator OTP must remain restricted to the configured address.');
@@ -93,6 +112,36 @@ assert(adminPortal.includes('profile?.is_active === true'), 'The server must req
 assert(adminPortal.includes("profile.role === 'super_admin'") && adminPortal.includes("profile.role === 'admin_staff'"), 'The server must require an administrator role.');
 assert(!adminPortal.includes('authorisedByEmail'), 'A matching email alone must never grant administrator access.');
 
+// Shopify-style administration must be live and actionable, not placeholder UI.
+assert(adminLayout.includes('AdminCommandSearch'), 'Administrator shell must include global command search.');
+assert(adminLayout.includes('AdminCustomers'), 'Administrator shell must include customer management.');
+assert(adminLayout.includes('ProfileMenu'), 'Administrator shell must expose the authenticated account menu.');
+assert(adminLayout.includes("window.location.replace('/admin-login')"), 'Administrator shell must provide reliable logout.');
+assert(adminOverview.includes("from('orders')") && adminOverview.includes("from('payments')"), 'Administrator home must use live order and payment data.');
+assert(adminOverview.includes("from('seller_products')") && adminOverview.includes("from('seller_profiles')"), 'Administrator home must use live seller and product data.');
+assert(adminSearch.includes("from('user_profiles')") && adminSearch.includes("from('seller_products')"), 'Global search must query real account and product records.');
+assert(adminCustomers.includes("from('user_profiles')"), 'Customer management must use live profile records.');
+assert(adminListings.includes("from('seller_products')"), 'Product review must use live seller products.');
+assert(!adminListings.includes('const listings:'), 'Product review must not use an empty placeholder array.');
+assert(adminProductReview.includes("payload.action === 'approve'"), 'Product review endpoint must implement approval.');
+assert(adminProductReview.includes('seller.gstin_verified !== true'), 'Product approval must require seller GST verification.');
+
+// Buyer and seller workspaces must provide persistent navigation and logout.
+assert(buyerLayout.includes('ProfileMenu'), 'Buyer workspace must include the account menu.');
+assert(buyerLayout.includes("window.location.replace('/login')"), 'Buyer workspace must provide reliable logout.');
+assert(buyerLayout.includes("canSell ? '/seller-dashboard' : '/seller-registration'"), 'Buyer workspace must switch to or activate seller access.');
+assert(sellerLayout.includes('ProfileMenu'), 'Seller workspace must include the account menu.');
+assert(sellerLayout.includes("window.location.replace('/login')"), 'Seller workspace must provide reliable logout.');
+assert(sellerLayout.includes("href=\"/buyer-dashboard\""), 'Seller workspace must switch to buyer tools on the same account.');
+
+// Printable commerce documents must not be misrepresented as tax invoices.
+assert(buyerOrders.includes('openPrintableOrderDocument'), 'Buyer orders must open a branded printable document.');
+assert(!buyerOrders.includes("type: 'text/plain;charset=utf-8'"), 'Buyer orders must not download a plain-text receipt.');
+assert(buyerOrders.includes('seller-issued GST tax invoice'), 'Buyer orders must distinguish the seller tax invoice from platform documents.');
+assert(orderDocuments.includes('Print / Save PDF'), 'Printable order documents must support browser PDF saving.');
+assert(orderDocuments.includes('It is not the seller’s GST tax invoice'), 'Payment receipts must not be mislabelled as GST tax invoices.');
+assert(orderDocuments.includes('This document is an order summary and is not a GST tax invoice'), 'Order summaries must include the legal document distinction.');
+
 // Contact phone remains provider-free.
 assert(phoneCollection.includes("rpc('set_current_account_phone'"), 'Phone collection must use the protected contact-number RPC.');
 assert(!phoneCollection.includes('verifyOtp') && !phoneCollection.includes('Send verification code'), 'Phone collection must not start SMS OTP.');
@@ -112,4 +161,4 @@ assert(sellerRegistration.includes('Open official GST Portal'), 'Seller onboardi
 assert(buyerRegistration.includes('Open official GST Portal'), 'Business buyer onboarding must expose the official GST reference.');
 assert(gstVerificationDocs.includes('GST Suvidha Providers'), 'GST documentation must explain the authorised GSP option.');
 
-console.log('OAuth, Supabase-managed email, password recovery, variable-length administrator OTP, GST and seller verification checks passed.');
+console.log('Unified account, live admin operations, logout, printable commerce documents, email OTP, GST and seller verification checks passed.');
