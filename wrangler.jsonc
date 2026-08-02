@@ -15,9 +15,9 @@
     }
   ],
   "vars": {
-    "SMTP_HOST": "smtp.mx.cloudflare.net",
+    "SMTP_HOST": "smtp.resend.com",
     "SMTP_PORT": "465",
-    "SMTP_USER": "api_token",
+    "SMTP_USER": "resend",
     "SMTP_EHLO_NAME": "fabrictrad.com",
     "FABRICTRAD_AUTH_EMAIL_FROM": "FabricTrad <auth@fabrictrad.com>",
     "FABRICTRAD_AUTH_EMAIL_REPLY_TO": "fabrictrad8@gmail.com"
