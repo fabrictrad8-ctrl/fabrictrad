@@ -283,7 +283,7 @@ export default function MarketplaceGrid() {
   };
 
   return (
-    <section id="marketplace-search" className="scroll-mt-24">
+    <section id="marketplace-results" className="scroll-mt-24">
       <div className="mb-4 flex flex-col gap-3 rounded-2xl border border-border bg-card p-3 shadow-sm sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-sm font-800 text-foreground">
