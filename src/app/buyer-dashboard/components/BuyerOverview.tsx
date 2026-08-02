@@ -1,5 +1,5 @@
 'use client';
-import React from 'react';
+
 import Icon from '@/components/ui/AppIcon';
 import { useAuth } from '@/contexts/AuthContext';
 import {
@@ -15,20 +15,40 @@ interface Props {
   onNavigate: (tab: DashTab) => void;
 }
 
+const greeting = () => {
+  const hour = new Date().getHours();
+  if (hour < 12) return 'Good morning';
+  if (hour < 17) return 'Good afternoon';
+  return 'Good evening';
+};
+
+const thisMonth = (value?: string | null) => {
+  if (!value) return false;
+  const date = new Date(value);
+  const now = new Date();
+  return date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth();
+};
+
 export default function BuyerOverview({ onNavigate }: Props) {
   const { user, profile } = useAuth();
-  const { orders: accountOrders } = useBuyerBulkOrders();
+  const { orders: accountOrders, loading } = useBuyerBulkOrders();
   const buyerName = profile?.full_name || user?.email?.split('@')[0] || 'Buyer';
-  const activeOrders = accountOrders.filter((order) =>
-    ['quote_sent', 'confirmed', 'paid', 'shipped'].includes(order.status || '')
+  const monthOrders = accountOrders.filter((order) => thisMonth(order.created_at));
+  const shippedOrders = accountOrders.filter((order) => order.status === 'shipped');
+  const paymentDue = accountOrders.filter((order) => order.status === 'confirmed');
+  const pendingSeller = accountOrders.filter((order) =>
+    ['draft', 'quote_sent'].includes(order.status || 'draft')
   );
-  const recentOrders = accountOrders.slice(0, 3).map((order) => {
+  const monthPaidOrders = monthOrders.filter((order) =>
+    ['paid', 'shipped', 'delivered'].includes(order.status || '')
+  );
+  const recentOrders = accountOrders.slice(0, 4).map((order) => {
     const item = firstOrderItem(order);
     return {
       id: `FT-BULK-${order.id.slice(0, 8).toUpperCase()}`,
       product: item?.product_name || 'Bulk fabric order',
-      seller: order.seller_id ? `Seller ${order.seller_id.slice(0, 6).toUpperCase()}` : 'Seller',
-      qty: item?.quantity_mtrs ? `${item.quantity_mtrs} mtrs` : 'Quantity pending',
+      seller: order.seller_id ? `Seller ${order.seller_id.slice(0, 6).toUpperCase()}` : 'Seller pending',
+      qty: item?.quantity_mtrs ? `${Number(item.quantity_mtrs).toLocaleString('en-IN')} mtrs` : 'Quantity pending',
       amount: formatMoney(order.net_total),
       status: order.status || 'draft',
       statusLabel: (order.status || 'draft').replace(/_/g, ' '),
@@ -37,134 +57,116 @@ export default function BuyerOverview({ onNavigate }: Props) {
   });
   const statCards = [
     {
-      label: 'Pending Confirmations',
-      value: String(accountOrders.filter((order) => order.status === 'quote_sent').length),
+      label: 'Awaiting seller',
+      value: String(pendingSeller.length),
       icon: 'ClockIcon',
       color: 'text-warning',
-      bg: 'bg-amber-50 border-amber-200',
+      bg: 'bg-warning/10 border-warning/20',
+      tab: 'orders' as DashTab,
     },
     {
-      label: 'Active Shipments',
-      value: String(accountOrders.filter((order) => order.status === 'shipped').length),
-      icon: 'TruckIcon',
-      color: 'text-purple-600',
-      bg: 'bg-purple-50 border-purple-200',
-    },
-    {
-      label: 'Orders This Month',
-      value: String(accountOrders.length),
-      icon: 'ShoppingBagIcon',
+      label: 'Payment due',
+      value: String(paymentDue.length),
+      icon: 'CreditCardIcon',
       color: 'text-primary',
       bg: 'bg-primary/10 border-primary/20',
+      tab: 'orders' as DashTab,
     },
     {
-      label: 'Total Spent (MTD)',
+      label: 'Active shipments',
+      value: String(shippedOrders.length),
+      icon: 'TruckIcon',
+      color: 'text-purple-700',
+      bg: 'bg-purple-500/10 border-purple-500/20',
+      tab: 'tracking' as DashTab,
+    },
+    {
+      label: 'Paid this month',
       value: formatMoney(
-        accountOrders.reduce((sum, order) => sum + Number(order.net_total || 0), 0)
+        monthPaidOrders.reduce((sum, order) => sum + Number(order.net_total || 0), 0)
       ),
       icon: 'CurrencyRupeeIcon',
       color: 'text-success',
-      bg: 'bg-green-50 border-green-200',
+      bg: 'bg-success/10 border-success/20',
+      tab: 'orders' as DashTab,
     },
   ];
 
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-xl font-800 text-foreground">Good morning, {buyerName}</h1>
+        <h1 className="text-xl font-800 text-foreground">{greeting()}, {buyerName}</h1>
         <p className="text-sm text-muted-foreground">
-          Here is your account-only procurement summary for today
+          Live purchasing, payment and delivery status for this account
         </p>
       </div>
 
-      {/* Stat Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-8">
+      <div className="mb-8 grid grid-cols-2 gap-3 lg:grid-cols-4">
         {statCards.map((card) => (
-          <div key={card.label} className={`stat-card border ${card.bg}`}>
-            <div className="flex items-start justify-between mb-2">
-              <Icon name={card.icon as 'ClockIcon'} size={20} className={card.color} />
-            </div>
-            <p className={`text-2xl font-800 ${card.color} mb-0.5`}>{card.value}</p>
-            <p className="text-xs text-muted-foreground font-500 leading-tight">{card.label}</p>
-          </div>
+          <button key={card.label} type="button" onClick={() => onNavigate(card.tab)} className={`stat-card border text-left transition hover:-translate-y-0.5 hover:shadow-md ${card.bg}`}>
+            <Icon name={card.icon as 'ClockIcon'} size={20} className={card.color} />
+            <p className={`mt-3 text-2xl font-800 ${card.color}`}>{loading ? '—' : card.value}</p>
+            <p className="mt-1 text-xs font-700 leading-tight text-muted-foreground">{card.label}</p>
+          </button>
         ))}
       </div>
 
-      {/* Recent Orders */}
-      <div className="bg-card rounded-2xl border border-border mb-6">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-          <h2 className="font-800 text-foreground text-sm">Recent Orders</h2>
-          <button
-            onClick={() => onNavigate('orders')}
-            className="text-xs text-primary font-600 hover:underline"
-          >
-            View All
-          </button>
+      <div className="mb-6 rounded-2xl border border-border bg-card">
+        <div className="flex items-center justify-between border-b border-border px-5 py-4">
+          <div>
+            <h2 className="text-sm font-800 text-foreground">Recent orders</h2>
+            <p className="mt-0.5 text-xs text-muted-foreground">{monthOrders.length} created this month</p>
+          </div>
+          <button onClick={() => onNavigate('orders')} className="text-xs font-800 text-primary hover:underline">View all</button>
         </div>
         {recentOrders.length > 0 ? (
           <div className="divide-y divide-border">
             {recentOrders.map((order) => (
-              <div key={order.id} className="px-5 py-4 flex items-center gap-4">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
+              <button key={order.id} type="button" onClick={() => onNavigate('orders')} className="flex w-full items-center gap-4 px-5 py-4 text-left hover:bg-muted/30">
+                <div className="min-w-0 flex-1">
+                  <div className="mb-1 flex flex-wrap items-center gap-2">
                     <p className="mono-id">{order.id}</p>
-                    <span
-                      className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-600 order-status-${order.status}`}
-                    >
-                      {order.statusLabel}
-                    </span>
+                    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-600 order-status-${order.status}`}>{order.statusLabel}</span>
                   </div>
-                  <p className="text-sm font-600 text-foreground truncate">{order.product}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {order.seller} · {order.qty} · {order.date}
-                  </p>
+                  <p className="truncate text-sm font-700 text-foreground">{order.product}</p>
+                  <p className="text-xs text-muted-foreground">{order.seller} · {order.qty} · {order.date}</p>
                 </div>
-                <div className="text-right shrink-0">
-                  <p className="text-sm font-800 text-foreground">{order.amount}</p>
-                </div>
-              </div>
+                <p className="shrink-0 text-sm font-800 text-foreground">{order.amount}</p>
+                <Icon name="ChevronRightIcon" size={15} className="text-muted-foreground" />
+              </button>
             ))}
           </div>
         ) : (
           <div className="px-5 py-10 text-center">
             <Icon name="ShoppingBagIcon" size={32} className="mx-auto mb-3 text-muted-foreground" />
             <p className="text-sm font-700 text-foreground">No orders for this account yet</p>
-            <p className="text-xs text-muted-foreground mt-1">
-              Orders will appear here only after this buyer account places them.
-            </p>
+            <p className="mt-1 text-xs text-muted-foreground">Approved product orders will appear here after submission.</p>
           </div>
         )}
       </div>
 
-      {/* Active Shipment Preview */}
-      <div className="bg-card rounded-2xl border border-border">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-          <h2 className="font-800 text-foreground text-sm">Active Shipment</h2>
-          <button
-            onClick={() => onNavigate('tracking')}
-            className="text-xs text-primary font-600 hover:underline"
-          >
-            Track All
-          </button>
-        </div>
-        {activeOrders[0] ? (
-          <div className="p-5">
-            <div>
-              <p className="text-sm font-700 text-foreground">
-                {firstOrderItem(activeOrders[0])?.product_name || 'Bulk fabric order'}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Status: {(activeOrders[0].status || 'pending').replace(/_/g, ' ')}
-              </p>
-            </div>
+      <div className="rounded-2xl border border-border bg-card">
+        <div className="flex items-center justify-between border-b border-border px-5 py-4">
+          <div>
+            <h2 className="text-sm font-800 text-foreground">Shipments in transit</h2>
+            <p className="mt-0.5 text-xs text-muted-foreground">Only orders marked shipped are shown</p>
           </div>
+          <button onClick={() => onNavigate('tracking')} className="text-xs font-800 text-primary hover:underline">Track all</button>
+        </div>
+        {shippedOrders[0] ? (
+          <button type="button" onClick={() => onNavigate('tracking')} className="flex w-full items-center gap-3 p-5 text-left hover:bg-muted/30">
+            <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-purple-500/10 text-purple-700"><Icon name="TruckIcon" size={20} /></span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-sm font-800 text-foreground">{firstOrderItem(shippedOrders[0])?.product_name || 'Bulk fabric order'}</span>
+              <span className="block text-xs text-muted-foreground">FT-BULK-{shippedOrders[0].id.slice(0, 8).toUpperCase()} · shipped</span>
+            </span>
+            <Icon name="ChevronRightIcon" size={15} className="text-muted-foreground" />
+          </button>
         ) : (
           <div className="p-8 text-center">
             <Icon name="TruckIcon" size={32} className="mx-auto mb-3 text-muted-foreground" />
             <p className="text-sm font-700 text-foreground">No active shipments</p>
-            <p className="text-xs text-muted-foreground mt-1">
-              Shipment tracking will show here only for this account's orders.
-            </p>
+            <p className="mt-1 text-xs text-muted-foreground">Tracking appears after a paid order is dispatched.</p>
           </div>
         )}
       </div>
