@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - agent/live-auth-smoke
   workflow_dispatch:
 
 permissions:
@@ -122,23 +121,6 @@ jobs:
 
           verify_domain 'https://fabrictrad.com'
           verify_domain 'https://www.fabrictrad.com'
-
-          # This branch-only probe sends exactly one real code to the configured
-          # administrator inbox. It validates the deployed Worker secret, Resend
-          # authentication, Supabase token generation and the public API contract.
-          if [ "${GITHUB_REF}" = "refs/heads/agent/live-auth-smoke" ]; then
-            otp_status=$(curl --silent --show-error --connect-timeout 15 --max-time 45 \
-              --output /tmp/admin-otp-response.json --write-out '%{http_code}' \
-              --header 'Content-Type: application/json' \
-              --data '{"email":"fabrictrad8@gmail.com"}' \
-              'https://fabrictrad.com/api/auth/admin-otp/request')
-            echo "Administrator OTP endpoint returned HTTP ${otp_status}"
-            cat /tmp/admin-otp-response.json
-            echo
-            test "$otp_status" = "200"
-            grep -q '"sent":true' /tmp/admin-otp-response.json
-            grep -q '"method":"email_otp"' /tmp/admin-otp-response.json
-          fi
 
       - name: Publish verification status on the commit
         if: always()
