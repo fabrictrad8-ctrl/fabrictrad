@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import Icon from '@/components/ui/AppIcon';
 import { RazorpayCheckout } from '@/components/RazorpayCheckout';
+import OrderLifecyclePanel from '@/components/commerce/OrderLifecyclePanel';
 import BuyerCatalogOrders from '@/app/buyer-dashboard/components/BuyerCatalogOrders';
 import { exportToCSV } from '@/lib/exportUtils';
 import { openPrintableOrderDocument } from '@/lib/orderDocuments';
@@ -22,11 +23,19 @@ const statusFilters: Filter[] = ['All', 'Pending', 'Confirmed', 'Shipped', 'Deli
 const statusLabels: Record<string, string> = {
   draft: 'Pending assignment',
   quote_sent: 'Pending seller response',
-  confirmed: 'Confirmed — payment due',
-  paid: 'Paid',
+  confirmed: 'Confirmed',
+  paid: 'Paid — seller fulfilling',
   shipped: 'Shipped',
   delivered: 'Delivered',
   cancelled: 'Cancelled',
+};
+const paymentLabels: Record<string, string> = {
+  unpaid: 'Payment due',
+  partial: 'Part paid — balance due',
+  paid: 'Fully paid',
+  partially_refunded: 'Partially refunded',
+  refunded: 'Refunded',
+  failed: 'Payment failed',
 };
 
 function statusGroup(status: string): Exclude<Filter, 'All'> {
@@ -62,6 +71,9 @@ export default function BuyerOrders() {
           Product: item?.product_name || 'Bulk fabric order',
           Quantity: item?.quantity_mtrs || '',
           Status: statusLabels[order.status || 'draft'] || order.status || 'Pending',
+          'Payment status': paymentLabels[order.payment_status || 'unpaid'] || order.payment_status,
+          'Amount paid': Number(order.amount_paid || 0),
+          'Amount refunded': Number(order.amount_refunded || 0),
           Date: formatOrderDate(order.created_at),
           Subtotal: Number(order.gross_total || 0),
           GST: Number(order.gst_total || 0),
@@ -73,7 +85,7 @@ export default function BuyerOrders() {
   };
 
   const printOrderDocument = (order: AccountBulkOrder) => {
-    const paid = ['paid', 'shipped', 'delivered'].includes(order.status || '');
+    const paid = order.payment_status === 'paid';
     try {
       openPrintableOrderDocument({
         documentType: paid ? 'payment_receipt' : 'order_summary',
@@ -120,7 +132,7 @@ export default function BuyerOrders() {
             <p className="text-xs font-800 uppercase tracking-[0.14em] text-secondary">Bulk sourcing</p>
             <h1 className="mt-1 text-xl font-800 text-foreground">Bulk orders</h1>
             <p className="mt-1 text-xs text-muted-foreground">
-              Quotes, seller confirmation, secure payment, documents and shipment progress.
+              Quotes, seller confirmation, captured payment, documents, refunds and shipment progress.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -199,9 +211,15 @@ export default function BuyerOrders() {
           {filtered.map((order) => {
             const item = firstOrderItem(order);
             const status = order.status || 'draft';
+            const paymentStatus = order.payment_status || 'unpaid';
             const expanded = expandedId === order.id;
-            const canCancel = ['draft', 'quote_sent', 'confirmed'].includes(status);
-            const paid = ['paid', 'shipped', 'delivered'].includes(status);
+            const captured = Number(order.amount_paid || 0);
+            const refunded = Number(order.amount_refunded || 0);
+            const netPaid = Math.max(0, captured - refunded);
+            const remaining = Math.max(0, Number(order.net_total || 0) - netPaid);
+            const canCancel =
+              captured === 0 && ['draft', 'quote_sent', 'confirmed'].includes(status);
+            const paid = paymentStatus === 'paid';
             return (
               <article key={order.id} className="overflow-hidden rounded-2xl border border-border bg-card">
                 <button
@@ -220,12 +238,14 @@ export default function BuyerOrders() {
                         className={`rounded-full px-2 py-0.5 text-xs font-600 ${
                           paid
                             ? 'bg-success/10 text-success'
-                            : status === 'cancelled'
-                              ? 'bg-error/10 text-error'
-                              : 'bg-warning/10 text-warning'
+                            : paymentStatus.includes('refund')
+                              ? 'bg-warning/10 text-warning'
+                              : status === 'cancelled'
+                                ? 'bg-error/10 text-error'
+                                : 'bg-warning/10 text-warning'
                         }`}
                       >
-                        {paid ? 'Paid' : status === 'cancelled' ? 'Closed' : 'Payment pending'}
+                        {paymentLabels[paymentStatus] || paymentStatus.replaceAll('_', ' ')}
                       </span>
                     </div>
                     <p className="truncate text-sm font-700">{item?.product_name || 'Bulk fabric order'}</p>
@@ -236,7 +256,11 @@ export default function BuyerOrders() {
                   </div>
                   <div className="shrink-0 text-right">
                     <p className="text-base font-800">{formatMoney(order.net_total)}</p>
-                    <p className="text-xs text-muted-foreground">including GST</p>
+                    {remaining > 0 && netPaid > 0 ? (
+                      <p className="text-xs font-700 text-warning">Balance {formatMoney(remaining)}</p>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">including GST</p>
+                    )}
                   </div>
                   <Icon name={expanded ? 'ChevronUpIcon' : 'ChevronDownIcon'} size={16} />
                 </button>
@@ -248,20 +272,7 @@ export default function BuyerOrders() {
                         ['Unit price', item?.price_per_mtr ? `${formatMoney(item.price_per_mtr)}/mtr` : 'Quote pending'],
                         ['Subtotal', formatMoney(order.gross_total)],
                         ['GST', formatMoney(order.gst_total)],
-                        [
-                          'Next step',
-                          status === 'draft'
-                            ? 'Seller assignment'
-                            : status === 'quote_sent'
-                              ? 'Seller response'
-                              : status === 'confirmed'
-                                ? 'Complete payment'
-                                : status === 'shipped'
-                                  ? 'Track shipment'
-                                  : status === 'delivered'
-                                    ? 'Order complete'
-                                    : 'No action',
-                        ],
+                        ['Amount due', formatMoney(remaining)],
                       ].map(([label, value]) => (
                         <div key={label} className="rounded-xl bg-muted p-3">
                           <p className="text-xs text-muted-foreground">{label}</p>
@@ -270,15 +281,20 @@ export default function BuyerOrders() {
                       ))}
                     </div>
 
-                    {status === 'confirmed' && (
-                      <div className="mb-4 max-w-xs">
+                    {status === 'confirmed' && remaining > 0 && (
+                      <div className="mb-4 max-w-sm">
                         <RazorpayCheckout
-                          amount={Number(order.net_total || 0)}
+                          amount={remaining}
                           orderId={order.id}
-                          buttonText="Pay confirmed order"
-                          onSuccess={() => {
-                            toast.success('Payment authorized. Waiting for capture confirmation.');
-                            window.setTimeout(() => void refresh(), 2000);
+                          orderType="bulk"
+                          buttonText={netPaid > 0 ? 'Pay remaining balance' : 'Pay confirmed order'}
+                          onSuccess={({ status: resultStatus }) => {
+                            toast.success(
+                              resultStatus === 'captured'
+                                ? 'Payment captured and the order was updated.'
+                                : 'Payment authorised. Waiting for capture confirmation.'
+                            );
+                            window.setTimeout(() => void refresh(), 1200);
                           }}
                           onError={(paymentError) => toast.error(paymentError.message)}
                         />
@@ -286,10 +302,23 @@ export default function BuyerOrders() {
                     )}
 
                     <div className="mb-4 rounded-xl border border-primary/20 bg-primary/5 p-3 text-xs leading-5 text-muted-foreground">
-                      <strong className="text-foreground">Documents:</strong> FabricTrad provides a printable order summary or payment receipt. The seller-issued GST tax invoice appears separately after the seller uploads or generates it.
+                      <strong className="text-foreground">Documents:</strong> FabricTrad provides a printable platform order summary or payment receipt. The legally operative GST tax invoice is issued by the seller and appears separately after verification or generation.
                     </div>
 
-                    <div className="flex flex-wrap gap-2">
+                    <OrderLifecyclePanel
+                      orderKind="bulk"
+                      orderId={order.id}
+                      viewerRole="buyer"
+                      orderStatus={order.status}
+                      paymentStatus={order.payment_status}
+                      amountPaid={order.amount_paid}
+                      amountRefunded={order.amount_refunded}
+                      buyerId={order.buyer_id}
+                      sellerId={order.seller_id}
+                      onChanged={refresh}
+                    />
+
+                    <div className="mt-4 flex flex-wrap gap-2">
                       <button
                         type="button"
                         onClick={() => printOrderDocument(order)}
@@ -303,7 +332,7 @@ export default function BuyerOrders() {
                           type="button"
                           disabled={cancellingId === order.id}
                           onClick={async () => {
-                            if (!window.confirm('Cancel this order request?')) return;
+                            if (!window.confirm('Cancel this unpaid order request?')) return;
                             setCancellingId(order.id);
                             try {
                               await cancelOrder(order.id);
@@ -319,7 +348,7 @@ export default function BuyerOrders() {
                           className="rounded-xl border border-error/20 bg-error/10 px-3 py-2 text-xs text-error disabled:opacity-50"
                         >
                           <Icon name="XMarkIcon" size={14} className="mr-1 inline" />
-                          {cancellingId === order.id ? 'Cancelling…' : 'Cancel order'}
+                          {cancellingId === order.id ? 'Cancelling…' : 'Cancel unpaid order'}
                         </button>
                       )}
                       <button
