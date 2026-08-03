@@ -126,7 +126,7 @@ export default function AdminCommandSearch() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="ft-icon-button md:hidden"
+        className="ft-icon-button min-h-10 min-w-10 shrink-0 justify-center md:!hidden"
         aria-label="Search FabricTrad admin"
       >
         <Icon name="MagnifyingGlassIcon" size={18} />
