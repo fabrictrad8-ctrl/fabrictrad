@@ -33,6 +33,7 @@ const requiredFiles = [
   'src/components/account/DeleteAccountPanel.tsx',
   'src/lib/accountDeletion.ts',
   'supabase/migrations/20260803164000_resumable_onboarding_and_account_deletion.sql',
+  'supabase/migrations/20260803173000_account_deletion_service_role_only.sql',
 ];
 requiredFiles.forEach(read);
 
@@ -72,8 +73,9 @@ requireText('src/app/api/account/delete/request/route.ts', 'accountDeletionBlock
 requireText('src/app/api/account/delete/request/route.ts', 'shouldCreateUser: false');
 requireText('src/app/api/account/delete/confirm/route.ts', 'verifyOtp');
 requireText('src/app/api/account/delete/confirm/route.ts', 'verified.user?.id !== user.id');
-requireText('src/app/api/account/delete/confirm/route.ts', 'anonymize_current_account_for_deletion');
+requireText('src/app/api/account/delete/confirm/route.ts', "admin.rpc('anonymize_account_for_deletion'");
 requireText('src/app/api/account/delete/confirm/route.ts', 'deleteUser(user.id, true)');
+forbidText('src/app/api/account/delete/confirm/route.ts', "supabase.rpc('anonymize_current_account_for_deletion'");
 requireText('src/lib/accountDeletion.ts', 'CATALOG_ORDERS_OPEN');
 requireText('src/lib/accountDeletion.ts', 'BULK_ORDERS_OPEN');
 requireText('src/lib/accountDeletion.ts', 'DISPUTES_OPEN');
@@ -81,7 +83,8 @@ requireText('src/lib/accountDeletion.ts', 'REFUNDS_PENDING');
 requireText('src/lib/accountDeletion.ts', 'SELLER_SETTLEMENT_PENDING');
 requireText('src/lib/accountDeletion.ts', "status === 'cancelled'");
 requireText('src/app/account/page.tsx', '<DeleteAccountPanel');
-requireText('supabase/migrations/20260803164000_resumable_onboarding_and_account_deletion.sql', 'REVOKE ALL ON FUNCTION public.anonymize_current_account_for_deletion()');
+requireText('supabase/migrations/20260803173000_account_deletion_service_role_only.sql', 'FROM PUBLIC, anon, authenticated, service_role');
+requireText('supabase/migrations/20260803173000_account_deletion_service_role_only.sql', 'TO service_role');
 
 if (failures.length) {
   console.error(`Account lifecycle verification failed (${failures.length}):`);
