@@ -3,6 +3,7 @@
 import { Suspense } from 'react';
 import Link from 'next/link';
 import EmailOtpLoginClient from './EmailOtpLoginClient';
+import LoginRedirectGuard from './LoginRedirectGuard';
 
 export default function LoginPage() {
   return (
@@ -20,6 +21,7 @@ export default function LoginPage() {
           </div>
         }
       >
+        <LoginRedirectGuard />
         <EmailOtpLoginClient />
       </Suspense>
     </div>
