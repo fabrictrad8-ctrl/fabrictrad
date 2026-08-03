@@ -2,4 +2,4 @@
 
 This temporary branch validates server-authoritative login, resumable buyer and seller onboarding, and OTP-protected account deletion against the repository's permanent CI workflows.
 
-Final validation rerun after correcting the sensitive-field invariant.
+Final validation includes the synchronized production migration ledger.
