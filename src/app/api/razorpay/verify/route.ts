@@ -114,19 +114,23 @@ export async function POST(request: NextRequest) {
   let kind: PaymentKind | null = null;
   let record: Record<string, unknown> | null = null;
 
-  for (const candidate of [
-    { kind: 'catalog' as const, table: 'catalog_order_payments', foreignKey: 'catalog_order_id' },
-    { kind: 'bulk' as const, table: 'bulk_order_payments', foreignKey: 'bulk_order_id' },
-  ]) {
-    const { data } = await admin
-      .from(candidate.table)
-      .select(`id,${candidate.foreignKey},razorpay_order_id,amount,currency,status`)
+  const { data: catalogPayment } = await admin
+    .from('catalog_order_payments')
+    .select('id,catalog_order_id,razorpay_order_id,amount,currency,status')
+    .eq('razorpay_order_id', suppliedOrderId)
+    .maybeSingle();
+  if (catalogPayment) {
+    kind = 'catalog';
+    record = { ...catalogPayment, fabrictradOrderId: catalogPayment.catalog_order_id };
+  } else {
+    const { data: bulkPayment } = await admin
+      .from('bulk_order_payments')
+      .select('id,bulk_order_id,razorpay_order_id,amount,currency,status')
       .eq('razorpay_order_id', suppliedOrderId)
       .maybeSingle();
-    if (data) {
-      kind = candidate.kind;
-      record = { ...data, fabrictradOrderId: data[candidate.foreignKey] };
-      break;
+    if (bulkPayment) {
+      kind = 'bulk';
+      record = { ...bulkPayment, fabrictradOrderId: bulkPayment.bulk_order_id };
     }
   }
   if (!kind || !record) return json({ error: 'Stored payment order not found.' }, 404);

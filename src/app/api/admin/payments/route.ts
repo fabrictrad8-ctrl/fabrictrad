@@ -116,6 +116,9 @@ async function loadPayments(admin: ReturnType<typeof createAdminClient>) {
     const order = kind === 'catalog' ? catalogOrders.get(orderId) : bulkOrders.get(orderId);
     const buyer = order?.buyer_id ? buyers.get(String(order.buyer_id)) : null;
     const seller = order?.seller_id ? sellers.get(String(order.seller_id)) : null;
+    const bulkOrder = kind === 'bulk'
+      ? (order as { buyer_company?: string | null; buyer_name?: string | null; buyer_email?: string | null } | undefined)
+      : undefined;
     const captured = numberValue(row.captured_amount ?? row.amount);
     const refunded = numberValue(row.refunded_amount);
     const requestedRefund = numberValue(row.refund_requested_amount);
@@ -131,9 +134,10 @@ async function loadPayments(admin: ReturnType<typeof createAdminClient>) {
         name:
           buyer?.business_name ||
           buyer?.full_name ||
-          (kind === 'bulk' ? order?.buyer_company || order?.buyer_name : null) ||
+          bulkOrder?.buyer_company ||
+          bulkOrder?.buyer_name ||
           'Buyer account',
-        email: buyer?.email || (kind === 'bulk' ? order?.buyer_email : null) || null,
+        email: buyer?.email || bulkOrder?.buyer_email || null,
       },
       seller: {
         id: order?.seller_id || null,

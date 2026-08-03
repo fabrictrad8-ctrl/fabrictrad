@@ -104,16 +104,24 @@ export async function POST(request: NextRequest) {
   const paymentTable = orderType === 'catalog' ? 'catalog_order_payments' : 'bulk_order_payments';
   const orderForeignKey = orderType === 'catalog' ? 'catalog_order_id' : 'bulk_order_id';
 
-  const orderSelect =
-    orderType === 'catalog'
-      ? 'id,buyer_id,seller_id,status,total_amount,payment_terms,deposit_percent,payment_status,amount_paid,amount_refunded,payment_due_at'
-      : 'id,buyer_id,seller_id,status,net_total,payment_status,amount_paid,amount_refunded';
-  const { data: order, error: orderError } = await admin
-    .from(orderTable)
-    .select(orderSelect)
-    .eq('id', orderId)
-    .eq('buyer_id', user.id)
-    .maybeSingle();
+  const catalogOrderResult = orderType === 'catalog'
+    ? await admin
+        .from('catalog_order_requests')
+        .select('id,buyer_id,seller_id,status,total_amount,payment_terms,deposit_percent,payment_status,amount_paid,amount_refunded,payment_due_at')
+        .eq('id', orderId)
+        .eq('buyer_id', user.id)
+        .maybeSingle()
+    : null;
+  const bulkOrderResult = orderType === 'bulk'
+    ? await admin
+        .from('bulk_orders')
+        .select('id,buyer_id,seller_id,status,net_total,payment_status,amount_paid,amount_refunded')
+        .eq('id', orderId)
+        .eq('buyer_id', user.id)
+        .maybeSingle()
+    : null;
+  const orderError = catalogOrderResult?.error || bulkOrderResult?.error;
+  const order = (catalogOrderResult?.data || bulkOrderResult?.data || null) as Record<string, unknown> | null;
   if (orderError) return json({ error: 'The order could not be loaded.' }, 503);
   if (!order) return json({ error: 'Order not found.' }, 404);
 

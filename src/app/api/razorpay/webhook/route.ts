@@ -105,39 +105,38 @@ export async function POST(request: NextRequest) {
     kind,
   });
 
-  const paymentSelect =
-    'id,razorpay_order_id,razorpay_payment_id,amount,currency,refunded_amount,refund_requested_amount,refund_status,platform_commission,seller_payable';
-
   const findPaymentByOrder = async (razorpayOrderId: string): Promise<PaymentRecord | null> => {
-    for (const candidate of [
-      { kind: 'bulk' as const, table: 'bulk_order_payments', foreignKey: 'bulk_order_id' },
-      { kind: 'catalog' as const, table: 'catalog_order_payments', foreignKey: 'catalog_order_id' },
-    ]) {
-      const { data, error } = await admin
-        .from(candidate.table)
-        .select(`${candidate.foreignKey},${paymentSelect}`)
-        .eq('razorpay_order_id', razorpayOrderId)
-        .maybeSingle();
-      if (error) throw error;
-      if (data) return normalizePayment(data, candidate.kind, candidate.foreignKey);
-    }
-    return null;
+    const { data: bulk, error: bulkError } = await admin
+      .from('bulk_order_payments')
+      .select('bulk_order_id,id,razorpay_order_id,razorpay_payment_id,amount,currency,refunded_amount,refund_requested_amount,refund_status,platform_commission,seller_payable')
+      .eq('razorpay_order_id', razorpayOrderId)
+      .maybeSingle();
+    if (bulkError) throw bulkError;
+    if (bulk) return normalizePayment(bulk, 'bulk', 'bulk_order_id');
+    const { data: catalog, error: catalogError } = await admin
+      .from('catalog_order_payments')
+      .select('catalog_order_id,id,razorpay_order_id,razorpay_payment_id,amount,currency,refunded_amount,refund_requested_amount,refund_status,platform_commission,seller_payable')
+      .eq('razorpay_order_id', razorpayOrderId)
+      .maybeSingle();
+    if (catalogError) throw catalogError;
+    return catalog ? normalizePayment(catalog, 'catalog', 'catalog_order_id') : null;
   };
 
   const findPaymentByPaymentId = async (paymentId: string): Promise<PaymentRecord | null> => {
-    for (const candidate of [
-      { kind: 'bulk' as const, table: 'bulk_order_payments', foreignKey: 'bulk_order_id' },
-      { kind: 'catalog' as const, table: 'catalog_order_payments', foreignKey: 'catalog_order_id' },
-    ]) {
-      const { data, error } = await admin
-        .from(candidate.table)
-        .select(`${candidate.foreignKey},${paymentSelect}`)
-        .eq('razorpay_payment_id', paymentId)
-        .maybeSingle();
-      if (error) throw error;
-      if (data) return normalizePayment(data, candidate.kind, candidate.foreignKey);
-    }
-    return null;
+    const { data: bulk, error: bulkError } = await admin
+      .from('bulk_order_payments')
+      .select('bulk_order_id,id,razorpay_order_id,razorpay_payment_id,amount,currency,refunded_amount,refund_requested_amount,refund_status,platform_commission,seller_payable')
+      .eq('razorpay_payment_id', paymentId)
+      .maybeSingle();
+    if (bulkError) throw bulkError;
+    if (bulk) return normalizePayment(bulk, 'bulk', 'bulk_order_id');
+    const { data: catalog, error: catalogError } = await admin
+      .from('catalog_order_payments')
+      .select('catalog_order_id,id,razorpay_order_id,razorpay_payment_id,amount,currency,refunded_amount,refund_requested_amount,refund_status,platform_commission,seller_payable')
+      .eq('razorpay_payment_id', paymentId)
+      .maybeSingle();
+    if (catalogError) throw catalogError;
+    return catalog ? normalizePayment(catalog, 'catalog', 'catalog_order_id') : null;
   };
 
   const reconcileOrder = async (payment: PaymentRecord) => {
@@ -146,19 +145,25 @@ export async function POST(request: NextRequest) {
     const orderTable = payment.kind === 'bulk' ? 'bulk_orders' : 'catalog_order_requests';
     const foreignKey = payment.kind === 'bulk' ? 'bulk_order_id' : 'catalog_order_id';
     const totalColumn = payment.kind === 'bulk' ? 'net_total' : 'total_amount';
-    const orderSelect =
-      payment.kind === 'bulk'
-        ? `id,status,${totalColumn},gross_total,gst_total,seller_id`
-        : `id,status,${totalColumn},gst_amount,gst_rate,seller_id`;
-
-    const [{ data: payments, error: paymentsError }, { data: order, error: orderError }] =
-      await Promise.all([
-        admin
-          .from(paymentTable)
-          .select('amount,refunded_amount,status')
-          .eq(foreignKey, payment.fabrictradOrderId),
-        admin.from(orderTable).select(orderSelect).eq('id', payment.fabrictradOrderId).maybeSingle(),
-      ]);
+    const paymentsResult = await admin
+      .from(paymentTable)
+      .select('amount,refunded_amount,status')
+      .eq(foreignKey, payment.fabrictradOrderId);
+    const orderResult = payment.kind === 'bulk'
+      ? await admin
+          .from('bulk_orders')
+          .select('id,status,net_total,gross_total,gst_total,seller_id')
+          .eq('id', payment.fabrictradOrderId)
+          .maybeSingle()
+      : await admin
+          .from('catalog_order_requests')
+          .select('id,status,total_amount,gst_amount,gst_rate,seller_id')
+          .eq('id', payment.fabrictradOrderId)
+          .maybeSingle();
+    const payments = paymentsResult.data;
+    const paymentsError = paymentsResult.error;
+    const order = orderResult.data as Record<string, unknown> | null;
+    const orderError = orderResult.error;
     if (paymentsError || orderError || !order) {
       throw paymentsError || orderError || new Error('FabricTrad order was not found during reconciliation.');
     }
