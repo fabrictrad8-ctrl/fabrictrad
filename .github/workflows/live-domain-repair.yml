@@ -25,6 +25,7 @@ jobs:
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       WORKER_NAME: fabrictrad
       ZONE_NAME: fabrictrad.com
+      WORKERS_DEV_URL: https://fabrictrad.fabrictrad8.workers.dev
     steps:
       - uses: actions/checkout@v4
 
@@ -32,16 +33,21 @@ jobs:
         with:
           node-version: 22
 
-      - name: Check repair credentials
+      - name: Detect Cloudflare repair credentials
+        id: credentials
         shell: bash
         run: |
           set -euo pipefail
-          if [ -z "${CLOUDFLARE_API_TOKEN:-}" ] || [ -z "${CLOUDFLARE_ACCOUNT_ID:-}" ]; then
-            echo '::error::CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID are required.'
-            exit 1
+          if [ -n "${CLOUDFLARE_API_TOKEN:-}" ] && [ -n "${CLOUDFLARE_ACCOUNT_ID:-}" ]; then
+            echo 'available=true' >> "$GITHUB_OUTPUT"
+            echo 'Cloudflare repair credentials are available.'
+          else
+            echo 'available=false' >> "$GITHUB_OUTPUT"
+            echo '::warning::Cloudflare repair credentials are not configured in GitHub Actions. Public diagnostics will still run.'
           fi
 
       - name: Confirm Worker exists
+        if: steps.credentials.outputs.available == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -56,6 +62,7 @@ jobs:
           echo "Worker ${WORKER_NAME} exists."
 
       - name: Attach apex and www as Worker Custom Domains
+        if: steps.credentials.outputs.available == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -82,6 +89,7 @@ jobs:
           done
 
       - name: Verify Worker domain records
+        if: steps.credentials.outputs.available == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -104,81 +112,85 @@ jobs:
           }
           NODE
 
-      - name: Verify public DNS delegation and answers
+      - name: Inspect public DNS
         shell: bash
         run: |
           set -euo pipefail
-          for hostname in fabrictrad.com www.fabrictrad.com; do
-            resolved=false
-            for attempt in $(seq 1 30); do
+          for hostname in fabrictrad.com www.fabrictrad.com fabrictrad.fabrictrad8.workers.dev; do
+            for type in A AAAA NS; do
               curl --fail --silent --show-error \
                 --header 'accept: application/dns-json' \
-                "https://cloudflare-dns.com/dns-query?name=${hostname}&type=A" \
-                > "/tmp/dns-${hostname}.json"
-              if node - "/tmp/dns-${hostname}.json" <<'NODE'
+                "https://cloudflare-dns.com/dns-query?name=${hostname}&type=${type}" \
+                > "/tmp/dns-${hostname}-${type}.json"
+              node - "/tmp/dns-${hostname}-${type}.json" "$hostname" "$type" <<'NODE'
           const fs = require('node:fs');
-          const file = process.argv[2];
+          const [file, hostname, type] = process.argv.slice(2);
           const body = JSON.parse(fs.readFileSync(file, 'utf8'));
-          const answers = Array.isArray(body.Answer) ? body.Answer : [];
-          process.exit(body.Status === 0 && answers.some((answer) => answer.type === 1) ? 0 : 1);
+          const answers = Array.isArray(body.Answer) ? body.Answer.map((answer) => answer.data) : [];
+          console.log(`${hostname} ${type}: status=${body.Status}, answers=${answers.length ? answers.join(', ') : 'none'}`);
           NODE
-              then
-                resolved=true
-                break
-              fi
-              echo "Waiting for ${hostname} DNS answer (attempt ${attempt}/30)."
-              sleep 10
             done
-            if [ "$resolved" != 'true' ]; then
-              echo "::error::${hostname} still has no public A answer after Custom Domain attachment."
-              cat "/tmp/dns-${hostname}.json"
-              echo 'Registry delegation:'
-              curl --fail --silent --show-error \
-                --header 'accept: application/dns-json' \
-                "https://cloudflare-dns.com/dns-query?name=fabrictrad.com&type=NS" || true
-              exit 1
-            fi
-            echo "${hostname} resolves publicly."
           done
 
-      - name: Test production account lifecycle routes
+      - name: Select reachable production origin
+        id: origin
         shell: bash
         run: |
           set -euo pipefail
-          ready=false
-          for attempt in $(seq 1 36); do
-            home=$(curl --silent --show-error --connect-timeout 10 --max-time 30 --output /tmp/home.html --write-out '%{http_code}' https://fabrictrad.com/ || true)
-            login=$(curl --silent --show-error --connect-timeout 10 --max-time 30 --output /tmp/login.html --write-out '%{http_code}' https://fabrictrad.com/login || true)
-            buyer=$(curl --silent --show-error --connect-timeout 10 --max-time 30 --output /tmp/buyer.html --write-out '%{http_code}' https://fabrictrad.com/buyer-registration || true)
-            seller=$(curl --silent --show-error --connect-timeout 10 --max-time 30 --output /tmp/seller.html --write-out '%{http_code}' https://fabrictrad.com/seller-registration || true)
-            if [ "$home" = '200' ] && [ "$login" = '200' ] && [ "$buyer" = '200' ] && [ "$seller" = '200' ]; then
-              ready=true
-              break
-            fi
-            echo "Waiting for production pages (attempt ${attempt}/36 home=${home} login=${login} buyer=${buyer} seller=${seller})."
-            sleep 10
-          done
-          if [ "$ready" != 'true' ]; then
-            echo '::error::FabricTrad production pages did not become healthy.'
+          custom_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 --output /tmp/custom-login.html --write-out '%{http_code}' https://fabrictrad.com/login || true)
+          worker_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 --output /tmp/worker-login.html --write-out '%{http_code}' "${WORKERS_DEV_URL}/login" || true)
+          www_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 --output /tmp/www-login.html --write-out '%{http_code}' https://www.fabrictrad.com/login || true)
+          echo "Custom apex login HTTP: ${custom_status}"
+          echo "Custom www login HTTP: ${www_status}"
+          echo "workers.dev login HTTP: ${worker_status}"
+          if [ "$custom_status" = '200' ]; then
+            echo 'base=https://fabrictrad.com' >> "$GITHUB_OUTPUT"
+            echo 'custom_healthy=true' >> "$GITHUB_OUTPUT"
+          elif [ "$worker_status" = '200' ]; then
+            echo "base=${WORKERS_DEV_URL}" >> "$GITHUB_OUTPUT"
+            echo 'custom_healthy=false' >> "$GITHUB_OUTPUT"
+            echo '::warning::Application Worker is reachable, but fabrictrad.com is not healthy.'
+          else
+            echo '::error::Neither fabrictrad.com nor the known workers.dev deployment is reachable.'
             exit 1
           fi
+
+      - name: Test live account lifecycle routes
+        shell: bash
+        env:
+          BASE_URL: ${{ steps.origin.outputs.base }}
+        run: |
+          set -euo pipefail
+          for path in / /login /buyer-registration /seller-registration; do
+            status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 --output "/tmp/page-$(echo "$path" | tr '/' '_').html" --write-out '%{http_code}' "${BASE_URL}${path}" || true)
+            if [ "$status" != '200' ]; then
+              echo "::error::${BASE_URL}${path} returned HTTP ${status}."
+              exit 1
+            fi
+          done
 
           invalid_login=$(curl --silent --show-error --output /tmp/invalid-login.json --write-out '%{http_code}' \
             --header 'Content-Type: application/json' \
             --data '{"email":"nonexistent-live-smoke@fabrictrad.invalid","password":"DefinitelyWrong123!"}' \
-            https://fabrictrad.com/api/auth/password-login)
+            "${BASE_URL}/api/auth/password-login")
           test "$invalid_login" = '401'
-          grep -q 'email or password is incorrect' /tmp/invalid-login.json
+          grep -qi 'email or password is incorrect' /tmp/invalid-login.json
 
           draft_unauth=$(curl --silent --show-error --output /tmp/draft-unauth.json --write-out '%{http_code}' \
-            'https://fabrictrad.com/api/account/onboarding-draft?flow=buyer')
+            "${BASE_URL}/api/account/onboarding-draft?flow=buyer")
           test "$draft_unauth" = '401'
 
           deletion_unauth=$(curl --silent --show-error --output /tmp/deletion-unauth.json --write-out '%{http_code}' \
             --header 'Content-Type: application/json' --data '{}' \
-            https://fabrictrad.com/api/account/delete/request)
+            "${BASE_URL}/api/account/delete/request")
           test "$deletion_unauth" = '401'
 
-          grep -q 'FabricTrad' /tmp/login.html
-          grep -q 'buyer-registration' /tmp/buyer.html || true
-          echo 'Live DNS, account routes, server-side password login rejection, draft authorization and deletion authorization are healthy.'
+          grep -q 'FabricTrad' /tmp/page-_login.html
+          echo "Live account pages and protected APIs passed on ${BASE_URL}."
+
+      - name: Require healthy custom domain
+        if: steps.origin.outputs.custom_healthy != 'true'
+        shell: bash
+        run: |
+          echo '::error::The application code is live on workers.dev, but fabrictrad.com is not attached or delegated correctly. Configure CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID in GitHub Actions, then rerun this workflow so it can attach both custom domains.'
+          exit 1
