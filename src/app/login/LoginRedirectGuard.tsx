@@ -3,9 +3,15 @@
 import { useEffect, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { createClient } from '@/lib/supabase/client';
 
 type AccountRole = 'buyer' | 'seller' | 'admin_staff' | 'super_admin';
+
+type DestinationResponse = {
+  authenticated?: boolean;
+  ready?: boolean;
+  destination?: string;
+  error?: string;
+};
 
 const PRODUCTION_ORIGIN = 'https://fabrictrad.com';
 
@@ -39,10 +45,9 @@ const roleFromUser = (user: {
 };
 
 /**
- * A fail-safe for mobile custom tabs, slow provisioning requests and auth
- * callbacks whose UI state is delayed. Once a session exists, use a full
- * document navigation so server middleware reads the newly persisted cookies
- * and opens the correct workspace without requiring a manual refresh.
+ * A fail-safe for mobile custom tabs, slow provisioning requests and delayed
+ * client auth state. The server endpoint reads the newly persisted Supabase
+ * cookie, validates the account and returns the database-backed workspace.
  */
 export default function LoginRedirectGuard() {
   const searchParams = useSearchParams();
@@ -71,48 +76,36 @@ export default function LoginRedirectGuard() {
     let cancelled = false;
     let attempts = 0;
     let timer: number | undefined;
-    const supabase = createClient();
+    const query = requestedNext ? `?next=${encodeURIComponent(requestedNext)}` : '';
 
     const checkPersistedSession = async () => {
       if (cancelled || window.location.pathname !== '/login') return;
       attempts += 1;
 
       try {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
+        const response = await fetch(`/api/auth/session-destination${query}`, {
+          method: 'GET',
+          credentials: 'same-origin',
+          cache: 'no-store',
+          headers: { Accept: 'application/json' },
+        });
+        const payload = (await response.json().catch(() => ({}))) as DestinationResponse;
 
-        if (session?.user) {
-          let role = roleFromUser(session.user);
-          const { data: persistedProfile } = await supabase
-            .from('user_profiles')
-            .select('role,is_active')
-            .eq('id', session.user.id)
-            .maybeSingle();
+        if (response.ok && payload.ready && payload.destination?.startsWith('/')) {
+          window.location.replace(payload.destination);
+          return;
+        }
 
-          if (persistedProfile?.is_active === false) {
-            await supabase.auth.signOut().catch(() => undefined);
-            window.location.replace('/login?error=account_inactive');
-            return;
-          }
-          if (
-            persistedProfile?.role === 'seller' ||
-            persistedProfile?.role === 'admin_staff' ||
-            persistedProfile?.role === 'super_admin' ||
-            persistedProfile?.role === 'buyer'
-          ) {
-            role = persistedProfile.role;
-          }
-
-          window.location.replace(destinationFor(role, requestedNext));
+        if (response.status === 403) {
+          window.location.replace('/login?error=account_inactive');
           return;
         }
       } catch {
         // The normal AuthContext path remains active. Retry briefly because
-        // session cookies may be written a moment after the password response.
+        // the browser may still be writing the freshly issued auth cookie.
       }
 
-      if (!cancelled && attempts < 40) {
+      if (!cancelled && attempts < 60) {
         timer = window.setTimeout(checkPersistedSession, 250);
       }
     };
