@@ -30,6 +30,7 @@ loadLocalEnvironment();
 
 const keyId = process.env.RAZORPAY_KEY_ID?.trim() || '';
 const keySecret = process.env.RAZORPAY_KEY_SECRET?.trim() || '';
+const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET?.trim() || '';
 const runApiCheck = process.argv.includes('--api');
 
 const failures = [];
@@ -49,11 +50,22 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log(`Razorpay environment is present (${keyId.startsWith('rzp_test_') ? 'Test Mode' : 'Live Mode'} Key ID).`);
+console.log(
+  `Razorpay environment is present (${keyId.startsWith('rzp_test_') ? 'Test Mode' : 'Live Mode'} Key ID).`
+);
 console.log('The Key Secret is server-only and was not printed.');
+if (webhookSecret.length >= 16) {
+  console.log('A separate Razorpay webhook secret is configured.');
+} else {
+  console.warn(
+    'RAZORPAY_WEBHOOK_SECRET is not configured yet. Checkout can open, but signed webhook reconciliation will remain unavailable.'
+  );
+}
 
 if (!runApiCheck) {
-  console.log('Run `npm run verify:razorpay -- --api` to create a harmless 100-paise Razorpay order and verify API authentication.');
+  console.log(
+    'Run `npm run verify:razorpay -- --api` to create a harmless 100-paise Razorpay order and verify API authentication.'
+  );
   process.exit(0);
 }
 
