@@ -106,7 +106,9 @@ export async function POST(request: NextRequest) {
 
   await removeUserPrefixedStorage(admin, user.id);
 
-  const { error: anonymizeError } = await supabase.rpc('anonymize_current_account_for_deletion');
+  const { error: anonymizeError } = await admin.rpc('anonymize_account_for_deletion', {
+    p_user_id: user.id,
+  });
   if (anonymizeError) {
     await admin
       .from('account_deletion_requests')
@@ -132,10 +134,6 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // The Auth user owns account_deletion_requests through an ON DELETE CASCADE
-  // relationship, so a successful Auth deletion may remove this audit row.
-  // Attempt the completion update only when the row still exists; failure here
-  // must never reverse an otherwise completed, irreversible account deletion.
   try {
     await admin
       .from('account_deletion_requests')
