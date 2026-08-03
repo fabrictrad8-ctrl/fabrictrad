@@ -1,0 +1,91 @@
+name: Diagnose FabricTrad live account endpoints
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/live-account-diagnostic.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Test pages and account APIs with full diagnostics
+        shell: bash
+        run: |
+          set -u
+          failed=0
+          base='https://fabrictrad.com'
+
+          for path in / /login /buyer-registration /seller-registration /account; do
+            file="/tmp/page-$(echo "$path" | tr '/' '_').html"
+            status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 --location --output "$file" --write-out '%{http_code}' "${base}${path}" || true)
+            bytes=$(wc -c < "$file" 2>/dev/null || echo 0)
+            echo "PAGE ${path}: HTTP ${status}, bytes=${bytes}"
+            if [ "$path" != '/account' ] && [ "$status" != '200' ]; then failed=1; fi
+          done
+
+          invalid_login=$(curl --silent --show-error --connect-timeout 10 --max-time 30 --output /tmp/invalid-login.json --write-out '%{http_code}' \
+            --header 'Content-Type: application/json' \
+            --data '{"email":"nonexistent-live-smoke@fabrictrad.invalid","password":"DefinitelyWrong123!"}' \
+            "${base}/api/auth/password-login" || true)
+          echo "INVALID LOGIN: HTTP ${invalid_login}"
+          cat /tmp/invalid-login.json || true
+          echo
+          if [ "$invalid_login" != '401' ]; then failed=1; fi
+
+          destination=$(curl --silent --show-error --connect-timeout 10 --max-time 30 --output /tmp/destination.json --write-out '%{http_code}' \
+            "${base}/api/auth/session-destination" || true)
+          echo "SESSION DESTINATION UNAUTH: HTTP ${destination}"
+          cat /tmp/destination.json || true
+          echo
+          if [ "$destination" != '401' ]; then failed=1; fi
+
+          draft_get=$(curl --silent --show-error --connect-timeout 10 --max-time 30 --output /tmp/draft-get.json --write-out '%{http_code}' \
+            "${base}/api/account/onboarding-draft?flow=buyer" || true)
+          echo "DRAFT GET UNAUTH: HTTP ${draft_get}"
+          cat /tmp/draft-get.json || true
+          echo
+          if [ "$draft_get" != '401' ]; then failed=1; fi
+
+          draft_put=$(curl --silent --show-error --connect-timeout 10 --max-time 30 --output /tmp/draft-put.json --write-out '%{http_code}' \
+            --request PUT --header 'Content-Type: application/json' \
+            --data '{"flow":"buyer","step":"address","payload":{"safe":"value"}}' \
+            "${base}/api/account/onboarding-draft" || true)
+          echo "DRAFT PUT UNAUTH: HTTP ${draft_put}"
+          cat /tmp/draft-put.json || true
+          echo
+          if [ "$draft_put" != '401' ]; then failed=1; fi
+
+          deletion_request=$(curl --silent --show-error --connect-timeout 10 --max-time 30 --output /tmp/deletion-request.json --write-out '%{http_code}' \
+            --header 'Content-Type: application/json' --data '{}' \
+            "${base}/api/account/delete/request" || true)
+          echo "DELETE REQUEST UNAUTH: HTTP ${deletion_request}"
+          cat /tmp/deletion-request.json || true
+          echo
+          if [ "$deletion_request" != '401' ]; then failed=1; fi
+
+          deletion_confirm=$(curl --silent --show-error --connect-timeout 10 --max-time 30 --output /tmp/deletion-confirm.json --write-out '%{http_code}' \
+            --header 'Content-Type: application/json' --data '{}' \
+            "${base}/api/account/delete/confirm" || true)
+          echo "DELETE CONFIRM UNAUTH: HTTP ${deletion_confirm}"
+          cat /tmp/deletion-confirm.json || true
+          echo
+          if [ "$deletion_confirm" != '401' ]; then failed=1; fi
+
+          if ! grep -q 'FabricTrad' /tmp/page-_login.html; then
+            echo 'Login HTML does not contain the FabricTrad brand marker.'
+            failed=1
+          fi
+
+          if [ "$failed" -ne 0 ]; then
+            echo '::error::One or more live account endpoint assertions failed.'
+            exit 1
+          fi
+          echo 'All live account endpoint assertions passed.'
