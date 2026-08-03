@@ -18,6 +18,8 @@ const forbidText = (relative, needle) => {
   if (read(relative).includes(needle)) failures.push(`${relative} must not contain: ${needle}`);
 };
 
+const deletionSecurityMigration =
+  'supabase/migrations/20260803171245_account_deletion_service_role_only.sql';
 const requiredFiles = [
   'src/app/api/auth/password-login/route.ts',
   'src/app/api/auth/session-destination/route.ts',
@@ -33,7 +35,7 @@ const requiredFiles = [
   'src/components/account/DeleteAccountPanel.tsx',
   'src/lib/accountDeletion.ts',
   'supabase/migrations/20260803164000_resumable_onboarding_and_account_deletion.sql',
-  'supabase/migrations/20260803173000_account_deletion_service_role_only.sql',
+  deletionSecurityMigration,
 ];
 requiredFiles.forEach(read);
 
@@ -83,8 +85,8 @@ requireText('src/lib/accountDeletion.ts', 'REFUNDS_PENDING');
 requireText('src/lib/accountDeletion.ts', 'SELLER_SETTLEMENT_PENDING');
 requireText('src/lib/accountDeletion.ts', "status === 'cancelled'");
 requireText('src/app/account/page.tsx', '<DeleteAccountPanel');
-requireText('supabase/migrations/20260803173000_account_deletion_service_role_only.sql', 'FROM PUBLIC, anon, authenticated, service_role');
-requireText('supabase/migrations/20260803173000_account_deletion_service_role_only.sql', 'TO service_role');
+requireText(deletionSecurityMigration, 'FROM PUBLIC, anon, authenticated, service_role');
+requireText(deletionSecurityMigration, 'TO service_role');
 
 if (failures.length) {
   console.error(`Account lifecycle verification failed (${failures.length}):`);
