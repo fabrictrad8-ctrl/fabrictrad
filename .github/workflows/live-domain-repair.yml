@@ -1,0 +1,184 @@
+name: Repair and verify FabricTrad live domains
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/live-domain-repair.yml'
+      - 'wrangler.jsonc'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fabrictrad-live-domain-repair
+  cancel-in-progress: false
+
+jobs:
+  repair-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      WORKER_NAME: fabrictrad
+      ZONE_NAME: fabrictrad.com
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Check repair credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${CLOUDFLARE_API_TOKEN:-}" ] || [ -z "${CLOUDFLARE_ACCOUNT_ID:-}" ]; then
+            echo '::error::CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID are required.'
+            exit 1
+          fi
+
+      - name: Confirm Worker exists
+        shell: bash
+        run: |
+          set -euo pipefail
+          status=$(curl --silent --show-error --output /tmp/worker.json --write-out '%{http_code}' \
+            --header "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts/${WORKER_NAME}")
+          if [ "$status" != '200' ]; then
+            cat /tmp/worker.json
+            echo "::error::The ${WORKER_NAME} Worker is not readable with the configured token (HTTP ${status})."
+            exit 1
+          fi
+          echo "Worker ${WORKER_NAME} exists."
+
+      - name: Attach apex and www as Worker Custom Domains
+        shell: bash
+        run: |
+          set -euo pipefail
+          for hostname in fabrictrad.com www.fabrictrad.com; do
+            payload=$(node -e "console.log(JSON.stringify({hostname: process.argv[1], service: process.argv[2], zone_name: process.argv[3]}))" "$hostname" "$WORKER_NAME" "$ZONE_NAME")
+            status=$(curl --silent --show-error --output "/tmp/domain-${hostname}.json" --write-out '%{http_code}' \
+              --request PUT \
+              --header "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+              --header 'Content-Type: application/json' \
+              --data "$payload" \
+              "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/domains")
+            node - "/tmp/domain-${hostname}.json" "$hostname" "$status" <<'NODE'
+          const fs = require('node:fs');
+          const [file, hostname, status] = process.argv.slice(2);
+          const body = JSON.parse(fs.readFileSync(file, 'utf8'));
+          if (status !== '200' || body.success !== true) {
+            console.error(JSON.stringify(body, null, 2));
+            console.error(`Unable to attach ${hostname} as a Worker Custom Domain (HTTP ${status}).`);
+            process.exit(1);
+          }
+          const result = body.result || {};
+          console.log(`${hostname} attached to ${result.service || 'unknown worker'} in zone ${result.zone_name || 'unknown'}.`);
+          NODE
+          done
+
+      - name: Verify Worker domain records
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error \
+            --header "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/domains?service=${WORKER_NAME}" \
+            > /tmp/domains.json
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const body = JSON.parse(fs.readFileSync('/tmp/domains.json', 'utf8'));
+          const domains = Array.isArray(body.result) ? body.result : [];
+          for (const hostname of ['fabrictrad.com', 'www.fabrictrad.com']) {
+            const match = domains.find((item) => item.hostname === hostname && item.service === 'fabrictrad');
+            if (!match) {
+              console.error(`Missing Worker Custom Domain: ${hostname}`);
+              process.exitCode = 1;
+            } else {
+              console.log(`${hostname}: domain_id=${match.id}, certificate=${match.cert_id ? 'issued-or-pending' : 'pending'}`);
+            }
+          }
+          NODE
+
+      - name: Verify public DNS delegation and answers
+        shell: bash
+        run: |
+          set -euo pipefail
+          for hostname in fabrictrad.com www.fabrictrad.com; do
+            resolved=false
+            for attempt in $(seq 1 30); do
+              curl --fail --silent --show-error \
+                --header 'accept: application/dns-json' \
+                "https://cloudflare-dns.com/dns-query?name=${hostname}&type=A" \
+                > "/tmp/dns-${hostname}.json"
+              if node - "/tmp/dns-${hostname}.json" <<'NODE'
+          const fs = require('node:fs');
+          const file = process.argv[2];
+          const body = JSON.parse(fs.readFileSync(file, 'utf8'));
+          const answers = Array.isArray(body.Answer) ? body.Answer : [];
+          process.exit(body.Status === 0 && answers.some((answer) => answer.type === 1) ? 0 : 1);
+          NODE
+              then
+                resolved=true
+                break
+              fi
+              echo "Waiting for ${hostname} DNS answer (attempt ${attempt}/30)."
+              sleep 10
+            done
+            if [ "$resolved" != 'true' ]; then
+              echo "::error::${hostname} still has no public A answer after Custom Domain attachment."
+              cat "/tmp/dns-${hostname}.json"
+              echo 'Registry delegation:'
+              curl --fail --silent --show-error \
+                --header 'accept: application/dns-json' \
+                "https://cloudflare-dns.com/dns-query?name=fabrictrad.com&type=NS" || true
+              exit 1
+            fi
+            echo "${hostname} resolves publicly."
+          done
+
+      - name: Test production account lifecycle routes
+        shell: bash
+        run: |
+          set -euo pipefail
+          ready=false
+          for attempt in $(seq 1 36); do
+            home=$(curl --silent --show-error --connect-timeout 10 --max-time 30 --output /tmp/home.html --write-out '%{http_code}' https://fabrictrad.com/ || true)
+            login=$(curl --silent --show-error --connect-timeout 10 --max-time 30 --output /tmp/login.html --write-out '%{http_code}' https://fabrictrad.com/login || true)
+            buyer=$(curl --silent --show-error --connect-timeout 10 --max-time 30 --output /tmp/buyer.html --write-out '%{http_code}' https://fabrictrad.com/buyer-registration || true)
+            seller=$(curl --silent --show-error --connect-timeout 10 --max-time 30 --output /tmp/seller.html --write-out '%{http_code}' https://fabrictrad.com/seller-registration || true)
+            if [ "$home" = '200' ] && [ "$login" = '200' ] && [ "$buyer" = '200' ] && [ "$seller" = '200' ]; then
+              ready=true
+              break
+            fi
+            echo "Waiting for production pages (attempt ${attempt}/36 home=${home} login=${login} buyer=${buyer} seller=${seller})."
+            sleep 10
+          done
+          if [ "$ready" != 'true' ]; then
+            echo '::error::FabricTrad production pages did not become healthy.'
+            exit 1
+          fi
+
+          invalid_login=$(curl --silent --show-error --output /tmp/invalid-login.json --write-out '%{http_code}' \
+            --header 'Content-Type: application/json' \
+            --data '{"email":"nonexistent-live-smoke@fabrictrad.invalid","password":"DefinitelyWrong123!"}' \
+            https://fabrictrad.com/api/auth/password-login)
+          test "$invalid_login" = '401'
+          grep -q 'email or password is incorrect' /tmp/invalid-login.json
+
+          draft_unauth=$(curl --silent --show-error --output /tmp/draft-unauth.json --write-out '%{http_code}' \
+            'https://fabrictrad.com/api/account/onboarding-draft?flow=buyer')
+          test "$draft_unauth" = '401'
+
+          deletion_unauth=$(curl --silent --show-error --output /tmp/deletion-unauth.json --write-out '%{http_code}' \
+            --header 'Content-Type: application/json' --data '{}' \
+            https://fabrictrad.com/api/account/delete/request)
+          test "$deletion_unauth" = '401'
+
+          grep -q 'FabricTrad' /tmp/login.html
+          grep -q 'buyer-registration' /tmp/buyer.html || true
+          echo 'Live DNS, account routes, server-side password login rejection, draft authorization and deletion authorization are healthy.'
