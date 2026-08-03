@@ -29,7 +29,10 @@ export async function POST(request: NextRequest) {
 
   const email = typeof body.email === 'string' ? normalizeEmail(body.email) : '';
   if (!email || email !== configuredAdminEmail()) {
-    return noStoreJson({ error: 'Use the configured FabricTrad administrator email.' }, 403);
+    return noStoreJson(
+      { error: 'This email is not authorised for FabricTrad administration.' },
+      403
+    );
   }
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
