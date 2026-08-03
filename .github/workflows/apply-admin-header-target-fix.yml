@@ -1,0 +1,56 @@
+name: Apply admin header target fix
+
+on:
+  push:
+    branches:
+      - agent/shopify-platform-overhaul
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/shopify-platform-overhaul
+          fetch-depth: 0
+
+      - name: Fix admin mobile header controls
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          changes = {
+              Path('src/app/admin-portal/components/AdminPortalLayout.tsx'): [
+                  (
+                      'className="ft-icon-button md:hidden" aria-label="Open admin navigation"',
+                      'className="ft-icon-button min-h-10 min-w-10 shrink-0 justify-center md:!hidden" aria-label="Open admin navigation"',
+                  ),
+              ],
+              Path('src/app/admin-portal/components/AdminCommandSearch.tsx'): [
+                  (
+                      'className="ft-icon-button md:hidden"\n        aria-label="Search FabricTrad admin"',
+                      'className="ft-icon-button min-h-10 min-w-10 shrink-0 justify-center md:!hidden"\n        aria-label="Search FabricTrad admin"',
+                  ),
+              ],
+          }
+
+          for path, replacements in changes.items():
+              text = path.read_text()
+              for old, new in replacements:
+                  count = text.count(old)
+                  if count != 1:
+                      raise SystemExit(f'Expected exactly one match in {path} for {old!r}; found {count}.')
+                  text = text.replace(old, new, 1)
+              path.write_text(text)
+          PY
+
+          git rm .github/workflows/apply-admin-header-target-fix.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/app/admin-portal/components/AdminPortalLayout.tsx src/app/admin-portal/components/AdminCommandSearch.tsx
+          git commit -m 'fix: make admin header controls responsive and accessible'
+          git push origin HEAD:agent/shopify-platform-overhaul
