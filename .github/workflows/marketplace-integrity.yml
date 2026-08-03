@@ -34,6 +34,8 @@ jobs:
         run: npm install --no-audit --no-fund --package-lock=false --legacy-peer-deps
       - name: Verify marketplace invariants
         run: node scripts/verify-marketplace-integrity.mjs
+      - name: Verify account lifecycle invariants
+        run: node scripts/verify-account-lifecycle.mjs
       - name: Type check
         run: npm run type-check
       - name: Runtime authorization smoke tests
@@ -64,10 +66,27 @@ jobs:
           for endpoint in \
             /api/admin/payments \
             /api/admin/disputes \
+            /api/auth/session-destination \
+            '/api/account/onboarding-draft?flow=buyer' \
             '/api/seller/invoices?catalogOrderId=00000000-0000-0000-0000-000000000000'; do
             code=$(curl --silent --output /tmp/marketplace-auth.json --write-out '%{http_code}' "http://127.0.0.1:3000${endpoint}")
             test "$code" = '401' || test "$code" = '403'
           done
+
+          password_login=$(curl --silent --output /tmp/password-login.json --write-out '%{http_code}' \
+            --header 'Content-Type: application/json' --data '{}' \
+            http://127.0.0.1:3000/api/auth/password-login)
+          test "$password_login" = '400'
+
+          deletion_request=$(curl --silent --output /tmp/deletion-request.json --write-out '%{http_code}' \
+            --header 'Content-Type: application/json' --data '{}' \
+            http://127.0.0.1:3000/api/account/delete/request)
+          test "$deletion_request" = '401'
+
+          deletion_confirm=$(curl --silent --output /tmp/deletion-confirm.json --write-out '%{http_code}' \
+            --header 'Content-Type: application/json' --data '{}' \
+            http://127.0.0.1:3000/api/account/delete/confirm)
+          test "$deletion_confirm" = '401'
 
           payment_order=$(curl --silent --output /tmp/payment-order.json --write-out '%{http_code}' \
             --header 'Content-Type: application/json' \
