@@ -35,6 +35,11 @@ type PaymentOrderResponse = {
   remainingAfterPayment?: number;
 };
 
+type CheckoutFeedback = {
+  tone: 'error' | 'info' | 'success';
+  message: string;
+} | null;
+
 export function RazorpayCheckout({
   amount,
   orderId,
@@ -48,15 +53,23 @@ export function RazorpayCheckout({
   const { isDemoAccount, user, profile } = useAuth();
   const [loading, setLoading] = useState(false);
   const [scriptLoaded, setScriptLoaded] = useState(false);
+  const [feedback, setFeedback] = useState<CheckoutFeedback>(null);
+
+  const reportError = (error: Error) => {
+    setFeedback({ tone: 'error', message: error.message });
+    onError?.(error);
+  };
 
   const handlePayment = async () => {
     if (!scriptLoaded || loading || disabled) return;
+    setFeedback(null);
+
     if (isDemoAccount) {
-      onError?.(new Error('Demo accounts cannot place real paid orders.'));
+      reportError(new Error('Demo accounts cannot place real paid orders.'));
       return;
     }
     if (!orderId) {
-      onError?.(new Error('A seller-confirmed FabricTrad order is required before payment.'));
+      reportError(new Error('A seller-confirmed FabricTrad order is required before payment.'));
       return;
     }
 
@@ -102,6 +115,7 @@ export function RazorpayCheckout({
         },
         handler: async (response: Record<string, string>) => {
           try {
+            setFeedback({ tone: 'info', message: 'Payment received. Verifying it securely…' });
             const verifyRes = await fetch('/api/razorpay/verify', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -118,13 +132,22 @@ export function RazorpayCheckout({
             if (!verifyRes.ok || !verifyData.verified || !verifyData.paymentId || !verifyData.orderId) {
               throw new Error(verifyData.error || 'Payment verification failed.');
             }
+            setFeedback({
+              tone: 'success',
+              message:
+                verifyData.status === 'captured'
+                  ? 'Payment captured and recorded successfully.'
+                  : 'Payment authorised. Capture confirmation is being reconciled.',
+            });
             onSuccess?.({
               paymentId: verifyData.paymentId,
               orderId: verifyData.orderId,
               status: verifyData.status,
             });
           } catch (error) {
-            onError?.(error instanceof Error ? error : new Error('Payment verification failed.'));
+            reportError(
+              error instanceof Error ? error : new Error('Payment verification failed.')
+            );
           } finally {
             setLoading(false);
           }
@@ -136,33 +159,56 @@ export function RazorpayCheckout({
         },
         theme: { color: '#C8600A' },
         modal: {
-          ondismiss: () => setLoading(false),
+          ondismiss: () => {
+            setLoading(false);
+            setFeedback({
+              tone: 'info',
+              message: 'Checkout was closed. No order was marked paid; you can try again.',
+            });
+          },
           confirm_close: true,
         },
       };
 
       const Razorpay = (window as unknown as { Razorpay?: RazorpayConstructor }).Razorpay;
-      if (!Razorpay) throw new Error('Payment checkout failed to load.');
+      if (!Razorpay) throw new Error('Payment checkout failed to load. Please refresh and retry.');
       const checkout = new Razorpay(options);
       checkout.on('payment.failed', (response: Record<string, unknown>) => {
         const details = response.error as Record<string, string> | undefined;
-        onError?.(new Error(details?.description || 'Payment failed. No order was marked paid.'));
+        reportError(
+          new Error(details?.description || 'Payment failed. No order was marked paid.')
+        );
         setLoading(false);
       });
       checkout.open();
     } catch (error) {
-      onError?.(error instanceof Error ? error : new Error('Unable to start payment.'));
+      reportError(error instanceof Error ? error : new Error('Unable to start payment.'));
       setLoading(false);
     }
   };
+
+  const feedbackClass =
+    feedback?.tone === 'error'
+      ? 'border-error/20 bg-error/5 text-error'
+      : feedback?.tone === 'success'
+        ? 'border-success/20 bg-success/5 text-success'
+        : 'border-primary/20 bg-primary/5 text-primary';
 
   return (
     <>
       <Script
         src="https://checkout.razorpay.com/v1/checkout.js"
         strategy="afterInteractive"
-        onLoad={() => setScriptLoaded(true)}
-        onError={() => setScriptLoaded(false)}
+        onLoad={() => {
+          setScriptLoaded(true);
+          setFeedback((current) =>
+            current?.tone === 'error' && current.message.includes('checkout') ? null : current
+          );
+        }}
+        onError={() => {
+          setScriptLoaded(false);
+          reportError(new Error('Secure checkout could not load. Check your connection and retry.'));
+        }}
       />
       <button
         type="button"
@@ -191,6 +237,11 @@ export function RazorpayCheckout({
           ? 'Demo checkout only · real payment disabled'
           : 'Server-priced Razorpay checkout · UPI/cards/netbanking as enabled · no COD'}
       </p>
+      {feedback && (
+        <p role={feedback.tone === 'error' ? 'alert' : 'status'} className={`mt-2 rounded-xl border px-3 py-2 text-xs ${feedbackClass}`}>
+          {feedback.message}
+        </p>
+      )}
     </>
   );
 }
