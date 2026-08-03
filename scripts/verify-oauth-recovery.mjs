@@ -69,7 +69,7 @@ assert(passwordResetRequest.includes("method: 'password_recovery'"), 'Recovery e
 assert(passwordResetPage.includes('updatePassword(password)'), 'Recovery screen must save the new password through Supabase Auth.');
 assert(accountLogin.includes('Send password reset email'), 'Account login must request a recovery email.');
 assert(accountLogin.includes('One account for textile commerce'), 'Sign-in must present one unified buyer and seller account.');
-assert(accountLogin.includes("role === 'admin_staff' || role === 'super_admin' ? '/admin-portal' : '/account'"), 'Non-admin accounts must open the unified account home.');
+assert(accountLogin.includes("role === 'admin_staff' || role === 'super_admin' ? '/admin-portal' : role === 'seller' ? '/account' : '/marketplace'"), 'Buyer accounts must open the marketplace while administrators retain the admin portal.');
 assert(!accountLogin.includes("type LoginRole = 'buyer' | 'seller'"), 'Login must not require the user to choose a duplicate buyer/seller identity.');
 assert(middleware.includes("'/auth/reset-password'"), 'The public recovery page must load before browser auth tokens are persisted.');
 
