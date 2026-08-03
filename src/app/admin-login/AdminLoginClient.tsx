@@ -13,7 +13,10 @@ type OtpResponse = {
   retryAfter?: number;
 };
 
-const CONFIGURED_ADMIN_EMAIL = 'fabrictrad8@gmail.com';
+type AdminLoginClientProps = {
+  configuredEmail: string;
+};
+
 const MIN_EMAIL_OTP_LENGTH = 6;
 const MAX_EMAIL_OTP_LENGTH = 10;
 const EMAIL_OTP_PATTERN = /^\d{6,10}$/;
@@ -21,7 +24,7 @@ const normalizeEmail = (value: string) => value.trim().toLowerCase();
 const isAdminRole = (role: unknown): role is AdminRole =>
   role === 'admin_staff' || role === 'super_admin';
 
-export default function AdminLoginClient() {
+export default function AdminLoginClient({ configuredEmail }: AdminLoginClientProps) {
   const { user, profile, loading, verifyEmailOtp, signOut } = useAuth();
   const [email, setEmail] = useState('');
   const [otp, setOtp] = useState('');
@@ -31,8 +34,9 @@ export default function AdminLoginClient() {
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
 
+  const authorisedEmail = useMemo(() => normalizeEmail(configuredEmail), [configuredEmail]);
   const normalizedEmail = useMemo(() => normalizeEmail(email), [email]);
-  const emailAllowed = normalizedEmail === CONFIGURED_ADMIN_EMAIL;
+  const emailAllowed = normalizedEmail === authorisedEmail;
   const otpReady = EMAIL_OTP_PATTERN.test(otp);
 
   useEffect(() => {
@@ -40,7 +44,7 @@ export default function AdminLoginClient() {
 
     const signedInEmail = normalizeEmail(user.email || '');
     const authorised =
-      signedInEmail === CONFIGURED_ADMIN_EMAIL &&
+      signedInEmail === authorisedEmail &&
       profile.is_active === true &&
       isAdminRole(profile.role);
 
@@ -49,10 +53,10 @@ export default function AdminLoginClient() {
       return;
     }
 
-    if (isAdminRole(profile.role) && signedInEmail !== CONFIGURED_ADMIN_EMAIL) {
-      void signOut();
+    if (isAdminRole(profile.role) && signedInEmail !== authorisedEmail) {
+      void signOut().catch(() => undefined);
     }
-  }, [loading, profile, signOut, user]);
+  }, [authorisedEmail, loading, profile, signOut, user]);
 
   useEffect(() => {
     if (resendSeconds <= 0) return;
@@ -134,7 +138,7 @@ export default function AdminLoginClient() {
     try {
       const result = await verifyEmailOtp(normalizedEmail, otp);
       const signedInEmail = normalizeEmail(String(result?.user?.email || ''));
-      if (signedInEmail !== CONFIGURED_ADMIN_EMAIL) {
+      if (signedInEmail !== authorisedEmail) {
         await signOut().catch(() => undefined);
         throw new Error('This OTP does not belong to the configured FabricTrad administrator.');
       }
