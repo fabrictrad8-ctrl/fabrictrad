@@ -1,0 +1,282 @@
+name: Apply resumable account lifecycle UI
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: ${{ !contains(github.event.head_commit.message, '[account-lifecycle-ui]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Patch login, onboarding and account settings
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+
+          def read(path):
+              return Path(path).read_text()
+
+          def write(path, text):
+              Path(path).write_text(text)
+
+          def replace_once(text, old, new, label):
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected one match, found {count}')
+              return text.replace(old, new, 1)
+
+          # 1. Password login is handled by a server route so the new cookie and
+          # workspace navigation do not depend on a hanging browser auth promise.
+          path = 'src/app/login/EmailOtpLoginClient.tsx'
+          text = read(path)
+          pattern = re.compile(
+              r"  const handleLogin = async \(event: FormEvent<HTMLFormElement>\) => \{.*?\n  \};\n\n  const handleGoogle",
+              re.S,
+          )
+          replacement = '''  const handleLogin = async (event: FormEvent<HTMLFormElement>) => {
+            event.preventDefault();
+            const normalizedEmail = email.trim().toLowerCase();
+            if (!normalizedEmail || !password) {
+              setError('Enter your registered email and password.');
+              return;
+            }
+
+            clearMessages();
+            setSubmitting(true);
+            try {
+              const isDemoEmail =
+                normalizedEmail === 'demo.buyer@fabrictrad.com' ||
+                normalizedEmail === 'demo.seller@fabrictrad.com';
+              if (isDemoEmail) {
+                const result = await signIn(normalizedEmail, password);
+                const role =
+                  (result?.role as AccountRole | undefined) ||
+                  (result?.user?.app_metadata?.role as AccountRole | undefined) ||
+                  (result?.user?.user_metadata?.role as AccountRole | undefined) ||
+                  'buyer';
+                window.location.replace(destinationForRole(role, requestedNext));
+                return;
+              }
+
+              const response = await fetch('/api/auth/password-login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
+                cache: 'no-store',
+                body: JSON.stringify({
+                  email: normalizedEmail,
+                  password,
+                  next: requestedNext,
+                }),
+              });
+              const payload = (await response.json().catch(() => ({}))) as {
+                destination?: string;
+                error?: string;
+              };
+              if (!response.ok) throw new Error(payload.error || 'The email or password is incorrect.');
+              window.location.replace(
+                payload.destination?.startsWith('/') ? payload.destination : '/marketplace'
+              );
+            } catch (caughtError) {
+              const message = caughtError instanceof Error ? caughtError.message : 'Invalid email or password.';
+              setError(/invalid login credentials/i.test(message) ? 'The email or password is incorrect.' : message);
+              setSubmitting(false);
+            }
+          };
+
+          const handleGoogle'''
+          text, count = pattern.subn(replacement, text, count=1)
+          if count != 1:
+              raise SystemExit(f'{path}: login handler pattern not found')
+          text = replace_once(
+              text,
+              "    if (searchParams.get('password_updated') === '1') {\n      setInfo('Password updated successfully. Sign in with your new password.');\n    }",
+              "    if (searchParams.get('password_updated') === '1') {\n      setInfo('Password updated successfully. Sign in with your new password.');\n    }\n    if (searchParams.get('account_deleted') === '1') {\n      setInfo('Your FabricTrad account was permanently deleted.');\n    }\n    if (searchParams.get('account_disabled') === '1') {\n      setInfo('Your account access and personal profile data were removed. Final cleanup is being reviewed.');\n    }",
+              'login deletion result messaging',
+          )
+          write(path, text)
+
+          # 2. Buyer type and draft survive reloads and later browser sessions.
+          path = 'src/app/buyer-registration/components/BuyerRegistrationEntry.tsx'
+          text = read(path)
+          text = replace_once(text, "import { useState } from 'react';", "import { useEffect, useState } from 'react';", 'buyer entry import')
+          text = replace_once(
+              text,
+              "export default function BuyerRegistrationEntry() {\n  const [buyerType, setBuyerType] = useState<BuyerType | null>(null);",
+              "export default function BuyerRegistrationEntry() {\n  const [buyerType, setBuyerType] = useState<BuyerType | null>(null);\n\n  useEffect(() => {\n    const stored = window.localStorage.getItem('fabrictrad_buyer_type') || window.sessionStorage.getItem('fabrictrad_buyer_type');\n    if (stored === 'retail_store' || stored === 'end_user') setBuyerType(stored);\n  }, []);",
+              'buyer type restore',
+          )
+          text = replace_once(
+              text,
+              "    window.sessionStorage.setItem('fabrictrad_buyer_type', value);\n    setBuyerType(value);",
+              "    window.sessionStorage.setItem('fabrictrad_buyer_type', value);\n    window.localStorage.setItem('fabrictrad_buyer_type', value);\n    setBuyerType(value);",
+              'buyer type persist',
+          )
+          write(path, text)
+
+          # 3. Buyer onboarding auto-saves, restores and resumes existing accounts.
+          path = 'src/app/buyer-registration/components/BuyerRegistrationFlowV2.tsx'
+          text = read(path)
+          text = replace_once(
+              text,
+              "import { useMemo, useState, type FormEvent } from 'react';",
+              "import { useMemo, useState, type FormEvent } from 'react';",
+              'buyer react import',
+          )
+          text = replace_once(
+              text,
+              "import { normalizeEmail, normalizeIndianPhone, validateIndianPhone } from '@/lib/authValidation';",
+              "import { normalizeEmail, normalizeIndianPhone, validateIndianPhone } from '@/lib/authValidation';\nimport { saveOnboardingDraftLocally, useOnboardingDraft } from '@/lib/hooks/useOnboardingDraft';",
+              'buyer draft import',
+          )
+          text = replace_once(
+              text,
+              "  const { signUp, signInWithGoogle, googleAuthEnabled, checkEmailUnique, checkPhoneUnique } = useAuth();",
+              "  const { user, signUp, signInWithGoogle, googleAuthEnabled, checkEmailUnique, checkPhoneUnique } = useAuth();",
+              'buyer auth destructure',
+          )
+          marker = "  const [gstCheck, setGstCheck] = useState<GstCheck>({ status: 'idle', message: '' });\n\n  const currentIndex = steps.indexOf(step);"
+          insertion = """  const [gstCheck, setGstCheck] = useState<GstCheck>({ status: 'idle', message: '' });
+
+          const draftPayload = useMemo(
+            () => ({
+              buyerType,
+              account: { ...account, password: '', confirmPassword: '' },
+              business,
+              address,
+              gstCheck,
+            }),
+            [account, address, business, buyerType, gstCheck]
+          );
+          const { clearDraft } = useOnboardingDraft({
+            flow: 'buyer',
+            userId: user?.id,
+            step,
+            payload: draftPayload,
+            onRestore: (draft) => {
+              if (draft.payload.account) setAccount((current) => ({ ...current, ...draft.payload.account, password: '', confirmPassword: '' }));
+              if (draft.payload.business) setBusiness((current) => ({ ...current, ...draft.payload.business }));
+              if (draft.payload.address) setAddress((current) => ({ ...current, ...draft.payload.address }));
+              if (draft.payload.gstCheck) setGstCheck(draft.payload.gstCheck);
+              if (steps.includes(draft.step as Step) && draft.step !== 'done') setStep(draft.step as Step);
+              setResultMessage('Your saved registration draft was restored. Document files must be selected again for security.');
+            },
+          });
+
+          const currentIndex = steps.indexOf(step);"""
+          text = replace_once(text, marker, insertion, 'buyer draft wiring')
+          text = replace_once(
+              text,
+              "      if (!emailResult.unique || !phoneResult.unique) {\n        setError('This email or mobile number already has a FabricTrad account. Sign in and use the same account.');\n        return;\n      }",
+              "      if (!emailResult.unique) {\n        saveOnboardingDraftLocally('buyer', buyerType === 'retail_store' ? 'business' : 'address', {\n          ...draftPayload,\n          account: { ...draftPayload.account, email, phone },\n        });\n        const loginResponse = await fetch('/api/auth/password-login', {\n          method: 'POST',\n          headers: { 'Content-Type': 'application/json' },\n          credentials: 'same-origin',\n          cache: 'no-store',\n          body: JSON.stringify({ email, password: account.password, next: '/buyer-registration?resume=1' }),\n        });\n        const loginPayload = (await loginResponse.json().catch(() => ({}))) as { error?: string };\n        if (loginResponse.ok) {\n          window.location.replace('/buyer-registration?resume=1');\n          return;\n        }\n        setError(loginPayload.error || 'This account already exists. Use the correct password or reset it, then continue the saved registration.');\n        return;\n      }\n      if (!phoneResult.unique) {\n        setError('This mobile number belongs to another FabricTrad account. Sign in to that account instead of creating a duplicate.');\n        return;\n      }",
+              'buyer existing account resume',
+          )
+          text = replace_once(
+              text,
+              "      const signup = await signUp(account.email, account.password, {",
+              "      const signup = user ? { user, session: null, registrationNonce: '' } : await signUp(account.email, account.password, {",
+              'buyer existing user finalize',
+          )
+          text = replace_once(
+              text,
+              "      setResultMessage(payload.message || 'Your FabricTrad buyer account is ready.');\n      goTo('done');",
+              "      await clearDraft();\n      window.localStorage.removeItem('fabrictrad_buyer_type');\n      window.sessionStorage.removeItem('fabrictrad_buyer_type');\n      setResultMessage(payload.message || 'Your FabricTrad buyer account is ready.');\n      goTo('done');",
+              'buyer clear draft',
+          )
+          write(path, text)
+
+          # 4. Seller onboarding auto-saves, restores and resumes an interrupted account.
+          path = 'src/app/seller-registration/components/SellerRegistrationFlow.tsx'
+          text = read(path)
+          text = replace_once(
+              text,
+              "import React, { useEffect, useState, useRef } from 'react';",
+              "import React, { useEffect, useMemo, useState, useRef } from 'react';",
+              'seller react import',
+          )
+          text = replace_once(
+              text,
+              "import { useAppPreferences } from '@/contexts/AppPreferencesContext';",
+              "import { useAppPreferences } from '@/contexts/AppPreferencesContext';\nimport { saveOnboardingDraftLocally, useOnboardingDraft } from '@/lib/hooks/useOnboardingDraft';",
+              'seller draft import',
+          )
+          marker = "  const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});\n  const currentIndex = STEP_ORDER.indexOf(currentStep);"
+          insertion = """  const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+          const draftPayload = useMemo(
+            () => ({
+              form: { ...form, password: '', confirmPassword: '', bankAccountNumber: '' },
+              gstinValidation,
+              bankVerification: { ...bankVerification, linkedAccountId: undefined },
+            }),
+            [bankVerification, form, gstinValidation]
+          );
+          const { clearDraft } = useOnboardingDraft({
+            flow: 'seller',
+            userId: user?.id,
+            step: currentStep,
+            payload: draftPayload,
+            onRestore: (draft) => {
+              if (draft.payload.form) setForm((current) => ({ ...current, ...draft.payload.form, password: '', confirmPassword: '', bankAccountNumber: '' }));
+              if (draft.payload.gstinValidation) setGstinValidation(draft.payload.gstinValidation);
+              if (draft.payload.bankVerification) setBankVerification(draft.payload.bankVerification);
+              if (STEP_ORDER.includes(draft.step as Step) && draft.step !== 'done') setCurrentStep(draft.step as Step);
+              setSubmissionWarning('Your saved seller onboarding draft was restored. Re-enter bank details and re-select document files for security.');
+            },
+          });
+          const currentIndex = STEP_ORDER.indexOf(currentStep);"""
+          text = replace_once(text, marker, insertion, 'seller draft wiring')
+          text = replace_once(
+              text,
+              "      if (!emailCheck.unique) {\n        setError(\n          `This email already has a FabricTrad account. Sign in, then activate selling with GST on that same account.`\n        );\n        return;\n      }",
+              "      if (!emailCheck.unique) {\n        saveOnboardingDraftLocally('seller', 'business', {\n          ...draftPayload,\n          form: { ...draftPayload.form, email, phone },\n        });\n        const loginResponse = await fetch('/api/auth/password-login', {\n          method: 'POST',\n          headers: { 'Content-Type': 'application/json' },\n          credentials: 'same-origin',\n          cache: 'no-store',\n          body: JSON.stringify({ email, password: form.password, next: '/seller-registration?resume=1' }),\n        });\n        const loginPayload = (await loginResponse.json().catch(() => ({}))) as { error?: string };\n        if (loginResponse.ok) {\n          window.location.replace('/seller-registration?resume=1');\n          return;\n        }\n        setError(loginPayload.error || 'This account already exists. Use the correct password or reset it, then continue the saved seller setup.');\n        return;\n      }",
+              'seller existing account resume',
+          )
+          done_count = text.count("        setCurrentStep('done');")
+          if done_count < 1:
+              raise SystemExit('seller completion markers not found')
+          text = text.replace("        setCurrentStep('done');", "        await clearDraft();\n        setCurrentStep('done');")
+          write(path, text)
+
+          # 5. Add the OTP-protected danger zone to the shared buyer/seller account page.
+          path = 'src/app/account/page.tsx'
+          text = read(path)
+          text = replace_once(
+              text,
+              "import PreferenceControls from '@/components/PreferenceControls';",
+              "import PreferenceControls from '@/components/PreferenceControls';\nimport DeleteAccountPanel from '@/components/account/DeleteAccountPanel';",
+              'account deletion import',
+          )
+          tail = "\n        </section>\n      </div>\n    </main>"
+          idx = text.rfind(tail)
+          if idx < 0:
+              raise SystemExit('account page final section marker not found')
+          replacement_tail = "\n        </section>\n\n        <DeleteAccountPanel\n          accountAccess={canBuy && canSell ? 'Buyer and seller' : canSell ? 'Seller' : 'Buyer'}\n          email={user.email || ''}\n        />\n      </div>\n    </main>"
+          text = text[:idx] + replacement_tail + text[idx + len(tail):]
+          write(path, text)
+
+          Path('.github/workflows/apply-account-lifecycle-ui.yml').unlink()
+
+      - name: Commit account lifecycle UI
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/app/login/EmailOtpLoginClient.tsx \
+                  src/app/buyer-registration/components/BuyerRegistrationEntry.tsx \
+                  src/app/buyer-registration/components/BuyerRegistrationFlowV2.tsx \
+                  src/app/seller-registration/components/SellerRegistrationFlow.tsx \
+                  src/app/account/page.tsx
+          git add -u .github/workflows/apply-account-lifecycle-ui.yml
+          git commit -m 'feat: resume interrupted registration and protect account deletion [account-lifecycle-ui]'
+          git push origin HEAD:main
