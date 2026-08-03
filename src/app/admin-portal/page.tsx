@@ -2,6 +2,7 @@ import React, { Suspense } from 'react';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
+import { isConfiguredAdminEmail } from '@/lib/adminAccess';
 import AdminPortalLayout from '@/app/admin-portal/components/AdminPortalLayout';
 
 const DEMO_COOKIE_NAME = 'fabrictrad_demo_role';
@@ -35,12 +36,13 @@ export default async function AdminPortalPage() {
       .maybeSingle();
 
     const authorisedAdministrator =
+      isConfiguredAdminEmail(user.email) &&
       profile?.is_active === true &&
       (profile.role === 'super_admin' || profile.role === 'admin_staff');
 
     if (!authorisedAdministrator) {
       await supabase.auth.signOut();
-      redirect('/admin-login');
+      redirect('/admin-login?error=not_authorised');
     }
   }
 

@@ -1,15 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
-import crypto from 'crypto';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import {
+  assertRazorpayPaymentMatches,
+  fetchRazorpayPayment,
+  paiseToRupees,
+  verifyCheckoutSignature,
+} from '@/lib/razorpayIntegrity';
 
 type PaymentKind = 'bulk' | 'catalog';
-
-type PaymentRecord = {
-  id: string;
-  fabrictradOrderId: string;
-  status: string;
-  kind: PaymentKind;
+type VerifyBody = {
+  razorpay_order_id?: unknown;
+  razorpay_payment_id?: unknown;
+  razorpay_signature?: unknown;
 };
 
 const json = (body: Record<string, unknown>, status = 200) =>
@@ -18,124 +21,223 @@ const json = (body: Record<string, unknown>, status = 200) =>
     headers: { 'Cache-Control': 'no-store, max-age=0' },
   });
 
+const roundMoney = (value: number) => Math.round(value * 100) / 100;
+
+async function reconcileOrderPayment(input: {
+  admin: ReturnType<typeof createAdminClient>;
+  kind: PaymentKind;
+  orderId: string;
+}) {
+  const paymentTable = input.kind === 'catalog' ? 'catalog_order_payments' : 'bulk_order_payments';
+  const orderTable = input.kind === 'catalog' ? 'catalog_order_requests' : 'bulk_orders';
+  const foreignKey = input.kind === 'catalog' ? 'catalog_order_id' : 'bulk_order_id';
+
+  const paymentsResult = await input.admin
+    .from(paymentTable)
+    .select('amount,refunded_amount,status')
+    .eq(foreignKey, input.orderId);
+  const orderResult =
+    input.kind === 'catalog'
+      ? await input.admin
+          .from('catalog_order_requests')
+          .select('id,status,total_amount')
+          .eq('id', input.orderId)
+          .maybeSingle()
+      : await input.admin
+          .from('bulk_orders')
+          .select('id,status,net_total')
+          .eq('id', input.orderId)
+          .maybeSingle();
+
+  if (paymentsResult.error || orderResult.error || !orderResult.data) {
+    throw (
+      paymentsResult.error ||
+      orderResult.error ||
+      new Error('The FabricTrad order is unavailable for reconciliation.')
+    );
+  }
+
+  const payments = paymentsResult.data || [];
+  const order = orderResult.data as Record<string, unknown>;
+  const captured = payments
+    .filter((payment) =>
+      ['captured', 'partially_refunded', 'refunded'].includes(String(payment.status))
+    )
+    .reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
+  const refunded = payments.reduce(
+    (sum, payment) => sum + Number(payment.refunded_amount || 0),
+    0
+  );
+  const netPaid = Math.max(0, roundMoney(captured - refunded));
+  const total = roundMoney(
+    Number(input.kind === 'catalog' ? order.total_amount : order.net_total || 0)
+  );
+  const paymentStatus =
+    refunded >= captured && captured > 0
+      ? 'refunded'
+      : refunded > 0
+        ? 'partially_refunded'
+        : netPaid + 0.01 >= total
+          ? 'paid'
+          : netPaid > 0
+            ? 'partial'
+            : 'unpaid';
+
+  const patch: Record<string, unknown> = {
+    amount_paid: roundMoney(captured),
+    amount_refunded: roundMoney(refunded),
+    payment_status: paymentStatus,
+    updated_at: new Date().toISOString(),
+  };
+  if (paymentStatus === 'paid') patch.status = 'paid';
+  const { error: orderUpdateError } = await input.admin
+    .from(orderTable)
+    .update(patch)
+    .eq('id', input.orderId);
+  if (orderUpdateError) throw orderUpdateError;
+
+  return {
+    paymentStatus,
+    amountPaid: roundMoney(captured),
+    amountRefunded: roundMoney(refunded),
+  };
+}
+
 export async function POST(request: NextRequest) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return json({ error: 'Authentication required.' }, 401);
+
+  let body: VerifyBody;
   try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) {
-      return json({ success: false, error: 'Authentication required.' }, 401);
-    }
+    body = (await request.json()) as VerifyBody;
+  } catch {
+    return json({ error: 'Invalid verification request.' }, 400);
+  }
 
-    let body: Record<string, unknown>;
-    try {
-      body = (await request.json()) as Record<string, unknown>;
-    } catch {
-      return json({ success: false, error: 'A valid JSON request is required.' }, 400);
-    }
+  const suppliedOrderId =
+    typeof body.razorpay_order_id === 'string' ? body.razorpay_order_id.trim() : '';
+  const paymentId =
+    typeof body.razorpay_payment_id === 'string' ? body.razorpay_payment_id.trim() : '';
+  const signature =
+    typeof body.razorpay_signature === 'string' ? body.razorpay_signature.trim() : '';
+  if (!suppliedOrderId || !paymentId || !signature) {
+    return json({ error: 'Payment verification details are incomplete.' }, 400);
+  }
 
-    const orderId = typeof body.razorpay_order_id === 'string' ? body.razorpay_order_id : '';
-    const paymentId = typeof body.razorpay_payment_id === 'string' ? body.razorpay_payment_id : '';
-    const signature = typeof body.razorpay_signature === 'string' ? body.razorpay_signature : '';
+  const keyId = process.env.RAZORPAY_KEY_ID?.trim();
+  const keySecret = process.env.RAZORPAY_KEY_SECRET?.trim();
+  if (!keyId || !keySecret) {
+    return json(
+      { error: 'Payment verification is temporarily unavailable.', code: 'PAYMENT_SERVICE_UNAVAILABLE' },
+      503
+    );
+  }
 
-    if (!orderId || !paymentId || !signature) {
-      return json({ success: false, error: 'Missing payment details.' }, 400);
-    }
+  const admin = createAdminClient();
+  let kind: PaymentKind | null = null;
+  let record: Record<string, unknown> | null = null;
 
-    const secret = process.env.RAZORPAY_KEY_SECRET;
-    if (!secret) {
-      return json(
-        {
-          success: false,
-          error: 'Online payment verification is temporarily unavailable.',
-          code: 'PAYMENT_SERVICE_UNAVAILABLE',
-        },
-        503
-      );
-    }
-
-    const expected = crypto.createHmac('sha256', secret).update(`${orderId}|${paymentId}`).digest();
-    const supplied = Buffer.from(signature, 'hex');
-
-    if (supplied.length !== expected.length || !crypto.timingSafeEqual(expected, supplied)) {
-      return json({ success: false, error: 'Invalid signature.' }, 400);
-    }
-
-    const admin = createAdminClient();
-    let payment: PaymentRecord | null = null;
-
-    const { data: bulkPayment, error: bulkPaymentError } = await admin
+  const { data: catalogPayment } = await admin
+    .from('catalog_order_payments')
+    .select('id,catalog_order_id,razorpay_order_id,amount,currency,status')
+    .eq('razorpay_order_id', suppliedOrderId)
+    .maybeSingle();
+  if (catalogPayment) {
+    kind = 'catalog';
+    record = { ...catalogPayment, fabrictradOrderId: catalogPayment.catalog_order_id };
+  } else {
+    const { data: bulkPayment } = await admin
       .from('bulk_order_payments')
-      .select('id,bulk_order_id,status')
-      .eq('razorpay_order_id', orderId)
+      .select('id,bulk_order_id,razorpay_order_id,amount,currency,status')
+      .eq('razorpay_order_id', suppliedOrderId)
       .maybeSingle();
-    if (bulkPaymentError) throw bulkPaymentError;
     if (bulkPayment) {
-      payment = {
-        id: bulkPayment.id,
-        fabrictradOrderId: bulkPayment.bulk_order_id,
-        status: bulkPayment.status,
-        kind: 'bulk',
-      };
+      kind = 'bulk';
+      record = { ...bulkPayment, fabrictradOrderId: bulkPayment.bulk_order_id };
     }
+  }
+  if (!kind || !record) return json({ error: 'Stored payment order not found.' }, 404);
 
-    if (!payment) {
-      const { data: catalogPayment, error: catalogPaymentError } = await admin
-        .from('catalog_order_payments')
-        .select('id,catalog_order_id,status')
-        .eq('razorpay_order_id', orderId)
-        .maybeSingle();
-      if (catalogPaymentError) throw catalogPaymentError;
-      if (catalogPayment) {
-        payment = {
-          id: catalogPayment.id,
-          fabrictradOrderId: catalogPayment.catalog_order_id,
-          status: catalogPayment.status,
-          kind: 'catalog',
-        };
-      }
-    }
-
-    if (!payment) {
-      return json({ success: false, error: 'Payment order not found.' }, 404);
-    }
-
-    const orderTable = payment.kind === 'bulk' ? 'bulk_orders' : 'catalog_order_requests';
-    const { data: fabrictradOrder, error: orderError } = await admin
-      .from(orderTable)
-      .select('buyer_id')
-      .eq('id', payment.fabrictradOrderId)
-      .maybeSingle();
-    if (orderError) throw orderError;
-    if (!fabrictradOrder || fabrictradOrder.buyer_id !== user.id) {
-      return json({ success: false, error: 'Payment order not found.' }, 404);
-    }
-
-    if (payment.status !== 'captured') {
-      const paymentTable =
-        payment.kind === 'bulk' ? 'bulk_order_payments' : 'catalog_order_payments';
-      const { error } = await admin
-        .from(paymentTable)
-        .update({
-          razorpay_payment_id: paymentId,
-          razorpay_signature: signature,
-          status: 'authorized',
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', payment.id);
-      if (error) throw error;
-    }
-
-    return json({
-      success: true,
+  const storedRazorpayOrderId = String(record.razorpay_order_id || '');
+  if (storedRazorpayOrderId !== suppliedOrderId) {
+    return json({ error: 'Payment order reference does not match the server record.' }, 400);
+  }
+  if (
+    !verifyCheckoutSignature({
+      storedOrderId: storedRazorpayOrderId,
       paymentId,
-      orderId,
-      fabrictradOrderId: payment.fabrictradOrderId,
-      orderKind: payment.kind,
+      signature,
+      keySecret,
+    })
+  ) {
+    return json({ error: 'Payment signature is invalid.' }, 400);
+  }
+
+  const fabrictradOrderId = String(record.fabrictradOrderId || '');
+  const orderTable = kind === 'catalog' ? 'catalog_order_requests' : 'bulk_orders';
+  const { data: ownedOrder } = await admin
+    .from(orderTable)
+    .select('id,buyer_id')
+    .eq('id', fabrictradOrderId)
+    .eq('buyer_id', user.id)
+    .maybeSingle();
+  if (!ownedOrder) return json({ error: 'This payment does not belong to your account.' }, 403);
+
+  let payment;
+  try {
+    payment = await fetchRazorpayPayment({ paymentId, keyId, keySecret });
+    assertRazorpayPaymentMatches({
+      payment,
+      expectedPaymentId: paymentId,
+      expectedOrderId: storedRazorpayOrderId,
+      expectedAmountRupees: Number(record.amount || 0),
+      expectedCurrency: String(record.currency || 'INR'),
     });
   } catch (error) {
-    console.error('Razorpay verification failed:', error);
-    return json({ success: false, error: 'Unable to verify payment.' }, 500);
+    return json(
+      { error: error instanceof Error ? error.message : 'Razorpay payment confirmation failed.' },
+      409
+    );
   }
+
+  const paymentTable = kind === 'catalog' ? 'catalog_order_payments' : 'bulk_order_payments';
+  const nextStatus = payment.status === 'captured' || payment.captured ? 'captured' : 'authorized';
+  const update: Record<string, unknown> = {
+    razorpay_payment_id: payment.id,
+    razorpay_signature: signature,
+    status: nextStatus,
+    captured_amount: nextStatus === 'captured' ? paiseToRupees(payment.amount) : null,
+    payment_method: payment.method || null,
+    razorpay_fee_actual: paiseToRupees(payment.fee),
+    razorpay_tax_actual: paiseToRupees(payment.tax),
+    failure_reason: null,
+    updated_at: new Date().toISOString(),
+  };
+  if (nextStatus === 'captured') update.captured_at = new Date().toISOString();
+  const { error: updateError } = await admin
+    .from(paymentTable)
+    .update(update)
+    .eq('id', String(record.id));
+  if (updateError) return json({ error: 'Payment confirmation could not be stored.' }, 503);
+
+  const reconciliation =
+    nextStatus === 'captured'
+      ? await reconcileOrderPayment({ admin, kind, orderId: fabrictradOrderId })
+      : null;
+
+  return json({
+    verified: true,
+    status: nextStatus,
+    paymentId: payment.id,
+    orderId: fabrictradOrderId,
+    orderType: kind,
+    reconciliation,
+    message:
+      nextStatus === 'captured'
+        ? 'Payment captured and order records reconciled.'
+        : 'Payment authorised. Capture confirmation will be completed by the signed webhook.',
+  });
 }

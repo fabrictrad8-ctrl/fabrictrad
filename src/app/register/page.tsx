@@ -16,7 +16,7 @@ export default function RegisterPage() {
               Choose how you want to start on FabricTrad.
             </h1>
             <p className="mt-4 text-sm leading-7 text-muted-foreground sm:text-base">
-              Start with buying or GST selling. The same verified login can later use both workspaces without another registration.
+              Start with personal or business buying, or begin GST seller verification. The same verified login can later use both workspaces without another registration.
             </p>
           </div>
 
@@ -26,14 +26,18 @@ export default function RegisterPage() {
                 <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
                   <Icon name="ShoppingBagIcon" size={24} />
                 </div>
-                <span className="ft-orange-chip">Retail or business</span>
+                <span className="ft-orange-chip">Personal or business</span>
               </div>
               <h2 className="mt-7 text-2xl font-800 tracking-tight text-foreground">Start buying</h2>
               <p className="mt-3 text-sm leading-6 text-muted-foreground">
-                Browse verified catalogues, order a single piece or bulk quantity, compare colours and follow delivery.
+                Buy a personal quantity for tailoring, weddings or household use, or create a retail-store purchasing profile for wholesale sourcing.
               </p>
               <div className="mt-6 space-y-3">
-                {['PAN or secure offline identity verification', 'Wishlist, orders and shipment tracking', 'Post sourcing requirements to sellers'].map((item) => (
+                {[
+                  'No PAN, Aadhaar, GST certificate or business proof for “Buy for me”',
+                  'Business KYC only when registering a retail store or business buyer',
+                  'Wishlist, seller-confirmed orders, secure payment and shipment tracking',
+                ].map((item) => (
                   <div key={item} className="flex items-start gap-2.5 text-sm text-foreground">
                     <Icon name="CheckCircleIcon" size={17} className="mt-0.5 shrink-0 text-primary" />
                     {item}

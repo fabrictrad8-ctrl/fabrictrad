@@ -1,4 +1,5 @@
 import AdminLoginClient from './AdminLoginClient';
+import { configuredAdminEmail } from '@/lib/adminAccess';
 
 export const metadata = {
   title: 'Admin Login | FabricTrad',
@@ -8,7 +9,7 @@ export const metadata = {
 export default function AdminLoginPage() {
   return (
     <div className="ft-auth">
-      <AdminLoginClient />
+      <AdminLoginClient configuredEmail={configuredAdminEmail()} />
     </div>
   );
 }

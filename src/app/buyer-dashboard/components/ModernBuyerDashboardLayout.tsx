@@ -1,11 +1,12 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import AppLogo from '@/components/ui/AppLogo';
 import Icon from '@/components/ui/AppIcon';
 import PreferenceControls from '@/components/PreferenceControls';
+import ProfileMenu from '@/components/ProfileMenu';
 import BuyerOverview from '@/app/buyer-dashboard/components/BuyerOverview';
 import BuyerOrders from '@/app/buyer-dashboard/components/BuyerOrders';
 import BuyerTracking from '@/app/buyer-dashboard/components/BuyerTracking';
@@ -13,67 +14,76 @@ import BuyerWishlist from '@/app/buyer-dashboard/components/BuyerWishlist';
 import DisputeMessaging from '@/app/buyer-dashboard/components/DisputeMessaging';
 import NotificationPreferences from '@/app/components/NotificationPreferences';
 import { useAuth } from '@/contexts/AuthContext';
-import { useAppPreferences } from '@/contexts/AppPreferencesContext';
-import { SUPPORTED_LANGUAGES } from '@/lib/india';
 
 type DashboardTab =
   | 'overview'
   | 'orders'
   | 'tracking'
   | 'wishlist'
-  | 'disputes'
   | 'requirements'
+  | 'disputes'
   | 'notifications'
   | 'account';
 
-const validTabs: DashboardTab[] = [
-  'overview',
-  'orders',
-  'tracking',
-  'wishlist',
-  'disputes',
-  'requirements',
-  'notifications',
-  'account',
+type NavItem = {
+  key: DashboardTab;
+  label: string;
+  icon: string;
+  description: string;
+};
+
+const navGroups: Array<{ label: string; items: NavItem[] }> = [
+  {
+    label: 'Home',
+    items: [
+      { key: 'overview', label: 'Home', icon: 'HomeIcon', description: 'Orders and sourcing overview' },
+      { key: 'orders', label: 'Orders', icon: 'ShoppingBagIcon', description: 'Purchases, payment and documents' },
+      { key: 'tracking', label: 'Tracking', icon: 'TruckIcon', description: 'Shipment and delivery status' },
+    ],
+  },
+  {
+    label: 'Sourcing',
+    items: [
+      { key: 'wishlist', label: 'Wishlist', icon: 'HeartIcon', description: 'Saved fabrics and suppliers' },
+      { key: 'requirements', label: 'Requirements', icon: 'MegaphoneIcon', description: 'Post sourcing needs' },
+      { key: 'disputes', label: 'Messages & disputes', icon: 'ChatBubbleLeftRightIcon', description: 'Seller and support conversations' },
+    ],
+  },
+  {
+    label: 'Account',
+    items: [
+      { key: 'notifications', label: 'Notifications', icon: 'BellIcon', description: 'Email and in-app preferences' },
+      { key: 'account', label: 'Profile & settings', icon: 'UserCircleIcon', description: 'Identity, address and preferences' },
+    ],
+  },
 ];
 
+const allItems = navGroups.flatMap((group) => group.items);
+const validTabs = allItems.map((item) => item.key);
 const normaliseTab = (value: string | null): DashboardTab =>
   validTabs.includes(value as DashboardTab) ? (value as DashboardTab) : 'overview';
 
 export default function ModernBuyerDashboardLayout() {
-  const { user, profile } = useAuth();
-  const { language, t } = useAppPreferences();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [activeTab, setActiveTab] = useState<DashboardTab>(() =>
-    normaliseTab(searchParams?.get('tab') || null)
-  );
+  const { user, profile, signOut } = useAuth();
+  const [activeTab, setActiveTab] = useState<DashboardTab>(() => normaliseTab(searchParams.get('tab')));
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const [signingOut, setSigningOut] = useState(false);
 
   useEffect(() => {
-    setActiveTab(normaliseTab(searchParams?.get('tab') || null));
+    setActiveTab(normaliseTab(searchParams.get('tab')));
   }, [searchParams]);
 
-  const buyerName = profile?.full_name || user?.email?.split('@')[0] || 'Buyer';
-  const buyerInitial = buyerName.charAt(0).toUpperCase();
-  const languageLabel =
-    SUPPORTED_LANGUAGES.find((item) => item.code === language)?.label || 'English';
-
-  const navItems = useMemo(
-    () => [
-      { key: 'overview' as const, label: t('nav.dashboard'), icon: 'HomeIcon' },
-      { key: 'orders' as const, label: 'My Orders', icon: 'ShoppingBagIcon' },
-      { key: 'tracking' as const, label: 'Track Shipments', icon: 'TruckIcon' },
-      { key: 'wishlist' as const, label: 'Wishlist', icon: 'HeartIcon' },
-      { key: 'disputes' as const, label: 'Messages & Disputes', icon: 'ChatBubbleLeftRightIcon' },
-      { key: 'requirements' as const, label: t('nav.requirements'), icon: 'MegaphoneIcon' },
-      { key: 'notifications' as const, label: t('nav.notifications'), icon: 'BellIcon' },
-      { key: 'account' as const, label: 'Account & Preferences', icon: 'UserCircleIcon' },
-    ],
-    [t]
+  const activeItem = useMemo(
+    () => allItems.find((item) => item.key === activeTab) || allItems[0],
+    [activeTab]
   );
+  const buyerName = profile?.full_name || user?.email?.split('@')[0] || 'Buyer';
+  const canSell = Boolean(profile?.can_sell || profile?.role === 'seller');
 
-  const navigateToTab = (tab: DashboardTab) => {
+  const navigateTo = (tab: DashboardTab) => {
     setActiveTab(tab);
     setMobileOpen(false);
     router.replace(tab === 'overview' ? '/buyer-dashboard' : `/buyer-dashboard?tab=${tab}`, {
@@ -81,130 +91,118 @@ export default function ModernBuyerDashboardLayout() {
     });
   };
 
+  const searchMarketplace = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const query = search.trim();
+    router.push(query ? `/marketplace?search=${encodeURIComponent(query)}` : '/marketplace');
+  };
+
+  const logout = async () => {
+    if (signingOut) return;
+    setSigningOut(true);
+    try {
+      await signOut();
+    } finally {
+      window.location.replace('/login');
+    }
+  };
+
   const sidebar = (
-    <div className="flex h-full flex-col">
-      <div className="border-b border-border px-5 py-5">
-        <Link href="/" className="flex items-center gap-3">
-          <AppLogo size={34} />
-          <div>
-            <p className="text-sm font-800 text-foreground">FabricTrad</p>
-            <p className="text-xs text-muted-foreground">Buyer workspace</p>
+    <div className="flex h-full flex-col bg-[#f6f6f7] dark:bg-card">
+      <div className="border-b border-border p-3">
+        <Link href="/buyer-dashboard" onClick={() => setMobileOpen(false)} className="flex min-h-11 items-center gap-3 rounded-xl px-2 hover:bg-card">
+          <AppLogo size={32} />
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-800 text-foreground">FabricTrad</p>
+            <p className="truncate text-[11px] text-muted-foreground">Buyer account</p>
           </div>
         </Link>
       </div>
 
-      <nav className="flex-1 space-y-1 overflow-y-auto p-3">
-        {navItems.map((item) => (
-          <button
-            key={item.key}
-            type="button"
-            onClick={() => navigateToTab(item.key)}
-            className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-700 transition ${
-              activeTab === item.key
-                ? 'bg-primary text-white shadow-md'
-                : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-            }`}
-          >
-            <Icon name={item.icon as 'HomeIcon'} size={18} />
-            <span className="flex-1">{item.label}</span>
-          </button>
+      <nav className="flex-1 overflow-y-auto px-2 py-3" aria-label="Buyer navigation">
+        {navGroups.map((group) => (
+          <section key={group.label} className="mb-4 last:mb-0">
+            <p className="mb-1 px-2 text-[10px] font-800 uppercase tracking-[0.14em] text-muted-foreground">{group.label}</p>
+            <div className="space-y-0.5">
+              {group.items.map((item) => (
+                <button
+                  key={item.key}
+                  type="button"
+                  onClick={() => navigateTo(item.key)}
+                  className={`flex min-h-10 w-full items-center gap-3 rounded-lg px-2.5 text-left text-sm font-650 transition ${
+                    activeTab === item.key
+                      ? 'bg-[#e1e3e5] text-foreground shadow-sm dark:bg-muted'
+                      : 'text-foreground/80 hover:bg-[#ebebeb] hover:text-foreground dark:hover:bg-muted'
+                  }`}
+                >
+                  <Icon name={item.icon as 'HomeIcon'} size={18} className="text-muted-foreground" />
+                  <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                </button>
+              ))}
+            </div>
+          </section>
         ))}
       </nav>
 
-      <div className="space-y-3 border-t border-border p-4">
-        <Link
-          href="/product-detail#drape-on"
-          className="block rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/15 to-secondary/10 p-4 transition hover:-translate-y-0.5 hover:shadow-lg"
-        >
-          <div className="flex items-center gap-2 text-primary">
-            <Icon name="SwatchIcon" size={18} />
-            <span className="text-sm font-800">Virtual Colour Draping</span>
-          </div>
-          <p className="mt-2 text-xs leading-5 text-muted-foreground">
-            Upload a clear photo and compare fabric colours beside your face.
-          </p>
-          <span className="mt-3 inline-flex items-center gap-1 text-xs font-800 text-primary">
-            Open studio <Icon name="ArrowRightIcon" size={13} />
-          </span>
+      <div className="space-y-1 border-t border-border p-2">
+        <Link href="/marketplace" className="flex min-h-10 items-center gap-3 rounded-lg px-2.5 text-sm font-650 text-foreground/80 hover:bg-card">
+          <Icon name="Squares2X2Icon" size={18} className="text-muted-foreground" /> Browse marketplace
         </Link>
         <Link
-          href="/marketplace"
-          className="flex items-center justify-center gap-2 rounded-xl border border-border bg-card px-4 py-3 text-sm font-800 text-foreground hover:border-primary/40 hover:text-primary"
+          href={canSell ? '/seller-dashboard' : '/seller-registration'}
+          className="flex min-h-10 items-center gap-3 rounded-lg px-2.5 text-sm font-650 text-foreground/80 hover:bg-card"
         >
-          <Icon name="ShoppingBagIcon" size={17} /> {t('nav.marketplace')}
+          <Icon name="BuildingStorefrontIcon" size={18} className="text-muted-foreground" />
+          {canSell ? 'Open seller workspace' : 'Activate selling'}
         </Link>
-        <Link
-          href={profile?.can_sell || profile?.role === 'seller' ? '/seller-dashboard' : '/seller-registration'}
-          className="flex items-center justify-center gap-2 rounded-xl bg-secondary px-4 py-3 text-sm font-800 text-white hover:opacity-90"
-        >
-          <Icon name="BuildingStorefrontIcon" size={17} />
-          {profile?.can_sell || profile?.role === 'seller' ? 'Open seller tools' : 'Sell with GST'}
-        </Link>
+        <button type="button" onClick={() => void logout()} disabled={signingOut} className="flex min-h-10 w-full items-center gap-3 rounded-lg px-2.5 text-left text-sm font-700 text-error hover:bg-error/10 disabled:opacity-50">
+          <Icon name="ArrowRightOnRectangleIcon" size={18} /> {signingOut ? 'Signing out…' : 'Sign out'}
+        </button>
       </div>
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_10%_0%,rgba(200,96,10,0.10),transparent_28%),radial-gradient(circle_at_100%_10%,rgba(31,41,68,0.10),transparent_30%)] dark:bg-background">
-      <header className="sticky top-0 z-40 flex h-16 items-center border-b border-border bg-card/90 px-4 backdrop-blur-xl sm:px-6">
-        <button
-          type="button"
-          onClick={() => setMobileOpen(true)}
-          className="mr-2 flex h-10 w-10 items-center justify-center rounded-xl border border-border md:hidden"
-          aria-label="Open dashboard navigation"
-        >
+    <div className="min-h-screen bg-[#f1f1f1] text-foreground dark:bg-background">
+      <header className="sticky top-0 z-40 flex h-14 items-center gap-3 border-b border-border bg-card/95 px-3 shadow-sm backdrop-blur-xl sm:px-4">
+        <button type="button" onClick={() => setMobileOpen(true)} className="ft-icon-button md:hidden" aria-label="Open buyer navigation">
           <Icon name="Bars3Icon" size={20} />
         </button>
-        <div className="min-w-0">
-          <p className="truncate text-sm font-800 text-foreground">Buyer Portal</p>
-          <p className="hidden text-xs text-muted-foreground sm:block">
-            Orders, sourcing, colour draping and account preferences
-          </p>
+        <div className="hidden min-w-0 md:block lg:w-48">
+          <p className="truncate text-sm font-800 text-foreground">{activeItem.label}</p>
+          <p className="truncate text-[11px] text-muted-foreground">{activeItem.description}</p>
         </div>
-
+        <form onSubmit={searchMarketplace} className="hidden min-h-10 min-w-0 flex-1 items-center gap-2 rounded-xl border border-border bg-muted/60 px-3 md:flex md:max-w-xl">
+          <Icon name="MagnifyingGlassIcon" size={17} className="text-muted-foreground" />
+          <input
+            type="search"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Search fabrics, colours, suppliers, GSM or SKU"
+            className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
+          />
+          <button type="submit" className="text-xs font-800 text-primary">Search</button>
+        </form>
+        <Link href="/marketplace" className="ft-icon-button md:hidden" aria-label="Search marketplace">
+          <Icon name="MagnifyingGlassIcon" size={18} />
+        </Link>
         <div className="ml-auto flex items-center gap-2">
           <PreferenceControls compact />
-          <Link
-            href="/buyer-dashboard?tab=notifications"
-            className="relative flex h-10 w-10 items-center justify-center rounded-full border border-border bg-card text-muted-foreground shadow-sm hover:border-primary/40 hover:text-primary"
-            aria-label="Open notifications"
-          >
+          <button type="button" onClick={() => navigateTo('notifications')} className="ft-icon-button" aria-label="Open notifications">
             <Icon name="BellIcon" size={18} />
-          </Link>
-          <Link
-            href="/profile"
-            className="flex items-center gap-2 rounded-full border border-border bg-card py-1 pl-1 pr-3 shadow-sm hover:border-primary/40"
-          >
-            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-xs font-800 text-primary">
-              {buyerInitial}
-            </span>
-            <span className="hidden max-w-36 truncate text-xs font-800 text-foreground sm:block">
-              {buyerName}
-            </span>
-          </Link>
+          </button>
+          <ProfileMenu />
         </div>
       </header>
 
-      <div className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-[1600px]">
-        <aside className="hidden w-64 shrink-0 border-r border-border bg-card/85 backdrop-blur md:block">
-          {sidebar}
-        </aside>
+      <div className="flex min-h-[calc(100vh-3.5rem)]">
+        <aside className="hidden w-[240px] shrink-0 border-r border-border md:block">{sidebar}</aside>
 
         {mobileOpen && (
           <>
-            <button
-              type="button"
-              className="fixed inset-0 z-40 bg-black/45 md:hidden"
-              onClick={() => setMobileOpen(false)}
-              aria-label="Close dashboard navigation"
-            />
-            <aside className="fixed inset-y-0 left-0 z-50 w-[86vw] max-w-72 bg-card shadow-2xl md:hidden">
-              <button
-                type="button"
-                onClick={() => setMobileOpen(false)}
-                className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full bg-muted"
-                aria-label="Close dashboard navigation"
-              >
+            <button type="button" className="fixed inset-0 z-40 bg-black/45 md:hidden" onClick={() => setMobileOpen(false)} aria-label="Close buyer navigation" />
+            <aside className="fixed inset-y-0 left-0 z-50 w-[min(88vw,290px)] border-r border-border shadow-2xl md:hidden">
+              <button type="button" onClick={() => setMobileOpen(false)} className="ft-icon-button absolute right-3 top-3 z-10" aria-label="Close buyer navigation">
                 <Icon name="XMarkIcon" size={18} />
               </button>
               {sidebar}
@@ -212,116 +210,111 @@ export default function ModernBuyerDashboardLayout() {
           </>
         )}
 
-        <main className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
-          {activeTab === 'overview' && (
-            <section className="mb-7 overflow-hidden rounded-[2rem] border border-border bg-card shadow-xl">
-              <div className="grid gap-6 p-6 sm:p-8 lg:grid-cols-[1fr_auto] lg:items-center">
-                <div>
-                  <span className="inline-flex items-center gap-2 rounded-full bg-success/10 px-3 py-1.5 text-xs font-800 uppercase tracking-wider text-success">
-                    <Icon name="CheckBadgeIcon" size={15} /> Verified buyer account
-                  </span>
-                  <h1 className="mt-4 text-3xl font-800 tracking-tight text-foreground sm:text-4xl">
-                    Good to see you, {buyerName}
-                  </h1>
-                  <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground sm:text-base">
-                    Source verified fabrics, manage pending orders, track shipments and compare colours from one account.
-                  </p>
-                  <div className="mt-5 flex flex-wrap gap-3">
-                    <Link href="/marketplace" className="btn-primary inline-flex items-center gap-2 px-5 py-3 text-sm">
-                      Browse fabrics <Icon name="ArrowRightIcon" size={15} />
-                    </Link>
-                    <Link href="/product-detail#drape-on" className="btn-secondary inline-flex items-center gap-2 px-5 py-3 text-sm">
-                      <Icon name="SwatchIcon" size={16} /> Try Colour Draping
-                    </Link>
-                    <button
-                      type="button"
-                      onClick={() => navigateToTab('orders')}
-                      className="btn-navy inline-flex items-center gap-2 px-5 py-3 text-sm"
-                    >
-                      <Icon name="ClockIcon" size={16} /> Pending orders
-                    </button>
+        <main className="min-w-0 flex-1 overflow-y-auto px-3 py-4 pb-24 sm:px-5 sm:py-6 lg:px-7">
+          <div className="mx-auto max-w-[1440px]">
+            {activeTab === 'overview' && (
+              <section className="mb-5 overflow-hidden rounded-3xl border border-border bg-card shadow-sm">
+                <div className="grid gap-5 p-5 sm:p-7 lg:grid-cols-[1fr_auto] lg:items-center">
+                  <div>
+                    <span className="inline-flex items-center gap-2 rounded-full bg-success/10 px-3 py-1 text-xs font-800 text-success">
+                      <Icon name="CheckBadgeIcon" size={15} /> {profile?.verification_status === 'verified' ? 'Verified account' : 'Account active'}
+                    </span>
+                    <h1 className="mt-3 text-3xl font-800 tracking-tight text-foreground">Welcome back, {buyerName}</h1>
+                    <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+                      Search verified fabrics, submit orders, pay securely, download order documents and track delivery from one account.
+                    </p>
+                    <div className="mt-5 flex flex-wrap gap-2">
+                      <Link href="/marketplace" className="ft-primary-action inline-flex items-center gap-2 px-4 py-2.5 text-sm">
+                        Browse products <Icon name="ArrowRightIcon" size={15} />
+                      </Link>
+                      <button type="button" onClick={() => navigateTo('orders')} className="ft-secondary-action inline-flex items-center gap-2 px-4 py-2.5 text-sm">
+                        <Icon name="ShoppingBagIcon" size={16} /> View orders
+                      </button>
+                      <button type="button" onClick={() => navigateTo('requirements')} className="ft-secondary-action inline-flex items-center gap-2 px-4 py-2.5 text-sm">
+                        <Icon name="MegaphoneIcon" size={16} /> Post requirement
+                      </button>
+                    </div>
+                  </div>
+                  <div className="grid min-w-60 grid-cols-2 gap-3 lg:grid-cols-1">
+                    <div className="rounded-2xl border border-border bg-muted/40 p-4">
+                      <p className="text-xs font-800 uppercase tracking-wider text-muted-foreground">Buying as</p>
+                      <p className="mt-1 text-sm font-800 text-foreground">{profile?.account_kind === 'business' ? profile.business_name || 'Business' : 'Personal buyer'}</p>
+                    </div>
+                    <div className="rounded-2xl border border-border bg-muted/40 p-4">
+                      <p className="text-xs font-800 uppercase tracking-wider text-muted-foreground">Delivery location</p>
+                      <p className="mt-1 text-sm font-800 text-foreground">{[profile?.city, profile?.state].filter(Boolean).join(', ') || 'Add address'}</p>
+                    </div>
                   </div>
                 </div>
-                <div className="grid min-w-56 gap-3 sm:grid-cols-2 lg:grid-cols-1">
-                  <div className="rounded-2xl bg-muted p-4">
-                    <p className="text-xs font-700 uppercase tracking-wider text-muted-foreground">State</p>
-                    <p className="mt-1 text-sm font-800 text-foreground">{profile?.state || 'Add in profile'}</p>
-                  </div>
-                  <div className="rounded-2xl bg-muted p-4">
-                    <p className="text-xs font-700 uppercase tracking-wider text-muted-foreground">Language</p>
-                    <p className="mt-1 text-sm font-800 text-foreground">{languageLabel}</p>
-                  </div>
-                </div>
-              </div>
-            </section>
-          )}
-
-          <section className="rounded-[1.75rem] border border-border bg-card/92 p-4 shadow-lg sm:p-6">
-            {activeTab === 'overview' && <BuyerOverview onNavigate={navigateToTab} />}
-            {activeTab === 'orders' && <BuyerOrders />}
-            {activeTab === 'tracking' && <BuyerTracking />}
-            {activeTab === 'wishlist' && <BuyerWishlist />}
-            {activeTab === 'disputes' && <DisputeMessaging mode="buyer" />}
-            {activeTab === 'notifications' && <NotificationPreferences mode="buyer" />}
-            {activeTab === 'requirements' && (
-              <div className="grid gap-5 lg:grid-cols-[1fr_320px]">
-                <div>
-                  <p className="text-xs font-800 uppercase tracking-wider text-primary">Buyer requirement board</p>
-                  <h2 className="mt-2 text-2xl font-800 text-foreground">Post exactly what you need</h2>
-                  <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
-                    Add fabric type, GSM, width, quantity, state, budget and deadline. Verified sellers can respond through secure in-site messaging.
-                  </p>
-                  <Link href="/buyer-requirements" className="btn-primary mt-6 inline-flex items-center gap-2 px-5 py-3 text-sm">
-                    <Icon name="PlusIcon" size={16} /> Open requirements board
-                  </Link>
-                </div>
-                <div className="rounded-2xl border border-border bg-muted/60 p-5">
-                  <Icon name="ShieldCheckIcon" size={26} className="text-success" />
-                  <p className="mt-3 text-sm font-800 text-foreground">Private and account-scoped</p>
-                  <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                    Buyer contact details remain protected while requirements, replies and order records stay tied to this account.
-                  </p>
-                </div>
-              </div>
+              </section>
             )}
-            {activeTab === 'account' && (
-              <div className="grid gap-5 lg:grid-cols-[1fr_320px]">
+
+            <section className="rounded-2xl border border-border bg-card p-4 shadow-sm sm:p-6">
+              {activeTab === 'overview' && <BuyerOverview onNavigate={navigateTo} />}
+              {activeTab === 'orders' && <BuyerOrders />}
+              {activeTab === 'tracking' && <BuyerTracking />}
+              {activeTab === 'wishlist' && <BuyerWishlist />}
+              {activeTab === 'disputes' && <DisputeMessaging mode="buyer" />}
+              {activeTab === 'notifications' && <NotificationPreferences mode="buyer" />}
+              {activeTab === 'requirements' && (
+                <div className="grid gap-5 lg:grid-cols-[1fr_320px]">
+                  <div>
+                    <p className="text-xs font-800 uppercase tracking-wider text-primary">Buyer requirement board</p>
+                    <h2 className="mt-2 text-2xl font-800 text-foreground">Tell verified sellers exactly what you need</h2>
+                    <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">Add fabric type, GSM, width, colour, quantity, budget, state and deadline. Responses stay inside FabricTrad.</p>
+                    <Link href="/buyer-requirements" className="ft-primary-action mt-6 inline-flex items-center gap-2 px-5 py-3 text-sm">
+                      <Icon name="PlusIcon" size={16} /> Open requirements board
+                    </Link>
+                  </div>
+                  <div className="rounded-2xl border border-border bg-muted/40 p-5">
+                    <Icon name="ShieldCheckIcon" size={25} className="text-success" />
+                    <p className="mt-3 text-sm font-800 text-foreground">Account-scoped sourcing</p>
+                    <p className="mt-2 text-xs leading-5 text-muted-foreground">Contact details remain protected while requirements, replies and orders stay tied to your verified account.</p>
+                  </div>
+                </div>
+              )}
+              {activeTab === 'account' && (
                 <div>
                   <p className="text-xs font-800 uppercase tracking-wider text-primary">Account</p>
-                  <h2 className="mt-2 text-2xl font-800 text-foreground">Profile and regional preferences</h2>
-                  <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                  <h2 className="mt-2 text-2xl font-800 text-foreground">Profile, business and regional settings</h2>
+                  <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                     {[
                       ['Name', buyerName],
                       ['Email', user?.email || 'Not available'],
                       ['Phone', profile?.phone ? `+91 ${profile.phone}` : 'Add phone'],
-                      ['State', profile?.state || 'Add state'],
-                      ['City', profile?.city || 'Add city'],
-                      ['Language', languageLabel],
+                      ['Account type', profile?.account_kind || 'individual'],
+                      ['Verification', profile?.verification_status || 'unverified'],
+                      ['Location', [profile?.city, profile?.state].filter(Boolean).join(', ') || 'Add location'],
                     ].map(([label, value]) => (
-                      <div key={label} className="rounded-2xl border border-border bg-muted/50 p-4">
-                        <p className="text-xs font-700 uppercase tracking-wider text-muted-foreground">{label}</p>
-                        <p className="mt-1 break-words text-sm font-800 text-foreground">{value}</p>
+                      <div key={label} className="rounded-2xl border border-border bg-muted/40 p-4">
+                        <p className="text-xs font-800 uppercase tracking-wider text-muted-foreground">{label}</p>
+                        <p className="mt-1 break-words text-sm font-800 capitalize text-foreground">{value}</p>
                       </div>
                     ))}
                   </div>
-                  <Link href="/profile" className="btn-primary mt-6 inline-flex items-center gap-2 px-5 py-3 text-sm">
-                    Edit full profile <Icon name="ArrowRightIcon" size={15} />
+                  <Link href="/profile" className="ft-primary-action mt-6 inline-flex items-center gap-2 px-5 py-3 text-sm">
+                    Manage full profile <Icon name="ArrowRightIcon" size={15} />
                   </Link>
                 </div>
-                <div className="rounded-2xl border border-border bg-muted/60 p-5">
-                  <p className="text-sm font-800 text-foreground">Appearance and language</p>
-                  <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                    These controls switch between light, dark and system appearance and save the selected Indian language.
-                  </p>
-                  <div className="mt-5 inline-flex rounded-2xl border border-border bg-card p-2">
-                    <PreferenceControls />
-                  </div>
-                </div>
-              </div>
-            )}
-          </section>
+              )}
+            </section>
+          </div>
         </main>
       </div>
+
+      <nav className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t border-border bg-card/95 p-1.5 backdrop-blur-xl md:hidden">
+        {[
+          { key: 'overview' as DashboardTab, label: 'Home', icon: 'HomeIcon' },
+          { key: 'orders' as DashboardTab, label: 'Orders', icon: 'ShoppingBagIcon' },
+          { key: 'tracking' as DashboardTab, label: 'Track', icon: 'TruckIcon' },
+          { key: 'wishlist' as DashboardTab, label: 'Saved', icon: 'HeartIcon' },
+          { key: 'account' as DashboardTab, label: 'Account', icon: 'UserCircleIcon' },
+        ].map((item) => (
+          <button key={item.key} type="button" onClick={() => navigateTo(item.key)} className={`flex flex-col items-center gap-1 rounded-lg py-2 text-[10px] font-800 ${activeTab === item.key ? 'bg-primary/10 text-primary' : 'text-muted-foreground'}`}>
+            <Icon name={item.icon as 'HomeIcon'} size={18} /> {item.label}
+          </button>
+        ))}
+      </nav>
     </div>
   );
 }

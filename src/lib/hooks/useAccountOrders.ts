@@ -15,6 +15,9 @@ export type AccountBulkOrder = {
   id: string;
   buyer_id?: string | null;
   status?: string | null;
+  payment_status?: string | null;
+  amount_paid?: number | null;
+  amount_refunded?: number | null;
   buyer_name?: string | null;
   buyer_company?: string | null;
   buyer_email?: string | null;
@@ -29,7 +32,7 @@ export type AccountBulkOrder = {
 };
 
 const selectBulkOrders =
-  'id,buyer_id,status,buyer_name,buyer_company,buyer_email,seller_id,gross_total,gst_total,net_total,created_at,updated_at,notes,bulk_order_items(product_name,sku,quantity_mtrs,price_per_mtr)';
+  'id,buyer_id,status,payment_status,amount_paid,amount_refunded,buyer_name,buyer_company,buyer_email,seller_id,gross_total,gst_total,net_total,created_at,updated_at,notes,bulk_order_items(product_name,sku,quantity_mtrs,price_per_mtr)';
 
 export function formatMoney(value?: number | null) {
   return `₹${Number(value || 0).toLocaleString('en-IN')}`;
@@ -91,6 +94,7 @@ export function useBuyerBulkOrders() {
         .update({ status: 'cancelled', updated_at: new Date().toISOString() })
         .eq('id', orderId)
         .eq('buyer_id', user.id)
+        .eq('amount_paid', 0)
         .in('status', ['draft', 'quote_sent', 'confirmed']);
       if (updateError) throw updateError;
       await loadOrders();

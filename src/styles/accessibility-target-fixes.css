@@ -23,9 +23,26 @@
   outline-offset: 2px;
 }
 
+/* The global shell compaction rule intentionally gives header children min-width: 0.
+   These two icon-only admin controls still need a dependable touch target. */
+.ft-root header > button[aria-label='Open admin navigation'],
+.ft-root header > button[aria-label='Search FabricTrad admin'] {
+  width: 40px !important;
+  min-width: 40px !important;
+  min-height: 40px !important;
+  flex: 0 0 40px;
+}
+
 @media (min-width: 640px) {
   .ft-route-requirements header a[href='/'] {
     min-width: auto;
     justify-content: flex-start;
+  }
+}
+
+@media (min-width: 768px) {
+  .ft-root header > button[aria-label='Open admin navigation'],
+  .ft-root header > button[aria-label='Search FabricTrad admin'] {
+    display: none !important;
   }
 }
