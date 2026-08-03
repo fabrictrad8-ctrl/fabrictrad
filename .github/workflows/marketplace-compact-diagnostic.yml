@@ -1,6 +1,7 @@
 name: Marketplace compact diagnostic
 
 on:
+  pull_request:
   push:
     branches:
       - agent/shopify-platform-overhaul
