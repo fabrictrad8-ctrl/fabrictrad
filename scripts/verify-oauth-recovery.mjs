@@ -137,7 +137,7 @@ assert(sellerLayout.includes("href=\"/buyer-dashboard\""), 'Seller workspace mus
 // Printable commerce documents must not be misrepresented as tax invoices.
 assert(buyerOrders.includes('openPrintableOrderDocument'), 'Buyer orders must open a branded printable document.');
 assert(!buyerOrders.includes("type: 'text/plain;charset=utf-8'"), 'Buyer orders must not download a plain-text receipt.');
-assert(buyerOrders.includes('seller-issued GST tax invoice'), 'Buyer orders must distinguish the seller tax invoice from platform documents.');
+assert(buyerOrders.includes('seller-issued GST tax invoice') || buyerOrders.includes('GST tax invoice is issued by the seller'), 'Buyer orders must distinguish the seller tax invoice from platform documents.');
 assert(orderDocuments.includes('Print / Save PDF'), 'Printable order documents must support browser PDF saving.');
 assert(orderDocuments.includes('It is not the seller’s GST tax invoice'), 'Payment receipts must not be mislabelled as GST tax invoices.');
 assert(orderDocuments.includes('This document is an order summary and is not a GST tax invoice'), 'Order summaries must include the legal document distinction.');
