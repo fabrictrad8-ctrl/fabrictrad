@@ -23,6 +23,7 @@ import AdminTopSellers from '@/app/admin-portal/components/AdminTopSellers';
 import AdminErrorMonitor from '@/app/admin-portal/components/AdminErrorMonitor';
 import AdminFulfillmentAnalytics from '@/app/admin-portal/components/AdminFulfillmentAnalytics';
 import AdminSellerMetrics from '@/app/admin-portal/components/AdminSellerMetrics';
+import AdminDisputes from '@/app/admin-portal/components/AdminDisputes';
 
 type AdminTab =
   | 'dashboard'
@@ -31,6 +32,7 @@ type AdminTab =
   | 'customers'
   | 'sellers'
   | 'payments'
+  | 'disputes'
   | 'reconciliation'
   | 'fulfillment'
   | 'seller-metrics'
@@ -73,6 +75,7 @@ const navGroups: NavGroup[] = [
     label: 'Finance',
     items: [
       { key: 'payments', label: 'Payments', icon: 'CreditCardIcon', description: 'Captures, failures and refunds' },
+      { key: 'disputes', label: 'Returns & disputes', icon: 'ChatBubbleLeftRightIcon', description: 'Evidence, resolutions and refund reviews' },
       { key: 'reconciliation', label: 'Reconciliation', icon: 'ArrowsRightLeftIcon', description: 'Commission and settlements' },
     ],
   },
@@ -239,6 +242,7 @@ export default function AdminPortalLayout() {
             {activeTab === 'customers' && <AdminCustomers />}
             {activeTab === 'sellers' && <AdminSellers />}
             {activeTab === 'payments' && <AdminPayments />}
+            {activeTab === 'disputes' && <AdminDisputes />}
             {activeTab === 'reconciliation' && <AdminReconciliation />}
             {activeTab === 'fulfillment' && <AdminFulfillmentAnalytics />}
             {activeTab === 'seller-metrics' && <AdminSellerMetrics />}
