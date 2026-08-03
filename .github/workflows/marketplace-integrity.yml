@@ -1,0 +1,82 @@
+name: Marketplace payment, invoice and dispute integrity
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - 'agent/**'
+
+permissions:
+  contents: read
+
+jobs:
+  integrity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: test-anon-key
+      SUPABASE_SERVICE_ROLE_KEY: test-service-role-key
+      NEXT_PUBLIC_SITE_URL: http://localhost:3000
+      NEXT_PUBLIC_ENABLE_GOOGLE_AUTH: 'false'
+      ADMIN_EMAIL: fabrictrad8@gmail.com
+      OPENAI_DRAPE_IMAGE_MODEL: gpt-image-2
+      OPENAI_DRAPE_IMAGE_SIZE: 1024x1536
+      OPENAI_DRAPE_IMAGE_QUALITY: medium
+      OPENAI_CATALOG_MODEL: gpt-4.1-mini
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund --package-lock=false --legacy-peer-deps
+      - name: Verify marketplace invariants
+        run: node scripts/verify-marketplace-integrity.mjs
+      - name: Type check
+        run: npm run type-check
+      - name: Runtime authorization smoke tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run build
+          npm run start > /tmp/fabrictrad-marketplace-server.log 2>&1 &
+          server_pid=$!
+          cleanup() {
+            kill "$server_pid" 2>/dev/null || true
+            wait "$server_pid" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+          ready=false
+          for _ in $(seq 1 45); do
+            if curl --fail --silent http://127.0.0.1:3000/login >/dev/null; then
+              ready=true
+              break
+            fi
+            sleep 1
+          done
+          if [ "$ready" != 'true' ]; then
+            cat /tmp/fabrictrad-marketplace-server.log
+            exit 1
+          fi
+
+          for endpoint in \
+            /api/admin/payments \
+            /api/admin/disputes \
+            '/api/seller/invoices?catalogOrderId=00000000-0000-0000-0000-000000000000'; do
+            code=$(curl --silent --output /tmp/marketplace-auth.json --write-out '%{http_code}' "http://127.0.0.1:3000${endpoint}")
+            test "$code" = '401' || test "$code" = '403'
+          done
+
+          payment_order=$(curl --silent --output /tmp/payment-order.json --write-out '%{http_code}' \
+            --header 'Content-Type: application/json' \
+            --data '{"orderId":"00000000-0000-0000-0000-000000000000","orderType":"catalog"}' \
+            http://127.0.0.1:3000/api/razorpay/order)
+          test "$payment_order" = '401'
+
+          payment_verify=$(curl --silent --output /tmp/payment-verify.json --write-out '%{http_code}' \
+            --header 'Content-Type: application/json' \
+            --data '{"razorpay_order_id":"order_test","razorpay_payment_id":"pay_test","razorpay_signature":"bad"}' \
+            http://127.0.0.1:3000/api/razorpay/verify)
+          test "$payment_verify" = '401'
