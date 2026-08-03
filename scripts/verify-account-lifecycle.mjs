@@ -20,6 +20,8 @@ const forbidText = (relative, needle) => {
 
 const deletionSecurityMigration =
   'supabase/migrations/20260803171245_account_deletion_service_role_only.sql';
+const draftPrivilegeMigration =
+  'supabase/migrations/20260803175000_restrict_onboarding_draft_table_privileges.sql';
 const requiredFiles = [
   'src/app/api/auth/password-login/route.ts',
   'src/app/api/auth/session-destination/route.ts',
@@ -36,6 +38,7 @@ const requiredFiles = [
   'src/lib/accountDeletion.ts',
   'supabase/migrations/20260803164000_resumable_onboarding_and_account_deletion.sql',
   deletionSecurityMigration,
+  draftPrivilegeMigration,
 ];
 requiredFiles.forEach(read);
 
@@ -65,6 +68,9 @@ requireText('src/lib/hooks/useOnboardingDraft.ts', "fetch('/api/account/onboardi
 requireText('src/app/api/account/onboarding-draft/route.ts', "onConflict: 'user_id,flow'");
 requireText('supabase/migrations/20260803164000_resumable_onboarding_and_account_deletion.sql', 'onboarding_drafts_read_own');
 requireText('supabase/migrations/20260803164000_resumable_onboarding_and_account_deletion.sql', 'onboarding_drafts_update_own');
+requireText(draftPrivilegeMigration, 'REVOKE ALL ON TABLE public.onboarding_drafts FROM authenticated');
+requireText(draftPrivilegeMigration, 'GRANT SELECT, INSERT, UPDATE, DELETE');
+forbidText(draftPrivilegeMigration, 'GRANT ALL');
 
 // Account deletion requires server-side eligibility checks, multiple explicit
 // acknowledgements, an exact confirmation phrase and a registered-email OTP.
