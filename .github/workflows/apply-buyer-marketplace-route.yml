@@ -1,0 +1,48 @@
+name: Apply buyer marketplace route
+
+on:
+  push:
+    branches:
+      - agent/shopify-platform-overhaul
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/shopify-platform-overhaul
+          fetch-depth: 0
+
+      - name: Route buyers to the marketplace
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('src/app/login/EmailOtpLoginClient.tsx')
+          text = path.read_text()
+          old_default = "const defaultDestinationForRole = (role?: AccountRole | null) => role === 'admin_staff' || role === 'super_admin' ? '/admin-portal' : '/account';"
+          new_default = "const defaultDestinationForRole = (role?: AccountRole | null) => role === 'admin_staff' || role === 'super_admin' ? '/admin-portal' : role === 'seller' ? '/account' : '/marketplace';"
+          old_return = "  return fallback === '/account' && requestedNext ? requestedNext : fallback;"
+          new_return = "  return fallback !== '/admin-portal' && requestedNext ? requestedNext : fallback;"
+
+          if old_default not in text:
+              raise SystemExit('Expected default destination expression was not found.')
+          if old_return not in text:
+              raise SystemExit('Expected return-path expression was not found.')
+
+          text = text.replace(old_default, new_default, 1)
+          text = text.replace(old_return, new_return, 1)
+          path.write_text(text)
+          PY
+
+          git rm .github/workflows/apply-buyer-marketplace-route.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/app/login/EmailOtpLoginClient.tsx
+          git commit -m 'fix: route buyers to marketplace after login'
+          git push origin HEAD:agent/shopify-platform-overhaul
