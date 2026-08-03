@@ -1,3 +1,4 @@
+# Temporary compact reporter used only while PR #74 browser regressions are being repaired.
 name: Browser QA compact diagnostic
 
 on:
