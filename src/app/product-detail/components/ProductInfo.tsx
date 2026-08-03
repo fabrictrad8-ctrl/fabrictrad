@@ -10,7 +10,6 @@ import { createClient } from '@/lib/supabase/client';
 import { useProduct } from '@/lib/hooks/useProduct';
 
 type PriceBreak = { minimum_quantity: number; price: number };
-
 type CatalogRule = {
   id: string;
   catalog_id: string;
@@ -22,7 +21,6 @@ type CatalogRule = {
   quantity_increment: number;
   price_breaks: PriceBreak[];
 };
-
 type Company = {
   id: string;
   company_name: string;
@@ -31,7 +29,6 @@ type Company = {
   default_payment_terms: string;
   default_deposit_percent: number;
 };
-
 type CompanyLocation = {
   id: string;
   location_name: string;
@@ -39,6 +36,17 @@ type CompanyLocation = {
   deposit_percent: number | null;
   order_review_required: boolean | null;
   is_default: boolean;
+};
+type ConfirmedOrder = {
+  orderId?: string;
+  subtotal?: number;
+  gstAmount?: number;
+  totalAmount?: number;
+  gstRate?: number;
+  taxInvoiceType?: string;
+  paymentTerms?: string;
+  depositPercent?: number;
+  requiresReview?: boolean;
 };
 
 const PAYMENT_TERM_LABELS: Record<string, string> = {
@@ -51,8 +59,11 @@ const PAYMENT_TERM_LABELS: Record<string, string> = {
   net_60: 'Net 60',
   net_90: 'Net 90',
 };
-
 const roundMoney = (value: number) => Math.round(value * 100) / 100;
+const money = (value: unknown) =>
+  new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(
+    Number(value || 0)
+  );
 
 export default function ProductInfo() {
   const { product, loading } = useProduct();
@@ -61,6 +72,7 @@ export default function ProductInfo() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const supabase = useMemo(() => createClient(), []);
+
   const selectedVariant = product.variants?.find(
     (variant) => variant.id === product.selectedVariantId
   );
@@ -80,12 +92,11 @@ export default function ProductInfo() {
   const [businessControlsLoading, setBusinessControlsLoading] = useState(false);
   const [qty, setQty] = useState(baseMinimum);
   const [submittingOrder, setSubmittingOrder] = useState(false);
-  const [orderSubmitted, setOrderSubmitted] = useState(false);
+  const [confirmedOrder, setConfirmedOrder] = useState<ConfirmedOrder | null>(null);
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
     let mounted = true;
-
     const loadBusinessControls = async () => {
       if (!user?.id || product.source !== 'seller' || !product.rawProductId || !product.sellerId) {
         if (mounted) {
@@ -141,47 +152,58 @@ export default function ProductInfo() {
       }
 
       try {
-        const { data: companyData } = await supabase
+        const { data: companyData, error: companyError } = await supabase
           .from('b2b_company_accounts')
-          .select('id,company_name,purchase_order_required,order_review_required,default_payment_terms,default_deposit_percent')
+          .select(
+            'id,company_name,purchase_order_required,order_review_required,default_payment_terms,default_deposit_percent'
+          )
           .eq('owner_user_id', user.id)
           .maybeSingle();
-
+        if (companyError) throw companyError;
         const resolvedCompany = companyData as Company | null;
+
         let resolvedLocations: CompanyLocation[] = [];
         if (resolvedCompany) {
-          const { data: locationData } = await supabase
+          const { data, error } = await supabase
             .from('b2b_company_locations')
-            .select('id,location_name,payment_terms,deposit_percent,order_review_required,is_default')
+            .select(
+              'id,location_name,payment_terms,deposit_percent,order_review_required,is_default'
+            )
             .eq('company_id', resolvedCompany.id)
             .order('is_default', { ascending: false });
-          resolvedLocations = (locationData || []) as CompanyLocation[];
+          if (error) throw error;
+          resolvedLocations = (data || []) as CompanyLocation[];
         }
 
-        const { data: catalogData, error: catalogError } = await supabase
+        const { data: catalogs, error: catalogError } = await supabase
           .from('seller_catalogs')
           .select('id')
           .eq('seller_id', product.sellerId)
           .eq('status', 'active');
         if (catalogError) throw catalogError;
-
+        const catalogIds = (catalogs || []).map((catalog) => catalog.id);
         let resolvedRules: CatalogRule[] = [];
-        const catalogIds = (catalogData || []).map((catalog) => catalog.id);
         if (catalogIds.length) {
-          const { data: ruleData, error: ruleError } = await supabase
+          const { data, error } = await supabase
             .from('seller_catalog_rules')
-            .select('id,catalog_id,product_id,variant_id,price_override,minimum_quantity,maximum_quantity,quantity_increment,price_breaks')
+            .select(
+              'id,catalog_id,product_id,variant_id,price_override,minimum_quantity,maximum_quantity,quantity_increment,price_breaks'
+            )
             .eq('product_id', product.rawProductId)
             .in('catalog_id', catalogIds);
-          if (ruleError) throw ruleError;
-          resolvedRules = (ruleData || []) as CatalogRule[];
+          if (error) throw error;
+          resolvedRules = (data || []) as CatalogRule[];
         }
 
         if (!mounted) return;
         setCompany(resolvedCompany);
         setLocations(resolvedLocations);
         setSelectedLocationId(
-          (current) => current || resolvedLocations.find((location) => location.is_default)?.id || resolvedLocations[0]?.id || ''
+          (current) =>
+            current ||
+            resolvedLocations.find((location) => location.is_default)?.id ||
+            resolvedLocations[0]?.id ||
+            ''
         );
         setCatalogRules(resolvedRules);
       } catch (error) {
@@ -198,18 +220,30 @@ export default function ProductInfo() {
     return () => {
       mounted = false;
     };
-  }, [baseMinimum, basePrice, isDemoAccount, product.rawProductId, product.sellerId, product.source, profile?.business_name, supabase, unit, user?.id]);
+  }, [
+    baseMinimum,
+    basePrice,
+    isDemoAccount,
+    product.rawProductId,
+    product.sellerId,
+    product.source,
+    profile?.business_name,
+    supabase,
+    unit,
+    user?.id,
+  ]);
 
   const catalogRule = useMemo(() => {
-    if (!catalogRules.length) return null;
     const exact = catalogRules.find((rule) => rule.variant_id === (selectedVariant?.id || null));
     return exact || catalogRules.find((rule) => rule.variant_id === null) || null;
   }, [catalogRules, selectedVariant?.id]);
-
   const minimum = Math.max(baseMinimum, Number(catalogRule?.minimum_quantity || 0));
   const maximum = Math.max(
     minimum,
-    Math.min(available || Number.POSITIVE_INFINITY, Number(catalogRule?.maximum_quantity || Number.POSITIVE_INFINITY))
+    Math.min(
+      available || Number.POSITIVE_INFINITY,
+      Number(catalogRule?.maximum_quantity || Number.POSITIVE_INFINITY)
+    )
   );
   const quantityIncrement = Math.max(
     0.01,
@@ -218,11 +252,14 @@ export default function ProductInfo() {
 
   useEffect(() => {
     setQty(minimum);
-    setOrderSubmitted(false);
+    setConfirmedOrder(null);
   }, [minimum, product.selectedVariantId]);
 
   const priceBreaks = useMemo(
-    () => (Array.isArray(catalogRule?.price_breaks) ? catalogRule.price_breaks : []).sort((a, b) => a.minimum_quantity - b.minimum_quantity),
+    () =>
+      (Array.isArray(catalogRule?.price_breaks) ? [...catalogRule.price_breaks] : []).sort(
+        (a, b) => a.minimum_quantity - b.minimum_quantity
+      ),
     [catalogRule?.price_breaks]
   );
   const catalogBasePrice = Number(catalogRule?.price_override || basePrice);
@@ -230,22 +267,30 @@ export default function ProductInfo() {
     .filter((priceBreak) => qty >= Number(priceBreak.minimum_quantity))
     .at(-1);
   const price = Number(eligibleBreak?.price || catalogBasePrice);
-  const estimatedTotal = useMemo(() => roundMoney(qty * price), [price, qty]);
-  const gstAmount = useMemo(() => roundMoney(estimatedTotal * 0.05), [estimatedTotal]);
+  const estimatedGoodsValue = useMemo(() => roundMoney(qty * price), [price, qty]);
   const selectedLocation = locations.find((location) => location.id === selectedLocationId) || null;
-  const paymentTerms = selectedLocation?.payment_terms && selectedLocation.payment_terms !== 'inherit'
-    ? selectedLocation.payment_terms
-    : company?.default_payment_terms || 'due_on_order';
-  const depositPercent = Number(selectedLocation?.deposit_percent ?? company?.default_deposit_percent ?? 0);
-  const requiresReview = selectedLocation?.order_review_required ?? company?.order_review_required ?? false;
-  const depositAmount = roundMoney((estimatedTotal + gstAmount) * (depositPercent / 100));
+  const paymentTerms =
+    selectedLocation?.payment_terms && selectedLocation.payment_terms !== 'inherit'
+      ? selectedLocation.payment_terms
+      : company?.default_payment_terms || 'due_on_order';
+  const depositPercent = Math.max(
+    0,
+    Math.min(
+      100,
+      Number(selectedLocation?.deposit_percent ?? company?.default_deposit_percent ?? 0)
+    )
+  );
+  const requiresReview =
+    selectedLocation?.order_review_required ?? company?.order_review_required ?? false;
+  const estimatedDepositBeforeTax = roundMoney(
+    estimatedGoodsValue * (depositPercent / 100)
+  );
 
   const selectVariant = (variantId: string) => {
     const next = new URLSearchParams(searchParams.toString());
     next.set('variant', variantId);
     router.replace(`${pathname}?${next.toString()}`, { scroll: false });
   };
-
   const clampQuantity = (value: number) => {
     if (!Number.isFinite(value)) return minimum;
     const constrained = Math.max(minimum, Math.min(maximum, value));
@@ -263,7 +308,7 @@ export default function ProductInfo() {
       return;
     }
     if (available <= 0 || qty < minimum || qty > maximum) {
-      toast.error('Choose a quantity within the available catalog limits.');
+      toast.error('Choose a quantity within the available catalogue limits.');
       return;
     }
     const alignedSteps = (qty - minimum) / quantityIncrement;
@@ -282,37 +327,36 @@ export default function ProductInfo() {
 
     setSubmittingOrder(true);
     try {
-      if (isDemoAccount || product.source === 'catalog' || !product.rawProductId || !product.sellerId) {
+      if (isDemoAccount || product.source === 'catalog' || !product.rawProductId) {
         await new Promise((resolve) => setTimeout(resolve, 250));
+        setConfirmedOrder({
+          subtotal: estimatedGoodsValue,
+          totalAmount: estimatedGoodsValue,
+          paymentTerms,
+          depositPercent,
+          requiresReview,
+        });
       } else {
-        const subtotal = roundMoney(estimatedTotal);
-        const total = roundMoney(subtotal + gstAmount);
-        const { error } = await supabase.from('catalog_order_requests').insert({
-          buyer_id: user.id,
-          seller_id: product.sellerId,
-          product_id: product.rawProductId,
-          variant_id: selectedVariant?.id || null,
-          quantity: qty,
-          unit,
-          price_per_unit: price,
-          subtotal,
-          gst_amount: gstAmount,
-          total_amount: total,
-          status: 'pending',
-          company_id: company?.id || null,
-          company_location_id: selectedLocation?.id || null,
-          purchase_order_number: purchaseOrderNumber.trim() || null,
-          payment_terms: paymentTerms,
-          deposit_percent: depositPercent,
-          requires_review: requiresReview,
-          review_status: requiresReview ? 'pending' : 'not_required',
-          notes: `${retailEnabled ? 'Retail' : 'B2B'} catalogue request for ${product.name}${catalogRule ? ' using eligible catalog pricing' : ''}`,
+        const { data, error } = await supabase.rpc('submit_catalog_order_request', {
+          p_product_id: product.rawProductId,
+          p_variant_id: selectedVariant?.id || null,
+          p_quantity: qty,
+          p_company_id: company?.id || null,
+          p_company_location_id: selectedLocation?.id || null,
+          p_purchase_order_number: purchaseOrderNumber.trim() || null,
+          p_payment_terms: paymentTerms,
+          p_deposit_percent: depositPercent,
+          p_requires_review: requiresReview,
+          p_notes: `${retailEnabled ? 'Retail' : 'B2B'} catalogue request for ${product.name}${catalogRule ? ' using eligible catalogue pricing' : ''}`,
         });
         if (error) throw error;
+        setConfirmedOrder((data || {}) as ConfirmedOrder);
       }
-
-      setOrderSubmitted(true);
-      toast.success(requiresReview ? 'Order request submitted for company review.' : 'Order request sent to the seller.');
+      toast.success(
+        requiresReview
+          ? 'Order request submitted for company review.'
+          : 'Server-priced order request sent to the seller.'
+      );
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'The order request could not be submitted.');
     } finally {
@@ -330,7 +374,7 @@ export default function ProductInfo() {
         <div>
           <div className="mb-1 flex flex-wrap items-center gap-2">
             {product.source === 'seller' && <span className="tag-new">Live seller catalogue</span>}
-            <span className="badge-gstin">GST Ready</span>
+            <span className="badge-gstin">Server-calculated GST</span>
             <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-800 text-primary">
               {product.saleChannel === 'both'
                 ? 'B2B + Retail'
@@ -338,15 +382,14 @@ export default function ProductInfo() {
                   ? 'Retail / B2C'
                   : 'B2B / Wholesale'}
             </span>
-            {catalogRule && <span className="ft-orange-chip"><Icon name="TagIcon" size={11} /> Catalog price</span>}
+            {catalogRule && (
+              <span className="ft-orange-chip">
+                <Icon name="TagIcon" size={11} /> Catalogue price
+              </span>
+            )}
             {product.packageFormat && (
               <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-800 text-muted-foreground">
                 {product.packageFormat}
-              </span>
-            )}
-            {!!product.variantCount && (
-              <span className="rounded-full bg-secondary/10 px-2 py-0.5 text-[10px] font-800 text-secondary">
-                {product.variantCount} variation{product.variantCount === 1 ? '' : 's'}
               </span>
             )}
           </div>
@@ -369,9 +412,7 @@ export default function ProductInfo() {
 
       <div className="mb-4 flex items-center gap-2 text-xs text-muted-foreground">
         <Icon name="ShieldCheckIcon" size={14} className="text-success" />
-        <span>{product.seller}</span>
-        <span>·</span>
-        <span>{product.city}</span>
+        <span>{product.seller}</span><span>·</span><span>{product.city}</span>
       </div>
 
       {!!product.variants?.length && (
@@ -392,12 +433,13 @@ export default function ProductInfo() {
                 <button
                   key={variant.id}
                   type="button"
+                  disabled={unavailable}
                   onClick={() => selectVariant(variant.id)}
                   className={`rounded-xl border p-3 text-left transition ${
                     active
                       ? 'border-primary bg-primary/5 ring-2 ring-primary/10'
                       : 'border-border hover:border-primary/50'
-                  } ${unavailable ? 'opacity-55' : ''}`}
+                  } ${unavailable ? 'cursor-not-allowed opacity-55' : ''}`}
                 >
                   <div className="flex items-start gap-2.5">
                     <span
@@ -409,9 +451,7 @@ export default function ProductInfo() {
                       <p className="truncate text-sm font-800 text-foreground">{variant.colorName}</p>
                       <p className="truncate text-xs text-muted-foreground">{variant.designName}</p>
                       <div className="mt-1 flex items-center justify-between gap-2 text-xs">
-                        <span className="font-800 text-primary">
-                          ₹{variant.price.toLocaleString('en-IN')}/{variant.unit}
-                        </span>
+                        <span className="font-800 text-primary">{money(variant.price)}/{variant.unit}</span>
                         <span className={unavailable ? 'text-error' : 'text-success'}>
                           {unavailable
                             ? 'Out of stock'
@@ -441,34 +481,40 @@ export default function ProductInfo() {
       )}
 
       <div className="mb-4 flex flex-wrap items-end gap-2">
-        <span className="text-3xl font-800 text-primary">₹{price.toLocaleString('en-IN')}</span>
+        <span className="text-3xl font-800 text-primary">{money(price)}</span>
         <span className="mb-1 text-sm text-muted-foreground">per {unit}</span>
         {catalogRule && price < basePrice && (
-          <span className="mb-1 text-xs text-muted-foreground line-through">₹{basePrice.toLocaleString('en-IN')}</span>
+          <span className="mb-1 text-xs text-muted-foreground line-through">{money(basePrice)}</span>
         )}
-        {eligibleBreak && <span className="mb-1 rounded-full bg-success/10 px-2 py-0.5 text-[10px] font-800 text-success">Volume tier applied</span>}
+        {eligibleBreak && (
+          <span className="mb-1 rounded-full bg-success/10 px-2 py-0.5 text-[10px] font-800 text-success">
+            Volume tier applied
+          </span>
+        )}
       </div>
 
       {catalogRule && (
-        <div className="mb-4 rounded-xl border border-primary/20 bg-primary/5 p-3">
-          <div className="flex items-start gap-2.5">
-            <Icon name="TagIcon" size={16} className="mt-0.5 shrink-0 text-primary" />
-            <div className="min-w-0 flex-1">
-              <p className="text-xs font-800 text-primary">Eligible wholesale catalog pricing</p>
-              <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                Minimum {minimum.toLocaleString('en-IN')} {unit} · increments of {quantityIncrement.toLocaleString('en-IN')} {unit}{Number.isFinite(maximum) ? ` · maximum ${maximum.toLocaleString('en-IN')} ${unit}` : ''}
-              </p>
-              {!!priceBreaks.length && (
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  {priceBreaks.map((priceBreak) => (
-                    <span key={`${priceBreak.minimum_quantity}-${priceBreak.price}`} className={`ft-orange-chip ${qty >= priceBreak.minimum_quantity ? 'ring-1 ring-primary/30' : ''}`}>
-                      {priceBreak.minimum_quantity}+ · ₹{priceBreak.price}/{unit}
-                    </span>
-                  ))}
-                </div>
-              )}
+        <div className="mb-4 rounded-xl border border-primary/20 bg-primary/5 p-3 text-xs">
+          <p className="font-800 text-primary">Eligible wholesale catalogue pricing</p>
+          <p className="mt-1 leading-5 text-muted-foreground">
+            Minimum {minimum.toLocaleString('en-IN')} {unit} · increments of{' '}
+            {quantityIncrement.toLocaleString('en-IN')} {unit}
+            {Number.isFinite(maximum)
+              ? ` · maximum ${maximum.toLocaleString('en-IN')} ${unit}`
+              : ''}
+          </p>
+          {!!priceBreaks.length && (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {priceBreaks.map((priceBreak) => (
+                <span
+                  key={`${priceBreak.minimum_quantity}-${priceBreak.price}`}
+                  className={`ft-orange-chip ${qty >= priceBreak.minimum_quantity ? 'ring-1 ring-primary/30' : ''}`}
+                >
+                  {priceBreak.minimum_quantity}+ · {money(priceBreak.price)}/{unit}
+                </span>
+              ))}
             </div>
-          </div>
+          )}
         </div>
       )}
 
@@ -484,14 +530,18 @@ export default function ProductInfo() {
           <p className="mt-1 font-800 text-foreground">
             {minimum.toLocaleString('en-IN')} {unit}
           </p>
-          {retailEnabled && !catalogRule && <p className="mt-0.5 text-[10px] text-success">Retail quantity enabled</p>}
+          {retailEnabled && !catalogRule && (
+            <p className="mt-0.5 text-[10px] text-success">Retail quantity enabled</p>
+          )}
         </div>
       </div>
 
       <div className="mb-4">
-        <div className="mb-2 flex items-center justify-between">
+        <div className="mb-2 flex items-center justify-between gap-3">
           <p className="text-sm font-700 text-foreground">Quantity ({unit})</p>
-          <span className="text-xs text-muted-foreground">Max {Number.isFinite(maximum) ? maximum.toLocaleString('en-IN') : available.toLocaleString('en-IN')}</span>
+          <span className="text-xs text-muted-foreground">
+            Max {Number.isFinite(maximum) ? maximum.toLocaleString('en-IN') : available.toLocaleString('en-IN')}
+          </span>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -499,9 +549,7 @@ export default function ProductInfo() {
             onClick={() => setQty((current) => clampQuantity(current - quantityIncrement))}
             className="flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-muted hover:border-primary"
             aria-label="Reduce quantity"
-          >
-            <Icon name="MinusIcon" size={16} />
-          </button>
+          ><Icon name="MinusIcon" size={16} /></button>
           <input
             type="number"
             value={qty}
@@ -517,9 +565,7 @@ export default function ProductInfo() {
             onClick={() => setQty((current) => clampQuantity(current + quantityIncrement))}
             className="flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-muted hover:border-primary"
             aria-label="Increase quantity"
-          >
-            <Icon name="PlusIcon" size={16} />
-          </button>
+          ><Icon name="PlusIcon" size={16} /></button>
         </div>
       </div>
 
@@ -528,49 +574,84 @@ export default function ProductInfo() {
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="text-sm font-800 text-foreground">{company.company_name}</p>
-              <p className="mt-0.5 text-xs text-muted-foreground">Company purchasing controls apply to this request.</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Company purchasing controls apply to this request.
+              </p>
             </div>
             <Link href="/company-purchasing" className="text-xs font-800 text-primary">Manage</Link>
           </div>
           {!!locations.length && (
-            <label className="block text-xs font-700">Purchasing location
-              <select value={selectedLocationId} onChange={(event) => setSelectedLocationId(event.target.value)} className="input-base mt-1.5 w-full rounded-lg px-3 py-2">
-                {locations.map((location) => <option key={location.id} value={location.id}>{location.location_name}{location.is_default ? ' · Default' : ''}</option>)}
+            <label className="block text-xs font-700">
+              Purchasing location
+              <select
+                value={selectedLocationId}
+                onChange={(event) => setSelectedLocationId(event.target.value)}
+                className="input-base mt-1.5 w-full rounded-lg px-3 py-2"
+              >
+                {locations.map((location) => (
+                  <option key={location.id} value={location.id}>
+                    {location.location_name}{location.is_default ? ' · Default' : ''}
+                  </option>
+                ))}
               </select>
             </label>
           )}
-          <label className="block text-xs font-700">Purchase order number {company.purchase_order_required ? '*' : '(optional)'}
-            <input value={purchaseOrderNumber} onChange={(event) => setPurchaseOrderNumber(event.target.value.toUpperCase())} className="input-base mt-1.5 w-full rounded-lg px-3 py-2 uppercase" placeholder="PO-2026-001" />
+          <label className="block text-xs font-700">
+            Purchase order number {company.purchase_order_required ? '*' : '(optional)'}
+            <input
+              value={purchaseOrderNumber}
+              onChange={(event) => setPurchaseOrderNumber(event.target.value.toUpperCase())}
+              className="input-base mt-1.5 w-full rounded-lg px-3 py-2 uppercase"
+              placeholder="PO-2026-001"
+            />
           </label>
-          <div className="grid grid-cols-2 gap-2 text-xs">
-            <div className="rounded-lg border border-border bg-card p-2.5"><p className="text-muted-foreground">Payment terms</p><p className="mt-1 font-800">{PAYMENT_TERM_LABELS[paymentTerms] || paymentTerms}</p></div>
-            <div className="rounded-lg border border-border bg-card p-2.5"><p className="text-muted-foreground">Deposit</p><p className="mt-1 font-800">{depositPercent ? `${depositPercent}% · ₹${depositAmount.toLocaleString('en-IN')}` : 'No deposit'}</p></div>
+          <div className="grid gap-2 text-xs sm:grid-cols-2">
+            <div className="rounded-lg border border-border bg-card p-2.5">
+              <p className="text-muted-foreground">Payment terms</p>
+              <p className="mt-1 font-800">{PAYMENT_TERM_LABELS[paymentTerms] || paymentTerms}</p>
+            </div>
+            <div className="rounded-lg border border-border bg-card p-2.5">
+              <p className="text-muted-foreground">Opening payment</p>
+              <p className="mt-1 font-800">
+                {depositPercent > 0 && depositPercent < 100
+                  ? `${depositPercent}% · about ${money(estimatedDepositBeforeTax)} before GST`
+                  : 'Full server-calculated balance'}
+              </p>
+            </div>
           </div>
-          {requiresReview && <div className="flex items-center gap-2 rounded-lg border border-warning/20 bg-warning/10 p-2.5 text-xs font-700 text-warning"><Icon name="ClockIcon" size={14} /> This request will be marked for company approval.</div>}
+          {requiresReview && (
+            <div className="flex items-center gap-2 rounded-lg border border-warning/20 bg-warning/10 p-2.5 text-xs font-700 text-warning">
+              <Icon name="ClockIcon" size={14} /> This request requires company approval before seller action.
+            </div>
+          )}
         </div>
       ) : user && !businessControlsLoading ? (
-        <Link href="/company-purchasing" className="mb-4 flex items-center gap-3 rounded-xl border border-dashed border-primary/30 bg-primary/5 p-3 transition hover:border-primary">
-          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary"><Icon name="BuildingOffice2Icon" size={17} /></span>
-          <span className="min-w-0 flex-1"><strong className="block text-xs font-800 text-foreground">Set up company purchasing</strong><small className="block text-xs text-muted-foreground">Add PO rules, locations, payment terms and approvers.</small></span>
+        <Link
+          href="/company-purchasing"
+          className="mb-4 flex items-center gap-3 rounded-xl border border-dashed border-primary/30 bg-primary/5 p-3 transition hover:border-primary"
+        >
+          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <Icon name="BuildingOffice2Icon" size={17} />
+          </span>
+          <span className="min-w-0 flex-1">
+            <strong className="block text-xs font-800 text-foreground">Set up company purchasing</strong>
+            <small className="block text-xs text-muted-foreground">
+              Add PO rules, locations, payment terms and approvers.
+            </small>
+          </span>
           <Icon name="ArrowRightIcon" size={14} className="text-primary" />
         </Link>
       ) : null}
 
       <div className="mb-4 rounded-xl bg-muted p-3">
-        <div className="flex justify-between text-sm">
-          <span className="text-muted-foreground">
-            {qty} {unit} × ₹{price.toLocaleString('en-IN')}
-          </span>
-          <span className="font-700 text-foreground">₹{estimatedTotal.toLocaleString('en-IN')}</span>
+        <div className="flex justify-between gap-4 text-sm">
+          <span className="text-muted-foreground">{qty} {unit} × {money(price)}</span>
+          <span className="font-700 text-foreground">{money(estimatedGoodsValue)}</span>
         </div>
-        <div className="mt-1 flex justify-between text-sm">
-          <span className="text-muted-foreground">GST (5%)</span>
-          <span className="font-700 text-foreground">₹{gstAmount.toLocaleString('en-IN')}</span>
-        </div>
-        <div className="mt-2 flex justify-between border-t border-border pt-2 text-sm font-800">
-          <span>Estimated total</span>
-          <span className="text-primary">
-            ₹{(estimatedTotal + gstAmount).toLocaleString('en-IN')}
+        <div className="mt-2 flex items-start justify-between gap-4 border-t border-border pt-2 text-xs">
+          <span className="text-muted-foreground">GST and final total</span>
+          <span className="max-w-[16rem] text-right font-700 text-foreground">
+            Calculated by the server from the approved seller HSN/GST rate, tax-inclusive setting and place of supply.
           </span>
         </div>
       </div>
@@ -581,14 +662,31 @@ export default function ProductInfo() {
           <p className="text-xs font-700 text-success">
             Dispatch in {product.dispatchDays} business day{product.dispatchDays === 1 ? '' : 's'}
           </p>
-          <p className="text-xs text-muted-foreground">Tracking included after seller acceptance</p>
+          <p className="text-xs text-muted-foreground">Tracking appears in the buyer account after dispatch.</p>
         </div>
       </div>
 
-      {orderSubmitted ? (
-        <div className="flex items-center justify-center gap-2 rounded-xl border border-success/30 bg-success/10 p-4">
-          <Icon name="CheckCircleIcon" size={20} className="text-success" />
-          <span className="text-sm font-700 text-success">{requiresReview ? 'Order request submitted for review.' : 'Order request sent to the seller.'}</span>
+      {confirmedOrder ? (
+        <div className="rounded-xl border border-success/30 bg-success/10 p-4">
+          <div className="flex items-center gap-2 text-success">
+            <Icon name="CheckCircleIcon" size={20} />
+            <span className="text-sm font-800">
+              {confirmedOrder.requiresReview
+                ? 'Order request submitted for review.'
+                : 'Order request sent to the seller.'}
+            </span>
+          </div>
+          {confirmedOrder.totalAmount !== undefined && (
+            <div className="mt-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
+              <div><p className="text-muted-foreground">Subtotal</p><p className="font-800">{money(confirmedOrder.subtotal)}</p></div>
+              <div><p className="text-muted-foreground">GST</p><p className="font-800">{money(confirmedOrder.gstAmount)}</p></div>
+              <div><p className="text-muted-foreground">Confirmed total</p><p className="font-800 text-success">{money(confirmedOrder.totalAmount)}</p></div>
+              <div><p className="text-muted-foreground">Invoice</p><p className="font-800 uppercase">{confirmedOrder.taxInvoiceType || 'after payment'}</p></div>
+            </div>
+          )}
+          <Link href="/buyer-dashboard?tab=orders" className="mt-3 inline-flex text-xs font-800 text-primary underline">
+            View purchase in my account
+          </Link>
         </div>
       ) : (
         <button
@@ -599,7 +697,7 @@ export default function ProductInfo() {
         >
           <Icon name="ShoppingCartIcon" size={16} />
           {submittingOrder
-            ? 'Sending request…'
+            ? 'Sending server-priced request…'
             : businessControlsLoading
               ? 'Loading business terms…'
               : available > 0
