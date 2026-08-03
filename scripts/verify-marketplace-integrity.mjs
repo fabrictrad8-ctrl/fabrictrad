@@ -51,9 +51,13 @@ forbidText('src/app/product-detail/components/ProductInfo.tsx', 'GST (5%)');
 
 // Razorpay orders, signatures, amounts, capture, refunds and idempotency.
 requireText('src/app/api/razorpay/order/route.ts', 'amountPaise');
-requireText('src/app/api/razorpay/order/route.ts', 'ORDER_ALREADY_PAID');
+requireText('src/app/api/razorpay/order/route.ts', 'AMOUNT_BELOW_MINIMUM');
+requireText('src/app/api/razorpay/order/route.ts', 'RAZORPAY_AUTH_FAILED');
 requireText('src/app/api/razorpay/verify/route.ts', 'verifyCheckoutSignature');
 requireText('src/app/api/razorpay/verify/route.ts', 'assertRazorpayPaymentMatches');
+requireText('src/components/RazorpayCheckout.tsx', 'checkout.razorpay.com/v1/checkout.js');
+requireText('src/components/RazorpayCheckout.tsx', "checkout.on('payment.failed'");
+requireText('src/components/RazorpayCheckout.tsx', 'ondismiss');
 requireText('src/app/api/razorpay/webhook/route.ts', "eventType === 'refund.created'");
 requireText('src/app/api/razorpay/webhook/route.ts', "eventType === 'refund.processed'");
 requireText('src/app/api/razorpay/webhook/route.ts', "eventType === 'refund.failed'");
@@ -79,7 +83,10 @@ requireText('src/app/buyer-dashboard/components/DisputeMessaging.tsx', "from('di
 forbidText('src/app/buyer-dashboard/components/DisputeMessaging.tsx', 'initialDisputes');
 requireText('src/app/api/admin/disputes/route.ts', "action === 'message'");
 requireText('src/app/api/admin/disputes/route.ts', "action === 'status'");
-requireText('src/app/admin-portal/components/AdminPortalLayout.tsx', "id: 'disputes'");
+requireText('src/app/admin-portal/components/AdminPortalLayout.tsx', "key: 'disputes'");
+requireText('src/app/admin-portal/components/AdminPortalLayout.tsx', "activeTab === 'disputes'");
+requireText('src/app/admin-portal/components/AdminPortalLayout.tsx', '<AdminDisputes />');
+requireText('src/app/admin-portal/components/AdminCommandSearch.tsx', "id: 'nav-disputes'");
 requireText('supabase/migrations/20260803070000_refund_locking_and_dispute_security.sql', 'disputes_admin_manage');
 requireText('supabase/migrations/20260803073000_real_dispute_evidence_and_returns.sql', 'dispute-evidence');
 
