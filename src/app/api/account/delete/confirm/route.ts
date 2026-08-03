@@ -132,11 +132,18 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  await admin
-    .from('account_deletion_requests')
-    .update({ status: 'completed', completed_at: new Date().toISOString(), updated_at: new Date().toISOString() })
-    .eq('id', requestId)
-    .catch(() => undefined);
+  // The Auth user owns account_deletion_requests through an ON DELETE CASCADE
+  // relationship, so a successful Auth deletion may remove this audit row.
+  // Attempt the completion update only when the row still exists; failure here
+  // must never reverse an otherwise completed, irreversible account deletion.
+  try {
+    await admin
+      .from('account_deletion_requests')
+      .update({ status: 'completed', completed_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+      .eq('id', requestId);
+  } catch {
+    // Auth deletion has already succeeded and remains the source of truth.
+  }
   await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined);
 
   return respond({
