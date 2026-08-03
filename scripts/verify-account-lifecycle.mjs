@@ -52,12 +52,13 @@ requireText('src/app/buyer-registration/components/BuyerRegistrationFlowV2.tsx',
 requireText('src/app/buyer-registration/components/BuyerRegistrationFlowV2.tsx', "saveOnboardingDraftLocally('buyer'");
 requireText('src/app/buyer-registration/components/BuyerRegistrationFlowV2.tsx', "next: '/buyer-registration?resume=1'");
 requireText('src/app/buyer-registration/components/BuyerRegistrationFlowV2.tsx', "const signup = user ?");
+requireText('src/app/buyer-registration/components/BuyerRegistrationFlowV2.tsx', "password: '', confirmPassword: ''");
 requireText('src/app/seller-registration/components/SellerRegistrationFlow.tsx', 'useOnboardingDraft');
 requireText('src/app/seller-registration/components/SellerRegistrationFlow.tsx', "saveOnboardingDraftLocally('seller'");
 requireText('src/app/seller-registration/components/SellerRegistrationFlow.tsx', "next: '/seller-registration?resume=1'");
+requireText('src/app/seller-registration/components/SellerRegistrationFlow.tsx', "password: '', confirmPassword: '', bankAccountNumber: ''");
 requireText('src/app/buyer-registration/components/BuyerRegistrationEntry.tsx', "window.localStorage.setItem('fabrictrad_buyer_type'");
 requireText('src/lib/hooks/useOnboardingDraft.ts', "fetch('/api/account/onboarding-draft'");
-requireText('src/lib/hooks/useOnboardingDraft.ts', 'password');
 requireText('src/app/api/account/onboarding-draft/route.ts', "onConflict: 'user_id,flow'");
 requireText('supabase/migrations/20260803164000_resumable_onboarding_and_account_deletion.sql', 'onboarding_drafts_read_own');
 requireText('supabase/migrations/20260803164000_resumable_onboarding_and_account_deletion.sql', 'onboarding_drafts_update_own');
