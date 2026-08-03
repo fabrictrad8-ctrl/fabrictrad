@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 type Flow = 'buyer' | 'seller';
-type DraftEnvelope<T> = {
+export type DraftEnvelope<T> = {
   step: string;
   payload: T;
   savedAt: string;
@@ -19,6 +19,28 @@ type Options<T> = {
 };
 
 const keyFor = (flow: Flow) => `fabrictrad:${flow}:onboarding-draft:v3`;
+
+export const saveOnboardingDraftLocally = <T,>(flow: Flow, step: string, payload: T) => {
+  const envelope: DraftEnvelope<T> = {
+    step,
+    payload,
+    savedAt: new Date().toISOString(),
+  };
+  try {
+    window.localStorage.setItem(keyFor(flow), JSON.stringify(envelope));
+  } catch {
+    // The server-backed draft remains available after authentication.
+  }
+  return envelope;
+};
+
+export const clearOnboardingDraftLocally = (flow: Flow) => {
+  try {
+    window.localStorage.removeItem(keyFor(flow));
+  } catch {
+    // Nothing else required.
+  }
+};
 
 const parseLocal = <T,>(flow: Flow): DraftEnvelope<T> | null => {
   try {
@@ -96,14 +118,8 @@ export function useOnboardingDraft<T>({
   useEffect(() => {
     if (!enabled || !loaded || step === 'done') return;
     const timer = window.setTimeout(async () => {
-      const now = new Date().toISOString();
-      const envelope: DraftEnvelope<T> = { step, payload: payloadRef.current, savedAt: now };
-      try {
-        window.localStorage.setItem(keyFor(flow), JSON.stringify(envelope));
-        setSavedAt(now);
-      } catch {
-        // Server persistence may still succeed when local storage is unavailable.
-      }
+      const envelope = saveOnboardingDraftLocally(flow, step, payloadRef.current);
+      setSavedAt(envelope.savedAt);
 
       if (userId) {
         await fetch('/api/account/onboarding-draft', {
@@ -120,11 +136,7 @@ export function useOnboardingDraft<T>({
   }, [enabled, flow, loaded, step, userId, payload]);
 
   const clearDraft = useCallback(async () => {
-    try {
-      window.localStorage.removeItem(keyFor(flow));
-    } catch {
-      // Nothing else required.
-    }
+    clearOnboardingDraftLocally(flow);
     setSavedAt(null);
     if (userId) {
       await fetch(`/api/account/onboarding-draft?flow=${flow}`, {
