@@ -7,6 +7,7 @@ import AppLogo from '@/components/ui/AppLogo';
 import Icon from '@/components/ui/AppIcon';
 import ProfileMenu from '@/components/ProfileMenu';
 import PreferenceControls from '@/components/PreferenceControls';
+import DeleteAccountPanel from '@/components/account/DeleteAccountPanel';
 import { useAuth } from '@/contexts/AuthContext';
 
 export default function AccountHomePage() {
@@ -172,6 +173,11 @@ export default function AccountHomePage() {
             </button>
           </article>
         </section>
+
+        <DeleteAccountPanel
+          accountAccess={canBuy && canSell ? 'Buyer and seller' : canSell ? 'Seller' : 'Buyer'}
+          email={user.email || ''}
+        />
       </div>
     </main>
   );

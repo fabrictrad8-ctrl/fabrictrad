@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Icon from '@/components/ui/AppIcon';
 import BuyerRegistrationFlowV2 from './BuyerRegistrationFlowV2';
 
@@ -50,10 +50,16 @@ const options: Array<{
 export default function BuyerRegistrationEntry() {
   const [buyerType, setBuyerType] = useState<BuyerType | null>(null);
 
+  useEffect(() => {
+    const stored = window.localStorage.getItem('fabrictrad_buyer_type') || window.sessionStorage.getItem('fabrictrad_buyer_type');
+    if (stored === 'retail_store' || stored === 'end_user') setBuyerType(stored);
+  }, []);
+
   const chooseType = (value: BuyerType) => {
     const secure = window.location.protocol === 'https:' ? '; Secure' : '';
     document.cookie = `fabrictrad_buyer_type=${value}; Path=/; Max-Age=7200; SameSite=Lax${secure}`;
     window.sessionStorage.setItem('fabrictrad_buyer_type', value);
+    window.localStorage.setItem('fabrictrad_buyer_type', value);
     setBuyerType(value);
   };
 

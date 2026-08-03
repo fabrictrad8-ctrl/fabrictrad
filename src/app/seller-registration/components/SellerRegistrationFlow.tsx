@@ -1,11 +1,12 @@
 'use client';
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useMemo, useState, useRef } from 'react';
 import Link from 'next/link';
 import Icon from '@/components/ui/AppIcon';
 import { useAuth } from '@/contexts/AuthContext';
 import { normalizeEmail, normalizeIndianPhone, validateIndianPhone } from '@/lib/authValidation';
 import { INDIAN_STATES_AND_UTS, SUPPORTED_LANGUAGES, type SupportedLanguageCode } from '@/lib/india';
 import { useAppPreferences } from '@/contexts/AppPreferencesContext';
+import { saveOnboardingDraftLocally, useOnboardingDraft } from '@/lib/hooks/useOnboardingDraft';
 
 type Step = 'account' | 'business' | 'gstin' | 'bank' | 'documents' | 'done';
 
@@ -199,7 +200,28 @@ export default function SellerRegistrationFlow() {
   );
 
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
-  const currentIndex = STEP_ORDER.indexOf(currentStep);
+const draftPayload = useMemo(
+  () => ({
+    form: { ...form, password: '', confirmPassword: '', bankAccountNumber: '' },
+    gstinValidation,
+    bankVerification: { ...bankVerification, linkedAccountId: undefined },
+  }),
+  [bankVerification, form, gstinValidation]
+);
+const { clearDraft } = useOnboardingDraft({
+  flow: 'seller',
+  userId: user?.id,
+  step: currentStep,
+  payload: draftPayload,
+  onRestore: (draft) => {
+    if (draft.payload.form) setForm((current) => ({ ...current, ...draft.payload.form, password: '', confirmPassword: '', bankAccountNumber: '' }));
+    if (draft.payload.gstinValidation) setGstinValidation(draft.payload.gstinValidation);
+    if (draft.payload.bankVerification) setBankVerification(draft.payload.bankVerification);
+    if (STEP_ORDER.includes(draft.step as Step) && draft.step !== 'done') setCurrentStep(draft.step as Step);
+    setSubmissionWarning('Your saved seller onboarding draft was restored. Re-enter bank details and re-select document files for security.');
+  },
+});
+const currentIndex = STEP_ORDER.indexOf(currentStep);
 
   useEffect(() => {
     if (!user) return;
@@ -257,9 +279,23 @@ export default function SellerRegistrationFlow() {
       ]);
 
       if (!emailCheck.unique) {
-        setError(
-          `This email already has a FabricTrad account. Sign in, then activate selling with GST on that same account.`
-        );
+        saveOnboardingDraftLocally('seller', 'business', {
+          ...draftPayload,
+          form: { ...draftPayload.form, email, phone },
+        });
+        const loginResponse = await fetch('/api/auth/password-login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          cache: 'no-store',
+          body: JSON.stringify({ email, password: form.password, next: '/seller-registration?resume=1' }),
+        });
+        const loginPayload = (await loginResponse.json().catch(() => ({}))) as { error?: string };
+        if (loginResponse.ok) {
+          window.location.replace('/seller-registration?resume=1');
+          return;
+        }
+        setError(loginPayload.error || 'This account already exists. Use the correct password or reset it, then continue the saved seller setup.');
         return;
       }
 
@@ -357,6 +393,7 @@ export default function SellerRegistrationFlow() {
         setSellerId(result?.sellerRef || `FT-SLR-${user.id.replaceAll('-', '').slice(0, 12).toUpperCase()}`);
         setSubmissionWarning(result?.warning || '');
         await refreshProfile();
+        await clearDraft();
         setCurrentStep('done');
         return;
       }

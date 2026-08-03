@@ -69,6 +69,12 @@ export default function EmailOtpLoginClient() {
     if (searchParams.get('password_updated') === '1') {
       setInfo('Password updated successfully. Sign in with your new password.');
     }
+    if (searchParams.get('account_deleted') === '1') {
+      setInfo('Your FabricTrad account was permanently deleted.');
+    }
+    if (searchParams.get('account_disabled') === '1') {
+      setInfo('Your account access and personal profile data were removed. Final cleanup is being reviewed.');
+    }
     if (authError === 'account_inactive') setError('This account is inactive. Contact FabricTrad support.');
     else if (authError === 'account_setup_failed') setError('Your login worked, but the account profile could not be prepared. Please sign in again.');
     else if (authError === 'recovery_failed') {
@@ -88,32 +94,57 @@ export default function EmailOtpLoginClient() {
   };
 
   const handleLogin = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const normalizedEmail = email.trim().toLowerCase();
-    if (!normalizedEmail || !password) {
-      setError('Enter your registered email and password.');
-      return;
-    }
+  event.preventDefault();
+  const normalizedEmail = email.trim().toLowerCase();
+  if (!normalizedEmail || !password) {
+    setError('Enter your registered email and password.');
+    return;
+  }
 
-    clearMessages();
-    setSubmitting(true);
-    try {
+  clearMessages();
+  setSubmitting(true);
+  try {
+    const isDemoEmail =
+      normalizedEmail === 'demo.buyer@fabrictrad.com' ||
+      normalizedEmail === 'demo.seller@fabrictrad.com';
+    if (isDemoEmail) {
       const result = await signIn(normalizedEmail, password);
       const role =
         (result?.role as AccountRole | undefined) ||
         (result?.user?.app_metadata?.role as AccountRole | undefined) ||
         (result?.user?.user_metadata?.role as AccountRole | undefined) ||
         'buyer';
-      router.replace(destinationForRole(role, requestedNext));
-      router.refresh();
-    } catch (caughtError) {
-      const message = caughtError instanceof Error ? caughtError.message : 'Invalid email or password.';
-      setError(/invalid login credentials/i.test(message) ? 'The email or password is incorrect.' : message);
-      setSubmitting(false);
+      window.location.replace(destinationForRole(role, requestedNext));
+      return;
     }
-  };
 
-  const handleGoogle = async () => {
+    const response = await fetch('/api/auth/password-login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      cache: 'no-store',
+      body: JSON.stringify({
+        email: normalizedEmail,
+        password,
+        next: requestedNext,
+      }),
+    });
+    const payload = (await response.json().catch(() => ({}))) as {
+      destination?: string;
+      error?: string;
+    };
+    if (!response.ok) throw new Error(payload.error || 'The email or password is incorrect.');
+    window.location.replace(
+      payload.destination?.startsWith('/') ? payload.destination : '/marketplace'
+    );
+  } catch (caughtError) {
+    const message = caughtError instanceof Error ? caughtError.message : 'Invalid email or password.';
+    setError(/invalid login credentials/i.test(message) ? 'The email or password is incorrect.' : message);
+    setSubmitting(false);
+  }
+};
+
+const handleGoogle = async () => {
     clearMessages();
     setGoogleSubmitting(true);
     try {

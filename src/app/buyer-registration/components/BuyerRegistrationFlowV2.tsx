@@ -15,6 +15,7 @@ import {
 } from '@/lib/commerceIdentifiers';
 import { OFFICIAL_GST_PORTAL_REFERENCE } from '@/lib/gstVerification';
 import { normalizeEmail, normalizeIndianPhone, validateIndianPhone } from '@/lib/authValidation';
+import { saveOnboardingDraftLocally, useOnboardingDraft } from '@/lib/hooks/useOnboardingDraft';
 
 type BuyerType = 'retail_store' | 'end_user';
 type Step = 'account' | 'business' | 'address' | 'documents' | 'done';
@@ -61,7 +62,7 @@ const fileOk = (file: File, aadhaarOffline = false) => {
 };
 
 export default function BuyerRegistrationFlowV2({ buyerType }: Props) {
-  const { signUp, signInWithGoogle, googleAuthEnabled, checkEmailUnique, checkPhoneUnique } = useAuth();
+  const { user, signUp, signInWithGoogle, googleAuthEnabled, checkEmailUnique, checkPhoneUnique } = useAuth();
   const steps = useMemo<Step[]>(
     () =>
       buyerType === 'retail_store'
@@ -98,7 +99,32 @@ export default function BuyerRegistrationFlowV2({ buyerType }: Props) {
   const [documents, setDocuments] = useState<Partial<Record<DocumentKey, File>>>({});
   const [gstCheck, setGstCheck] = useState<GstCheck>({ status: 'idle', message: '' });
 
-  const currentIndex = steps.indexOf(step);
+const draftPayload = useMemo(
+  () => ({
+    buyerType,
+    account: { ...account, password: '', confirmPassword: '' },
+    business,
+    address,
+    gstCheck,
+  }),
+  [account, address, business, buyerType, gstCheck]
+);
+const { clearDraft } = useOnboardingDraft({
+  flow: 'buyer',
+  userId: user?.id,
+  step,
+  payload: draftPayload,
+  onRestore: (draft) => {
+    if (draft.payload.account) setAccount((current) => ({ ...current, ...draft.payload.account, password: '', confirmPassword: '' }));
+    if (draft.payload.business) setBusiness((current) => ({ ...current, ...draft.payload.business }));
+    if (draft.payload.address) setAddress((current) => ({ ...current, ...draft.payload.address }));
+    if (draft.payload.gstCheck) setGstCheck(draft.payload.gstCheck);
+    if (steps.includes(draft.step as Step) && draft.step !== 'done') setStep(draft.step as Step);
+    setResultMessage('Your saved registration draft was restored. Document files must be selected again for security.');
+  },
+});
+
+const currentIndex = steps.indexOf(step);
   const requiredDocuments = useMemo<DocumentKey[]>(() => {
     if (buyerType !== 'retail_store') return [];
     const required: DocumentKey[] = ['business_proof'];
@@ -131,8 +157,28 @@ export default function BuyerRegistrationFlowV2({ buyerType }: Props) {
         checkEmailUnique(email),
         checkPhoneUnique(phone),
       ]);
-      if (!emailResult.unique || !phoneResult.unique) {
-        setError('This email or mobile number already has a FabricTrad account. Sign in and use the same account.');
+      if (!emailResult.unique) {
+        saveOnboardingDraftLocally('buyer', buyerType === 'retail_store' ? 'business' : 'address', {
+          ...draftPayload,
+          account: { ...draftPayload.account, email, phone },
+        });
+        const loginResponse = await fetch('/api/auth/password-login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          cache: 'no-store',
+          body: JSON.stringify({ email, password: account.password, next: '/buyer-registration?resume=1' }),
+        });
+        const loginPayload = (await loginResponse.json().catch(() => ({}))) as { error?: string };
+        if (loginResponse.ok) {
+          window.location.replace('/buyer-registration?resume=1');
+          return;
+        }
+        setError(loginPayload.error || 'This account already exists. Use the correct password or reset it, then continue the saved registration.');
+        return;
+      }
+      if (!phoneResult.unique) {
+        setError('This mobile number belongs to another FabricTrad account. Sign in to that account instead of creating a duplicate.');
         return;
       }
       setAccount((current) => ({ ...current, email, phone }));
@@ -240,7 +286,7 @@ export default function BuyerRegistrationFlowV2({ buyerType }: Props) {
 
     setSubmitting(true);
     try {
-      const signup = await signUp(account.email, account.password, {
+      const signup = user ? { user, session: null, registrationNonce: '' } : await signUp(account.email, account.password, {
         fullName: account.fullName,
         phone: account.phone,
         role: 'buyer',
@@ -324,6 +370,9 @@ export default function BuyerRegistrationFlowV2({ buyerType }: Props) {
         message?: string;
       };
       if (!response.ok) throw new Error(payload.error || 'Buyer profile could not be completed.');
+      await clearDraft();
+      window.localStorage.removeItem('fabrictrad_buyer_type');
+      window.sessionStorage.removeItem('fabrictrad_buyer_type');
       setResultMessage(payload.message || 'Your FabricTrad buyer account is ready.');
       goTo('done');
     } catch (caught) {
