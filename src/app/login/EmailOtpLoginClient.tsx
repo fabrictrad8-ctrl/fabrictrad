@@ -29,10 +29,10 @@ const safeNextPath = (value: string | null) => {
   }
 };
 
-const defaultDestinationForRole = (role?: AccountRole | null) => role === 'admin_staff' || role === 'super_admin' ? '/admin-portal' : '/account';
+const defaultDestinationForRole = (role?: AccountRole | null) => role === 'admin_staff' || role === 'super_admin' ? '/admin-portal' : role === 'seller' ? '/account' : '/marketplace';
 const destinationForRole = (role?: AccountRole | null, requestedNext?: string | null) => {
   const fallback = defaultDestinationForRole(role);
-  return fallback === '/account' && requestedNext ? requestedNext : fallback;
+  return fallback !== '/admin-portal' && requestedNext ? requestedNext : fallback;
 };
 
 function GoogleMark() {
