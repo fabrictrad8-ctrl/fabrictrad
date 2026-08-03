@@ -1,4 +1,5 @@
 -- Restrict privileged marketplace functions to the minimum required roles.
+-- Applied to production and retained here so Supabase deployment history stays reproducible.
 
 REVOKE EXECUTE ON FUNCTION public.begin_marketplace_refund(text, uuid, numeric, text, text)
   FROM PUBLIC, anon, authenticated;
