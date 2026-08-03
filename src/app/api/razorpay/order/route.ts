@@ -9,6 +9,18 @@ export const dynamic = 'force-dynamic';
 type OrderType = 'bulk' | 'catalog';
 type RequestBody = { orderId?: string; orderType?: OrderType };
 
+class RazorpayOrderError extends Error {
+  status: number;
+  code: string;
+
+  constructor(message: string, status = 500, code = 'RAZORPAY_ORDER_FAILED') {
+    super(message);
+    this.name = 'RazorpayOrderError';
+    this.status = status;
+    this.code = code;
+  }
+}
+
 const json = (body: Record<string, unknown>, status = 200) =>
   NextResponse.json(body, {
     status,
@@ -30,6 +42,14 @@ async function createRazorpayOrder(input: {
   transferAccount?: string | null;
   transferAmountPaise?: number;
 }) {
+  if (!Number.isInteger(input.amountPaise) || input.amountPaise < 100) {
+    throw new RazorpayOrderError(
+      'The payment amount must be at least 100 paise.',
+      400,
+      'AMOUNT_BELOW_MINIMUM'
+    );
+  }
+
   const payload: Record<string, unknown> = {
     amount: input.amountPaise,
     currency: 'INR',
@@ -47,27 +67,56 @@ async function createRazorpayOrder(input: {
     ];
   }
 
-  const response = await fetch('https://api.razorpay.com/v1/orders', {
-    method: 'POST',
-    headers: {
-      Authorization: `Basic ${Buffer.from(`${input.keyId}:${input.keySecret}`).toString('base64')}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-    cache: 'no-store',
-  });
+  let response: Response;
+  try {
+    response = await fetch('https://api.razorpay.com/v1/orders', {
+      method: 'POST',
+      headers: {
+        Authorization: `Basic ${Buffer.from(`${input.keyId}:${input.keySecret}`).toString('base64')}`,
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      body: JSON.stringify(payload),
+      cache: 'no-store',
+      signal: AbortSignal.timeout(20_000),
+    });
+  } catch (error) {
+    throw new RazorpayOrderError(
+      error instanceof Error && error.name === 'TimeoutError'
+        ? 'Razorpay did not respond in time. Please retry.'
+        : 'Razorpay could not be reached. Please retry.',
+      500,
+      'RAZORPAY_UNREACHABLE'
+    );
+  }
+
   const result = (await response.json().catch(() => ({}))) as {
     id?: string;
     amount?: number;
     currency?: string;
     status?: string;
-    error?: { description?: string };
+    error?: { code?: string; description?: string };
   };
+  if (response.status === 401) {
+    throw new RazorpayOrderError(
+      'Razorpay authentication failed. Check the server-side test credentials.',
+      401,
+      'RAZORPAY_AUTH_FAILED'
+    );
+  }
   if (!response.ok || !result.id) {
-    throw new Error(result.error?.description || 'Razorpay could not create the payment order.');
+    throw new RazorpayOrderError(
+      result.error?.description || 'Razorpay could not create the payment order.',
+      500,
+      result.error?.code || 'RAZORPAY_ORDER_FAILED'
+    );
   }
   if (result.currency !== 'INR' || Number(result.amount) !== input.amountPaise) {
-    throw new Error('Razorpay returned an unexpected amount or currency.');
+    throw new RazorpayOrderError(
+      'Razorpay returned an unexpected amount or currency.',
+      500,
+      'RAZORPAY_ORDER_MISMATCH'
+    );
   }
   return result;
 }
@@ -104,24 +153,33 @@ export async function POST(request: NextRequest) {
   const paymentTable = orderType === 'catalog' ? 'catalog_order_payments' : 'bulk_order_payments';
   const orderForeignKey = orderType === 'catalog' ? 'catalog_order_id' : 'bulk_order_id';
 
-  const catalogOrderResult = orderType === 'catalog'
-    ? await admin
-        .from('catalog_order_requests')
-        .select('id,buyer_id,seller_id,status,total_amount,payment_terms,deposit_percent,payment_status,amount_paid,amount_refunded,payment_due_at')
-        .eq('id', orderId)
-        .eq('buyer_id', user.id)
-        .maybeSingle()
-    : null;
-  const bulkOrderResult = orderType === 'bulk'
-    ? await admin
-        .from('bulk_orders')
-        .select('id,buyer_id,seller_id,status,net_total,payment_status,amount_paid,amount_refunded')
-        .eq('id', orderId)
-        .eq('buyer_id', user.id)
-        .maybeSingle()
-    : null;
+  const catalogOrderResult =
+    orderType === 'catalog'
+      ? await admin
+          .from('catalog_order_requests')
+          .select(
+            'id,buyer_id,seller_id,status,total_amount,payment_terms,deposit_percent,payment_status,amount_paid,amount_refunded,payment_due_at'
+          )
+          .eq('id', orderId)
+          .eq('buyer_id', user.id)
+          .maybeSingle()
+      : null;
+  const bulkOrderResult =
+    orderType === 'bulk'
+      ? await admin
+          .from('bulk_orders')
+          .select(
+            'id,buyer_id,seller_id,status,net_total,payment_status,amount_paid,amount_refunded'
+          )
+          .eq('id', orderId)
+          .eq('buyer_id', user.id)
+          .maybeSingle()
+      : null;
   const orderError = catalogOrderResult?.error || bulkOrderResult?.error;
-  const order = (catalogOrderResult?.data || bulkOrderResult?.data || null) as Record<string, unknown> | null;
+  const order = (catalogOrderResult?.data || bulkOrderResult?.data || null) as Record<
+    string,
+    unknown
+  > | null;
   if (orderError) return json({ error: 'The order could not be loaded.' }, 503);
   if (!order) return json({ error: 'Order not found.' }, 404);
 
@@ -130,7 +188,9 @@ export async function POST(request: NextRequest) {
   if (!payableStatuses.includes(status)) {
     return json({ error: 'This order is not currently ready for payment.' }, 409);
   }
-  if (!order.seller_id) return json({ error: 'A seller must confirm the order before payment.' }, 409);
+  if (!order.seller_id) {
+    return json({ error: 'A seller must confirm the order before payment.' }, 409);
+  }
 
   const totalAmount = roundMoney(
     Number(orderType === 'catalog' ? order.total_amount : order.net_total || 0)
@@ -145,14 +205,23 @@ export async function POST(request: NextRequest) {
   }
 
   const depositPercent =
-    orderType === 'catalog' ? Math.max(0, Math.min(100, Number(order.deposit_percent || 0))) : 100;
+    orderType === 'catalog'
+      ? Math.max(0, Math.min(100, Number(order.deposit_percent || 0)))
+      : 100;
   const firstPayment = netPaid < 0.01;
   const requestedDeposit = firstPayment && depositPercent > 0 && depositPercent < 100;
   const amountDue = roundMoney(
-    requestedDeposit ? Math.min(remaining, Math.max(0.01, totalAmount * (depositPercent / 100))) : remaining
+    requestedDeposit
+      ? Math.min(remaining, Math.max(0.01, totalAmount * (depositPercent / 100)))
+      : remaining
   );
   const amountPaise = rupeesToPaise(amountDue);
-  if (amountPaise < 100) return json({ error: 'The amount due is below the supported minimum.' }, 409);
+  if (amountPaise < 100) {
+    return json(
+      { error: 'The amount due is below the supported minimum.', code: 'AMOUNT_BELOW_MINIMUM' },
+      400
+    );
+  }
 
   const { data: seller, error: sellerError } = await admin
     .from('seller_profiles')
@@ -161,13 +230,20 @@ export async function POST(request: NextRequest) {
     )
     .eq('id', order.seller_id)
     .maybeSingle();
-  if (sellerError) return json({ error: 'Seller payment eligibility could not be checked.' }, 503);
+  if (sellerError) {
+    return json({ error: 'Seller payment eligibility could not be checked.' }, 503);
+  }
   const sellerEligible =
     seller?.is_active === true &&
     seller?.gstin_verified === true &&
-    ['approved', 'verified', 'active'].includes(String(seller?.verification_status || '').toLowerCase());
+    ['approved', 'verified', 'active'].includes(
+      String(seller?.verification_status || '').toLowerCase()
+    );
   if (!sellerEligible) {
-    return json({ error: 'The seller is not currently eligible to receive marketplace payments.' }, 409);
+    return json(
+      { error: 'The seller is not currently eligible to receive marketplace payments.' },
+      409
+    );
   }
 
   const { data: existing } = await admin
@@ -240,9 +316,13 @@ export async function POST(request: NextRequest) {
       transferAmountPaise: routeEnabled ? rupeesToPaise(sellerPayable) : 0,
     });
   } catch (error) {
+    const providerError =
+      error instanceof RazorpayOrderError
+        ? error
+        : new RazorpayOrderError('Payment order creation failed.');
     return json(
-      { error: error instanceof Error ? error.message : 'Payment order creation failed.' },
-      502
+      { error: providerError.message, code: providerError.code },
+      providerError.status
     );
   }
 
