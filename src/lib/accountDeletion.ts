@@ -15,10 +15,34 @@ type OrderRow = {
   amount_refunded?: number | string | null;
 };
 
+type PaymentRow = {
+  id: string;
+  order_id: string;
+  status?: string | null;
+  refund_status?: string | null;
+  razorpay_transfer_id?: string | null;
+  seller_payable?: number | string | null;
+};
+
 const amount = (value: unknown) => Number(value || 0);
 const activeDisputeStatuses = new Set(['open', 'under_review', 'escalated']);
 const terminalCatalogStatuses = new Set(['cancelled', 'fulfilled']);
 const terminalBulkStatuses = new Set(['cancelled', 'delivered']);
+const pendingRefundStatuses = new Set(['requested', 'pending', 'processing']);
+
+const orderStillBlocksDeletion = (order: OrderRow, terminalStatuses: Set<string>) => {
+  const status = String(order.status || '').toLowerCase();
+  if (!terminalStatuses.has(status)) return true;
+  // A cancelled paid order remains blocked until its money is fully refunded.
+  if (status === 'cancelled' && amount(order.amount_paid) > amount(order.amount_refunded)) {
+    return true;
+  }
+  // Fulfilled/delivered orders remain in statutory records but do not prevent
+  // the person from closing their login and anonymising personal profile data.
+  return false;
+};
+
+const uniqueIds = (rows: OrderRow[]) => [...new Set(rows.map((row) => row.id).filter(Boolean))];
 
 export async function accountDeletionBlockers(admin: SupabaseClient, userId: string) {
   const blockers: Blocker[] = [];
@@ -66,23 +90,18 @@ export async function accountDeletionBlockers(admin: SupabaseClient, userId: str
     sellerDisputes.error;
   if (queryError) throw queryError;
 
-  const catalogueOrders = [
-    ...((buyerCatalog.data || []) as OrderRow[]),
-    ...((sellerCatalog.data || []) as OrderRow[]),
-  ];
-  const bulkOrders = [
-    ...((buyerBulk.data || []) as OrderRow[]),
-    ...((sellerBulk.data || []) as OrderRow[]),
-  ];
-  const openCatalogue = catalogueOrders.filter(
-    (order) =>
-      !terminalCatalogStatuses.has(String(order.status || '').toLowerCase()) ||
-      amount(order.amount_paid) > amount(order.amount_refunded)
+  const buyerCatalogRows = (buyerCatalog.data || []) as OrderRow[];
+  const buyerBulkRows = (buyerBulk.data || []) as OrderRow[];
+  const sellerCatalogRows = (sellerCatalog.data || []) as OrderRow[];
+  const sellerBulkRows = (sellerBulk.data || []) as OrderRow[];
+  const catalogueOrders = [...buyerCatalogRows, ...sellerCatalogRows];
+  const bulkOrders = [...buyerBulkRows, ...sellerBulkRows];
+
+  const openCatalogue = catalogueOrders.filter((order) =>
+    orderStillBlocksDeletion(order, terminalCatalogStatuses)
   );
-  const openBulk = bulkOrders.filter(
-    (order) =>
-      !terminalBulkStatuses.has(String(order.status || '').toLowerCase()) ||
-      amount(order.amount_paid) > amount(order.amount_refunded)
+  const openBulk = bulkOrders.filter((order) =>
+    orderStillBlocksDeletion(order, terminalBulkStatuses)
   );
   const activeDisputes = [
     ...(buyerDisputes.data || []),
@@ -114,34 +133,59 @@ export async function accountDeletionBlockers(admin: SupabaseClient, userId: str
     });
   }
 
+  const catalogIds = uniqueIds(catalogueOrders);
+  const bulkIds = uniqueIds(bulkOrders);
+  const sellerCatalogIds = new Set(uniqueIds(sellerCatalogRows));
+  const sellerBulkIds = new Set(uniqueIds(sellerBulkRows));
+
+  const [catalogPaymentsResult, bulkPaymentsResult] = await Promise.all([
+    catalogIds.length
+      ? admin
+          .from('catalog_order_payments')
+          .select('id,catalog_order_id,status,refund_status,razorpay_transfer_id,seller_payable')
+          .in('catalog_order_id', catalogIds)
+      : Promise.resolve({ data: [], error: null }),
+    bulkIds.length
+      ? admin
+          .from('bulk_order_payments')
+          .select('id,bulk_order_id,status,refund_status,razorpay_transfer_id,seller_payable')
+          .in('bulk_order_id', bulkIds)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+  if (catalogPaymentsResult.error || bulkPaymentsResult.error) {
+    throw catalogPaymentsResult.error || bulkPaymentsResult.error;
+  }
+
+  const catalogPayments: PaymentRow[] = (catalogPaymentsResult.data || []).map((row) => ({
+    ...row,
+    order_id: String(row.catalog_order_id),
+  }));
+  const bulkPayments: PaymentRow[] = (bulkPaymentsResult.data || []).map((row) => ({
+    ...row,
+    order_id: String(row.bulk_order_id),
+  }));
+  const allPayments = [...catalogPayments, ...bulkPayments];
+  const refundsPending = allPayments.filter((payment) =>
+    pendingRefundStatuses.has(String(payment.refund_status || '').toLowerCase())
+  );
+  if (refundsPending.length) {
+    blockers.push({
+      code: 'REFUNDS_PENDING',
+      title: 'Payment refunds are pending',
+      detail: 'Wait for Razorpay to confirm every pending refund before deleting the account.',
+      count: refundsPending.length,
+    });
+  }
+
   if (sellerId) {
-    const orderIds = [
-      ...(sellerCatalog.data || []).map((row) => row.id),
-      ...(sellerBulk.data || []).map((row) => row.id),
-    ];
-    const [catalogPayments, bulkPayments] = await Promise.all([
-      (sellerCatalog.data || []).length
-        ? admin
-            .from('catalog_order_payments')
-            .select('id,status,refund_status,razorpay_transfer_id,seller_payable')
-            .in('catalog_order_id', (sellerCatalog.data || []).map((row) => row.id))
-        : Promise.resolve({ data: [], error: null }),
-      (sellerBulk.data || []).length
-        ? admin
-            .from('bulk_order_payments')
-            .select('id,status,refund_status,razorpay_transfer_id,seller_payable')
-            .in('bulk_order_id', (sellerBulk.data || []).map((row) => row.id))
-        : Promise.resolve({ data: [], error: null }),
-    ]);
-    if (catalogPayments.error || bulkPayments.error) throw catalogPayments.error || bulkPayments.error;
-    const unsettled = [...(catalogPayments.data || []), ...(bulkPayments.data || [])].filter(
+    const unsettled = [
+      ...catalogPayments.filter((payment) => sellerCatalogIds.has(payment.order_id)),
+      ...bulkPayments.filter((payment) => sellerBulkIds.has(payment.order_id)),
+    ].filter(
       (payment) =>
         ['captured', 'paid'].includes(String(payment.status || '').toLowerCase()) &&
         !payment.razorpay_transfer_id &&
         amount(payment.seller_payable) > 0
-    );
-    const refundsPending = [...(catalogPayments.data || []), ...(bulkPayments.data || [])].filter(
-      (payment) => ['requested', 'pending', 'processing'].includes(String(payment.refund_status || '').toLowerCase())
     );
     if (unsettled.length) {
       blockers.push({
@@ -151,15 +195,6 @@ export async function accountDeletionBlockers(admin: SupabaseClient, userId: str
         count: unsettled.length,
       });
     }
-    if (refundsPending.length) {
-      blockers.push({
-        code: 'REFUNDS_PENDING',
-        title: 'Payment refunds are pending',
-        detail: 'Wait for Razorpay to confirm every pending refund before deleting the account.',
-        count: refundsPending.length,
-      });
-    }
-    void orderIds;
   }
 
   return { blockers, sellerId };
