@@ -31,30 +31,47 @@ async function reconcileOrderPayment(input: {
   const paymentTable = input.kind === 'catalog' ? 'catalog_order_payments' : 'bulk_order_payments';
   const orderTable = input.kind === 'catalog' ? 'catalog_order_requests' : 'bulk_orders';
   const foreignKey = input.kind === 'catalog' ? 'catalog_order_id' : 'bulk_order_id';
-  const totalColumn = input.kind === 'catalog' ? 'total_amount' : 'net_total';
 
-  const [{ data: payments }, { data: order }] = await Promise.all([
-    input.admin
-      .from(paymentTable)
-      .select('amount,refunded_amount,status')
-      .eq(foreignKey, input.orderId),
-    input.admin
-      .from(orderTable)
-      .select(`id,status,${totalColumn}`)
-      .eq('id', input.orderId)
-      .maybeSingle(),
-  ]);
-  if (!order) throw new Error('The FabricTrad order is unavailable for reconciliation.');
+  const paymentsResult = await input.admin
+    .from(paymentTable)
+    .select('amount,refunded_amount,status')
+    .eq(foreignKey, input.orderId);
+  const orderResult =
+    input.kind === 'catalog'
+      ? await input.admin
+          .from('catalog_order_requests')
+          .select('id,status,total_amount')
+          .eq('id', input.orderId)
+          .maybeSingle()
+      : await input.admin
+          .from('bulk_orders')
+          .select('id,status,net_total')
+          .eq('id', input.orderId)
+          .maybeSingle();
 
-  const captured = (payments || [])
-    .filter((payment) => ['captured', 'partially_refunded', 'refunded'].includes(String(payment.status)))
+  if (paymentsResult.error || orderResult.error || !orderResult.data) {
+    throw (
+      paymentsResult.error ||
+      orderResult.error ||
+      new Error('The FabricTrad order is unavailable for reconciliation.')
+    );
+  }
+
+  const payments = paymentsResult.data || [];
+  const order = orderResult.data as Record<string, unknown>;
+  const captured = payments
+    .filter((payment) =>
+      ['captured', 'partially_refunded', 'refunded'].includes(String(payment.status))
+    )
     .reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
-  const refunded = (payments || []).reduce(
+  const refunded = payments.reduce(
     (sum, payment) => sum + Number(payment.refunded_amount || 0),
     0
   );
   const netPaid = Math.max(0, roundMoney(captured - refunded));
-  const total = roundMoney(Number(order[totalColumn] || 0));
+  const total = roundMoney(
+    Number(input.kind === 'catalog' ? order.total_amount : order.net_total || 0)
+  );
   const paymentStatus =
     refunded >= captured && captured > 0
       ? 'refunded'
@@ -73,8 +90,17 @@ async function reconcileOrderPayment(input: {
     updated_at: new Date().toISOString(),
   };
   if (paymentStatus === 'paid') patch.status = 'paid';
-  await input.admin.from(orderTable).update(patch).eq('id', input.orderId);
-  return { paymentStatus, amountPaid: roundMoney(captured), amountRefunded: roundMoney(refunded) };
+  const { error: orderUpdateError } = await input.admin
+    .from(orderTable)
+    .update(patch)
+    .eq('id', input.orderId);
+  if (orderUpdateError) throw orderUpdateError;
+
+  return {
+    paymentStatus,
+    amountPaid: roundMoney(captured),
+    amountRefunded: roundMoney(refunded),
+  };
 }
 
 export async function POST(request: NextRequest) {
