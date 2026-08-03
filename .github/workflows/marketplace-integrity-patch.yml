@@ -1,0 +1,136 @@
+name: Apply marketplace integrity patches
+
+on:
+  push:
+    branches:
+      - agent/shopify-platform-overhaul
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: ${{ !contains(github.event.head_commit.message, '[skip-integrity-patch]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/shopify-platform-overhaul
+          fetch-depth: 0
+
+      - name: Patch server-authoritative order UI
+        shell: python
+        run: |
+          from pathlib import Path
+
+          def replace_once(path: Path, old: str, new: str):
+              text = path.read_text()
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{path}: expected exactly one match, found {count}: {old[:100]!r}')
+              path.write_text(text.replace(old, new, 1))
+
+          product = Path('src/app/product-detail/components/ProductInfo.tsx')
+          replace_once(
+              product,
+              "  const gstAmount = useMemo(() => roundMoney(estimatedTotal * 0.05), [estimatedTotal]);\n",
+              "  // The database derives GST from the approved seller product/variant HSN and GST settings.\n  // Do not present a guessed client-side tax amount that can disagree with the final order.\n"
+          )
+          replace_once(
+              product,
+              "  const depositAmount = roundMoney((estimatedTotal + gstAmount) * (depositPercent / 100));",
+              "  const estimatedDepositBeforeTax = roundMoney(estimatedTotal * (depositPercent / 100));"
+          )
+          replace_once(
+              product,
+              "        const subtotal = roundMoney(estimatedTotal);\n        const total = roundMoney(subtotal + gstAmount);\n        const { error } = await supabase.from('catalog_order_requests').insert({\n          buyer_id: user.id,\n          seller_id: product.sellerId,\n          product_id: product.rawProductId,\n          variant_id: selectedVariant?.id || null,\n          quantity: qty,\n          unit,\n          price_per_unit: price,\n          subtotal,\n          gst_amount: gstAmount,\n          total_amount: total,\n          status: 'pending',\n          company_id: company?.id || null,\n          company_location_id: selectedLocation?.id || null,\n          purchase_order_number: purchaseOrderNumber.trim() || null,\n          payment_terms: paymentTerms,\n          deposit_percent: depositPercent,\n          requires_review: requiresReview,\n          review_status: requiresReview ? 'pending' : 'not_required',\n          notes: `${retailEnabled ? 'Retail' : 'B2B'} catalogue request for ${product.name}${catalogRule ? ' using eligible catalog pricing' : ''}`,\n        });\n        if (error) throw error;",
+              "        const { data, error } = await supabase.rpc('submit_catalog_order_request', {\n          p_product_id: product.rawProductId,\n          p_variant_id: selectedVariant?.id || null,\n          p_quantity: qty,\n          p_company_id: company?.id || null,\n          p_company_location_id: selectedLocation?.id || null,\n          p_purchase_order_number: purchaseOrderNumber.trim() || null,\n          p_payment_terms: paymentTerms,\n          p_deposit_percent: depositPercent,\n          p_requires_review: requiresReview,\n          p_notes: `${retailEnabled ? 'Retail' : 'B2B'} catalogue request for ${product.name}${catalogRule ? ' using eligible catalog pricing' : ''}`,\n        });\n        if (error) throw error;\n        const confirmed = data as { totalAmount?: number; gstAmount?: number } | null;\n        toast.success(\n          confirmed?.totalAmount\n            ? `Server-confirmed order total: ₹${Number(confirmed.totalAmount).toLocaleString('en-IN')}`\n            : 'The server confirmed the order pricing and tax.'\n        );"
+          )
+          replace_once(
+              product,
+              "{depositPercent ? `${depositPercent}% · ₹${depositAmount.toLocaleString('en-IN')}` : 'No deposit'}",
+              "{depositPercent ? `${depositPercent}% opening deposit · about ₹${estimatedDepositBeforeTax.toLocaleString('en-IN')} before server-calculated GST` : 'Full server-calculated balance'}"
+          )
+          replace_once(
+              product,
+              "        <div className=\"mt-1 flex justify-between text-sm\">\n          <span className=\"text-muted-foreground\">GST (5%)</span>\n          <span className=\"font-700 text-foreground\">₹{gstAmount.toLocaleString('en-IN')}</span>\n        </div>\n        <div className=\"mt-2 flex justify-between border-t border-border pt-2 text-sm font-800\">\n          <span>Estimated total</span>\n          <span className=\"text-primary\">\n            ₹{(estimatedTotal + gstAmount).toLocaleString('en-IN')}\n          </span>\n        </div>",
+              "        <div className=\"mt-1 flex items-start justify-between gap-4 border-t border-border pt-2 text-xs\">\n          <span className=\"text-muted-foreground\">GST and final total</span>\n          <span className=\"max-w-[15rem] text-right font-700 text-foreground\">Calculated by the server from the approved seller HSN, GST rate, price-inclusive setting and place of supply</span>\n        </div>\n        <div className=\"mt-2 flex justify-between border-t border-border pt-2 text-sm font-800\">\n          <span>Estimated goods value</span>\n          <span className=\"text-primary\">₹{estimatedTotal.toLocaleString('en-IN')}</span>\n        </div>"
+          )
+
+          buyer_orders = Path('src/app/buyer-dashboard/components/BuyerOrders.tsx')
+          replace_once(
+              buyer_orders,
+              "import { RazorpayCheckout } from '@/components/RazorpayCheckout';\n",
+              "import { RazorpayCheckout } from '@/components/RazorpayCheckout';\nimport OrderLifecyclePanel from '@/components/commerce/OrderLifecyclePanel';\n"
+          )
+          replace_once(
+              buyer_orders,
+              "            const canCancel = ['draft', 'quote_sent', 'confirmed'].includes(status);\n            const paid = ['paid', 'shipped', 'delivered'].includes(status);",
+              "            const netPaid = Math.max(0, Number(order.amount_paid || 0) - Number(order.amount_refunded || 0));\n            const remaining = Math.max(0, Number(order.net_total || 0) - netPaid);\n            const canCancel = Number(order.amount_paid || 0) === 0 && ['draft', 'quote_sent', 'confirmed'].includes(status);\n            const paid = order.payment_status === 'paid' || ['paid', 'shipped', 'delivered'].includes(status);"
+          )
+          replace_once(
+              buyer_orders,
+              "                    {status === 'confirmed' && (\n                      <div className=\"mb-4 max-w-xs\">\n                        <RazorpayCheckout\n                          amount={Number(order.net_total || 0)}\n                          orderId={order.id}\n                          buttonText=\"Pay confirmed order\"",
+              "                    {status === 'confirmed' && remaining > 0 && (\n                      <div className=\"mb-4 max-w-sm\">\n                        <RazorpayCheckout\n                          amount={remaining}\n                          orderId={order.id}\n                          orderType=\"bulk\"\n                          buttonText={netPaid > 0 ? 'Pay remaining balance' : 'Pay confirmed order'}"
+          )
+          replace_once(
+              buyer_orders,
+              "                    <div className=\"flex flex-wrap gap-2\">",
+              "                    <OrderLifecyclePanel\n                      orderKind=\"bulk\"\n                      orderId={order.id}\n                      viewerRole=\"buyer\"\n                      orderStatus={order.status}\n                      paymentStatus={order.payment_status}\n                      amountPaid={order.amount_paid}\n                      amountRefunded={order.amount_refunded}\n                      buyerId={order.buyer_id}\n                      sellerId={order.seller_id}\n                      onChanged={refresh}\n                    />\n\n                    <div className=\"mt-4 flex flex-wrap gap-2\">"
+          )
+
+          seller_orders = Path('src/app/seller-dashboard/components/SellerOrders.tsx')
+          replace_once(
+              seller_orders,
+              "import Icon from '@/components/ui/AppIcon';\n",
+              "import Icon from '@/components/ui/AppIcon';\nimport OrderLifecyclePanel from '@/components/commerce/OrderLifecyclePanel';\n"
+          )
+          replace_once(
+              seller_orders,
+              "            order_id: order.id,\n            seller_id: order.seller_id,\n            buyer_id: order.buyer_id,",
+              "            order_id: order.id,\n            bulk_order_id: order.id,\n            catalog_order_id: null,\n            seller_id: order.seller_id,\n            buyer_id: order.buyer_id,"
+          )
+          replace_once(
+              seller_orders,
+              "          { onConflict: 'order_id' }",
+              "          { onConflict: 'bulk_order_id' }"
+          )
+          replace_once(
+              seller_orders,
+              "            {['confirmed', 'paid'].includes(order.status || '') && <div className=\"mt-5 border-t border-border pt-4\">",
+              "            {order.status === 'paid' && order.payment_status === 'paid' && <div className=\"mt-5 border-t border-border pt-4\">"
+          )
+          replace_once(
+              seller_orders,
+              "          </article>;",
+              "            <OrderLifecyclePanel\n              orderKind=\"bulk\"\n              orderId={order.id}\n              viewerRole=\"seller\"\n              orderStatus={order.status}\n              paymentStatus={order.payment_status}\n              amountPaid={order.amount_paid}\n              amountRefunded={order.amount_refunded}\n              buyerId={order.buyer_id}\n              sellerId={order.seller_id}\n              onChanged={refresh}\n            />\n          </article>;"
+          )
+
+          quality = Path('.github/workflows/quality.yml')
+          replace_once(
+              quality,
+              "            supabase/migrations/20260730220000_unified_commerce_accounts.sql\n",
+              "            supabase/migrations/20260730220000_unified_commerce_accounts.sql\n            supabase/migrations/20260803052000_marketplace_payment_invoice_shipping_integrity.sql\n            src/lib/razorpayIntegrity.ts\n            src/lib/sellerTaxInvoice.ts\n            src/app/api/seller/invoices/route.ts\n            src/components/commerce/OrderLifecyclePanel.tsx\n"
+          )
+          replace_once(
+              quality,
+              "          grep -Fq 'catalog_order_payments' src/app/api/razorpay/webhook/route.ts\n",
+              "          grep -Fq 'catalog_order_payments' src/app/api/razorpay/webhook/route.ts\n          grep -Fq 'assertRazorpayPaymentMatches' src/app/api/razorpay/verify/route.ts\n          grep -Fq 'razorpayOrderId' src/components/RazorpayCheckout.tsx\n          grep -Fq \"orderType=\\\"catalog\\\"\" src/app/buyer-dashboard/components/BuyerCatalogOrders.tsx\n          grep -Fq 'submit_catalog_order_request' src/app/product-detail/components/ProductInfo.tsx\n          grep -Fq 'issue_catalog_tax_invoice' src/app/api/seller/invoices/route.ts\n          grep -Fq 'seller_tax_invoices' src/components/commerce/OrderLifecyclePanel.tsx\n          grep -Fq 'DROP POLICY IF EXISTS \"Public read shipments by order\"' supabase/migrations/20260803052000_marketplace_payment_invoice_shipping_integrity.sql\n          grep -Fq 'REVOKE EXECUTE ON FUNCTION public.check_identity_conflict' supabase/migrations/20260803052000_marketplace_payment_invoice_shipping_integrity.sql\n"
+          )
+
+      - name: Commit marketplace integrity patches
+        shell: bash
+        run: |
+          if git diff --quiet; then
+            echo 'No patch required.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- \
+            src/app/product-detail/components/ProductInfo.tsx \
+            src/app/buyer-dashboard/components/BuyerOrders.tsx \
+            src/app/seller-dashboard/components/SellerOrders.tsx \
+            .github/workflows/quality.yml
+          git commit -m 'fix: complete marketplace order lifecycle [skip-integrity-patch]'
+          git push origin HEAD:agent/shopify-platform-overhaul
