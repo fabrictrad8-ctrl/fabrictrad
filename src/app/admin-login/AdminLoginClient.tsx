@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import AppLogo from '@/components/ui/AppLogo';
 import { useAuth } from '@/contexts/AuthContext';
@@ -13,15 +13,17 @@ type OtpResponse = {
   retryAfter?: number;
 };
 
-const DEFAULT_ADMIN_EMAIL = 'fabrictrad8@gmail.com';
+const CONFIGURED_ADMIN_EMAIL = 'fabrictrad8@gmail.com';
 const MIN_EMAIL_OTP_LENGTH = 6;
 const MAX_EMAIL_OTP_LENGTH = 10;
 const EMAIL_OTP_PATTERN = /^\d{6,10}$/;
+const normalizeEmail = (value: string) => value.trim().toLowerCase();
 const isAdminRole = (role: unknown): role is AdminRole =>
   role === 'admin_staff' || role === 'super_admin';
 
 export default function AdminLoginClient() {
   const { user, profile, loading, verifyEmailOtp, signOut } = useAuth();
+  const [email, setEmail] = useState('');
   const [otp, setOtp] = useState('');
   const [codeSent, setCodeSent] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -29,14 +31,28 @@ export default function AdminLoginClient() {
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
 
+  const normalizedEmail = useMemo(() => normalizeEmail(email), [email]);
+  const emailAllowed = normalizedEmail === CONFIGURED_ADMIN_EMAIL;
   const otpReady = EMAIL_OTP_PATTERN.test(otp);
 
   useEffect(() => {
     if (loading || !user || !profile) return;
-    if (profile.is_active && isAdminRole(profile.role)) {
+
+    const signedInEmail = normalizeEmail(user.email || '');
+    const authorised =
+      signedInEmail === CONFIGURED_ADMIN_EMAIL &&
+      profile.is_active === true &&
+      isAdminRole(profile.role);
+
+    if (authorised) {
       window.location.replace('/admin-portal');
+      return;
     }
-  }, [loading, profile, user]);
+
+    if (isAdminRole(profile.role) && signedInEmail !== CONFIGURED_ADMIN_EMAIL) {
+      void signOut();
+    }
+  }, [loading, profile, signOut, user]);
 
   useEffect(() => {
     if (resendSeconds <= 0) return;
@@ -51,8 +67,17 @@ export default function AdminLoginClient() {
     setInfo('');
   };
 
+  const rejectUnapprovedEmail = () => {
+    setError('This email is not authorised for FabricTrad administration.');
+    setInfo('');
+  };
+
   const sendAdminCode = async () => {
     if (submitting || resendSeconds > 0) return;
+    if (!emailAllowed) {
+      rejectUnapprovedEmail();
+      return;
+    }
 
     clearMessages();
     setSubmitting(true);
@@ -62,7 +87,7 @@ export default function AdminLoginClient() {
         headers: { 'Content-Type': 'application/json' },
         credentials: 'same-origin',
         cache: 'no-store',
-        body: JSON.stringify({ email: DEFAULT_ADMIN_EMAIL }),
+        body: JSON.stringify({ email: normalizedEmail }),
       });
       const payload = (await response.json().catch(() => ({}))) as OtpResponse;
       if (!response.ok) {
@@ -77,7 +102,7 @@ export default function AdminLoginClient() {
       setCodeSent(true);
       setResendSeconds(60);
       setInfo(
-        `An administrator OTP was sent to ${payload.destination || DEFAULT_ADMIN_EMAIL}. Enter the complete numeric code from that email.`
+        `An administrator OTP was sent to ${payload.destination || 'the configured administrator inbox'}. Enter the complete numeric code from that email.`
       );
       window.setTimeout(() => document.getElementById('admin-email-otp')?.focus(), 50);
     } catch (caughtError: unknown) {
@@ -93,6 +118,10 @@ export default function AdminLoginClient() {
 
   const verifyAdminCode = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (!emailAllowed) {
+      rejectUnapprovedEmail();
+      return;
+    }
     if (!otpReady) {
       setError(
         `Enter the complete ${MIN_EMAIL_OTP_LENGTH}–${MAX_EMAIL_OTP_LENGTH} digit administrator OTP from the email.`
@@ -103,15 +132,13 @@ export default function AdminLoginClient() {
     clearMessages();
     setSubmitting(true);
     try {
-      const result = await verifyEmailOtp(DEFAULT_ADMIN_EMAIL, otp);
-      const signedInEmail = String(result?.user?.email || '').trim().toLowerCase();
-      if (signedInEmail !== DEFAULT_ADMIN_EMAIL) {
+      const result = await verifyEmailOtp(normalizedEmail, otp);
+      const signedInEmail = normalizeEmail(String(result?.user?.email || ''));
+      if (signedInEmail !== CONFIGURED_ADMIN_EMAIL) {
         await signOut().catch(() => undefined);
         throw new Error('This OTP does not belong to the configured FabricTrad administrator.');
       }
 
-      // The server-rendered administrator portal performs the authoritative
-      // active-role check before it displays any operational data.
       window.location.replace('/admin-portal');
     } catch (caughtError: unknown) {
       const message = caughtError instanceof Error ? caughtError.message : '';
@@ -122,6 +149,14 @@ export default function AdminLoginClient() {
       );
       setSubmitting(false);
     }
+  };
+
+  const changeEmail = () => {
+    setCodeSent(false);
+    setOtp('');
+    setResendSeconds(0);
+    clearMessages();
+    window.setTimeout(() => document.getElementById('admin-email')?.focus(), 50);
   };
 
   return (
@@ -142,8 +177,8 @@ export default function AdminLoginClient() {
             FabricTrad Admin Portal
           </h1>
           <p className="mt-6 max-w-lg text-base leading-7 text-slate-400">
-            A single-use numeric code is generated and validated by Supabase, then delivered through
-            the configured Resend SMTP connection before administrator access is granted.
+            Access is restricted to one configured administrator email. A single-use numeric code is
+            generated by Supabase and delivered through the configured SMTP connection.
           </p>
         </section>
 
@@ -163,30 +198,37 @@ export default function AdminLoginClient() {
               Sign in with email OTP
             </h2>
             <p className="mt-2 text-sm leading-6 text-slate-400">
-              No mobile-number OTP or sign-in link is used. The numeric code is sent only to the
-              configured administrator inbox.
+              Enter the administrator email first. Every other email is rejected and no administrator
+              OTP is sent to it.
             </p>
 
-            <div className="mt-6 rounded-xl border border-white/10 bg-black/10 px-4 py-3.5">
-              <p className="text-xs font-700 uppercase tracking-[0.12em] text-slate-500">
-                Administrator email
-              </p>
-              <p className="mt-1 font-700 text-white">{DEFAULT_ADMIN_EMAIL}</p>
-            </div>
+            <label className="mt-6 block text-sm font-700 text-slate-300" htmlFor="admin-email">
+              Administrator email
+              <input
+                id="admin-email"
+                type="email"
+                value={email}
+                onChange={(event) => {
+                  setEmail(event.target.value);
+                  if (error) setError('');
+                }}
+                disabled={codeSent || submitting}
+                autoComplete="username"
+                inputMode="email"
+                spellCheck={false}
+                required
+                placeholder="Enter administrator email"
+                className="mt-2 h-14 w-full rounded-xl border border-white/10 bg-[#252d3a] px-4 font-700 text-white outline-none transition placeholder:text-slate-600 focus:border-orange-400/60 focus:ring-2 focus:ring-orange-400/10 disabled:cursor-not-allowed disabled:opacity-70"
+              />
+            </label>
 
             {error && (
-              <div
-                role="alert"
-                className="mt-5 rounded-xl border border-rose-300/20 bg-rose-300/10 px-4 py-3 text-sm text-rose-200"
-              >
+              <div role="alert" className="mt-5 rounded-xl border border-rose-300/20 bg-rose-300/10 px-4 py-3 text-sm text-rose-200">
                 {error}
               </div>
             )}
             {info && (
-              <div
-                aria-live="polite"
-                className="mt-5 rounded-xl border border-emerald-300/20 bg-emerald-300/10 px-4 py-3 text-sm text-emerald-200"
-              >
+              <div aria-live="polite" className="mt-5 rounded-xl border border-emerald-300/20 bg-emerald-300/10 px-4 py-3 text-sm text-emerald-200">
                 {info}
               </div>
             )}
@@ -195,7 +237,7 @@ export default function AdminLoginClient() {
               <button
                 type="button"
                 onClick={sendAdminCode}
-                disabled={submitting || resendSeconds > 0}
+                disabled={submitting || resendSeconds > 0 || !email.trim()}
                 className="mt-6 w-full rounded-xl bg-[#c65330] px-4 py-3.5 font-700 text-white transition hover:bg-[#d45c36] disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {submitting
@@ -224,7 +266,7 @@ export default function AdminLoginClient() {
                     placeholder="Enter code"
                   />
                   <span id="admin-email-otp-help" className="mt-2 block text-xs font-500 leading-5 text-slate-500">
-                    Enter the complete numeric code from the email. FabricTrad supports Supabase OTPs from 6 to 10 digits.
+                    Enter the complete numeric code sent to the authorised administrator inbox.
                   </span>
                 </label>
 
@@ -243,6 +285,15 @@ export default function AdminLoginClient() {
                   className="w-full text-sm font-700 text-orange-300 hover:text-orange-200 disabled:cursor-not-allowed disabled:text-slate-500"
                 >
                   {resendSeconds > 0 ? `Send a new OTP in ${resendSeconds}s` : 'Send a new OTP'}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={changeEmail}
+                  disabled={submitting}
+                  className="w-full text-sm text-slate-400 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Change administrator email
                 </button>
               </form>
             )}
