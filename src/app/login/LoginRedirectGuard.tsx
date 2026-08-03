@@ -6,11 +6,13 @@ import { useAuth } from '@/contexts/AuthContext';
 
 type AccountRole = 'buyer' | 'seller' | 'admin_staff' | 'super_admin';
 
+const PRODUCTION_ORIGIN = 'https://fabrictrad.com';
+
 const safeNextPath = (value: string | null) => {
   if (!value || !value.startsWith('/') || value.startsWith('//')) return null;
   try {
-    const parsed = new URL(value, window.location.origin);
-    if (parsed.origin !== window.location.origin) return null;
+    const parsed = new URL(value, PRODUCTION_ORIGIN);
+    if (parsed.origin !== PRODUCTION_ORIGIN) return null;
     if (parsed.pathname === '/login' || parsed.pathname.startsWith('/auth/')) return null;
     if (parsed.pathname.startsWith('/admin-')) return null;
     return `${parsed.pathname}${parsed.search}${parsed.hash}`;
