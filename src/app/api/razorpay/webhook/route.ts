@@ -3,6 +3,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { paiseToRupees, rupeesToPaise } from '@/lib/razorpayIntegrity';
 
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
 type JsonObject = Record<string, unknown>;
 type PaymentKind = 'bulk' | 'catalog';
 
@@ -51,7 +54,10 @@ async function recordDeadLetter(
 
 export async function POST(request: NextRequest) {
   const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET?.trim();
-  if (!webhookSecret || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+  const supabaseServerSecret =
+    process.env.SUPABASE_SECRET_KEY?.trim() ||
+    process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+  if (!webhookSecret || !supabaseServerSecret) {
     return NextResponse.json({ error: 'Webhook is not configured.' }, { status: 503 });
   }
 
