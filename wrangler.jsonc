@@ -4,6 +4,7 @@
   "name": "fabrictrad",
   "compatibility_date": "2026-07-19",
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "workers_dev": false,
   "secrets": {
     "required": [
       "RAZORPAY_KEY_ID",
@@ -11,16 +12,6 @@
       "RAZORPAY_WEBHOOK_SECRET"
     ]
   },
-  "routes": [
-    {
-      "pattern": "fabrictrad.com",
-      "custom_domain": true
-    },
-    {
-      "pattern": "www.fabrictrad.com",
-      "custom_domain": true
-    }
-  ],
   "assets": {
     "directory": ".open-next/assets",
     "binding": "ASSETS"
