@@ -195,7 +195,7 @@ export default function PhoneCollectionPage() {
           </div>
 
           <div id="mobile-number-help" className="mt-5 rounded-xl border border-border bg-muted/50 p-3 text-xs leading-5 text-muted-foreground">
-            No SMS verification is required. Seller approval continues to depend on GST status, required business documents and settlement-bank review, not on a phone OTP.
+            SMS verification is not required. Seller approval continues to depend on GST status, required business documents and settlement-bank review, not on a phone OTP.
           </div>
         </div>
       </section>
