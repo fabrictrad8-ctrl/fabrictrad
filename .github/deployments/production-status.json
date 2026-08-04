@@ -1,13 +1,14 @@
 {
   "sourceCommit": "3b1ec3c05cc9b3f3d5e5b1e835215f328e872eec",
   "recordedAt": "2026-08-04T02:36:48Z",
+  "manualRetriggerRequestedAt": "2026-08-04T12:09:00+05:30",
   "cloudflareAuthentication": "success",
   "supabaseSecretSync": "success",
-  "workerSecretPreflight": "failure",
-  "missingRequiredWorkerSecrets": ["SUPABASE_SECRET_KEY_OR_SERVICE_ROLE_KEY"],
-  "workerDeployment": "skipped",
-  "liveAccountApiVerification": "skipped",
-  "liveRazorpayWebhookVerification": "skipped",
+  "workerSecretPreflight": "pending",
+  "missingRequiredWorkerSecrets": [],
+  "workerDeployment": "pending",
+  "liveAccountApiVerification": "pending",
+  "liveRazorpayWebhookVerification": "pending",
   "razorpayWebhookProbeHttpStatus": null,
   "deploymentLogTail": null
 }
