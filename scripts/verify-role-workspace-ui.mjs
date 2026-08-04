@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 
+// The signed-in primary role owns the visible workspace until the user signs out.
 const read = (path) => fs.readFileSync(path, 'utf8');
 const profileMenu = read('src/components/ProfileMenu.tsx');
 const buyerLayout = read('src/app/buyer-dashboard/components/ModernBuyerDashboardLayout.tsx');
