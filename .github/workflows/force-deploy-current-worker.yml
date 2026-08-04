@@ -144,6 +144,24 @@ jobs:
           if [ -s /tmp/missing-worker-secrets.txt ]; then
             missing_json=$(node -e "const fs=require('fs'); console.log(JSON.stringify(fs.readFileSync('/tmp/missing-worker-secrets.txt','utf8').trim().split(/\\n+/).filter(Boolean)))")
           fi
+          deployment_log_json='null'
+          if [ -s /tmp/wrangler-deploy.log ]; then
+            deployment_log_json=$(node - <<'NODE'
+          const fs = require('node:fs');
+          let text = fs.readFileSync('/tmp/wrangler-deploy.log', 'utf8');
+          text = text
+            .replace(/\u001b\[[0-9;]*m/g, '')
+            .replace(/(authorization|api[_-]?token|secret|password)(\s*[:=]\s*)(\S+)/gi, '$1$2[redacted]');
+          const tail = text
+            .split(/\r?\n/)
+            .filter(Boolean)
+            .slice(-60)
+            .join('\n')
+            .slice(0, 6000);
+          console.log(JSON.stringify(tail || null));
+          NODE
+          )
+          fi
           mkdir -p .github/deployments
           cat > .github/deployments/production-status.json <<JSON
           {
@@ -153,7 +171,8 @@ jobs:
             "workerSecretPreflight": "${SECRET_PREFLIGHT_OUTCOME}",
             "missingRequiredWorkerSecrets": ${missing_json},
             "workerDeployment": "${DEPLOY_OUTCOME}",
-            "liveAccountApiVerification": "${VERIFY_OUTCOME}"
+            "liveAccountApiVerification": "${VERIFY_OUTCOME}",
+            "deploymentLogTail": ${deployment_log_json}
           }
           JSON
           git config user.name 'github-actions[bot]'
