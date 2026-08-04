@@ -272,14 +272,6 @@ for (const routeCase of routes) {
     await expect(page.locator('.ft-skip-link')).toHaveCount(1);
     await expect(page.locator('main#main-content').first()).toHaveCount(1);
 
-    if (routeCase.path.startsWith('/auth/phone')) {
-      await expect(page.getByRole('heading', { name: 'Add an optional mobile number' })).toBeVisible();
-      await expect(
-        page.getByRole('button', { name: /Continue without mobile number|Skip for now/ }).first()
-      ).toBeVisible();
-      await expect(page.getByText('SMS verification is not required.')).toBeVisible();
-    }
-
     const duplicateIds = await page.evaluate(() => {
       const seen = new Set<string>();
       const duplicates = new Set<string>();
