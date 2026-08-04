@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: fabrictrad-production-deploy
@@ -15,6 +15,7 @@ concurrency:
 
 jobs:
   deploy-current-main:
+    if: ${{ github.event_name == 'workflow_dispatch' || !contains(github.event.head_commit.message, '[skip deploy]') }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
@@ -51,6 +52,10 @@ jobs:
       - name: Install dependencies
         run: npm install --no-audit --no-fund --package-lock=false --legacy-peer-deps
 
+      - name: Verify Cloudflare authentication
+        id: cloudflare-auth
+        run: npx wrangler whoami
+
       - name: Validate current application
         run: |
           npm run type-check
@@ -62,9 +67,14 @@ jobs:
         run: npm run build:sites
 
       - name: Deploy current main to Cloudflare
-        run: npx wrangler deploy --config wrangler.jsonc
+        id: deploy
+        shell: bash
+        run: |
+          set -o pipefail
+          npx wrangler deploy --config wrangler.jsonc 2>&1 | tee /tmp/wrangler-deploy.log
 
       - name: Verify production account APIs
+        id: live-verification
         shell: bash
         run: |
           set -euo pipefail
@@ -98,3 +108,35 @@ jobs:
           fi
           grep -qi 'email or password is incorrect' /tmp/login.json
           echo 'Current FabricTrad Worker and account lifecycle APIs are live.'
+
+      - name: Record deployment result
+        if: always()
+        shell: bash
+        env:
+          AUTH_OUTCOME: ${{ steps.cloudflare-auth.outcome }}
+          DEPLOY_OUTCOME: ${{ steps.deploy.outcome }}
+          VERIFY_OUTCOME: ${{ steps.live-verification.outcome }}
+        run: |
+          set -euo pipefail
+          missing_required_secrets=false
+          if [ -f /tmp/wrangler-deploy.log ] && grep -q 'required secrets have not been set' /tmp/wrangler-deploy.log; then
+            missing_required_secrets=true
+          fi
+          mkdir -p .github/deployments
+          cat > .github/deployments/production-status.json <<JSON
+          {
+            "sourceCommit": "${GITHUB_SHA}",
+            "recordedAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "cloudflareAuthentication": "${AUTH_OUTCOME}",
+            "workerDeployment": "${DEPLOY_OUTCOME}",
+            "liveAccountApiVerification": "${VERIFY_OUTCOME}",
+            "missingRequiredWorkerSecrets": ${missing_required_secrets}
+          }
+          JSON
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .github/deployments/production-status.json
+          if ! git diff --cached --quiet; then
+            git commit -m 'ci: record production deployment status [skip deploy]'
+            git push origin HEAD:main
+          fi
