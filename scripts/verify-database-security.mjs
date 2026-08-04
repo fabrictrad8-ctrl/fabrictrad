@@ -20,6 +20,10 @@ const profilePrivacyMigration = readFileSync(
   new URL('../supabase/migrations/20260804153000_remove_cross_account_profile_read.sql', import.meta.url),
   'utf8'
 );
+const sellerRegistrationMigration = readFileSync(
+  new URL('../supabase/migrations/20260804160000_harden_seller_registration_ownership.sql', import.meta.url),
+  'utf8'
+);
 
 const assert = (condition, message) => {
   if (!condition) throw new Error(message);
@@ -95,6 +99,16 @@ assert(
 assert(
   profilePrivacyMigration.includes('drop policy if exists "users_check_phone_uniqueness" on public.user_profiles'),
   'A signed-in user must not receive cross-account profile access for uniqueness checks.'
+);
+assert(
+  sellerRegistrationMigration.includes('user_id = (select auth.uid())') &&
+    !sellerRegistrationMigration.includes('phone ='),
+  'Seller registration ownership must use immutable user IDs instead of phone matching.'
+);
+assert(
+  sellerRegistrationMigration.includes('security invoker') &&
+    sellerRegistrationMigration.includes('Seller application review fields are managed by FabricTrad.'),
+  'Seller application approval and verification fields must be protected from self-review.'
 );
 
 console.log('Database role, marketplace, profile and seller approval security checks passed.');
