@@ -1,14 +1,13 @@
 {
-  "sourceCommit": "3b1ec3c05cc9b3f3d5e5b1e835215f328e872eec",
-  "recordedAt": "2026-08-04T02:36:48Z",
-  "manualRetriggerRequestedAt": "2026-08-04T12:09:00+05:30",
+  "sourceCommit": "51b690c29e2712a599a3209c38129c342c1162cb",
+  "recordedAt": "2026-08-04T06:42:31Z",
   "cloudflareAuthentication": "success",
   "supabaseSecretSync": "success",
-  "workerSecretPreflight": "pending",
+  "workerSecretPreflight": "success",
   "missingRequiredWorkerSecrets": [],
-  "workerDeployment": "pending",
-  "liveAccountApiVerification": "pending",
-  "liveRazorpayWebhookVerification": "pending",
-  "razorpayWebhookProbeHttpStatus": null,
-  "deploymentLogTail": null
+  "workerDeployment": "success",
+  "liveAccountApiVerification": "success",
+  "liveRazorpayWebhookVerification": "success",
+  "razorpayWebhookProbeHttpStatus": "400",
+  "deploymentLogTail": " ⛅️ wrangler 4.118.0\n────────────────────\nCloudflare collects anonymous telemetry about your usage of Wrangler. Learn more at https://github.com/cloudflare/workers-sdk/tree/main/packages/wrangler/telemetry.md\n▲ [WARNING] The local configuration being used (generated from your local configuration file) differs from the remote configuration of your Worker set via the Cloudflare Dashboard:\n   {\n     routes: [\n  -    {\n  -      pattern: \"fabrictrad.com\"\n  -      zone_name: \"fabrictrad.com\"\n  -      custom_domain: true\n  -      enabled: true\n  -      previews_enabled: false\n  -    }\n  -    {\n  -      pattern: \"www.fabrictrad.com\"\n  -      zone_name: \"fabrictrad.com\"\n  -      custom_domain: true\n  -      enabled: true\n  -      previews_enabled: false\n  -    }\n     ]\n  -  preview_urls: false\n  +  preview_urls: true\n   }\n  \n  \n  Uploading the Worker will override the remote configuration with your local one.\n🌀 Building list of assets...\n✨ Read 200 files from the assets directory /home/runner/work/fabrictrad/fabrictrad/.open-next/assets\n🌀 Starting asset upload...\n🌀 Found 1 new or modified static asset to upload. Proceeding with upload...\n+ /BUILD_ID\nUploaded 1 of 1 asset\n✨ Success! Uploaded 1 file (103 already uploaded) (0.71 sec)\nTotal Upload: 11991.60 KiB / gzip: 2001.96 KiB\nWorker Startup Time: 26 ms\nYour Worker has access to the following bindings:\nBinding            Resource      \nenv.ASSETS         Assets        \nUploaded fabrictrad (5.47 sec)\nNo targets deployed for fabrictrad (0.28 sec)\nCurrent Version ID: e3112f9d-8d11-43bc-98b3-771cb8c695b9"
 }
