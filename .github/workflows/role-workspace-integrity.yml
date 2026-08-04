@@ -1,0 +1,42 @@
+name: Buyer and seller workspace integrity
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - 'agent/**'
+    paths:
+      - 'src/components/ProfileMenu.tsx'
+      - 'src/app/buyer-dashboard/components/ModernBuyerDashboardLayout.tsx'
+      - 'src/app/seller-dashboard/components/SellerDashboardLayout.tsx'
+      - 'scripts/verify-role-workspace-ui.mjs'
+      - '.github/workflows/role-workspace-integrity.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  role-workspace-integrity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: test-anon-key
+      SUPABASE_SERVICE_ROLE_KEY: test-service-role-key
+      NEXT_PUBLIC_SITE_URL: http://localhost:3000
+      NEXT_PUBLIC_ENABLE_GOOGLE_AUTH: 'false'
+      ADMIN_EMAIL: fabrictrad8@gmail.com
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund --package-lock=false --legacy-peer-deps
+      - name: Verify role-specific menus
+        run: node scripts/verify-role-workspace-ui.mjs
+      - name: Type check
+        run: npm run type-check
+      - name: Lint
+        run: npm run lint

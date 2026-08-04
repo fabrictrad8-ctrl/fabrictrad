@@ -185,12 +185,6 @@ export default function SellerDashboardLayout() {
       </nav>
 
       <div className="space-y-1 border-t border-border p-2">
-        <Link href="/marketplace" className="flex min-h-10 items-center gap-3 rounded-lg px-2.5 text-sm font-650 text-foreground/80 hover:bg-card">
-          <Icon name="ShoppingBagIcon" size={18} className="text-muted-foreground" /> Buy fabrics
-        </Link>
-        <Link href="/buyer-dashboard" className="flex min-h-10 items-center gap-3 rounded-lg px-2.5 text-sm font-650 text-foreground/80 hover:bg-card">
-          <Icon name="UserCircleIcon" size={18} className="text-muted-foreground" /> Buyer workspace
-        </Link>
         <button type="button" onClick={() => void logout()} disabled={signingOut} className="flex min-h-10 w-full items-center gap-3 rounded-lg px-2.5 text-left text-sm font-700 text-error hover:bg-error/10 disabled:opacity-50">
           <Icon name="ArrowRightOnRectangleIcon" size={18} /> {signingOut ? 'Signing out…' : 'Sign out'}
         </button>

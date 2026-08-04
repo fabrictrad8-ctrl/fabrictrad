@@ -129,10 +129,12 @@ assert(adminProductReview.includes('seller.gstin_verified !== true'), 'Product a
 // Buyer and seller workspaces must provide persistent navigation and logout.
 assert(buyerLayout.includes('ProfileMenu'), 'Buyer workspace must include the account menu.');
 assert(buyerLayout.includes("window.location.replace('/login')"), 'Buyer workspace must provide reliable logout.');
-assert(buyerLayout.includes("canSell ? '/seller-dashboard' : '/seller-registration'"), 'Buyer workspace must switch to or activate seller access.');
+assert(!buyerLayout.includes("canSell ? '/seller-dashboard' : '/seller-registration'"), 'Buyer workspace must not switch into seller operations while signed in.');
+assert(!buyerLayout.includes('Open seller workspace') && !buyerLayout.includes('Activate selling'), 'Buyer navigation must remain buyer-specific.');
 assert(sellerLayout.includes('ProfileMenu'), 'Seller workspace must include the account menu.');
 assert(sellerLayout.includes("window.location.replace('/login')"), 'Seller workspace must provide reliable logout.');
-assert(sellerLayout.includes("href=\"/buyer-dashboard\""), 'Seller workspace must switch to buyer tools on the same account.');
+assert(!sellerLayout.includes("href=\"/buyer-dashboard\""), 'Seller workspace must not switch into buyer tools while signed in.');
+assert(!sellerLayout.includes('Buyer workspace') && !sellerLayout.includes('> Buy fabrics'), 'Seller navigation must remain seller-specific.');
 
 // Printable commerce documents must not be misrepresented as tax invoices.
 assert(buyerOrders.includes('openPrintableOrderDocument'), 'Buyer orders must open a branded printable document.');
