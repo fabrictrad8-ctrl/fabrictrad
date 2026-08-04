@@ -8,6 +8,10 @@ const storageMigration = readFileSync(
   new URL('../supabase/migrations/20260804144500_make_product_media_authenticated_only.sql', import.meta.url),
   'utf8'
 );
+const storageDeliveryMigration = readFileSync(
+  new URL('../supabase/migrations/20260804154500_restore_product_media_public_delivery.sql', import.meta.url),
+  'utf8'
+);
 const sellerReviewMigration = readFileSync(
   new URL('../supabase/migrations/20260804151500_protect_seller_review_fields.sql', import.meta.url),
   'utf8'
@@ -66,12 +70,12 @@ assert(
 assert(
   storageMigration.includes("set public = false") &&
     storageMigration.includes("where id = 'seller-product-media'"),
-  'Product media storage must not expose public object URLs.'
+  'The migration history must record the product-media privacy review.'
 );
 assert(
-  storageMigration.includes('create policy "authenticated_read_seller_product_media"') &&
-    storageMigration.includes('to authenticated'),
-  'Signed-in marketplace users must retain product-media access.'
+  storageDeliveryMigration.includes("set public = true") &&
+    storageDeliveryMigration.includes('drop policy if exists "authenticated_read_seller_product_media"'),
+  'Browser-rendered product assets must retain compatible public URL delivery while database records remain sign-in protected.'
 );
 assert(
   sellerReviewMigration.match(/security invoker/g)?.length === 4,
@@ -93,4 +97,4 @@ assert(
   'A signed-in user must not receive cross-account profile access for uniqueness checks.'
 );
 
-console.log('Database role, marketplace, media, profile and seller approval security checks passed.');
+console.log('Database role, marketplace, profile and seller approval security checks passed.');
