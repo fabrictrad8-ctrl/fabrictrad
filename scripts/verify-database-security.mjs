@@ -4,6 +4,10 @@ const migration = readFileSync(
   new URL('../supabase/migrations/20260804143000_harden_role_checks_and_private_marketplace.sql', import.meta.url),
   'utf8'
 );
+const storageMigration = readFileSync(
+  new URL('../supabase/migrations/20260804144500_make_product_media_authenticated_only.sql', import.meta.url),
+  'utf8'
+);
 
 const assert = (condition, message) => {
   if (!condition) throw new Error(message);
@@ -51,5 +55,15 @@ assert(
     migration.includes('create policy "authenticated_read_verified_seller_profiles"'),
   'Marketplace products and sellers must use authenticated-only read policies.'
 );
+assert(
+  storageMigration.includes("set public = false") &&
+    storageMigration.includes("where id = 'seller-product-media'"),
+  'Product media storage must not expose public object URLs.'
+);
+assert(
+  storageMigration.includes('create policy "authenticated_read_seller_product_media"') &&
+    storageMigration.includes('to authenticated'),
+  'Signed-in marketplace users must retain product-media access.'
+);
 
-console.log('Database role and marketplace privacy checks passed.');
+console.log('Database role, marketplace and product-media privacy checks passed.');
