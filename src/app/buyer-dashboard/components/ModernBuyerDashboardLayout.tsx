@@ -81,7 +81,6 @@ export default function ModernBuyerDashboardLayout() {
     [activeTab]
   );
   const buyerName = profile?.full_name || user?.email?.split('@')[0] || 'Buyer';
-  const canSell = Boolean(profile?.can_sell || profile?.role === 'seller');
 
   const navigateTo = (tab: DashboardTab) => {
     setActiveTab(tab);
@@ -147,13 +146,6 @@ export default function ModernBuyerDashboardLayout() {
       <div className="space-y-1 border-t border-border p-2">
         <Link href="/marketplace" className="flex min-h-10 items-center gap-3 rounded-lg px-2.5 text-sm font-650 text-foreground/80 hover:bg-card">
           <Icon name="Squares2X2Icon" size={18} className="text-muted-foreground" /> Browse marketplace
-        </Link>
-        <Link
-          href={canSell ? '/seller-dashboard' : '/seller-registration'}
-          className="flex min-h-10 items-center gap-3 rounded-lg px-2.5 text-sm font-650 text-foreground/80 hover:bg-card"
-        >
-          <Icon name="BuildingStorefrontIcon" size={18} className="text-muted-foreground" />
-          {canSell ? 'Open seller workspace' : 'Activate selling'}
         </Link>
         <button type="button" onClick={() => void logout()} disabled={signingOut} className="flex min-h-10 w-full items-center gap-3 rounded-lg px-2.5 text-left text-sm font-700 text-error hover:bg-error/10 disabled:opacity-50">
           <Icon name="ArrowRightOnRectangleIcon" size={18} /> {signingOut ? 'Signing out…' : 'Sign out'}
