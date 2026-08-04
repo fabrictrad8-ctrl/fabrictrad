@@ -92,7 +92,7 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          npx wrangler deploy --config wrangler.jsonc 2>&1 | tee /tmp/wrangler-deploy.log
+          npx wrangler deploy --config wrangler.jsonc --keep-vars 2>&1 | tee /tmp/wrangler-deploy.log
 
       - name: Verify production account APIs
         id: live-verification
@@ -130,6 +130,26 @@ jobs:
           grep -qi 'email or password is incorrect' /tmp/login.json
           echo 'Current FabricTrad Worker and account lifecycle APIs are live.'
 
+      - name: Verify production Razorpay webhook
+        id: razorpay-webhook-verification
+        shell: bash
+        run: |
+          set -euo pipefail
+          webhook_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+            --output /tmp/razorpay-webhook.json --write-out '%{http_code}' \
+            --header 'Content-Type: application/json' \
+            --header 'x-razorpay-signature: 00' \
+            --data '{}' \
+            https://fabrictrad.com/api/razorpay/webhook || true)
+          echo "Razorpay webhook probe returned HTTP ${webhook_status}."
+          if [ "$webhook_status" != '400' ]; then
+            cat /tmp/razorpay-webhook.json || true
+            echo '::error::The production Razorpay webhook is not rejecting an invalid signature as expected.'
+            exit 1
+          fi
+          grep -qi 'invalid signature' /tmp/razorpay-webhook.json
+          echo 'Production Razorpay webhook is configured and validating signed requests.'
+
       - name: Record deployment result
         if: always()
         shell: bash
@@ -138,6 +158,7 @@ jobs:
           SECRET_PREFLIGHT_OUTCOME: ${{ steps.secret-preflight.outcome }}
           DEPLOY_OUTCOME: ${{ steps.deploy.outcome }}
           VERIFY_OUTCOME: ${{ steps.live-verification.outcome }}
+          RAZORPAY_WEBHOOK_OUTCOME: ${{ steps.razorpay-webhook-verification.outcome }}
         run: |
           set -euo pipefail
           missing_json='[]'
@@ -172,6 +193,7 @@ jobs:
             "missingRequiredWorkerSecrets": ${missing_json},
             "workerDeployment": "${DEPLOY_OUTCOME}",
             "liveAccountApiVerification": "${VERIFY_OUTCOME}",
+            "liveRazorpayWebhookVerification": "${RAZORPAY_WEBHOOK_OUTCOME}",
             "deploymentLogTail": ${deployment_log_json}
           }
           JSON
