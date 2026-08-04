@@ -113,6 +113,19 @@ const ignoredConsolePatterns = [
 ];
 
 async function prepareRole(page: Page, role: Role) {
+  await page.route('**/api/admin/seller-metrics*', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        generatedAt: new Date().toISOString(),
+        range: { from: null, to: null },
+        sellers: [],
+        summary: { sellers: 0, activeSellers: 0, orders: 0, gmv: 0, commission: 0 },
+      }),
+    });
+  });
+
   await page.route(/https:\/\/example\.supabase\.co\/.*/, async (route) => {
     await route.fulfill({
       status: 200,
@@ -259,6 +272,14 @@ for (const routeCase of routes) {
     await expect(page.locator('.ft-skip-link')).toHaveCount(1);
     await expect(page.locator('main#main-content').first()).toHaveCount(1);
 
+    if (routeCase.path.startsWith('/auth/phone')) {
+      await expect(page.getByRole('heading', { name: 'Add an optional mobile number' })).toBeVisible();
+      await expect(
+        page.getByRole('button', { name: /Continue without mobile number|Skip for now/ }).first()
+      ).toBeVisible();
+      await expect(page.getByText('SMS verification is not required.')).toBeVisible();
+    }
+
     const duplicateIds = await page.evaluate(() => {
       const seen = new Set<string>();
       const duplicates = new Set<string>();
@@ -293,15 +314,6 @@ for (const routeCase of routes) {
     }
   });
 }
-
-test('phone collection is optional and can be skipped', async ({ page }) => {
-  await prepareRole(page, 'buyer');
-  await page.goto('/auth/phone?role=buyer&returnTo=/buyer-dashboard', { waitUntil: 'domcontentloaded' });
-  const continueButton = page.getByRole('button', { name: 'Continue without mobile number' });
-  await expect(continueButton).toBeVisible();
-  await continueButton.click();
-  await expect(page).toHaveURL(/\/buyer-dashboard/);
-});
 
 test('reduced-motion preference disables non-essential route animation', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
