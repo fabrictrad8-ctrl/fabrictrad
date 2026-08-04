@@ -12,6 +12,10 @@ const sellerReviewMigration = readFileSync(
   new URL('../supabase/migrations/20260804151500_protect_seller_review_fields.sql', import.meta.url),
   'utf8'
 );
+const profilePrivacyMigration = readFileSync(
+  new URL('../supabase/migrations/20260804153000_remove_cross_account_profile_read.sql', import.meta.url),
+  'utf8'
+);
 
 const assert = (condition, message) => {
   if (!condition) throw new Error(message);
@@ -84,5 +88,9 @@ assert(
   sellerReviewMigration.includes('protect_product_variant_review_fields_trigger'),
   'Product variation approvals must receive the same protection as product approvals.'
 );
+assert(
+  profilePrivacyMigration.includes('drop policy if exists "users_check_phone_uniqueness" on public.user_profiles'),
+  'A signed-in user must not receive cross-account profile access for uniqueness checks.'
+);
 
-console.log('Database role, marketplace, media and seller approval security checks passed.');
+console.log('Database role, marketplace, media, profile and seller approval security checks passed.');
