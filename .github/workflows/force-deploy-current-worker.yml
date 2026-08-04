@@ -1,0 +1,102 @@
+name: Force deploy current FabricTrad Worker
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/force-deploy-current-worker.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fabrictrad-production-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy-current-main:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: aa4ff7a482130e543f176e2d73c93f45
+      NEXT_PUBLIC_SUPABASE_URL: https://rdhfwlzhcvwjhkxhhpoo.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: sb_publishable_Un2-RQfjGbIiXF3Mb2oGIA_p-Z1kMls
+      NEXT_PUBLIC_SITE_URL: https://fabrictrad.com
+      NEXT_PUBLIC_ENABLE_GOOGLE_AUTH: 'true'
+      ADMIN_EMAIL: fabrictrad8@gmail.com
+      OPENAI_DRAPE_IMAGE_MODEL: gpt-image-2
+      OPENAI_DRAPE_IMAGE_SIZE: 1024x1536
+      OPENAI_DRAPE_IMAGE_QUALITY: medium
+      OPENAI_CATALOG_MODEL: gpt-4.1-mini
+      AI_DRAPE_DAILY_LIMIT: '10'
+      AI_DRAPE_DEMO_DAILY_LIMIT: '2'
+      AI_DRAPE_FALLBACK_DAILY_LIMIT: '3'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Require Cloudflare deployment token
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${CLOUDFLARE_API_TOKEN:-}" ]; then
+            echo '::error::CLOUDFLARE_API_TOKEN is not configured in repository Actions secrets.'
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund --package-lock=false --legacy-peer-deps
+
+      - name: Validate current application
+        run: |
+          npm run type-check
+          npm run lint
+          node scripts/verify-account-lifecycle.mjs
+          node scripts/verify-marketplace-integrity.mjs
+
+      - name: Build OpenNext Worker
+        run: npm run build:sites
+
+      - name: Deploy current main to Cloudflare
+        run: npx wrangler deploy --config wrangler.jsonc
+
+      - name: Verify production account APIs
+        shell: bash
+        run: |
+          set -euo pipefail
+          healthy=false
+          for attempt in $(seq 1 48); do
+            login=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+              --output /tmp/login.json --write-out '%{http_code}' \
+              --header 'Content-Type: application/json' \
+              --data '{"email":"nonexistent-live-smoke@fabrictrad.invalid","password":"DefinitelyWrong123!"}' \
+              https://fabrictrad.com/api/auth/password-login || true)
+            destination=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+              --output /tmp/destination.json --write-out '%{http_code}' \
+              https://fabrictrad.com/api/auth/session-destination || true)
+            draft=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+              --output /tmp/draft.json --write-out '%{http_code}' \
+              'https://fabrictrad.com/api/account/onboarding-draft?flow=buyer' || true)
+            deletion=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+              --output /tmp/deletion.json --write-out '%{http_code}' \
+              --header 'Content-Type: application/json' --data '{}' \
+              https://fabrictrad.com/api/account/delete/request || true)
+            echo "Attempt ${attempt}/48: login=${login}, destination=${destination}, draft=${draft}, deletion=${deletion}"
+            if [ "$login" = '401' ] && [ "$destination" = '401' ] && [ "$draft" = '401' ] && [ "$deletion" = '401' ]; then
+              healthy=true
+              break
+            fi
+            sleep 10
+          done
+          if [ "$healthy" != 'true' ]; then
+            echo '::error::The new Worker deployed, but the production account APIs did not become healthy.'
+            exit 1
+          fi
+          grep -qi 'email or password is incorrect' /tmp/login.json
+          echo 'Current FabricTrad Worker and account lifecycle APIs are live.'
