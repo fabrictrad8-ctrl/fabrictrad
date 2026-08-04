@@ -41,11 +41,21 @@ export default function PhoneCollectionPage() {
 
   const normalizedPhone = normalizeIndianPhone(phone);
   const validation = validateIndianPhone(normalizedPhone);
+  const hasPhone = normalizedPhone.length > 0;
+
+  const continueWithoutPhone = () => {
+    setError('');
+    router.replace(returnTo);
+  };
 
   const savePhone = async () => {
     setError('');
     setInfo('');
 
+    if (!hasPhone) {
+      continueWithoutPhone();
+      return;
+    }
     if (!validation.valid) {
       setError(validation.message);
       return;
@@ -96,13 +106,13 @@ export default function PhoneCollectionPage() {
   if (loading) {
     return (
       <div className="gradient-hero flex min-h-screen items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" aria-label="Loading account" />
       </div>
     );
   }
 
   return (
-    <main className="gradient-hero flex min-h-screen flex-col items-center justify-center px-4 py-10">
+    <main id="main-content" className="gradient-hero flex min-h-screen flex-col items-center justify-center px-4 py-10">
       <section className="w-full max-w-md">
         <div className="mb-7 text-center">
           <div className="mb-4 inline-flex items-center gap-2">
@@ -112,16 +122,16 @@ export default function PhoneCollectionPage() {
           <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-primary/20 bg-primary/10">
             <Icon name="DevicePhoneMobileIcon" size={28} className="text-primary" />
           </div>
-          <h1 className="text-2xl font-800 text-foreground">Add your mobile number</h1>
+          <h1 className="text-2xl font-800 text-foreground">Add an optional mobile number</h1>
           <p className="mt-2 text-sm leading-6 text-muted-foreground">
-            One mobile number belongs to one FabricTrad account. The same account can buy and sell.
+            This is only for order contact details. You can skip it now and add it later from your account settings.
           </p>
         </div>
 
         <div className="rounded-3xl border border-border bg-card p-6 shadow-xl md:p-8">
           <div className="mb-5 flex justify-center">
             <span className={`rounded-full border px-3 py-1 text-xs font-700 ${role === 'seller' ? 'border-secondary/20 bg-secondary/10 text-secondary' : 'border-primary/20 bg-primary/10 text-primary'}`}>
-              {role === 'seller' ? 'Seller contact details' : 'Buyer contact details'}
+              {role === 'seller' ? 'Optional seller contact' : 'Optional buyer contact'}
             </span>
           </div>
 
@@ -140,7 +150,7 @@ export default function PhoneCollectionPage() {
 
           <div className="space-y-4">
             <label className="block text-sm font-700 text-foreground">
-              Mobile number
+              Mobile number <span className="font-500 text-muted-foreground">(optional)</span>
               <div className="mt-2 flex items-center gap-2">
                 <div className="flex min-h-12 shrink-0 items-center gap-2 rounded-xl border border-border bg-muted px-3">
                   <span aria-hidden="true">🇮🇳</span>
@@ -158,6 +168,7 @@ export default function PhoneCollectionPage() {
                   }}
                   className="input-base min-h-12 min-w-0 flex-1 px-4 text-lg font-700 tracking-wider"
                   placeholder="9876543210"
+                  aria-describedby="mobile-number-help"
                 />
               </div>
             </label>
@@ -165,15 +176,26 @@ export default function PhoneCollectionPage() {
             <button
               type="button"
               onClick={savePhone}
-              disabled={submitting || !validation.valid}
+              disabled={submitting || (hasPhone && !validation.valid)}
               className="btn-primary min-h-12 w-full rounded-xl px-4 text-sm disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {submitting ? 'Saving mobile number…' : 'Save mobile number'}
+              {submitting ? 'Saving mobile number…' : hasPhone ? 'Save and continue' : 'Continue without mobile number'}
             </button>
+
+            {hasPhone && (
+              <button
+                type="button"
+                onClick={continueWithoutPhone}
+                disabled={submitting}
+                className="ft-secondary-action min-h-11 w-full px-4 text-sm"
+              >
+                Skip for now
+              </button>
+            )}
           </div>
 
-          <div className="mt-5 rounded-xl border border-border bg-muted/50 p-3 text-xs leading-5 text-muted-foreground">
-            FabricTrad stores this as contact information. SMS verification is not required. Seller approval remains based on GST status, required business documents and settlement-bank review.
+          <div id="mobile-number-help" className="mt-5 rounded-xl border border-border bg-muted/50 p-3 text-xs leading-5 text-muted-foreground">
+            SMS verification is not required. Seller approval continues to depend on GST status, required business documents and settlement-bank review, not on a phone OTP.
           </div>
         </div>
       </section>

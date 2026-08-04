@@ -1,278 +1,267 @@
 'use client';
-import React, { useState } from 'react';
+
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Icon from '@/components/ui/AppIcon';
 import { exportToCSV, exportToExcel } from '@/lib/exportUtils';
 
-// Seller metrics data for export
-const sellerMetrics = [
-  {
-    seller: 'Surat Textile Mills',
-    id: 'FT-SLR-001234',
-    orders: 310,
-    gmv: 4200000,
-    commission: 420000,
-    avgOrderValue: 135484,
-    rating: 4.8,
-    reviews: 284,
-    responseTime: '1.2 hrs',
-    acceptanceRate: 94,
-    fulfillmentRate: 93.9,
-    refundRate: 2.6,
-    date: '2026-07-17',
-  },
-  {
-    seller: 'Kolkata Silk House',
-    id: 'FT-SLR-001102',
-    orders: 241,
-    gmv: 3500000,
-    commission: 350000,
-    avgOrderValue: 145228,
-    rating: 4.7,
-    reviews: 218,
-    responseTime: '1.8 hrs',
-    acceptanceRate: 91,
-    fulfillmentRate: 94.6,
-    refundRate: 2.5,
-    date: '2026-07-17',
-  },
-  {
-    seller: 'Jaipur Crafts Emporium',
-    id: 'FT-SLR-001890',
-    orders: 189,
-    gmv: 2800000,
-    commission: 280000,
-    avgOrderValue: 148148,
-    rating: 4.6,
-    reviews: 162,
-    responseTime: '2.4 hrs',
-    acceptanceRate: 88,
-    fulfillmentRate: 91.0,
-    refundRate: 4.8,
-    date: '2026-07-17',
-  },
-  {
-    seller: 'Ludhiana Fabric Co.',
-    id: 'FT-SLR-001445',
-    orders: 134,
-    gmv: 1800000,
-    commission: 180000,
-    avgOrderValue: 134328,
-    rating: 3.9,
-    reviews: 98,
-    responseTime: '4.5 hrs',
-    acceptanceRate: 72,
-    fulfillmentRate: 88.1,
-    refundRate: 7.5,
-    date: '2026-07-17',
-  },
-  {
-    seller: 'Bhiwandi Weave House',
-    id: 'FT-SLR-001654',
-    orders: 89,
-    gmv: 1200000,
-    commission: 120000,
-    avgOrderValue: 134831,
-    rating: 4.1,
-    reviews: 74,
-    responseTime: '3.8 hrs',
-    acceptanceRate: 79,
-    fulfillmentRate: 83.1,
-    refundRate: 9.0,
-    date: '2026-07-17',
-  },
-];
-
-const formatINR = (v: number) => {
-  if (v >= 100000) return `₹${(v / 100000).toFixed(1)}L`;
-  if (v >= 1000) return `₹${(v / 1000).toFixed(0)}K`;
-  return `₹${v}`;
+type SortKey = 'gmv' | 'orders' | 'rating' | 'fulfillmentRate';
+type SellerMetric = {
+  id: string;
+  sellerRef: string;
+  name: string;
+  city: string;
+  businessType: string;
+  verificationStatus: string;
+  gstinVerified: boolean;
+  joinedAt: string | null;
+  orders: number;
+  gmv: number;
+  commission: number;
+  avgOrderValue: number;
+  rating: number;
+  reviews: number;
+  acceptanceRate: number;
+  fulfillmentRate: number;
+  refundRate: number;
+  activeListings: number;
 };
+
+type MetricsResponse = {
+  generatedAt?: string;
+  sellers?: SellerMetric[];
+  summary?: {
+    sellers: number;
+    activeSellers: number;
+    orders: number;
+    gmv: number;
+    commission: number;
+  };
+  error?: string;
+};
+
+const money = (value: number) =>
+  new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: 'INR',
+    maximumFractionDigits: 0,
+  }).format(value || 0);
 
 export default function AdminSellerMetrics() {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
-  const [sortBy, setSortBy] = useState<'gmv' | 'orders' | 'rating' | 'fulfillmentRate'>('gmv');
+  const [sortBy, setSortBy] = useState<SortKey>('gmv');
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [sellers, setSellers] = useState<SellerMetric[]>([]);
+  const [summary, setSummary] = useState<MetricsResponse['summary']>();
+  const [generatedAt, setGeneratedAt] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  const sorted = [...sellerMetrics].sort((a, b) => b[sortBy] - a[sortBy]);
+  const load = useCallback(async () => {
+    if (dateFrom && dateTo && dateFrom > dateTo) {
+      setError('The start date must be before the end date.');
+      setLoading(false);
+      return;
+    }
 
-  const getExportData = () =>
-    sorted.map((s) => ({
-      Seller: s.seller,
-      'Seller ID': s.id,
-      'Total Orders': s.orders,
-      'GMV (₹)': s.gmv,
-      'Commission (₹)': s.commission,
-      'Avg Order Value (₹)': s.avgOrderValue,
-      Rating: s.rating,
-      Reviews: s.reviews,
-      'Response Time': s.responseTime,
-      'Acceptance Rate (%)': s.acceptanceRate,
-      'Fulfillment Rate (%)': s.fulfillmentRate,
-      'Refund Rate (%)': s.refundRate,
-      'Date Range': dateFrom && dateTo ? `${dateFrom} to ${dateTo}` : 'All Time',
+    setLoading(true);
+    setError('');
+    const params = new URLSearchParams();
+    if (dateFrom) params.set('from', dateFrom);
+    if (dateTo) params.set('to', dateTo);
+
+    try {
+      const response = await fetch(
+        `/api/admin/seller-metrics${params.size ? `?${params.toString()}` : ''}`,
+        { cache: 'no-store', credentials: 'same-origin' }
+      );
+      const payload = (await response.json().catch(() => ({}))) as MetricsResponse;
+      if (!response.ok) throw new Error(payload.error || 'Live seller metrics could not be loaded.');
+      setSellers(payload.sellers || []);
+      setSummary(payload.summary);
+      setGeneratedAt(payload.generatedAt || '');
+    } catch (caught) {
+      setSellers([]);
+      setSummary(undefined);
+      setError(caught instanceof Error ? caught.message : 'Live seller metrics could not be loaded.');
+    } finally {
+      setLoading(false);
+    }
+  }, [dateFrom, dateTo]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const sorted = useMemo(
+    () => [...sellers].sort((a, b) => b[sortBy] - a[sortBy] || b.gmv - a.gmv || a.name.localeCompare(b.name)),
+    [sellers, sortBy]
+  );
+
+  const exportRows = () =>
+    sorted.map((seller) => ({
+      Seller: seller.name,
+      'Seller reference': seller.sellerRef,
+      City: seller.city,
+      'Business type': seller.businessType,
+      'Verification status': seller.verificationStatus,
+      'GSTIN verified': seller.gstinVerified ? 'Yes' : 'No',
+      'Approved listings': seller.activeListings,
+      Orders: seller.orders,
+      'GMV (INR)': seller.gmv,
+      'Platform commission (INR)': seller.commission,
+      'Average order value (INR)': seller.avgOrderValue,
+      Rating: seller.rating,
+      Reviews: seller.reviews,
+      'Acceptance rate (%)': seller.acceptanceRate,
+      'Fulfillment rate (%)': seller.fulfillmentRate,
+      'Refund rate (%)': seller.refundRate,
+      'Date range': dateFrom || dateTo ? `${dateFrom || 'Beginning'} to ${dateTo || 'Today'}` : 'All time',
     }));
 
-  return (
-    <div>
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-        <div>
-          <h1 className="text-xl font-800 text-foreground">Seller Metrics</h1>
-          <p className="text-sm text-muted-foreground">Performance metrics across all sellers</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex items-center gap-1.5 bg-card border border-border rounded-xl px-3 py-2">
-            <Icon name="CalendarIcon" size={14} className="text-muted-foreground" />
-            <input
-              type="date"
-              value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)}
-              className="bg-transparent text-xs text-foreground outline-none w-28"
-            />
-            <span className="text-xs text-muted-foreground">–</span>
-            <input
-              type="date"
-              value={dateTo}
-              onChange={(e) => setDateTo(e.target.value)}
-              className="bg-transparent text-xs text-foreground outline-none w-28"
-            />
-          </div>
-          <div className="relative">
-            <button
-              onClick={() => setShowExportMenu(!showExportMenu)}
-              className="flex items-center gap-1.5 btn-secondary px-3 py-2 text-xs rounded-xl"
-            >
-              <Icon name="ArrowDownTrayIcon" size={14} />
-              Export
-              <Icon name="ChevronDownIcon" size={12} />
-            </button>
-            {showExportMenu && (
-              <div className="absolute right-0 top-full mt-1 bg-card border border-border rounded-xl shadow-lg z-10 min-w-[140px]">
-                <button
-                  onClick={() => {
-                    exportToCSV(getExportData(), 'seller_metrics');
-                    setShowExportMenu(false);
-                  }}
-                  className="w-full flex items-center gap-2 px-3 py-2.5 text-xs font-600 text-foreground hover:bg-muted transition-colors rounded-t-xl"
-                >
-                  <Icon name="DocumentTextIcon" size={14} className="text-success" />
-                  Export CSV
-                </button>
-                <button
-                  onClick={() => {
-                    exportToExcel(getExportData(), 'seller_metrics');
-                    setShowExportMenu(false);
-                  }}
-                  className="w-full flex items-center gap-2 px-3 py-2.5 text-xs font-600 text-foreground hover:bg-muted transition-colors rounded-b-xl border-t border-border"
-                >
-                  <Icon name="TableCellsIcon" size={14} className="text-primary" />
-                  Export Excel
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
+  const cards = [
+    ['Sellers', summary?.sellers || 0, 'BuildingStorefrontIcon'],
+    ['Active sellers', summary?.activeSellers || 0, 'ShieldCheckIcon'],
+    ['Orders', summary?.orders || 0, 'ShoppingBagIcon'],
+    ['GMV', money(summary?.gmv || 0), 'CurrencyRupeeIcon'],
+    ['Commission', money(summary?.commission || 0), 'ReceiptPercentIcon'],
+  ] as const;
 
-      {/* Sort Tabs */}
-      <div className="flex gap-1 overflow-x-auto scrollbar-thin mb-5">
-        {[
-          { key: 'gmv' as const, label: 'By GMV' },
-          { key: 'orders' as const, label: 'By Orders' },
-          { key: 'rating' as const, label: 'By Rating' },
-          { key: 'fulfillmentRate' as const, label: 'By Fulfillment' },
-        ].map((opt) => (
-          <button
-            key={opt.key}
-            onClick={() => setSortBy(opt.key)}
-            className={`shrink-0 px-3 py-1.5 rounded-xl text-xs font-600 transition-all ${sortBy === opt.key ? 'bg-secondary text-white' : 'bg-card border border-border text-muted-foreground hover:border-secondary'}`}
-          >
-            {opt.label}
+  return (
+    <div className="space-y-5">
+      <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded-full bg-success/10 px-3 py-1 text-xs font-800 text-success">Live commerce metrics</span>
+              {generatedAt && (
+                <span className="text-xs text-muted-foreground">
+                  Updated {new Date(generatedAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}
+                </span>
+              )}
+            </div>
+            <h1 className="mt-3 text-xl font-800 text-foreground">Seller metrics</h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Actual seller performance calculated from FabricTrad orders, Razorpay records, reviews and listings.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="rounded-xl border border-border bg-card px-3 py-2 text-xs font-700 text-foreground">
+              <span className="mr-2 text-muted-foreground">From</span>
+              <input type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} className="bg-transparent outline-none" />
+            </label>
+            <label className="rounded-xl border border-border bg-card px-3 py-2 text-xs font-700 text-foreground">
+              <span className="mr-2 text-muted-foreground">To</span>
+              <input type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} className="bg-transparent outline-none" />
+            </label>
+            <button type="button" onClick={() => void load()} disabled={loading} className="ft-icon-button" aria-label="Refresh seller metrics">
+              <Icon name="ArrowPathIcon" size={17} className={loading ? 'animate-spin' : ''} />
+            </button>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setShowExportMenu((open) => !open)}
+                disabled={!sorted.length}
+                className="ft-secondary-action inline-flex items-center gap-2 px-3 py-2 text-xs disabled:opacity-50"
+              >
+                <Icon name="ArrowDownTrayIcon" size={14} /> Export
+              </button>
+              {showExportMenu && (
+                <div className="absolute right-0 top-full z-20 mt-2 min-w-40 overflow-hidden rounded-xl border border-border bg-card shadow-xl">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      exportToCSV(exportRows(), 'fabrictrad_live_seller_metrics');
+                      setShowExportMenu(false);
+                    }}
+                    className="flex w-full items-center gap-2 px-4 py-3 text-left text-xs font-700 text-foreground hover:bg-muted"
+                  >
+                    <Icon name="DocumentTextIcon" size={14} /> CSV
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      exportToExcel(exportRows(), 'fabrictrad_live_seller_metrics');
+                      setShowExportMenu(false);
+                    }}
+                    className="flex w-full items-center gap-2 border-t border-border px-4 py-3 text-left text-xs font-700 text-foreground hover:bg-muted"
+                  >
+                    <Icon name="TableCellsIcon" size={14} /> Excel
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        {cards.map(([label, value, icon]) => (
+          <article key={label} className="rounded-2xl border border-border bg-card p-4 shadow-sm">
+            <div className="flex items-center gap-3">
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary"><Icon name={icon} size={18} /></span>
+              <div className="min-w-0"><p className="text-xs font-700 text-muted-foreground">{label}</p><p className="truncate text-lg font-800 text-foreground">{loading ? '—' : value}</p></div>
+            </div>
+          </article>
+        ))}
+      </section>
+
+      <div className="flex gap-2 overflow-x-auto pb-1">
+        {([
+          ['gmv', 'By GMV'],
+          ['orders', 'By orders'],
+          ['rating', 'By rating'],
+          ['fulfillmentRate', 'By fulfillment'],
+        ] as Array<[SortKey, string]>).map(([key, label]) => (
+          <button key={key} type="button" onClick={() => setSortBy(key)} className={`shrink-0 rounded-xl px-3 py-2 text-xs font-800 ${sortBy === key ? 'bg-secondary text-white' : 'border border-border bg-card text-muted-foreground'}`}>
+            {label}
           </button>
         ))}
       </div>
 
-      <div className="bg-card rounded-2xl border border-border overflow-hidden">
+      {error && (
+        <div role="alert" className="flex items-center justify-between gap-3 rounded-2xl border border-error/20 bg-error/10 px-4 py-4 text-sm text-error">
+          <span>{error}</span><button type="button" onClick={() => void load()} className="font-800 underline">Retry</button>
+        </div>
+      )}
+
+      <section className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm min-w-[800px]">
-            <thead>
-              <tr className="bg-muted border-b border-border">
-                <th className="text-left px-4 py-3 text-xs font-700 text-muted-foreground">
-                  Seller
-                </th>
-                <th className="text-right px-4 py-3 text-xs font-700 text-muted-foreground">GMV</th>
-                <th className="text-center px-4 py-3 text-xs font-700 text-muted-foreground">
-                  Orders
-                </th>
-                <th className="text-center px-4 py-3 text-xs font-700 text-muted-foreground">
-                  Rating
-                </th>
-                <th className="text-center px-4 py-3 text-xs font-700 text-muted-foreground">
-                  Reviews
-                </th>
-                <th className="text-center px-4 py-3 text-xs font-700 text-muted-foreground">
-                  Fulfillment
-                </th>
-                <th className="text-center px-4 py-3 text-xs font-700 text-muted-foreground">
-                  Acceptance
-                </th>
+          <table className="w-full min-w-[980px] text-sm">
+            <thead className="border-b border-border bg-muted/60">
+              <tr>
+                <th className="px-4 py-3 text-left text-xs font-800 text-muted-foreground">Seller</th>
+                <th className="px-4 py-3 text-right text-xs font-800 text-muted-foreground">GMV</th>
+                <th className="px-4 py-3 text-right text-xs font-800 text-muted-foreground">Commission</th>
+                <th className="px-4 py-3 text-center text-xs font-800 text-muted-foreground">Orders</th>
+                <th className="px-4 py-3 text-center text-xs font-800 text-muted-foreground">AOV</th>
+                <th className="px-4 py-3 text-center text-xs font-800 text-muted-foreground">Rating</th>
+                <th className="px-4 py-3 text-center text-xs font-800 text-muted-foreground">Acceptance</th>
+                <th className="px-4 py-3 text-center text-xs font-800 text-muted-foreground">Fulfillment</th>
+                <th className="px-4 py-3 text-center text-xs font-800 text-muted-foreground">Refunds</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {sorted.map((s, idx) => (
-                <tr key={s.id} className="hover:bg-muted/30 transition-colors">
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <div
-                        className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-800 ${idx === 0 ? 'bg-amber-100 text-amber-700' : idx === 1 ? 'bg-slate-100 text-slate-600' : 'bg-muted text-muted-foreground'}`}
-                      >
-                        {idx + 1}
-                      </div>
-                      <div>
-                        <p className="text-sm font-700 text-foreground">{s.seller}</p>
-                        <p className="mono-id">{s.id}</p>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <p className="text-sm font-800 text-success">{formatINR(s.gmv)}</p>
-                    <p className="text-xs text-muted-foreground">Comm: {formatINR(s.commission)}</p>
-                  </td>
-                  <td className="px-4 py-3 text-center">
-                    <p className="text-sm font-800 text-foreground">{s.orders}</p>
-                    <p className="text-xs text-muted-foreground">
-                      AOV: {formatINR(s.avgOrderValue)}
-                    </p>
-                  </td>
-                  <td className="px-4 py-3 text-center">
-                    <div className="flex items-center justify-center gap-1">
-                      <Icon name="StarIcon" size={12} className="text-amber-400" variant="solid" />
-                      <span className="text-sm font-800 text-foreground">{s.rating}</span>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-center">
-                    <p className="text-sm font-700 text-foreground">{s.reviews}</p>
-                  </td>
-                  <td className="px-4 py-3 text-center">
-                    <p
-                      className={`text-sm font-800 ${s.fulfillmentRate >= 93 ? 'text-success' : s.fulfillmentRate >= 88 ? 'text-amber-600' : 'text-error'}`}
-                    >
-                      {s.fulfillmentRate}%
-                    </p>
-                  </td>
-                  <td className="px-4 py-3 text-center">
-                    <p
-                      className={`text-sm font-800 ${s.acceptanceRate >= 90 ? 'text-success' : s.acceptanceRate >= 80 ? 'text-amber-600' : 'text-error'}`}
-                    >
-                      {s.acceptanceRate}%
-                    </p>
-                  </td>
+              {loading && Array.from({ length: 5 }).map((_, index) => <tr key={index}><td colSpan={9} className="px-4 py-5"><div className="h-8 animate-pulse rounded-xl bg-muted" /></td></tr>)}
+              {!loading && sorted.length === 0 && <tr><td colSpan={9} className="px-6 py-14 text-center text-sm text-muted-foreground">No seller activity exists for the selected period.</td></tr>}
+              {!loading && sorted.map((seller) => (
+                <tr key={seller.id} className="hover:bg-muted/30">
+                  <td className="px-4 py-4"><p className="font-800 text-foreground">{seller.name}</p><p className="text-xs text-muted-foreground">{seller.sellerRef} · {seller.city} · {seller.activeListings} listings</p></td>
+                  <td className="px-4 py-4 text-right font-800 text-foreground">{money(seller.gmv)}</td>
+                  <td className="px-4 py-4 text-right font-800 text-foreground">{money(seller.commission)}</td>
+                  <td className="px-4 py-4 text-center font-800 text-foreground">{seller.orders}</td>
+                  <td className="px-4 py-4 text-center font-800 text-foreground">{money(seller.avgOrderValue)}</td>
+                  <td className="px-4 py-4 text-center"><span className="font-800 text-foreground">{seller.rating || '—'}</span><span className="block text-[11px] text-muted-foreground">{seller.reviews} reviews</span></td>
+                  <td className="px-4 py-4 text-center font-800 text-foreground">{seller.acceptanceRate}%</td>
+                  <td className="px-4 py-4 text-center font-800 text-foreground">{seller.fulfillmentRate}%</td>
+                  <td className="px-4 py-4 text-center font-800 text-foreground">{seller.refundRate}%</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-      </div>
+      </section>
     </div>
   );
 }

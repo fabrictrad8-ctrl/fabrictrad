@@ -54,9 +54,12 @@ const adminTabs = [
 const routes: RouteCase[] = [
   { role: 'public', path: '/', label: 'home', capture: true },
   { role: 'public', path: '/login', label: 'login', capture: true },
+  { role: 'public', path: '/admin-login', label: 'admin login', capture: true },
   { role: 'public', path: '/register', label: 'register' },
   { role: 'public', path: '/buyer-registration', label: 'buyer registration' },
   { role: 'public', path: '/seller-registration', label: 'seller registration' },
+  { role: 'public', path: '/auth/reset-password', label: 'password reset' },
+  { role: 'public', path: '/auth/setup', label: 'account setup' },
   { role: 'public', path: '/help', label: 'help' },
   { role: 'public', path: '/privacy', label: 'privacy' },
   { role: 'public', path: '/terms', label: 'terms' },
@@ -65,6 +68,9 @@ const routes: RouteCase[] = [
   { role: 'buyer', path: '/categories', label: 'buyer categories', capture: true },
   { role: 'buyer', path: '/vendors', label: 'buyer vendors', capture: true },
   { role: 'buyer', path: '/product-detail', label: 'product detail', capture: true },
+  { role: 'buyer', path: '/cart', label: 'buyer cart', capture: true },
+  { role: 'buyer', path: '/account', label: 'buyer account' },
+  { role: 'buyer', path: '/auth/phone?role=buyer&returnTo=/buyer-dashboard', label: 'optional phone collection' },
   { role: 'buyer', path: '/buyer-requirements', label: 'requirements board' },
   { role: 'buyer', path: '/profile', label: 'buyer profile' },
   { role: 'buyer', path: '/company-purchasing', label: 'company purchasing', capture: true },
@@ -82,6 +88,7 @@ const routes: RouteCase[] = [
   { role: 'seller', path: '/vendors', label: 'seller vendors' },
   { role: 'seller', path: '/profile', label: 'seller profile' },
   { role: 'seller', path: '/catalogs-pricing', label: 'catalog pricing page' },
+  { role: 'seller', path: '/seller-product-rules', label: 'seller product rules', capture: true },
   ...sellerTabs.map<RouteCase>((tab) => ({
     role: 'seller',
     path: tab === 'overview' ? '/seller-dashboard' : `/seller-dashboard?tab=${tab}`,
@@ -93,7 +100,7 @@ const routes: RouteCase[] = [
     role: 'admin',
     path: tab === 'dashboard' ? '/admin-portal' : `/admin-portal?tab=${tab}`,
     label: `admin ${tab}`,
-    capture: ['dashboard', 'sellers', 'orders'].includes(tab),
+    capture: ['dashboard', 'sellers', 'orders', 'top-sellers', 'seller-metrics'].includes(tab),
   })),
 ];
 
@@ -106,6 +113,19 @@ const ignoredConsolePatterns = [
 ];
 
 async function prepareRole(page: Page, role: Role) {
+  await page.route('**/api/admin/seller-metrics*', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        generatedAt: new Date().toISOString(),
+        range: { from: null, to: null },
+        sellers: [],
+        summary: { sellers: 0, activeSellers: 0, orders: 0, gmv: 0, commission: 0 },
+      }),
+    });
+  });
+
   await page.route(/https:\/\/example\.supabase\.co\/.*/, async (route) => {
     await route.fulfill({
       status: 200,
@@ -222,6 +242,7 @@ for (const routeCase of routes) {
   test(`${routeCase.role}: ${routeCase.label}`, async ({ page }, testInfo) => {
     const pageErrors: string[] = [];
     const consoleErrors: string[] = [];
+    const brokenImages: string[] = [];
 
     page.on('pageerror', (error) => pageErrors.push(error.message));
     page.on('console', (message) => {
@@ -229,13 +250,17 @@ for (const routeCase of routes) {
       const text = message.text();
       if (!ignoredConsolePatterns.some((pattern) => pattern.test(text))) consoleErrors.push(text);
     });
+    page.on('response', (response) => {
+      if (response.request().resourceType() !== 'image' || response.status() < 400) return;
+      brokenImages.push(`${response.status()} ${response.url()}`);
+    });
 
     await prepareRole(page, routeCase.role);
     const response = await page.goto(routeCase.path, { waitUntil: 'domcontentloaded' });
     expect(response, `No navigation response for ${routeCase.path}`).not.toBeNull();
     expect(response?.status(), `Unexpected status for ${routeCase.path}`).toBeLessThan(400);
 
-    await page.waitForTimeout(350);
+    await page.waitForTimeout(500);
 
     const finalPath = new URL(page.url()).pathname;
     if (routeCase.role !== 'public') {
@@ -259,6 +284,9 @@ for (const routeCase of routes) {
     });
     expect(duplicateIds).toEqual([]);
 
+    const imagesWithoutAlt = await page.locator('img:not([alt])').count();
+    expect(imagesWithoutAlt, `Images without alt text on ${routeCase.path}`).toBe(0);
+
     const overflow = await page.evaluate(() => {
       const width = Math.max(document.documentElement.scrollWidth, document.body.scrollWidth);
       return Math.max(0, width - window.innerWidth);
@@ -270,6 +298,7 @@ for (const routeCase of routes) {
 
     expect(pageErrors, `Page errors on ${routeCase.path}`).toEqual([]);
     expect(consoleErrors, `Console errors on ${routeCase.path}`).toEqual([]);
+    expect(brokenImages, `Broken images on ${routeCase.path}`).toEqual([]);
 
     if (routeCase.capture) {
       const safeName = `${routeCase.role}-${routeCase.label}-${testInfo.project.name}`.replace(/[^a-z0-9-]+/gi, '-').toLowerCase();

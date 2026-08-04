@@ -85,7 +85,6 @@ const AppImage = memo(function AppImage({
 
   const commonProps = {
     src: imageSrc,
-    alt,
     className: imageClassName,
     quality,
     placeholder,
@@ -96,17 +95,31 @@ const AppImage = memo(function AppImage({
     ...(priority ? { priority: true } : { loading }),
     ...(blurDataURL && placeholder === 'blur' ? { blurDataURL } : {}),
     ...props,
-  } satisfies Omit<ImageProps, 'width' | 'height' | 'fill'>;
+  } satisfies Omit<ImageProps, 'alt' | 'width' | 'height' | 'fill'>;
 
   if (fill) {
     return (
       <div className="relative h-full w-full overflow-hidden">
-        <Image {...commonProps} fill sizes={sizes || '(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw'} style={{ objectFit: 'cover', ...commonProps.style }} />
+        <Image
+          {...commonProps}
+          alt={alt || ''}
+          fill
+          sizes={sizes || '(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw'}
+          style={{ objectFit: 'cover', ...commonProps.style }}
+        />
       </div>
     );
   }
 
-  return <Image {...commonProps} width={width || 400} height={height || 300} sizes={sizes || '(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 400px'} />;
+  return (
+    <Image
+      {...commonProps}
+      alt={alt || ''}
+      width={width || 400}
+      height={height || 300}
+      sizes={sizes || '(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 400px'}
+    />
+  );
 });
 
 AppImage.displayName = 'AppImage';
