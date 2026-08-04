@@ -8,6 +8,10 @@ const storageMigration = readFileSync(
   new URL('../supabase/migrations/20260804144500_make_product_media_authenticated_only.sql', import.meta.url),
   'utf8'
 );
+const sellerReviewMigration = readFileSync(
+  new URL('../supabase/migrations/20260804151500_protect_seller_review_fields.sql', import.meta.url),
+  'utf8'
+);
 
 const assert = (condition, message) => {
   if (!condition) throw new Error(message);
@@ -65,5 +69,20 @@ assert(
     storageMigration.includes('to authenticated'),
   'Signed-in marketplace users must retain product-media access.'
 );
+assert(
+  sellerReviewMigration.match(/security invoker/g)?.length === 4,
+  'Seller review protection triggers must run with the calling user permissions.'
+);
+assert(
+  sellerReviewMigration.includes('Seller verification, activation and settlement fields are managed by FabricTrad.') &&
+    sellerReviewMigration.includes('Only FabricTrad can approve or reject seller documents.') &&
+    sellerReviewMigration.includes('Bank verification and payout linkage are managed by FabricTrad.') &&
+    sellerReviewMigration.includes('Only FabricTrad can approve or reject products.'),
+  'Seller, document, bank and product review fields must be protected from self-approval.'
+);
+assert(
+  sellerReviewMigration.includes('protect_product_variant_review_fields_trigger'),
+  'Product variation approvals must receive the same protection as product approvals.'
+);
 
-console.log('Database role, marketplace and product-media privacy checks passed.');
+console.log('Database role, marketplace, media and seller approval security checks passed.');
