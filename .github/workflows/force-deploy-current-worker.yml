@@ -68,13 +68,16 @@ jobs:
           const names = new Set(secrets.map((item) => item.name));
           const required = ['RAZORPAY_KEY_ID', 'RAZORPAY_KEY_SECRET', 'RAZORPAY_WEBHOOK_SECRET'];
           const missing = required.filter((name) => !names.has(name));
+          if (!names.has('SUPABASE_SECRET_KEY') && !names.has('SUPABASE_SERVICE_ROLE_KEY')) {
+            missing.push('SUPABASE_SECRET_KEY_OR_SERVICE_ROLE_KEY');
+          }
           fs.writeFileSync('/tmp/missing-worker-secrets.txt', missing.join('\n'));
-          console.log(`Configured required secret names: ${required.filter((name) => names.has(name)).join(', ') || 'none'}`);
+          console.log(`Configured Razorpay secret names: ${required.filter((name) => names.has(name)).join(', ') || 'none'}`);
           if (missing.length) {
-            console.error(`Missing required secret names: ${missing.join(', ')}`);
+            console.error(`Missing required integration secret names: ${missing.join(', ')}`);
             process.exit(1);
           }
-          console.log('All required Razorpay Worker secret names are configured.');
+          console.log('All required Razorpay and Supabase Worker secret names are configured.');
           NODE
 
       - name: Validate current application
@@ -141,6 +144,7 @@ jobs:
             --header 'x-razorpay-signature: 00' \
             --data '{}' \
             https://fabrictrad.com/api/razorpay/webhook || true)
+          printf '%s' "$webhook_status" > /tmp/razorpay-webhook-status.txt
           echo "Razorpay webhook probe returned HTTP ${webhook_status}."
           if [ "$webhook_status" != '400' ]; then
             cat /tmp/razorpay-webhook.json || true
@@ -183,6 +187,10 @@ jobs:
           NODE
           )
           fi
+          webhook_status_json='null'
+          if [ -s /tmp/razorpay-webhook-status.txt ]; then
+            webhook_status_json=$(node -e "const fs=require('fs'); console.log(JSON.stringify(fs.readFileSync('/tmp/razorpay-webhook-status.txt','utf8').trim() || null))")
+          fi
           mkdir -p .github/deployments
           cat > .github/deployments/production-status.json <<JSON
           {
@@ -194,6 +202,7 @@ jobs:
             "workerDeployment": "${DEPLOY_OUTCOME}",
             "liveAccountApiVerification": "${VERIFY_OUTCOME}",
             "liveRazorpayWebhookVerification": "${RAZORPAY_WEBHOOK_OUTCOME}",
+            "razorpayWebhookProbeHttpStatus": ${webhook_status_json},
             "deploymentLogTail": ${deployment_log_json}
           }
           JSON
