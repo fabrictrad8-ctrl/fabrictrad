@@ -1,0 +1,8 @@
+{
+  "sourceCommit": "f2b76009a2727bd2f6a05e1b11c840181567954c",
+  "recordedAt": "2026-08-04T00:58:48Z",
+  "cloudflareAuthentication": "success",
+  "workerDeployment": "failure",
+  "liveAccountApiVerification": "skipped",
+  "missingRequiredWorkerSecrets": true
+}
