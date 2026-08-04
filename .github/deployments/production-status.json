@@ -1,9 +1,9 @@
 {
-  "sourceCommit": "fba64db83de4d409d10038cb5032e9ef18e480f1",
-  "recordedAt": "2026-08-04T01:35:01Z",
+  "sourceCommit": "14f63263a8a71ff7fda7c81799f2f5edf5c39a9f",
+  "recordedAt": "2026-08-04T02:14:29Z",
   "cloudflareAuthentication": "success",
-  "workerSecretPreflight": "failure",
-  "missingRequiredWorkerSecrets": ["RAZORPAY_KEY_ID","RAZORPAY_WEBHOOK_SECRET"],
-  "workerDeployment": "skipped",
+  "workerSecretPreflight": "success",
+  "missingRequiredWorkerSecrets": [],
+  "workerDeployment": "failure",
   "liveAccountApiVerification": "skipped"
 }
