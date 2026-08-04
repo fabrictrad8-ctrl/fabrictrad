@@ -56,6 +56,27 @@ jobs:
         id: cloudflare-auth
         run: npx wrangler whoami
 
+      - name: Check required Worker secret names
+        id: secret-preflight
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx wrangler secret list --config wrangler.jsonc --format json > /tmp/worker-secrets.json
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const secrets = JSON.parse(fs.readFileSync('/tmp/worker-secrets.json', 'utf8'));
+          const names = new Set(secrets.map((item) => item.name));
+          const required = ['RAZORPAY_KEY_ID', 'RAZORPAY_KEY_SECRET', 'RAZORPAY_WEBHOOK_SECRET'];
+          const missing = required.filter((name) => !names.has(name));
+          fs.writeFileSync('/tmp/missing-worker-secrets.txt', missing.join('\n'));
+          console.log(`Configured required secret names: ${required.filter((name) => names.has(name)).join(', ') || 'none'}`);
+          if (missing.length) {
+            console.error(`Missing required secret names: ${missing.join(', ')}`);
+            process.exit(1);
+          }
+          console.log('All required Razorpay Worker secret names are configured.');
+          NODE
+
       - name: Validate current application
         run: |
           npm run type-check
@@ -114,13 +135,14 @@ jobs:
         shell: bash
         env:
           AUTH_OUTCOME: ${{ steps.cloudflare-auth.outcome }}
+          SECRET_PREFLIGHT_OUTCOME: ${{ steps.secret-preflight.outcome }}
           DEPLOY_OUTCOME: ${{ steps.deploy.outcome }}
           VERIFY_OUTCOME: ${{ steps.live-verification.outcome }}
         run: |
           set -euo pipefail
-          missing_required_secrets=false
-          if [ -f /tmp/wrangler-deploy.log ] && grep -q 'required secrets have not been set' /tmp/wrangler-deploy.log; then
-            missing_required_secrets=true
+          missing_json='[]'
+          if [ -s /tmp/missing-worker-secrets.txt ]; then
+            missing_json=$(node -e "const fs=require('fs'); console.log(JSON.stringify(fs.readFileSync('/tmp/missing-worker-secrets.txt','utf8').trim().split(/\\n+/).filter(Boolean)))")
           fi
           mkdir -p .github/deployments
           cat > .github/deployments/production-status.json <<JSON
@@ -128,9 +150,10 @@ jobs:
             "sourceCommit": "${GITHUB_SHA}",
             "recordedAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
             "cloudflareAuthentication": "${AUTH_OUTCOME}",
+            "workerSecretPreflight": "${SECRET_PREFLIGHT_OUTCOME}",
+            "missingRequiredWorkerSecrets": ${missing_json},
             "workerDeployment": "${DEPLOY_OUTCOME}",
-            "liveAccountApiVerification": "${VERIFY_OUTCOME}",
-            "missingRequiredWorkerSecrets": ${missing_required_secrets}
+            "liveAccountApiVerification": "${VERIFY_OUTCOME}"
           }
           JSON
           git config user.name 'github-actions[bot]'
