@@ -56,6 +56,24 @@ jobs:
         id: cloudflare-auth
         run: npx wrangler whoami
 
+      - name: Sync Supabase server secret to Worker
+        id: sync-supabase-secret
+        shell: bash
+        env:
+          SUPABASE_SECRET_KEY_FROM_GITHUB: ${{ secrets.SUPABASE_SECRET_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY_FROM_GITHUB: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -n "${SUPABASE_SECRET_KEY_FROM_GITHUB:-}" ]; then
+            printf '%s' "$SUPABASE_SECRET_KEY_FROM_GITHUB" | npx wrangler secret put SUPABASE_SECRET_KEY --config wrangler.jsonc
+            echo 'Synced SUPABASE_SECRET_KEY from GitHub Actions to the Cloudflare Worker.'
+          elif [ -n "${SUPABASE_SERVICE_ROLE_KEY_FROM_GITHUB:-}" ]; then
+            printf '%s' "$SUPABASE_SERVICE_ROLE_KEY_FROM_GITHUB" | npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY --config wrangler.jsonc
+            echo 'Synced SUPABASE_SERVICE_ROLE_KEY from GitHub Actions to the Cloudflare Worker.'
+          else
+            echo 'No GitHub Actions Supabase server secret is available to sync.'
+          fi
+
       - name: Check required Worker secret names
         id: secret-preflight
         shell: bash
@@ -159,6 +177,7 @@ jobs:
         shell: bash
         env:
           AUTH_OUTCOME: ${{ steps.cloudflare-auth.outcome }}
+          SECRET_SYNC_OUTCOME: ${{ steps.sync-supabase-secret.outcome }}
           SECRET_PREFLIGHT_OUTCOME: ${{ steps.secret-preflight.outcome }}
           DEPLOY_OUTCOME: ${{ steps.deploy.outcome }}
           VERIFY_OUTCOME: ${{ steps.live-verification.outcome }}
@@ -197,6 +216,7 @@ jobs:
             "sourceCommit": "${GITHUB_SHA}",
             "recordedAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
             "cloudflareAuthentication": "${AUTH_OUTCOME}",
+            "supabaseSecretSync": "${SECRET_SYNC_OUTCOME}",
             "workerSecretPreflight": "${SECRET_PREFLIGHT_OUTCOME}",
             "missingRequiredWorkerSecrets": ${missing_json},
             "workerDeployment": "${DEPLOY_OUTCOME}",
