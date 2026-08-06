@@ -16,9 +16,7 @@ export async function GET() {
   } = await supabase.auth.getUser();
   if (!user) return json({ error: 'Seller sign-in required.' }, 401);
 
-  const { data: readiness, error: readinessError } = await supabase.rpc(
-    'ensure_current_seller_verification_state'
-  );
+  const { data: readiness, error: readinessError } = await supabase.rpc('ensure_current_seller_verification_state');
   if (readinessError || !readiness) {
     return json(
       { error: readinessError?.message || 'Seller verification status could not be loaded.' },
