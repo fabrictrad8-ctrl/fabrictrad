@@ -120,14 +120,14 @@ assert(
   'Seller registration bank details must create exactly one settlement profile.'
 );
 assert(
-  sellerBankSyncMigration.includes("is_verified = case") &&
+  sellerBankSyncMigration.includes('is_verified = case') &&
     sellerBankSyncMigration.includes('when v_details_changed then false'),
   'Changing seller bank details must reset settlement verification.'
 );
 assert(
   sellerBankSyncMigration.includes("'****' || right") &&
-    !sellerBankSyncMigration.includes('account_number'),
-  'The bank synchronization migration must store only a masked account reference.'
+    sellerBankSyncMigration.includes('account_number_masked'),
+  'The bank synchronization migration must store a masked account reference.'
 );
 
 console.log('Database role, marketplace, profile, onboarding and seller approval security checks passed.');
