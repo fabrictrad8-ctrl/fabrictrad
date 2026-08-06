@@ -29,37 +29,71 @@ export async function GET() {
   const readinessRecord = readiness as Record<string, unknown>;
   const registrationId = String(readinessRecord.registrationId || '');
 
-  const [{ data: registration }, { data: seller }, { data: documents }] = await Promise.all([
-    registrationId
-      ? supabase
-          .from('seller_registrations')
-          .select(
-            'id,owner_name,business_name,business_type,city,state,pincode,address,categories,monthly_capacity,gstin,pan,bank_account_number,bank_ifsc,bank_account_name,bank_name,registration_status,submitted_at,approved_at,rejection_reason,updated_at'
-          )
-          .eq('id', registrationId)
-          .eq('user_id', user.id)
-          .maybeSingle()
-      : Promise.resolve({ data: null }),
-    supabase
-      .from('seller_profiles')
+  let registration: {
+    owner_name: string | null;
+    business_name: string | null;
+    business_type: string | null;
+    city: string | null;
+    state: string | null;
+    pincode: string | null;
+    address: string | null;
+    categories: string[] | null;
+    monthly_capacity: string | null;
+    gstin: string | null;
+    pan: string | null;
+    bank_account_number: string | null;
+    bank_ifsc: string | null;
+    bank_account_name: string | null;
+    bank_name: string | null;
+    registration_status: string | null;
+    submitted_at: string | null;
+    approved_at: string | null;
+    rejection_reason: string | null;
+    updated_at: string | null;
+  } | null = null;
+
+  if (registrationId) {
+    const { data } = await supabase
+      .from('seller_registrations')
       .select(
-        'id,legal_business_name,display_name,business_type,gstin,gstin_status,gstin_verified,verification_status,settlement_eligible,is_active'
+        'owner_name,business_name,business_type,city,state,pincode,address,categories,monthly_capacity,gstin,pan,bank_account_number,bank_ifsc,bank_account_name,bank_name,registration_status,submitted_at,approved_at,rejection_reason,updated_at'
       )
+      .eq('id', registrationId)
       .eq('user_id', user.id)
-      .maybeSingle(),
-    registrationId
-      ? supabase
-          .from('seller_registration_documents')
-          .select('id,document_type,file_name,upload_status,rejection_reason,reviewed_at,updated_at')
-          .eq('registration_id', registrationId)
-          .order('created_at', { ascending: true })
-      : Promise.resolve({ data: [] }),
-  ]);
+      .maybeSingle();
+    registration = data;
+  }
+
+  const { data: seller } = await supabase
+    .from('seller_profiles')
+    .select(
+      'legal_business_name,display_name,business_type,gstin,gstin_status,gstin_verified,verification_status,settlement_eligible,is_active'
+    )
+    .eq('user_id', user.id)
+    .maybeSingle();
+
+  let documents: Array<{
+    id: string;
+    document_type: string;
+    file_name: string | null;
+    upload_status: string;
+    rejection_reason: string | null;
+    reviewed_at: string | null;
+    updated_at: string | null;
+  }> = [];
+  if (registrationId) {
+    const { data } = await supabase
+      .from('seller_registration_documents')
+      .select('id,document_type,file_name,upload_status,rejection_reason,reviewed_at,updated_at')
+      .eq('registration_id', registrationId)
+      .order('created_at', { ascending: true });
+    documents = data || [];
+  }
 
   const uploadedDocumentTypes = new Set(
-    (documents || [])
+    documents
       .filter((item) => ['uploaded', 'under_review', 'approved'].includes(item.upload_status))
-      .map((item) => String(item.document_type))
+      .map((item) => item.document_type)
   );
   const requiredDocumentTypes = ['gst_certificate', 'pan_card', 'cancelled_cheque'];
   const missingDocuments = requiredDocumentTypes.filter((type) => !uploadedDocumentTypes.has(type));
@@ -98,6 +132,6 @@ export async function GET() {
       rejectionReason: registration?.rejection_reason || null,
       updatedAt: registration?.updated_at || null,
     },
-    documents: documents || [],
+    documents,
   });
 }
