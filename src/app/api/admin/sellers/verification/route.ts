@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import type { User } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 
@@ -19,13 +20,92 @@ type ReviewAction =
   | 'approve_seller'
   | 'reject_seller';
 
+type SellerRow = {
+  id: string;
+  user_id: string;
+  legal_business_name: string | null;
+  display_name: string | null;
+  business_type: string | null;
+  gstin: string | null;
+  gstin_status: string | null;
+  gstin_verified: boolean;
+  verification_status: string;
+  settlement_eligible: boolean;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+type UserRow = {
+  id: string;
+  full_name: string | null;
+  email: string | null;
+  phone: string | null;
+  is_active: boolean;
+  can_sell: boolean;
+};
+
+type RegistrationRow = {
+  id: string;
+  user_id: string;
+  business_name: string | null;
+  business_type: string | null;
+  gstin: string | null;
+  pan: string | null;
+  registration_status: string;
+  submitted_at: string | null;
+  approved_at: string | null;
+  rejection_reason: string | null;
+  updated_at: string;
+};
+
+type BankRow = {
+  id: string;
+  seller_id: string;
+  account_holder_name: string | null;
+  bank_name: string | null;
+  account_number_masked: string | null;
+  ifsc_code: string | null;
+  is_verified: boolean;
+  updated_at: string;
+};
+
+type DocumentRow = {
+  id: string;
+  registration_id: string;
+  document_type: string;
+  file_url: string;
+  file_name: string | null;
+  upload_status: string;
+  rejection_reason: string | null;
+  reviewed_at: string | null;
+  updated_at: string;
+};
+
+type ApplicationRow = {
+  sellerId: string;
+  userId: string;
+  seller: SellerRow;
+  user: UserRow | null;
+  registration: RegistrationRow | null;
+  bank: BankRow | null;
+  documents: Array<DocumentRow & { signedUrl: string | null }>;
+  blockers: string[];
+  applicationSubmitted: boolean;
+  readyForApproval: boolean;
+};
+
+type AdminAccess =
+  | { user: User; error?: never }
+  | { user?: never; error: NextResponse };
+
 const json = (body: Record<string, unknown>, status = 200) =>
   NextResponse.json(body, {
     status,
     headers: { 'Cache-Control': 'no-store, max-age=0' },
   });
 
-async function requireAdministrator() {
+async function requireAdministrator(): Promise<AdminAccess> {
   const supabase = await createClient();
   const {
     data: { user },
@@ -69,64 +149,70 @@ const sellerBlockers = (input: {
   return blockers;
 };
 
-async function loadApplications() {
+async function loadApplications(): Promise<ApplicationRow[]> {
   const admin = createAdminClient();
-  const { data: sellers, error: sellerError } = await admin
+  const { data: sellerData, error: sellerError } = await admin
     .from('seller_profiles')
     .select(
       'id,user_id,legal_business_name,display_name,business_type,gstin,gstin_status,gstin_verified,verification_status,settlement_eligible,is_active,created_at,updated_at'
     )
     .order('updated_at', { ascending: false });
   if (sellerError) throw sellerError;
+  const sellers = (sellerData || []) as SellerRow[];
+  if (sellers.length === 0) return [];
 
-  const userIds = (sellers || []).map((seller) => seller.user_id);
-  const sellerIds = (sellers || []).map((seller) => seller.id);
+  const userIds = sellers.map((seller) => seller.user_id);
+  const sellerIds = sellers.map((seller) => seller.id);
 
-  const [{ data: users }, { data: registrations }, { data: banks }] = await Promise.all([
-    userIds.length
-      ? admin
-          .from('user_profiles')
-          .select('id,full_name,email,phone,is_active,can_sell')
-          .in('id', userIds)
-      : Promise.resolve({ data: [] }),
-    userIds.length
-      ? admin
-          .from('seller_registrations')
-          .select(
-            'id,user_id,business_name,business_type,gstin,pan,registration_status,submitted_at,approved_at,rejection_reason,updated_at'
-          )
-          .in('user_id', userIds)
-          .order('updated_at', { ascending: false })
-      : Promise.resolve({ data: [] }),
-    sellerIds.length
-      ? admin
-          .from('seller_bank_profiles')
-          .select(
-            'id,seller_id,account_holder_name,bank_name,account_number_masked,ifsc_code,is_verified,updated_at'
-          )
-          .in('seller_id', sellerIds)
-      : Promise.resolve({ data: [] }),
-  ]);
+  const { data: userData, error: userError } = await admin
+    .from('user_profiles')
+    .select('id,full_name,email,phone,is_active,can_sell')
+    .in('id', userIds);
+  if (userError) throw userError;
+  const users = (userData || []) as UserRow[];
 
-  const latestRegistrationByUser = new Map<string, (typeof registrations)[number]>();
-  for (const registration of registrations || []) {
+  const { data: registrationData, error: registrationError } = await admin
+    .from('seller_registrations')
+    .select(
+      'id,user_id,business_name,business_type,gstin,pan,registration_status,submitted_at,approved_at,rejection_reason,updated_at'
+    )
+    .in('user_id', userIds)
+    .order('updated_at', { ascending: false });
+  if (registrationError) throw registrationError;
+  const registrations = (registrationData || []) as RegistrationRow[];
+
+  const { data: bankData, error: bankError } = await admin
+    .from('seller_bank_profiles')
+    .select(
+      'id,seller_id,account_holder_name,bank_name,account_number_masked,ifsc_code,is_verified,updated_at'
+    )
+    .in('seller_id', sellerIds);
+  if (bankError) throw bankError;
+  const banks = (bankData || []) as BankRow[];
+
+  const latestRegistrationByUser = new Map<string, RegistrationRow>();
+  for (const registration of registrations) {
     if (!latestRegistrationByUser.has(registration.user_id)) {
       latestRegistrationByUser.set(registration.user_id, registration);
     }
   }
+
   const registrationIds = [...latestRegistrationByUser.values()].map((item) => item.id);
-  const { data: documentRows } = registrationIds.length
-    ? await admin
-        .from('seller_registration_documents')
-        .select(
-          'id,registration_id,document_type,file_url,file_name,upload_status,rejection_reason,reviewed_at,updated_at'
-        )
-        .in('registration_id', registrationIds)
-        .order('created_at', { ascending: true })
-    : { data: [] };
+  let documentRows: DocumentRow[] = [];
+  if (registrationIds.length > 0) {
+    const { data, error } = await admin
+      .from('seller_registration_documents')
+      .select(
+        'id,registration_id,document_type,file_url,file_name,upload_status,rejection_reason,reviewed_at,updated_at'
+      )
+      .in('registration_id', registrationIds)
+      .order('created_at', { ascending: true });
+    if (error) throw error;
+    documentRows = (data || []) as DocumentRow[];
+  }
 
   const documentsWithUrls = await Promise.all(
-    (documentRows || []).map(async (document) => {
+    documentRows.map(async (document) => {
       let signedUrl: string | null = null;
       if (document.file_url) {
         const { data } = await admin.storage
@@ -138,10 +224,10 @@ async function loadApplications() {
     })
   );
 
-  return (sellers || []).map((seller) => {
-    const user = (users || []).find((item) => item.id === seller.user_id) || null;
+  return sellers.map((seller) => {
+    const user = users.find((item) => item.id === seller.user_id) || null;
     const registration = latestRegistrationByUser.get(seller.user_id) || null;
-    const bank = (banks || []).find((item) => item.seller_id === seller.id) || null;
+    const bank = banks.find((item) => item.seller_id === seller.id) || null;
     const documents = documentsWithUrls.filter(
       (item) => item.registration_id === registration?.id
     );
@@ -181,7 +267,7 @@ async function loadApplications() {
 
 export async function GET() {
   const access = await requireAdministrator();
-  if ('error' in access) return access.error;
+  if (access.error) return access.error;
   try {
     return json({ applications: await loadApplications() });
   } catch (error) {
@@ -192,7 +278,7 @@ export async function GET() {
 
 export async function PATCH(request: NextRequest) {
   const access = await requireAdministrator();
-  if ('error' in access) return access.error;
+  if (access.error) return access.error;
 
   const payload = (await request.json().catch(() => ({}))) as {
     action?: ReviewAction;
@@ -240,18 +326,23 @@ export async function PATCH(request: NextRequest) {
   try {
     if (action === 'confirm_gstin') {
       if (!seller.gstin) return json({ error: 'The seller has not submitted a GSTIN.' }, 409);
-      await Promise.all([
-        admin
-          .from('seller_profiles')
-          .update({ gstin_status: 'active', gstin_verified: true, gstin_verified_at: now, updated_at: now })
-          .eq('id', sellerId),
-        registration
-          ? admin
-              .from('seller_registrations')
-              .update({ gstin_verified: true, gstin_verified_at: now, updated_at: now })
-              .eq('id', registration.id)
-          : Promise.resolve(),
-      ]);
+      const { error: sellerError } = await admin
+        .from('seller_profiles')
+        .update({
+          gstin_status: 'active',
+          gstin_verified: true,
+          gstin_verified_at: now,
+          updated_at: now,
+        })
+        .eq('id', sellerId);
+      if (sellerError) throw sellerError;
+      if (registration) {
+        const { error: registrationError } = await admin
+          .from('seller_registrations')
+          .update({ gstin_verified: true, gstin_verified_at: now, updated_at: now })
+          .eq('id', registration.id);
+        if (registrationError) throw registrationError;
+      }
     }
 
     if (action === 'approve_document' || action === 'reject_document') {
@@ -286,18 +377,18 @@ export async function PATCH(request: NextRequest) {
         .eq('seller_id', sellerId)
         .maybeSingle();
       if (!bank) return json({ error: 'The seller has not submitted a settlement account.' }, 409);
-      await Promise.all([
-        admin
-          .from('seller_bank_profiles')
-          .update({ is_verified: true, updated_at: now })
-          .eq('id', bank.id),
-        registration
-          ? admin
-              .from('seller_registrations')
-              .update({ bank_verified: true, bank_verified_at: now, updated_at: now })
-              .eq('id', registration.id)
-          : Promise.resolve(),
-      ]);
+      const { error: bankError } = await admin
+        .from('seller_bank_profiles')
+        .update({ is_verified: true, updated_at: now })
+        .eq('id', bank.id);
+      if (bankError) throw bankError;
+      if (registration) {
+        const { error: registrationError } = await admin
+          .from('seller_registrations')
+          .update({ bank_verified: true, bank_verified_at: now, updated_at: now })
+          .eq('id', registration.id);
+        if (registrationError) throw registrationError;
+      }
     }
 
     if (action === 'approve_seller') {
@@ -305,61 +396,67 @@ export async function PATCH(request: NextRequest) {
       const current = applications.find((item) => item.sellerId === sellerId);
       if (!current?.applicationSubmitted) {
         return json(
-          { error: 'The seller has not completed and submitted the application.', blockers: current?.blockers || [] },
+          {
+            error: 'The seller has not completed and submitted the application.',
+            blockers: current?.blockers || [],
+          },
           409
         );
       }
       if (!current.readyForApproval) {
         return json(
-          { error: 'Complete all GSTIN, document and bank checks before final approval.', blockers: current.blockers },
+          {
+            error: 'Complete all GSTIN, document and bank checks before final approval.',
+            blockers: current.blockers,
+          },
           409
         );
       }
-      await Promise.all([
-        admin
-          .from('seller_profiles')
+      const { error: sellerError } = await admin
+        .from('seller_profiles')
+        .update({
+          verification_status: 'verified',
+          settlement_eligible: true,
+          is_active: true,
+          updated_at: now,
+        })
+        .eq('id', sellerId);
+      if (sellerError) throw sellerError;
+      if (registration) {
+        const { error: registrationError } = await admin
+          .from('seller_registrations')
           .update({
-            verification_status: 'verified',
-            settlement_eligible: true,
-            is_active: true,
+            registration_status: 'approved',
+            approved_at: now,
+            rejection_reason: null,
             updated_at: now,
           })
-          .eq('id', sellerId),
-        registration
-          ? admin
-              .from('seller_registrations')
-              .update({
-                registration_status: 'approved',
-                approved_at: now,
-                rejection_reason: null,
-                updated_at: now,
-              })
-              .eq('id', registration.id)
-          : Promise.resolve(),
-      ]);
+          .eq('id', registration.id);
+        if (registrationError) throw registrationError;
+      }
     }
 
     if (action === 'reject_seller') {
-      await Promise.all([
-        admin
-          .from('seller_profiles')
+      const { error: sellerError } = await admin
+        .from('seller_profiles')
+        .update({
+          verification_status: 'rejected',
+          settlement_eligible: false,
+          updated_at: now,
+        })
+        .eq('id', sellerId);
+      if (sellerError) throw sellerError;
+      if (registration) {
+        const { error: registrationError } = await admin
+          .from('seller_registrations')
           .update({
-            verification_status: 'rejected',
-            settlement_eligible: false,
+            registration_status: 'rejected',
+            rejection_reason: reason,
             updated_at: now,
           })
-          .eq('id', sellerId),
-        registration
-          ? admin
-              .from('seller_registrations')
-              .update({
-                registration_status: 'rejected',
-                rejection_reason: reason,
-                updated_at: now,
-              })
-              .eq('id', registration.id)
-          : Promise.resolve(),
-      ]);
+          .eq('id', registration.id);
+        if (registrationError) throw registrationError;
+      }
     }
 
     return json({ updated: true, action, sellerId });
