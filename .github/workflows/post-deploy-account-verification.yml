@@ -1,0 +1,64 @@
+name: Verify FabricTrad account deployment
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/post-deploy-account-verification.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  live-verification:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Wait for the current account APIs to reach production
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='https://fabrictrad.com'
+          healthy=false
+
+          for attempt in $(seq 1 60); do
+            login=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+              --output /tmp/login.json --write-out '%{http_code}' \
+              --header 'Content-Type: application/json' \
+              --data '{"email":"nonexistent-live-smoke@fabrictrad.invalid","password":"DefinitelyWrong123!"}' \
+              "${base}/api/auth/password-login" || true)
+            destination=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+              --output /tmp/destination.json --write-out '%{http_code}' \
+              "${base}/api/auth/session-destination" || true)
+            draft=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+              --output /tmp/draft.json --write-out '%{http_code}' \
+              "${base}/api/account/onboarding-draft?flow=buyer" || true)
+            deletion=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+              --output /tmp/deletion.json --write-out '%{http_code}' \
+              --header 'Content-Type: application/json' --data '{}' \
+              "${base}/api/account/delete/request" || true)
+
+            echo "Attempt ${attempt}/60: password-login=${login}, destination=${destination}, draft=${draft}, deletion=${deletion}"
+            if [ "$login" = '401' ] && [ "$destination" = '401' ] && [ "$draft" = '401' ] && [ "$deletion" = '401' ]; then
+              healthy=true
+              break
+            fi
+            sleep 10
+          done
+
+          if [ "$healthy" != 'true' ]; then
+            echo 'password-login body:'; head -c 500 /tmp/login.json || true; echo
+            echo 'session-destination body:'; head -c 500 /tmp/destination.json || true; echo
+            echo 'onboarding-draft body:'; head -c 500 /tmp/draft.json || true; echo
+            echo 'deletion-request body:'; head -c 500 /tmp/deletion.json || true; echo
+            echo '::error::Production is still serving a Worker build without the account-lifecycle APIs.'
+            exit 1
+          fi
+
+          grep -qi 'email or password is incorrect' /tmp/login.json
+          grep -qi 'authentication required' /tmp/destination.json
+          grep -qi 'authentication required' /tmp/draft.json
+          grep -qi 'authentication required' /tmp/deletion.json
+          echo 'FabricTrad live account APIs are deployed and enforcing authentication.'
