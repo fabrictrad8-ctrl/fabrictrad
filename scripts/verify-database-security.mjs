@@ -24,6 +24,10 @@ const sellerRegistrationMigration = readFileSync(
   new URL('../supabase/migrations/20260804160000_harden_seller_registration_ownership.sql', import.meta.url),
   'utf8'
 );
+const sellerBankSyncMigration = readFileSync(
+  new URL('../supabase/migrations/20260806121000_sync_seller_registration_bank_profile.sql', import.meta.url),
+  'utf8'
+);
 
 const assert = (condition, message) => {
   if (!condition) throw new Error(message);
@@ -110,5 +114,20 @@ assert(
     sellerRegistrationMigration.includes('Seller application review fields are managed by FabricTrad.'),
   'Seller application approval and verification fields must be protected from self-review.'
 );
+assert(
+  sellerBankSyncMigration.includes('seller_bank_profiles_one_per_seller_idx') &&
+    sellerBankSyncMigration.includes('seller_registration_sync_bank_profile'),
+  'Seller registration bank details must create exactly one settlement profile.'
+);
+assert(
+  sellerBankSyncMigration.includes("is_verified = case") &&
+    sellerBankSyncMigration.includes('when v_details_changed then false'),
+  'Changing seller bank details must reset settlement verification.'
+);
+assert(
+  sellerBankSyncMigration.includes("'****' || right") &&
+    !sellerBankSyncMigration.includes('account_number'),
+  'The bank synchronization migration must store only a masked account reference.'
+);
 
-console.log('Database role, marketplace, profile and seller approval security checks passed.');
+console.log('Database role, marketplace, profile, onboarding and seller approval security checks passed.');
