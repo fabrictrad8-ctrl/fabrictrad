@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -156,6 +157,7 @@ export async function POST(request: NextRequest) {
   const sellerProfileId = String(access.seller_profile_id);
   const registrationId = String(access.registration_id);
   const sellerRef = `FT-SLR-${user.id.replaceAll('-', '').slice(0, 12).toUpperCase()}`;
+  const admin = createAdminClient();
   let uploadedDocuments = 0;
 
   try {
@@ -174,7 +176,10 @@ export async function POST(request: NextRequest) {
         });
       if (uploadError) throw uploadError;
 
-      const { error: documentError } = await supabase
+      // The authenticated upload proves ownership. Metadata is reset through the
+      // service client so a rejected document can safely re-enter review without
+      // giving sellers direct access to administrator review fields.
+      const { error: documentError } = await admin
         .from('seller_registration_documents')
         .upsert(
           {
