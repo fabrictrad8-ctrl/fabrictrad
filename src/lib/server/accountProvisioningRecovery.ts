@@ -15,6 +15,12 @@ type ProvisioningAttempt = {
 const errorCode = (error: unknown) =>
   typeof error === 'object' && error && 'code' in error ? String(error.code) : undefined;
 
+const normalizedPhone = (value: unknown) => {
+  const digits = typeof value === 'string' ? value.replace(/\D/g, '') : '';
+  const phone = digits.slice(-10);
+  return /^[6-9][0-9]{9}$/.test(phone) ? phone : '';
+};
+
 const phonePresentFor = async (client: SupabaseClient, userId: string) => {
   const { data, error } = await client
     .from('user_profiles')
@@ -23,6 +29,30 @@ const phonePresentFor = async (client: SupabaseClient, userId: string) => {
     .maybeSingle();
   if (error) throw error;
   return Boolean(data?.phone && String(data.phone).trim());
+};
+
+const userWithSafeMetadataPhone = async (admin: SupabaseClient, user: User): Promise<User> => {
+  const metadata = { ...(user.user_metadata || {}) } as Record<string, unknown>;
+  const phone = normalizedPhone(metadata.phone);
+  if (!phone) {
+    metadata.phone = '';
+    return { ...user, user_metadata: metadata } as User;
+  }
+
+  const { data: conflict, error } = await admin
+    .from('user_profiles')
+    .select('id')
+    .eq('phone', phone)
+    .neq('id', user.id)
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+
+  // Authentication metadata can outlive a deleted/abandoned registration or
+  // carry a number already claimed by another profile. Never let that stale
+  // value block workspace repair and never transfer it automatically.
+  metadata.phone = conflict?.id ? '' : phone;
+  return { ...user, user_metadata: metadata } as User;
 };
 
 /**
@@ -55,7 +85,8 @@ export async function provisionAuthenticatedAccountWithRecovery(
     }
 
     try {
-      const provisioned = await ensureAccountProvisioned(admin, user);
+      const recoveryUser = await userWithSafeMetadataPhone(admin, user);
+      const provisioned = await ensureAccountProvisioned(admin, recoveryUser);
       const phonePresent = await phonePresentFor(admin, user.id);
       return {
         recovered: true,
