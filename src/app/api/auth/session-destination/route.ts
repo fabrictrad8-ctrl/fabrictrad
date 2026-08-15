@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { provisionAuthenticatedAccountWithRecovery } from '@/lib/server/accountProvisioningRecovery';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -55,32 +56,41 @@ export async function GET(request: NextRequest) {
     return json({ authenticated: false }, 401);
   }
 
-  const { data: profile, error: profileError } = await supabase
+  const requestedRole = metadataRole(user) === 'seller' ? 'seller' : 'buyer';
+  let { data: profile, error: profileError } = await supabase
     .from('user_profiles')
-    .select('role,is_active')
+    .select('role,is_active,can_buy,can_sell')
     .eq('id', user.id)
     .maybeSingle();
 
-  if (profileError) {
-    return json(
-      {
-        authenticated: true,
-        ready: false,
-        error: 'Account workspace is still loading.',
-      },
-      503
-    );
+  let recovered = false;
+  if (profileError || !profile) {
+    try {
+      const recovery = await provisionAuthenticatedAccountWithRecovery(
+        supabase,
+        user,
+        requestedRole
+      );
+      recovered = recovery.recovered;
+      const refreshed = await supabase
+        .from('user_profiles')
+        .select('role,is_active,can_buy,can_sell')
+        .eq('id', user.id)
+        .maybeSingle();
+      profile = refreshed.data;
+      profileError = refreshed.error;
+    } catch {
+      profile = null;
+    }
   }
 
-  if (!profile) {
-    return json(
-      {
-        authenticated: true,
-        ready: false,
-        error: 'Account profile is still being prepared.',
-      },
-      409
-    );
+  if (profileError || !profile) {
+    return json({
+      authenticated: true,
+      ready: false,
+      destination: `/auth/setup?role=${requestedRole}&reason=profile_setup`,
+      code: 'profile_setup_required',
+    });
   }
 
   if (profile.is_active === false) {
@@ -107,7 +117,10 @@ export async function GET(request: NextRequest) {
   return json({
     authenticated: true,
     ready: true,
+    recovered,
     role,
+    canBuy: profile.can_buy ?? (role !== 'admin_staff' && role !== 'super_admin'),
+    canSell: profile.can_sell ?? role === 'seller',
     destination: destinationFor(role, requestedNext),
   });
 }
