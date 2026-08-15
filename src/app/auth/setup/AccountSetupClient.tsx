@@ -131,7 +131,7 @@ export default function AccountSetupClient() {
         {state === 'failed' ? (
           <div className="mt-7 rounded-2xl border border-destructive/25 bg-destructive/8 p-4" role="alert">
             <p className="text-sm font-medium text-foreground">The automatic repair did not complete.</p>
-            <p className="mt-1 text-sm text-muted-foreground">Your authenticated session is preserved. Retrying is safe and will not create a duplicate account.</p>
+            <p className="mt-1 text-sm text-muted-foreground">Session preserved. Your authenticated sign-in remains active, and retrying will not create a duplicate account.</p>
             <button
               type="button"
               onClick={() => void prepare(true)}
