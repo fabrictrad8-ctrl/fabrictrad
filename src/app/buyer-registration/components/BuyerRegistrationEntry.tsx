@@ -1,8 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import Icon from '@/components/ui/AppIcon';
+import { useAuth } from '@/contexts/AuthContext';
 import BuyerRegistrationFlowV2 from './BuyerRegistrationFlowV2';
+import AuthenticatedBuyerRegistrationResume from './AuthenticatedBuyerRegistrationResume';
 
 type BuyerType = 'retail_store' | 'end_user';
 
@@ -48,7 +51,10 @@ const options: Array<{
 ];
 
 export default function BuyerRegistrationEntry() {
+  const searchParams = useSearchParams();
+  const { user, loading } = useAuth();
   const [buyerType, setBuyerType] = useState<BuyerType | null>(null);
+  const isAuthenticatedResume = searchParams.get('resume') === '1' && Boolean(user);
 
   useEffect(() => {
     const stored = window.localStorage.getItem('fabrictrad_buyer_type') || window.sessionStorage.getItem('fabrictrad_buyer_type');
@@ -62,6 +68,14 @@ export default function BuyerRegistrationEntry() {
     window.localStorage.setItem('fabrictrad_buyer_type', value);
     setBuyerType(value);
   };
+
+  if (loading) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <div className="h-9 w-9 animate-spin rounded-full border-2 border-primary border-t-transparent" aria-label="Loading registration" />
+      </div>
+    );
+  }
 
   if (buyerType) {
     return (
@@ -91,7 +105,11 @@ export default function BuyerRegistrationEntry() {
             </button>
           </div>
         </div>
-        <BuyerRegistrationFlowV2 buyerType={buyerType} />
+        {isAuthenticatedResume ? (
+          <AuthenticatedBuyerRegistrationResume buyerType={buyerType} />
+        ) : (
+          <BuyerRegistrationFlowV2 buyerType={buyerType} />
+        )}
       </div>
     );
   }
@@ -100,10 +118,14 @@ export default function BuyerRegistrationEntry() {
     <section className="min-h-[calc(100vh-4rem)] bg-muted/30 px-4 py-10 sm:py-16">
       <div className="mx-auto max-w-5xl">
         <div className="text-center">
-          <p className="text-xs font-800 uppercase tracking-[0.16em] text-primary">Create your FabricTrad account</p>
+          <p className="text-xs font-800 uppercase tracking-[0.16em] text-primary">
+            {isAuthenticatedResume ? 'Continue your FabricTrad setup' : 'Create your FabricTrad account'}
+          </p>
           <h1 className="mt-3 text-3xl font-800 tracking-tight text-foreground sm:text-4xl">How will you buy?</h1>
           <p className="mx-auto mt-3 max-w-2xl text-sm leading-6 text-muted-foreground sm:text-base">
-            Personal customers register with ordinary account and delivery details. Official tax and identity documents are requested only for a shop or business profile.
+            {isAuthenticatedResume
+              ? 'Your login is already secured. Choose the buyer type you were setting up and FabricTrad will continue from the remaining profile steps.'
+              : 'Personal customers register with ordinary account and delivery details. Official tax and identity documents are requested only for a shop or business profile.'}
           </p>
         </div>
 
