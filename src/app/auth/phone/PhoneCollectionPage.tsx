@@ -166,7 +166,7 @@ export default function PhoneCollectionPage() {
           </h1>
           <p className="mt-2 text-sm leading-6 text-muted-foreground">
             {sellerContactRequired
-              ? 'One contact number is required for seller onboarding, order coordination and account review. FabricTrad does not use SMS OTP for this step.'
+              ? 'One contact number is required for seller onboarding, order coordination and account review. SMS verification is not required for this step.'
               : 'A mobile number is optional for buyer contact details. You can add it now or continue without one.'}
           </p>
         </div>
