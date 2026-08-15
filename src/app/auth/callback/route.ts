@@ -84,6 +84,8 @@ export async function GET(request: NextRequest) {
   } = await supabase.auth.getUser();
   if (userError || !user) return redirectAfterAuth(loginErrorUrl(origin, 'auth_failed'));
 
+  // Primary recovery still starts with ensureAuthenticatedAccountProvisioned;
+  // the shared helper adds an exact-user server fallback only when that path fails.
   const normalizedEmail = user.email?.trim().toLowerCase() || '';
   if (normalizedEmail === ADMIN_EMAIL && user.email_confirmed_at) {
     try {
