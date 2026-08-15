@@ -34,20 +34,11 @@ const destinationFor = (role: AccountRole, requestedNext: string | null) => {
   return role === 'seller' ? '/account' : '/marketplace';
 };
 
-const roleFromUser = (user: {
-  app_metadata?: Record<string, unknown>;
-  user_metadata?: Record<string, unknown>;
-}): AccountRole => {
-  const role = user.app_metadata?.role || user.user_metadata?.role;
-  return role === 'seller' || role === 'admin_staff' || role === 'super_admin'
-    ? role
-    : 'buyer';
-};
-
 /**
  * A fail-safe for mobile custom tabs, slow provisioning requests and delayed
- * client auth state. The server endpoint reads the newly persisted Supabase
- * cookie, validates the account and returns the database-backed workspace.
+ * client auth state. The database-backed profile wins. When the profile is
+ * missing, the server session endpoint performs a safe repair instead of the
+ * browser guessing a role from stale auth metadata.
  */
 export default function LoginRedirectGuard() {
   const searchParams = useSearchParams();
@@ -58,11 +49,9 @@ export default function LoginRedirectGuard() {
   );
 
   useEffect(() => {
-    if (loading || !user) return;
+    if (loading || !user || !profile) return;
 
-    const role = (profile?.role || roleFromUser(user)) as AccountRole;
-    const destination = destinationFor(role, requestedNext);
-
+    const destination = destinationFor(profile.role as AccountRole, requestedNext);
     const timer = window.setTimeout(() => {
       if (window.location.pathname === '/login') {
         window.location.replace(destination);
@@ -70,7 +59,7 @@ export default function LoginRedirectGuard() {
     }, 25);
 
     return () => window.clearTimeout(timer);
-  }, [loading, profile?.role, requestedNext, user]);
+  }, [loading, profile, requestedNext, user]);
 
   useEffect(() => {
     let cancelled = false;
@@ -91,7 +80,7 @@ export default function LoginRedirectGuard() {
         });
         const payload = (await response.json().catch(() => ({}))) as DestinationResponse;
 
-        if (response.ok && payload.ready && payload.destination?.startsWith('/')) {
+        if (response.ok && payload.authenticated && payload.destination?.startsWith('/')) {
           window.location.replace(payload.destination);
           return;
         }
@@ -101,8 +90,7 @@ export default function LoginRedirectGuard() {
           return;
         }
       } catch {
-        // The normal AuthContext path remains active. Retry briefly because
-        // the browser may still be writing the freshly issued auth cookie.
+        // Retry briefly while the browser finishes persisting the auth cookie.
       }
 
       if (!cancelled && attempts < 60) {
