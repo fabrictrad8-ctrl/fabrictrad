@@ -33,6 +33,18 @@
   flex: 0 0 40px;
 }
 
+/* Header search forms are compact on tablet layouts, but their submit action
+   must remain a real finger-sized target instead of collapsing to text height. */
+.ft-root header form button[type='submit'] {
+  display: inline-flex;
+  min-width: 44px !important;
+  min-height: 44px !important;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  padding-inline: 10px;
+}
+
 @media (min-width: 640px) {
   .ft-route-requirements header a[href='/'] {
     min-width: auto;
