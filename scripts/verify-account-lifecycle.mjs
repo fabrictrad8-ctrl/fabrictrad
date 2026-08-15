@@ -22,15 +22,19 @@ const deletionSecurityMigration =
   'supabase/migrations/20260803171245_account_deletion_service_role_only.sql';
 const draftPrivilegeMigration =
   'supabase/migrations/20260803175000_restrict_onboarding_draft_table_privileges.sql';
+const provisioningRecovery = 'src/lib/server/accountProvisioningRecovery.ts';
 const requiredFiles = [
   'src/app/api/auth/password-login/route.ts',
   'src/app/api/auth/session-destination/route.ts',
+  'src/app/api/auth/provision-account/route.ts',
+  provisioningRecovery,
   'src/app/login/EmailOtpLoginClient.tsx',
   'src/app/login/LoginRedirectGuard.tsx',
   'src/app/api/account/onboarding-draft/route.ts',
   'src/lib/hooks/useOnboardingDraft.ts',
   'src/app/buyer-registration/components/BuyerRegistrationEntry.tsx',
   'src/app/buyer-registration/components/BuyerRegistrationFlowV2.tsx',
+  'src/app/buyer-registration/components/AuthenticatedBuyerRegistrationResume.tsx',
   'src/app/seller-registration/components/SellerRegistrationFlow.tsx',
   'src/app/api/account/delete/request/route.ts',
   'src/app/api/account/delete/confirm/route.ts',
@@ -45,8 +49,13 @@ requiredFiles.forEach(read);
 // Server-authoritative password login must finish in the same navigation without
 // waiting for a client-side auth callback or requiring a manual page reload.
 requireText('src/app/api/auth/password-login/route.ts', 'signInWithPassword');
-requireText('src/app/api/auth/password-login/route.ts', 'ensureAuthenticatedAccountProvisioned');
+requireText('src/app/api/auth/password-login/route.ts', 'provisionAuthenticatedAccountWithRecovery');
 requireText('src/app/api/auth/password-login/route.ts', "role === 'seller' ? '/account' : '/marketplace'");
+requireText('src/app/api/auth/session-destination/route.ts', 'provisionAuthenticatedAccountWithRecovery');
+requireText('src/app/api/auth/provision-account/route.ts', 'provisionAuthenticatedAccountWithRecovery');
+requireText(provisioningRecovery, 'ensureAuthenticatedAccountProvisioned');
+requireText(provisioningRecovery, 'ensureAccountProvisioned');
+requireText(provisioningRecovery, "metadata.phone = conflict?.id ? '' : phone");
 requireText('src/app/login/EmailOtpLoginClient.tsx', "fetch('/api/auth/password-login'");
 requireText('src/app/login/EmailOtpLoginClient.tsx', 'window.location.replace');
 requireText('src/app/login/LoginRedirectGuard.tsx', "fetch(`/api/auth/session-destination");
@@ -59,6 +68,10 @@ requireText('src/app/buyer-registration/components/BuyerRegistrationFlowV2.tsx',
 requireText('src/app/buyer-registration/components/BuyerRegistrationFlowV2.tsx', "next: '/buyer-registration?resume=1'");
 requireText('src/app/buyer-registration/components/BuyerRegistrationFlowV2.tsx', "const signup = user ?");
 requireText('src/app/buyer-registration/components/BuyerRegistrationFlowV2.tsx', "password: '', confirmPassword: ''");
+requireText('src/app/buyer-registration/components/BuyerRegistrationEntry.tsx', 'AuthenticatedBuyerRegistrationResume');
+requireText('src/app/buyer-registration/components/BuyerRegistrationEntry.tsx', "searchParams.get('resume') === '1'");
+requireText('src/app/buyer-registration/components/AuthenticatedBuyerRegistrationResume.tsx', "buyerType === 'retail_store'");
+requireText('src/app/buyer-registration/components/AuthenticatedBuyerRegistrationResume.tsx', "supabase.rpc('set_current_account_phone'");
 requireText('src/app/seller-registration/components/SellerRegistrationFlow.tsx', 'useOnboardingDraft');
 requireText('src/app/seller-registration/components/SellerRegistrationFlow.tsx', "saveOnboardingDraftLocally('seller'");
 requireText('src/app/seller-registration/components/SellerRegistrationFlow.tsx', "next: '/seller-registration?resume=1'");

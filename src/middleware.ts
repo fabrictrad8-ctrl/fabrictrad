@@ -43,6 +43,8 @@ const adminApiError = (error: string, status: 401 | 403) =>
 export async function middleware(request: NextRequest) {
   const { pathname, searchParams } = request.nextUrl;
   const isAdminApi = pathname.startsWith('/api/admin');
+  const isBuyerRegistrationResume =
+    pathname === '/buyer-registration' && searchParams.get('resume') === '1';
 
   if (pathname === '/' && (searchParams.has('code') || searchParams.has('error'))) {
     const callbackUrl = request.nextUrl.clone();
@@ -67,7 +69,7 @@ export async function middleware(request: NextRequest) {
     const canBuy = true;
     const canSell = demoRole === 'seller';
     if (isAdminApi) return adminApiError('Administrator access required.', 403);
-    if (AUTH_ENTRY_PATHS.has(pathname)) return redirect(request, '/marketplace');
+    if (AUTH_ENTRY_PATHS.has(pathname) && !isBuyerRegistrationResume) return redirect(request, '/marketplace');
     if (pathname.startsWith('/admin-portal')) return redirect(request, '/marketplace');
     if (pathname.startsWith('/seller-dashboard') && !canSell) return redirect(request, '/seller-registration');
     if ((pathname.startsWith('/buyer-dashboard') || pathname.startsWith('/buyer-requirements')) && !canBuy) {
@@ -135,7 +137,7 @@ export async function middleware(request: NextRequest) {
     return adminApiError('This account is not authorised for FabricTrad administration.', 403);
   }
 
-  if (AUTH_ENTRY_PATHS.has(pathname)) {
+  if (AUTH_ENTRY_PATHS.has(pathname) && !isBuyerRegistrationResume) {
     const destination = isAdmin
       ? '/admin-portal'
       : normalizedEmail === configuredAdminEmail()
