@@ -6,6 +6,12 @@ export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 type AccountRole = 'buyer' | 'seller' | 'admin_staff' | 'super_admin';
+type ProfileRow = {
+  role: string | null;
+  is_active: boolean | null;
+  can_buy: boolean | null;
+  can_sell: boolean | null;
+};
 
 const json = (body: Record<string, unknown>, status = 200) =>
   NextResponse.json(body, {
@@ -45,6 +51,14 @@ const metadataRole = (user: {
     : 'buyer';
 };
 
+const accountRole = (profile: ProfileRow | null, fallback: AccountRole): AccountRole =>
+  profile?.role === 'seller' ||
+  profile?.role === 'admin_staff' ||
+  profile?.role === 'super_admin' ||
+  profile?.role === 'buyer'
+    ? profile.role
+    : fallback;
+
 export async function GET(request: NextRequest) {
   const supabase = await createClient();
   const {
@@ -52,39 +66,63 @@ export async function GET(request: NextRequest) {
     error: userError,
   } = await supabase.auth.getUser();
 
-  if (userError || !user) {
-    return json({ authenticated: false }, 401);
-  }
+  if (userError || !user) return json({ authenticated: false }, 401);
 
-  const requestedRole = metadataRole(user) === 'seller' ? 'seller' : 'buyer';
-  let { data: profile, error: profileError } = await supabase
-    .from('user_profiles')
-    .select('role,is_active,can_buy,can_sell')
-    .eq('id', user.id)
-    .maybeSingle();
+  const fallbackRole = metadataRole(user);
+  const requestedRole = fallbackRole === 'seller' ? 'seller' : 'buyer';
 
+  const loadWorkspace = async () => {
+    const profileResult = await supabase
+      .from('user_profiles')
+      .select('role,is_active,can_buy,can_sell')
+      .eq('id', user.id)
+      .maybeSingle();
+    const profile = profileResult.data as ProfileRow | null;
+    if (profileResult.error || !profile) {
+      return { profile: null, role: fallbackRole, complete: false, error: profileResult.error };
+    }
+
+    const role = accountRole(profile, fallbackRole);
+    if (role === 'admin_staff' || role === 'super_admin') {
+      return { profile, role, complete: true, error: null };
+    }
+
+    const canBuy = profile.can_buy ?? true;
+    const canSell = profile.can_sell ?? role === 'seller';
+    const [buyerResult, sellerResult] = await Promise.all([
+      canBuy
+        ? supabase.from('buyer_profiles').select('id').eq('user_id', user.id).maybeSingle()
+        : Promise.resolve({ data: { id: 'not-required' }, error: null }),
+      canSell
+        ? supabase.from('seller_profiles').select('id').eq('user_id', user.id).maybeSingle()
+        : Promise.resolve({ data: { id: 'not-required' }, error: null }),
+    ]);
+
+    return {
+      profile,
+      role,
+      complete:
+        !buyerResult.error &&
+        !sellerResult.error &&
+        Boolean(buyerResult.data?.id) &&
+        Boolean(sellerResult.data?.id),
+      error: buyerResult.error || sellerResult.error || null,
+    };
+  };
+
+  let workspace = await loadWorkspace();
   let recovered = false;
-  if (profileError || !profile) {
+  if (!workspace.complete) {
     try {
-      const recovery = await provisionAuthenticatedAccountWithRecovery(
-        supabase,
-        user,
-        requestedRole
-      );
+      const recovery = await provisionAuthenticatedAccountWithRecovery(supabase, user, requestedRole);
       recovered = recovery.recovered;
-      const refreshed = await supabase
-        .from('user_profiles')
-        .select('role,is_active,can_buy,can_sell')
-        .eq('id', user.id)
-        .maybeSingle();
-      profile = refreshed.data;
-      profileError = refreshed.error;
+      workspace = await loadWorkspace();
     } catch {
-      profile = null;
+      // The account repair page provides a safe retry without destroying session state.
     }
   }
 
-  if (profileError || !profile) {
+  if (!workspace.profile || !workspace.complete) {
     return json({
       authenticated: true,
       ready: false,
@@ -93,7 +131,7 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  if (profile.is_active === false) {
+  if (workspace.profile.is_active === false) {
     await supabase.auth.signOut().catch(() => undefined);
     return json(
       {
@@ -105,22 +143,14 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const role: AccountRole =
-    profile.role === 'seller' ||
-    profile.role === 'admin_staff' ||
-    profile.role === 'super_admin' ||
-    profile.role === 'buyer'
-      ? profile.role
-      : metadataRole(user);
   const requestedNext = safeNextPath(request.nextUrl.searchParams.get('next'));
-
   return json({
     authenticated: true,
     ready: true,
     recovered,
-    role,
-    canBuy: profile.can_buy ?? (role !== 'admin_staff' && role !== 'super_admin'),
-    canSell: profile.can_sell ?? role === 'seller',
-    destination: destinationFor(role, requestedNext),
+    role: workspace.role,
+    canBuy: workspace.profile.can_buy ?? (workspace.role !== 'admin_staff' && workspace.role !== 'super_admin'),
+    canSell: workspace.profile.can_sell ?? workspace.role === 'seller',
+    destination: destinationFor(workspace.role, requestedNext),
   });
 }
