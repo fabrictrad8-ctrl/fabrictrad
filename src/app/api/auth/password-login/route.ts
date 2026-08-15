@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { ensureAuthenticatedAccountProvisioned, type AccountRole } from '@/lib/accountProvisioning';
+import { type AccountRole } from '@/lib/accountProvisioning';
+import { provisionAuthenticatedAccountWithRecovery } from '@/lib/server/accountProvisioningRecovery';
 import { normalizeEmail } from '@/lib/authValidation';
 
 export const dynamic = 'force-dynamic';
@@ -67,21 +68,30 @@ export async function POST(request: NextRequest) {
     data.user.app_metadata?.role === 'seller' || data.user.user_metadata?.role === 'seller'
       ? 'seller'
       : 'buyer';
+  const requestedNext = safeNextPath(body.next);
 
   let role: AccountRole = requestedRole;
+  let recovered = false;
   try {
-    const provisioned = await ensureAuthenticatedAccountProvisioned(supabase, requestedRole);
-    role = provisioned.role;
+    const result = await provisionAuthenticatedAccountWithRecovery(
+      supabase,
+      data.user,
+      requestedRole
+    );
+    role = result.account.role;
+    recovered = result.recovered;
   } catch {
     const { data: profile } = await supabase
       .from('user_profiles')
       .select('role,is_active')
       .eq('id', data.user.id)
       .maybeSingle();
+
     if (profile?.is_active === false) {
       await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined);
       return respond({ error: 'This account is inactive. Contact FabricTrad support.' }, 403);
     }
+
     if (
       profile?.role === 'seller' ||
       profile?.role === 'admin_staff' ||
@@ -89,12 +99,22 @@ export async function POST(request: NextRequest) {
       profile?.role === 'buyer'
     ) {
       role = profile.role;
+    } else {
+      return respond({
+        authenticated: true,
+        ready: false,
+        role: requestedRole,
+        destination: `/auth/setup?role=${requestedRole}&reason=profile_setup`,
+        code: 'profile_setup_required',
+      });
     }
   }
 
   return respond({
     authenticated: true,
+    ready: true,
+    recovered,
     role,
-    destination: destinationFor(role, safeNextPath(body.next)),
+    destination: destinationFor(role, requestedNext),
   });
 }
