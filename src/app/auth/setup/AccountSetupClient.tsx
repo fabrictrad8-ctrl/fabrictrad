@@ -111,7 +111,12 @@ export default function AccountSetupClient() {
           </div>
         </div>
 
-        <div className="mt-8 grid gap-3 sm:grid-cols-3">
+        <div className="mt-5 flex items-center gap-2 rounded-xl border border-success/20 bg-success/8 px-3 py-2 text-sm text-success" role="status">
+          <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden="true" />
+          <span><strong>Session preserved</strong> · this repair keeps the current signed-in account and does not create a duplicate.</span>
+        </div>
+
+        <div className="mt-6 grid gap-3 sm:grid-cols-3">
           {[
             [CheckCircle2, 'Identity preserved', 'Your existing login stays attached to the same FabricTrad account.'],
             [ShieldCheck, 'Safe repair', 'Only missing workspace records are repaired; no duplicate account is created.'],
@@ -131,14 +136,14 @@ export default function AccountSetupClient() {
         {state === 'failed' ? (
           <div className="mt-7 rounded-2xl border border-destructive/25 bg-destructive/8 p-4" role="alert">
             <p className="text-sm font-medium text-foreground">The automatic repair did not complete.</p>
-            <p className="mt-1 text-sm text-muted-foreground">Session preserved. Your authenticated sign-in remains active, and retrying will not create a duplicate account.</p>
+            <p className="mt-1 text-sm text-muted-foreground">Your authenticated sign-in remains active, and retrying is safe.</p>
             <button
               type="button"
               onClick={() => void prepare(true)}
               className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/20 hover:brightness-105 sm:w-auto"
             >
               <RefreshCw className="h-4 w-4" aria-hidden="true" />
-              Retry account repair
+              Retry account setup
             </button>
           </div>
         ) : (
