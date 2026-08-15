@@ -35,6 +35,15 @@ const destinationFor = (role: AccountRole, requestedNext: string | null) => {
   return role === 'seller' ? '/account' : '/marketplace';
 };
 
+const setupRequired = (requestedRole: 'buyer' | 'seller') =>
+  respond({
+    authenticated: true,
+    ready: false,
+    role: requestedRole,
+    destination: `/auth/setup?role=${requestedRole}&reason=profile_setup`,
+    code: 'profile_setup_required',
+  });
+
 export async function POST(request: NextRequest) {
   let body: { email?: unknown; password?: unknown; next?: unknown };
   try {
@@ -81,9 +90,9 @@ export async function POST(request: NextRequest) {
     role = result.account.role;
     recovered = result.recovered;
   } catch {
-    const { data: profile } = await supabase
+    const { data: profile, error: profileError } = await supabase
       .from('user_profiles')
-      .select('role,is_active')
+      .select('role,is_active,can_buy,can_sell')
       .eq('id', data.user.id)
       .maybeSingle();
 
@@ -91,22 +100,37 @@ export async function POST(request: NextRequest) {
       await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined);
       return respond({ error: 'This account is inactive. Contact FabricTrad support.' }, 403);
     }
+    if (profileError || !profile) return setupRequired(requestedRole);
 
     if (
-      profile?.role === 'seller' ||
-      profile?.role === 'admin_staff' ||
-      profile?.role === 'super_admin' ||
-      profile?.role === 'buyer'
+      profile.role !== 'seller' &&
+      profile.role !== 'admin_staff' &&
+      profile.role !== 'super_admin' &&
+      profile.role !== 'buyer'
     ) {
-      role = profile.role;
-    } else {
-      return respond({
-        authenticated: true,
-        ready: false,
-        role: requestedRole,
-        destination: `/auth/setup?role=${requestedRole}&reason=profile_setup`,
-        code: 'profile_setup_required',
-      });
+      return setupRequired(requestedRole);
+    }
+    role = profile.role;
+
+    if (role !== 'admin_staff' && role !== 'super_admin') {
+      const canBuy = profile.can_buy ?? true;
+      const canSell = profile.can_sell ?? role === 'seller';
+      const [buyerResult, sellerResult] = await Promise.all([
+        canBuy
+          ? supabase.from('buyer_profiles').select('id').eq('user_id', data.user.id).maybeSingle()
+          : Promise.resolve({ data: { id: 'not-required' }, error: null }),
+        canSell
+          ? supabase.from('seller_profiles').select('id').eq('user_id', data.user.id).maybeSingle()
+          : Promise.resolve({ data: { id: 'not-required' }, error: null }),
+      ]);
+      if (
+        buyerResult.error ||
+        sellerResult.error ||
+        !buyerResult.data?.id ||
+        !sellerResult.data?.id
+      ) {
+        return setupRequired(requestedRole);
+      }
     }
   }
 
