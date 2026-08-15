@@ -31,9 +31,25 @@ const phonePresentFor = async (client: SupabaseClient, userId: string) => {
   return Boolean(data?.phone && String(data.phone).trim());
 };
 
-const userWithSafeMetadataPhone = async (admin: SupabaseClient, user: User): Promise<User> => {
+const userForRecovery = async (
+  admin: SupabaseClient,
+  user: User,
+  requestedRole: CommerceRole
+): Promise<User> => {
   const metadata = { ...(user.user_metadata || {}) } as Record<string, unknown>;
   const phone = normalizedPhone(metadata.phone);
+
+  // Seller activation is additive. If the current request or either auth
+  // metadata source already says seller, recovery must never downgrade the
+  // account to buyer just because older user_metadata is stale.
+  const recoveryRole: CommerceRole =
+    requestedRole === 'seller' ||
+    user.app_metadata?.role === 'seller' ||
+    user.user_metadata?.role === 'seller'
+      ? 'seller'
+      : 'buyer';
+  metadata.role = recoveryRole;
+
   if (!phone) {
     metadata.phone = '';
     return { ...user, user_metadata: metadata } as User;
@@ -50,9 +66,9 @@ const userWithSafeMetadataPhone = async (admin: SupabaseClient, user: User): Pro
     .maybeSingle();
   if (error) throw error;
 
-  // Authentication metadata can outlive a deleted/abandoned registration or
-  // carry a number already claimed by another profile. Never let that stale
-  // value block workspace repair and never transfer it automatically.
+  // Authentication metadata can outlive an abandoned registration or carry a
+  // number already claimed by another profile. Never let that stale value
+  // block workspace repair and never transfer it automatically.
   metadata.phone = conflict?.id ? '' : phone;
   return { ...user, user_metadata: metadata } as User;
 };
@@ -87,7 +103,7 @@ export async function provisionAuthenticatedAccountWithRecovery(
     }
 
     try {
-      const recoveryUser = await userWithSafeMetadataPhone(admin, user);
+      const recoveryUser = await userForRecovery(admin, user, requestedRole);
       const provisioned = await ensureAccountProvisioned(admin, recoveryUser);
       const phonePresent = await phonePresentFor(admin, user.id);
       return {
