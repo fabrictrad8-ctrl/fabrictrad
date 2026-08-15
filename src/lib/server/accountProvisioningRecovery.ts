@@ -39,10 +39,12 @@ const userWithSafeMetadataPhone = async (admin: SupabaseClient, user: User): Pro
     return { ...user, user_metadata: metadata } as User;
   }
 
+  // `.like('%<last10>')` also catches legacy +91-prefixed values that predate
+  // the current ten-digit storage rule.
   const { data: conflict, error } = await admin
     .from('user_profiles')
     .select('id')
-    .eq('phone', phone)
+    .like('phone', `%${phone}`)
     .neq('id', user.id)
     .limit(1)
     .maybeSingle();
