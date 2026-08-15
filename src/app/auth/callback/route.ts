@@ -1,8 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
-import {
-  ensureAuthenticatedAccountProvisioned,
-  type AuthenticatedProvisionedAccount,
-} from '@/lib/accountProvisioning';
+import type { AuthenticatedProvisionedAccount } from '@/lib/accountProvisioning';
+import { provisionAuthenticatedAccountWithRecovery } from '@/lib/server/accountProvisioningRecovery';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
@@ -53,8 +51,13 @@ const destinationForAccount = (
   account: AuthenticatedProvisionedAccount
 ) => {
   if (account.role === 'admin_staff' || account.role === 'super_admin') return `${origin}/admin-portal`;
-  if (!account.phonePresent) return `${origin}/auth/phone?role=${requestedRole}`;
-  if (requestedRole === 'seller' && !account.canSell) return `${origin}/seller-registration`;
+  if (requestedRole === 'seller' && !account.phonePresent) {
+    const phoneUrl = new URL('/auth/phone', origin);
+    phoneUrl.searchParams.set('role', 'seller');
+    phoneUrl.searchParams.set('returnTo', '/seller-registration?resume=1');
+    return phoneUrl.toString();
+  }
+  if (requestedRole === 'seller' && !account.canSell) return `${origin}/seller-registration?resume=1`;
   return `${origin}/marketplace`;
 };
 
@@ -84,7 +87,7 @@ export async function GET(request: NextRequest) {
   const normalizedEmail = user.email?.trim().toLowerCase() || '';
   if (normalizedEmail === ADMIN_EMAIL && user.email_confirmed_at) {
     try {
-      await ensureAuthenticatedAccountProvisioned(supabase, 'buyer');
+      await provisionAuthenticatedAccountWithRecovery(supabase, user, 'buyer');
     } catch (error) {
       console.error('Administrator profile bootstrap failed', {
         userId: user.id,
@@ -97,10 +100,12 @@ export async function GET(request: NextRequest) {
 
   let account: AuthenticatedProvisionedAccount;
   try {
-    // OAuth is a user-owned browser session, so it must use the RLS-protected
-    // authenticated repair function. The service-role ensureAccountProvisioned
-    // path remains limited to trusted registration and administrative code.
-    account = await ensureAuthenticatedAccountProvisioned(supabase, requestedRole);
+    const provisioning = await provisionAuthenticatedAccountWithRecovery(
+      supabase,
+      user,
+      requestedRole
+    );
+    account = provisioning.account;
   } catch (error) {
     console.error('OAuth account provisioning failed', {
       userId: user.id,
@@ -151,6 +156,13 @@ export async function GET(request: NextRequest) {
   if (profile.is_active === false) {
     await supabase.auth.signOut();
     return redirectAfterAuth(loginErrorUrl(origin, 'account_inactive'));
+  }
+
+  // A Google sign-up launched from the buyer-registration flow must return to
+  // that flow. Otherwise a retail-store user could bypass the required KYC
+  // screens and an end user could lose the address/contact step.
+  if (buyerType) {
+    return redirectAfterAuth(`${origin}/buyer-registration?resume=1&oauth=1`);
   }
 
   return redirectAfterAuth(destinationForAccount(origin, requestedRole, account));
