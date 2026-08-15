@@ -69,7 +69,7 @@ export async function GET(request: NextRequest) {
   if (userError || !user) return json({ authenticated: false }, 401);
 
   const fallbackRole = metadataRole(user);
-  const requestedRole = fallbackRole === 'seller' ? 'seller' : 'buyer';
+  const metadataRequestedRole = fallbackRole === 'seller' ? 'seller' : 'buyer';
 
   const loadWorkspace = async () => {
     const profileResult = await supabase
@@ -113,8 +113,12 @@ export async function GET(request: NextRequest) {
   let workspace = await loadWorkspace();
   let recovered = false;
   if (!workspace.complete) {
+    const repairRole =
+      workspace.profile?.can_sell === true || workspace.role === 'seller'
+        ? 'seller'
+        : metadataRequestedRole;
     try {
-      const recovery = await provisionAuthenticatedAccountWithRecovery(supabase, user, requestedRole);
+      const recovery = await provisionAuthenticatedAccountWithRecovery(supabase, user, repairRole);
       recovered = recovery.recovered;
       workspace = await loadWorkspace();
     } catch {
@@ -122,11 +126,16 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  const setupRole =
+    workspace.profile?.can_sell === true || workspace.role === 'seller'
+      ? 'seller'
+      : metadataRequestedRole;
+
   if (!workspace.profile || !workspace.complete) {
     return json({
       authenticated: true,
       ready: false,
-      destination: `/auth/setup?role=${requestedRole}&reason=profile_setup`,
+      destination: `/auth/setup?role=${setupRole}&reason=profile_setup`,
       code: 'profile_setup_required',
     });
   }
