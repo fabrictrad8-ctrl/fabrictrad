@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import type { SupabaseClient, User } from '@supabase/supabase-js';
 import {
   ensureAccountProvisioned,
-  ensureAuthenticatedAccountProvisioned,
   type CommerceRole,
 } from '@/lib/accountProvisioning';
+import { provisionAuthenticatedAccountWithRecovery } from '@/lib/server/accountProvisioningRecovery';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 
@@ -134,9 +134,14 @@ export async function POST(request: NextRequest) {
 
   try {
     if (hasCookieSession && !nonceAuthenticated) {
-      const provisioned = await ensureAuthenticatedAccountProvisioned(serverClient, requestedRole);
-      await persistBuyerType(serverClient, user.id, buyerType);
-      return json({ ...provisioned, buyerType });
+      const { account: provisioned, recovered } = await provisionAuthenticatedAccountWithRecovery(
+        serverClient,
+        user,
+        requestedRole
+      );
+      const persistenceClient = admin || serverClient;
+      await persistBuyerType(persistenceClient, user.id, buyerType);
+      return json({ ...provisioned, buyerType, recovered });
     }
 
     if (!admin) {
@@ -152,7 +157,7 @@ export async function POST(request: NextRequest) {
       const metadata = { ...(user.user_metadata || {}), registration_nonce: null };
       await admin.auth.admin.updateUserById(user.id, { user_metadata: metadata });
     }
-    return json({ ready: true, phonePresent: Boolean(user.user_metadata?.phone), buyerType, ...provisioned });
+    return json({ ready: true, phonePresent: Boolean(user.user_metadata?.phone), buyerType, recovered: false, ...provisioned });
   } catch (error) {
     console.error('Account provisioning endpoint failed', {
       userId: user.id,
@@ -162,8 +167,9 @@ export async function POST(request: NextRequest) {
     });
     return json(
       {
-        error: 'Your account is signed in, but its workspace could not be prepared yet. Please retry.',
+        error: 'Your sign-in is valid, but FabricTrad could not finish the workspace repair yet. Retry safely from the account setup screen.',
         code: 'profile_setup_failed',
+        recoverable: true,
       },
       503
     );
@@ -179,11 +185,35 @@ export async function GET(request: NextRequest) {
   if (error || !data.user) return json({ ready: false }, 401);
 
   const user = data.user;
-  const { data: profile } = await serverClient
+  let { data: profile } = await serverClient
     .from('user_profiles')
     .select('role,can_buy,can_sell,phone')
     .eq('id', user.id)
     .maybeSingle();
+
+  if (!profile && !token) {
+    const requestedRole: CommerceRole =
+      user.app_metadata?.role === 'seller' || user.user_metadata?.role === 'seller'
+        ? 'seller'
+        : 'buyer';
+    try {
+      await provisionAuthenticatedAccountWithRecovery(serverClient, user, requestedRole);
+      const refreshed = await serverClient
+        .from('user_profiles')
+        .select('role,can_buy,can_sell,phone')
+        .eq('id', user.id)
+        .maybeSingle();
+      profile = refreshed.data;
+    } catch {
+      return json({
+        ready: false,
+        authenticated: true,
+        destination: `/auth/setup?role=${requestedRole}&reason=profile_setup`,
+        code: 'profile_setup_failed',
+      });
+    }
+  }
+
   const role = profile?.role || user.app_metadata?.role || user.user_metadata?.role || 'buyer';
   if (role === 'admin_staff' || role === 'super_admin') return json({ ready: true, role });
 
@@ -196,12 +226,19 @@ export async function GET(request: NextRequest) {
     ? await serverClient.from('seller_profiles').select('id').eq('user_id', user.id).maybeSingle()
     : { data: null };
 
+  const ready = Boolean(buyerProfile?.id) && (!profile?.can_sell || Boolean(sellerProfile?.id));
   return json({
-    ready: Boolean(buyerProfile?.id) && (!profile?.can_sell || Boolean(sellerProfile?.id)),
+    ready,
     role,
     canBuy: profile?.can_buy ?? true,
     canSell: profile?.can_sell ?? false,
     buyerType: buyerProfile?.buyer_type || 'end_user',
     phonePresent: Boolean(profile?.phone),
+    ...(!ready
+      ? {
+          authenticated: true,
+          destination: `/auth/setup?role=${role === 'seller' ? 'seller' : 'buyer'}&reason=profile_setup`,
+        }
+      : {}),
   });
 }
