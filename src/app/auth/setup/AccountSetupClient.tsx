@@ -9,18 +9,22 @@ type SetupResponse = {
   role?: string;
   canSell?: boolean;
   phonePresent?: boolean;
+  destination?: string;
   code?: string;
   error?: string;
 };
 
 type SetupState = 'working' | 'retrying' | 'failed';
 
+const sellerPhonePath =
+  '/auth/phone?role=seller&returnTo=%2Fseller-registration%3Fresume%3D1';
+
 export default function AccountSetupClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const requestedRole = searchParams.get('role') === 'seller' ? 'seller' : 'buyer';
   const [state, setState] = useState<SetupState>('working');
-  const [message, setMessage] = useState('Securely preparing your buyer and seller workspace.');
+  const [message, setMessage] = useState('Securely preparing your FabricTrad workspace.');
   const automaticAttempted = useRef(false);
 
   const continueToWorkspace = useCallback((result: SetupResponse) => {
@@ -28,12 +32,12 @@ export default function AccountSetupClient() {
       router.replace('/admin-portal');
       return;
     }
-    if (!result.phonePresent) {
-      router.replace(`/auth/phone?role=${requestedRole}`);
+    if (requestedRole === 'seller' && !result.phonePresent) {
+      router.replace(sellerPhonePath);
       return;
     }
     if (requestedRole === 'seller' && !result.canSell) {
-      router.replace('/seller-registration');
+      router.replace('/seller-registration?resume=1');
       return;
     }
     router.replace('/marketplace');
@@ -41,13 +45,14 @@ export default function AccountSetupClient() {
 
   const prepare = useCallback(async (manual = false) => {
     setState(manual ? 'retrying' : 'working');
-    setMessage(manual ? 'Checking your account again…' : 'Securely preparing your buyer and seller workspace.');
+    setMessage(manual ? 'Checking and repairing your account again…' : 'Securely preparing your FabricTrad workspace.');
 
     try {
       const response = await fetch('/api/auth/provision-account', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
+        cache: 'no-store',
         body: JSON.stringify({ requestedRole }),
       });
       const result = (await response.json().catch(() => ({}))) as SetupResponse;
@@ -57,6 +62,10 @@ export default function AccountSetupClient() {
         return;
       }
       if (!response.ok || !result.ready) {
+        if (result.destination?.startsWith('/') && result.destination !== '/auth/setup') {
+          router.replace(result.destination);
+          return;
+        }
         throw new Error(result.error || 'Your workspace is not ready yet.');
       }
 
@@ -104,9 +113,9 @@ export default function AccountSetupClient() {
 
         <div className="mt-8 grid gap-3 sm:grid-cols-3">
           {[
-            [CheckCircle2, 'Google verified', 'Your identity is already confirmed.'],
-            [ShieldCheck, 'Session preserved', 'You will not be signed out during repair.'],
-            [Sparkles, 'Role-aware setup', 'Buyer and seller access stay correctly separated.'],
+            [CheckCircle2, 'Identity preserved', 'Your existing login stays attached to the same FabricTrad account.'],
+            [ShieldCheck, 'Safe repair', 'Only missing workspace records are repaired; no duplicate account is created.'],
+            [Sparkles, 'Role-aware setup', 'Buyer access and seller verification continue through the correct next step.'],
           ].map(([Icon, title, copy]) => {
             const ItemIcon = Icon as typeof CheckCircle2;
             return (
@@ -122,14 +131,14 @@ export default function AccountSetupClient() {
         {state === 'failed' ? (
           <div className="mt-7 rounded-2xl border border-destructive/25 bg-destructive/8 p-4" role="alert">
             <p className="text-sm font-medium text-foreground">The automatic repair did not complete.</p>
-            <p className="mt-1 text-sm text-muted-foreground">Your Google session is still active. Retrying is safe and will not create duplicate profiles.</p>
+            <p className="mt-1 text-sm text-muted-foreground">Your authenticated session is preserved. Retrying is safe and will not create a duplicate account.</p>
             <button
               type="button"
               onClick={() => void prepare(true)}
               className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/20 hover:brightness-105 sm:w-auto"
             >
               <RefreshCw className="h-4 w-4" aria-hidden="true" />
-              Retry account setup
+              Retry account repair
             </button>
           </div>
         ) : (
@@ -139,7 +148,7 @@ export default function AccountSetupClient() {
         )}
 
         <p className="mt-6 text-center text-xs leading-5 text-muted-foreground">
-          Account setup is idempotent: retrying only completes missing records and never duplicates them.
+          Buyer accounts are not blocked for a missing phone number. Seller onboarding asks for one contact number, without SMS OTP.
         </p>
       </section>
     </main>
