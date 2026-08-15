@@ -69,7 +69,7 @@ export default function PhoneCollectionPage() {
     router.replace(returnTo);
   };
 
-  const useExistingAccount = async () => {
+  const handleExistingAccountSignIn = async () => {
     setSubmitting(true);
     try {
       await signOut();
@@ -253,7 +253,7 @@ export default function PhoneCollectionPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => void useExistingAccount()}
+                  onClick={() => void handleExistingAccountSignIn()}
                   disabled={submitting}
                   className="min-h-11 rounded-xl border border-primary/30 bg-primary/5 px-3 text-xs font-700 text-primary hover:bg-primary/10"
                 >
