@@ -4,6 +4,7 @@ type DemoRole = 'buyer' | 'seller';
 
 const DEMO_COOKIE_NAME = 'fabrictrad_demo_role';
 const DEMO_SESSION_MAX_AGE_SECONDS = 60 * 60 * 8;
+const LOCAL_DEMO_FIXTURE_PASSWORD = 'FabricDemo@2026';
 
 const noStoreJson = (body: Record<string, unknown>, status = 200) =>
   NextResponse.json(body, {
@@ -68,11 +69,10 @@ export async function POST(request: NextRequest) {
   }
 
   const role = roleForEmail(body.email.trim().toLowerCase());
-  const localFixture = isLocalRequest(request);
-  const configuredPassword = process.env.FABRICTRAD_DEMO_PASSWORD || '';
-  const passwordAccepted = localFixture
-    ? body.password.length > 0
-    : Boolean(configuredPassword) && body.password === configuredPassword;
+  const expectedPassword = isLocalRequest(request)
+    ? LOCAL_DEMO_FIXTURE_PASSWORD
+    : process.env.FABRICTRAD_DEMO_PASSWORD || '';
+  const passwordAccepted = Boolean(expectedPassword) && body.password === expectedPassword;
 
   if (!role || !passwordAccepted) {
     return noStoreJson({ error: 'Invalid login credentials.' }, 401);
