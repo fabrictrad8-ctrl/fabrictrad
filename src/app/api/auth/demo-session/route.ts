@@ -21,6 +21,8 @@ const DEMO_ACCOUNTS: Record<string, DemoAccount> = {
   },
 };
 
+const demoAccountsEnabled = () => process.env.FABRICTRAD_ENABLE_DEMO_ACCOUNTS === 'true';
+
 const noStoreJson = (body: Record<string, unknown>, status = 200) =>
   NextResponse.json(body, {
     status,
@@ -30,12 +32,34 @@ const noStoreJson = (body: Record<string, unknown>, status = 200) =>
 const isSecureRequest = (request: NextRequest) =>
   request.nextUrl.protocol === 'https:' || request.headers.get('x-forwarded-proto') === 'https';
 
+const clearDemoCookie = (response: NextResponse, request: NextRequest) => {
+  response.cookies.set(DEMO_COOKIE_NAME, '', {
+    httpOnly: true,
+    secure: isSecureRequest(request),
+    sameSite: 'lax',
+    path: '/',
+    maxAge: 0,
+  });
+  return response;
+};
+
 export async function GET(request: NextRequest) {
+  if (!demoAccountsEnabled()) {
+    return clearDemoCookie(noStoreJson({ role: null, enabled: false }), request);
+  }
+
   const role = request.cookies.get(DEMO_COOKIE_NAME)?.value;
-  return noStoreJson({ role: role === 'buyer' || role === 'seller' ? role : null });
+  return noStoreJson({
+    role: role === 'buyer' || role === 'seller' ? role : null,
+    enabled: true,
+  });
 }
 
 export async function POST(request: NextRequest) {
+  if (!demoAccountsEnabled()) {
+    return clearDemoCookie(noStoreJson({ error: 'Not found.' }, 404), request);
+  }
+
   let body: { email?: unknown; password?: unknown };
 
   try {
@@ -55,7 +79,7 @@ export async function POST(request: NextRequest) {
     return noStoreJson({ error: 'Invalid login credentials.' }, 401);
   }
 
-  const response = noStoreJson({ role: account.role });
+  const response = noStoreJson({ role: account.role, enabled: true });
   response.cookies.set(DEMO_COOKIE_NAME, account.role, {
     httpOnly: true,
     secure: isSecureRequest(request),
@@ -67,13 +91,5 @@ export async function POST(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
-  const response = noStoreJson({ cleared: true });
-  response.cookies.set(DEMO_COOKIE_NAME, '', {
-    httpOnly: true,
-    secure: isSecureRequest(request),
-    sameSite: 'lax',
-    path: '/',
-    maxAge: 0,
-  });
-  return response;
+  return clearDemoCookie(noStoreJson({ cleared: true }), request);
 }
