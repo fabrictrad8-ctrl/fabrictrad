@@ -1,0 +1,60 @@
+name: FabricTrad integration readiness
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '43 */6 * * *'
+
+permissions:
+  contents: read
+
+jobs:
+  readiness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Check external integration readiness
+        shell: bash
+        run: |
+          set -euo pipefail
+          base_url='https://fabrictrad.com'
+          warnings=0
+
+          fetch_json() {
+            local path="$1"
+            local output="$2"
+            local status
+            status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+              --output "$output" --write-out '%{http_code}' "$base_url$path" || true)
+            test "$status" = '200'
+          }
+
+          fetch_json '/api/auth/google/status' /tmp/google.json
+          fetch_json '/api/ai/drape-on' /tmp/ai.json
+          fetch_json '/api/shiprocket/status' /tmp/shiprocket.json
+          fetch_json '/api/gstin/status' /tmp/gstin.json
+
+          if ! grep -q '"configured":true' /tmp/ai.json; then
+            echo '::warning::AI Drape provider is not configured.'
+            warnings=$((warnings + 1))
+          fi
+
+          if ! grep -q '"configured":true' /tmp/shiprocket.json; then
+            echo '::warning::Shiprocket is not configured; automated dispatch is unavailable.'
+            warnings=$((warnings + 1))
+          fi
+
+          if ! grep -q '"providerConfigured":true' /tmp/gstin.json; then
+            echo '::warning::GSTIN verification is using official-manual review because no external provider is configured.'
+            warnings=$((warnings + 1))
+          fi
+
+          webhook_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+            --output /tmp/razorpay-webhook.json --write-out '%{http_code}' \
+            --header 'Content-Type: application/json' \
+            --header 'x-razorpay-signature: 00' --data '{}' \
+            "$base_url/api/razorpay/webhook" || true)
+          test "$webhook_status" = '400'
+          grep -qi 'invalid signature' /tmp/razorpay-webhook.json
+
+          echo "Integration readiness check completed with ${warnings} non-blocking configuration warning(s)."
