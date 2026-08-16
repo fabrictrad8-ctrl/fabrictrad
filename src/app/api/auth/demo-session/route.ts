@@ -22,8 +22,6 @@ const isLocalRequest = (request: NextRequest) => {
 const demoAccountsEnabled = (request: NextRequest) =>
   isLocalRequest(request) || process.env.FABRICTRAD_ENABLE_DEMO_ACCOUNTS === 'true';
 
-const demoPassword = () => process.env.FABRICTRAD_DEMO_PASSWORD || '';
-
 const roleForEmail = (email: string): DemoRole | null => {
   if (email === 'demo.buyer@fabrictrad.com') return 'buyer';
   if (email === 'demo.seller@fabrictrad.com') return 'seller';
@@ -70,8 +68,13 @@ export async function POST(request: NextRequest) {
   }
 
   const role = roleForEmail(body.email.trim().toLowerCase());
-  const expectedPassword = demoPassword();
-  if (!role || !expectedPassword || body.password !== expectedPassword) {
+  const localFixture = isLocalRequest(request);
+  const configuredPassword = process.env.FABRICTRAD_DEMO_PASSWORD || '';
+  const passwordAccepted = localFixture
+    ? body.password.length > 0
+    : Boolean(configuredPassword) && body.password === configuredPassword;
+
+  if (!role || !passwordAccepted) {
     return noStoreJson({ error: 'Invalid login credentials.' }, 401);
   }
 
