@@ -16,17 +16,33 @@ jobs:
       - name: Check external integration readiness
         shell: bash
         run: |
-          set -euo pipefail
+          set -u -o pipefail
           base_url='https://fabrictrad.com'
           warnings=0
+          failures=0
+
+          fail() {
+            echo "::error::$1"
+            failures=$((failures + 1))
+          }
 
           fetch_json() {
-            local path="$1"
-            local output="$2"
+            local name="$1"
+            local path="$2"
+            local output="$3"
+            local expected_status="${4:-200}"
             local status
             status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
               --output "$output" --write-out '%{http_code}' "$base_url$path" || true)
-            test "$status" = '200'
+            echo "${name}: HTTP ${status} (expected ${expected_status})"
+            if [ "$status" != "$expected_status" ]; then
+              echo "${name} response:"
+              head -c 1200 "$output" || true
+              echo
+              fail "${name} returned HTTP ${status}; expected ${expected_status}."
+              return 1
+            fi
+            return 0
           }
 
           assert_cookie_cannot_unlock() {
@@ -39,26 +55,37 @@ jobs:
               --cookie "fabrictrad_demo_role=${role}" \
               --dump-header "$headers" --output /dev/null --write-out '%{http_code}' \
               --max-redirs 0 "$base_url$route" || true)
-            test "$status" = '307' -o "$status" = '308'
-            grep -qi "^location: .*${expected}" "$headers"
+            if [ "$status" != '307' ] && [ "$status" != '308' ]; then
+              fail "${role} stale demo cookie returned HTTP ${status}; expected a protected redirect."
+              return
+            fi
+            if ! grep -qi "^location: .*${expected}" "$headers"; then
+              cat "$headers" || true
+              fail "${role} stale demo cookie redirected somewhere other than ${expected}."
+            fi
           }
 
-          fetch_json '/api/auth/google/status' /tmp/google.json
-          fetch_json '/api/ai/drape-on' /tmp/ai.json
-          fetch_json '/api/shiprocket/status' /tmp/shiprocket.json
-          fetch_json '/api/gstin/status' /tmp/gstin.json
+          fetch_json 'Google OAuth readiness' '/api/auth/google/status' /tmp/google.json || true
+          fetch_json 'AI Drape readiness' '/api/ai/drape-on' /tmp/ai.json || true
+          fetch_json 'Shiprocket readiness' '/api/shiprocket/status' /tmp/shiprocket.json || true
+          fetch_json 'GSTIN readiness' '/api/gstin/status' /tmp/gstin.json || true
 
-          if ! grep -q '"configured":true' /tmp/ai.json; then
+          if [ -s /tmp/google.json ] && ! grep -q '"configured":true' /tmp/google.json; then
+            echo '::warning::Google OAuth is not configured or not healthy.'
+            warnings=$((warnings + 1))
+          fi
+
+          if [ -s /tmp/ai.json ] && ! grep -q '"configured":true' /tmp/ai.json; then
             echo '::warning::AI Drape provider is not configured.'
             warnings=$((warnings + 1))
           fi
 
-          if ! grep -q '"configured":true' /tmp/shiprocket.json; then
+          if [ -s /tmp/shiprocket.json ] && ! grep -q '"configured":true' /tmp/shiprocket.json; then
             echo '::warning::Shiprocket is not configured; automated dispatch is unavailable.'
             warnings=$((warnings + 1))
           fi
 
-          if ! grep -q '"providerConfigured":true' /tmp/gstin.json; then
+          if [ -s /tmp/gstin.json ] && ! grep -q '"providerConfigured":true' /tmp/gstin.json; then
             echo '::warning::GSTIN verification is using official-manual review because no external provider is configured.'
             warnings=$((warnings + 1))
           fi
@@ -68,12 +95,21 @@ jobs:
             --header 'Content-Type: application/json' \
             --header 'x-razorpay-signature: 00' --data '{}' \
             "$base_url/api/razorpay/webhook" || true)
-          test "$webhook_status" = '400'
-          grep -qi 'invalid signature' /tmp/razorpay-webhook.json
+          echo "Razorpay invalid-signature probe: HTTP ${webhook_status} (expected 400)"
+          if [ "$webhook_status" != '400' ]; then
+            head -c 1200 /tmp/razorpay-webhook.json || true
+            echo
+            fail "Razorpay webhook returned HTTP ${webhook_status}; expected 400."
+          elif ! grep -qi 'invalid signature' /tmp/razorpay-webhook.json; then
+            fail 'Razorpay webhook did not report invalid signature for a forged request.'
+          fi
 
           # Stale test/audit cookies must never grant production access.
           assert_cookie_cannot_unlock buyer '/buyer-dashboard' 'login'
           assert_cookie_cannot_unlock seller '/seller-dashboard' 'login'
           assert_cookie_cannot_unlock admin '/admin-portal' 'admin-login'
 
-          echo "Integration readiness check completed with ${warnings} non-blocking configuration warning(s)."
+          echo "Integration readiness completed with ${failures} failure(s) and ${warnings} non-blocking configuration warning(s)."
+          if [ "$failures" -gt 0 ]; then
+            exit 1
+          fi
