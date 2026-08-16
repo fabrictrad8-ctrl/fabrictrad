@@ -40,6 +40,11 @@ const adminApiError = (error: string, status: 401 | 403) =>
     { status, headers: { 'Cache-Control': 'no-store, max-age=0' } }
   );
 
+const localRequest = (request: NextRequest) => {
+  const hostname = request.nextUrl.hostname.toLowerCase();
+  return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1';
+};
+
 export async function middleware(request: NextRequest) {
   const { pathname, searchParams } = request.nextUrl;
   const isAdminApi = pathname.startsWith('/api/admin');
@@ -53,7 +58,8 @@ export async function middleware(request: NextRequest) {
   }
 
   const demoCookieValue = request.cookies.get(DEMO_COOKIE_NAME)?.value;
-  const demoAccountsEnabled = process.env.FABRICTRAD_ENABLE_DEMO_ACCOUNTS === 'true';
+  const demoAccountsEnabled =
+    localRequest(request) || process.env.FABRICTRAD_ENABLE_DEMO_ACCOUNTS === 'true';
   const auditAdminEnabled = process.env.FABRICTRAD_ENABLE_AUDIT_ADMIN === 'true';
   const isAuditAdmin = auditAdminEnabled && demoCookieValue === 'admin';
   const demoRole =
