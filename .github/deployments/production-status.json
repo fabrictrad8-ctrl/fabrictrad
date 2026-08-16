@@ -1,6 +1,6 @@
 {
-  "sourceCommit": "55c8d191362c58f37a2b61f679d9f43b45f19e21",
-  "recordedAt": "2026-08-15T18:30:52Z",
+  "sourceCommit": "d801c67e41aa5f35791c867b7df3adb79d68746b",
+  "recordedAt": "2026-08-16T15:52:30Z",
   "cloudflareAuthentication": "success",
   "supabaseSecretSync": "success",
   "workerSecretPreflight": "success",
@@ -9,5 +9,5 @@
   "liveAccountApiVerification": "success",
   "liveRazorpayWebhookVerification": "success",
   "razorpayWebhookProbeHttpStatus": "400",
-  "deploymentLogTail": " ⛅️ wrangler 4.123.0\n────────────────────\nCloudflare collects anonymous telemetry about your usage of Wrangler. Learn more at https://github.com/cloudflare/workers-sdk/tree/main/packages/wrangler/telemetry.md\n🌀 Building list of assets...\n✨ Read 205 files from the assets directory /home/runner/work/fabrictrad/fabrictrad/.open-next/assets\n🌀 Starting asset upload...\n🌀 Found 5 new or modified static assets to upload. Proceeding with upload...\n+ /BUILD_ID\n+ /_next/static/chunks/app/login/page-46199bdd05ffa0ce.js\n+ /_next/static/chunks/app/auth/setup/page-7609a1275613e130.js\n+ /_next/static/chunks/app/buyer-registration/page-e41e28babd102d05.js\n+ /_next/static/chunks/app/auth/phone/page-e51921efc4b0d726.js\nUploaded 1 of 5 assets\nUploaded 3 of 5 assets\nUploaded 5 of 5 assets\n✨ Success! Uploaded 5 files (101 already uploaded) (0.81 sec)\nTotal Upload: 12140.59 KiB / gzip: 2024.19 KiB\nWorker Startup Time: 33 ms\nYour Worker has access to the following bindings:\nBinding            Resource      \nenv.ASSETS         Assets        \nUploaded fabrictrad (5.71 sec)\nNo targets deployed for fabrictrad (0.33 sec)\nCurrent Version ID: 9e18a9aa-4c83-4523-a7d4-4a1d057ff239"
+  "deploymentLogTail": " ⛅️ wrangler 4.123.0\n────────────────────\nCloudflare collects anonymous telemetry about your usage of Wrangler. Learn more at https://github.com/cloudflare/workers-sdk/tree/main/packages/wrangler/telemetry.md\n🌀 Building list of assets...\n✨ Read 210 files from the assets directory /home/runner/work/fabrictrad/fabrictrad/.open-next/assets\n🌀 Starting asset upload...\n🌀 Found 2 new or modified static assets to upload. Proceeding with upload...\n+ /BUILD_ID\n+ /_next/static/chunks/app/error-268f512c79adedc0.js\nUploaded 1 of 2 assets\nUploaded 2 of 2 assets\n✨ Success! Uploaded 2 files (107 already uploaded) (0.90 sec)\nTotal Upload: 12271.62 KiB / gzip: 2032.86 KiB\nWorker Startup Time: 28 ms\nYour Worker has access to the following bindings:\nBinding            Resource      \nenv.ASSETS         Assets        \nUploaded fabrictrad (6.03 sec)\nNo targets deployed for fabrictrad (0.47 sec)\nCurrent Version ID: f1421962-6568-46a4-acc4-aa71d878465e"
 }
