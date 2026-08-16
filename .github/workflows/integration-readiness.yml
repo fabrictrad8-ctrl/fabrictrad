@@ -29,6 +29,20 @@ jobs:
             test "$status" = '200'
           }
 
+          assert_cookie_cannot_unlock() {
+            local role="$1"
+            local route="$2"
+            local expected="$3"
+            local headers="/tmp/${role}-cookie.headers"
+            local status
+            status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+              --cookie "fabrictrad_demo_role=${role}" \
+              --dump-header "$headers" --output /dev/null --write-out '%{http_code}' \
+              --max-redirs 0 "$base_url$route" || true)
+            test "$status" = '307' -o "$status" = '308'
+            grep -qi "^location: .*${expected}" "$headers"
+          }
+
           fetch_json '/api/auth/google/status' /tmp/google.json
           fetch_json '/api/ai/drape-on' /tmp/ai.json
           fetch_json '/api/shiprocket/status' /tmp/shiprocket.json
@@ -56,5 +70,10 @@ jobs:
             "$base_url/api/razorpay/webhook" || true)
           test "$webhook_status" = '400'
           grep -qi 'invalid signature' /tmp/razorpay-webhook.json
+
+          # Stale test/audit cookies must never grant production access.
+          assert_cookie_cannot_unlock buyer '/buyer-dashboard' 'login'
+          assert_cookie_cannot_unlock seller '/seller-dashboard' 'login'
+          assert_cookie_cannot_unlock admin '/admin-portal' 'admin-login'
 
           echo "Integration readiness check completed with ${warnings} non-blocking configuration warning(s)."
