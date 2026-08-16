@@ -4,6 +4,14 @@ on:
   push:
     branches:
       - main
+  pull_request:
+    paths:
+      - '.github/workflows/live-auth-smoke.yml'
+      - 'src/app/api/auth/**'
+      - 'src/app/api/razorpay/**'
+      - 'src/app/api/shiprocket/**'
+      - 'src/app/api/ai/**'
+      - 'src/middleware.ts'
   workflow_dispatch:
   schedule:
     - cron: '17 */6 * * *'
@@ -22,139 +30,166 @@ jobs:
         continue-on-error: true
         shell: bash
         run: |
-          set -euo pipefail
+          set -u -o pipefail
           base_url='https://fabrictrad.com'
+          failures=0
 
-          assert_protected_redirect() {
-            local route="$1"
-            local expected="$2"
-            local safe_name
-            safe_name=$(echo "$route" | sed 's#[^a-zA-Z0-9]#-#g')
-            local code
-            code=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
-              --dump-header "/tmp/protected-${safe_name}.headers" --output /dev/null \
-              --write-out '%{http_code}' --max-redirs 0 "$base_url$route" || true)
-            test "$code" = '307' -o "$code" = '308'
-            grep -qi "^location: .*${expected}" "/tmp/protected-${safe_name}.headers"
+          fail() {
+            echo "::error::$1"
+            failures=$((failures + 1))
           }
 
-          healthy=false
-          for attempt in $(seq 1 24); do
-            home_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
-              --output /tmp/home.html --write-out '%{http_code}' "$base_url/" || true)
-            login_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
-              --output /tmp/login.html --write-out '%{http_code}' "$base_url/login" || true)
-            admin_login_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
-              --output /tmp/admin-login.html --write-out '%{http_code}' "$base_url/admin-login" || true)
-
-            if [ "$home_status" = '200' ] && [ "$login_status" = '200' ] && [ "$admin_login_status" = '200' ]; then
-              healthy=true
-              break
+          expect_code() {
+            local name="$1"
+            local actual="$2"
+            local expected="$3"
+            echo "${name}: HTTP ${actual} (expected ${expected})"
+            if [ "$actual" != "$expected" ]; then
+              fail "${name} returned HTTP ${actual}; expected ${expected}."
             fi
+          }
 
-            echo "Attempt ${attempt}: apex is not healthy yet (home=${home_status}, login=${login_status}, admin=${admin_login_status})"
-            sleep 10
-          done
+          expect_body() {
+            local name="$1"
+            local file="$2"
+            local pattern="$3"
+            if ! grep -Eqi "$pattern" "$file"; then
+              echo "${name} response body:"
+              head -c 1200 "$file" || true
+              echo
+              fail "${name} response did not contain the expected marker: ${pattern}"
+            fi
+          }
 
-          test "$healthy" = 'true'
-          ! grep -Eqi 'Application error|Internal Server Error|NEXT_NOT_FOUND' /tmp/home.html
-          ! grep -Eqi 'Application error|Internal Server Error|NEXT_NOT_FOUND' /tmp/login.html
-          grep -q 'Send administrator OTP' /tmp/admin-login.html
+          fetch_code() {
+            local method="$1"
+            local url="$2"
+            local output="$3"
+            shift 3
+            curl --silent --show-error --connect-timeout 10 --max-time 30 \
+              --request "$method" --output "$output" --write-out '%{http_code}' "$@" "$url" || true
+          }
 
-          # www may serve directly or canonical-redirect to the apex. Both are healthy.
+          check_redirect() {
+            local name="$1"
+            local route="$2"
+            local expected_location="$3"
+            local safe_name
+            safe_name=$(echo "$name" | sed 's#[^a-zA-Z0-9]#-#g')
+            local code
+            code=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+              --dump-header "/tmp/${safe_name}.headers" --output /dev/null \
+              --write-out '%{http_code}' --max-redirs 0 "$base_url$route" || true)
+            echo "${name}: HTTP ${code}, expected redirect containing ${expected_location}"
+            if [ "$code" != '307' ] && [ "$code" != '308' ]; then
+              cat "/tmp/${safe_name}.headers" || true
+              fail "${name} returned HTTP ${code}; expected 307/308."
+              return
+            fi
+            if ! grep -qi "^location: .*${expected_location}" "/tmp/${safe_name}.headers"; then
+              cat "/tmp/${safe_name}.headers" || true
+              fail "${name} redirected somewhere other than ${expected_location}."
+            fi
+          }
+
+          home_status=$(fetch_code GET "$base_url/" /tmp/home.html)
+          login_status=$(fetch_code GET "$base_url/login" /tmp/login.html)
+          admin_login_status=$(fetch_code GET "$base_url/admin-login" /tmp/admin-login.html)
+          expect_code 'Home' "$home_status" '200'
+          expect_code 'Login' "$login_status" '200'
+          expect_code 'Admin login' "$admin_login_status" '200'
+          if grep -Eqi 'Application error|Internal Server Error|NEXT_NOT_FOUND' /tmp/home.html; then fail 'Home contains a framework/server error marker.'; fi
+          if grep -Eqi 'Application error|Internal Server Error|NEXT_NOT_FOUND' /tmp/login.html; then fail 'Login contains a framework/server error marker.'; fi
+          expect_body 'Admin login' /tmp/admin-login.html 'Send administrator OTP'
+
           www_status=$(curl --silent --show-error --location --connect-timeout 10 --max-time 30 \
             --output /tmp/www-home.html --write-out '%{http_code}' 'https://www.fabrictrad.com/' || true)
-          test "$www_status" = '200'
-          ! grep -Eqi 'Application error|Internal Server Error|NEXT_NOT_FOUND' /tmp/www-home.html
+          expect_code 'www canonical domain' "$www_status" '200'
+          if grep -Eqi 'Application error|Internal Server Error|NEXT_NOT_FOUND' /tmp/www-home.html; then fail 'www home contains a framework/server error marker.'; fi
 
-          assert_protected_redirect '/marketplace' 'login'
-          assert_protected_redirect '/buyer-dashboard' 'login'
-          assert_protected_redirect '/seller-dashboard' 'login'
-          assert_protected_redirect '/admin-portal' 'admin-login'
+          check_redirect 'Marketplace privacy' '/marketplace' 'login'
+          check_redirect 'Buyer dashboard privacy' '/buyer-dashboard' 'login'
+          check_redirect 'Seller dashboard privacy' '/seller-dashboard' 'login'
+          check_redirect 'Admin portal privacy' '/admin-portal' 'admin-login'
 
-          demo_get_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+          demo_get=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
             --output /tmp/demo-get.json --write-out '%{http_code}' \
             --cookie 'fabrictrad_demo_role=seller' "$base_url/api/auth/demo-session" || true)
-          test "$demo_get_status" = '200'
-          grep -q '"role":null' /tmp/demo-get.json
-          grep -q '"enabled":false' /tmp/demo-get.json
+          expect_code 'Production demo-session GET' "$demo_get" '200'
+          expect_body 'Production demo-session GET' /tmp/demo-get.json '"role":null'
+          expect_body 'Production demo-session GET' /tmp/demo-get.json '"enabled":false'
 
-          demo_post_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
-            --output /tmp/demo-post.json --write-out '%{http_code}' \
-            --header 'Content-Type: application/json' --data '{}' \
-            "$base_url/api/auth/demo-session" || true)
-          test "$demo_post_status" = '404'
+          demo_post=$(fetch_code POST "$base_url/api/auth/demo-session" /tmp/demo-post.json \
+            --header 'Content-Type: application/json' --data '{}')
+          expect_code 'Production demo-session POST' "$demo_post" '404'
 
-          invalid_reset_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
-            --output /tmp/invalid-reset.json --write-out '%{http_code}' \
-            --header 'Content-Type: application/json' --data '{}' \
-            "$base_url/api/auth/email-otp/request" || true)
-          test "$invalid_reset_status" = '400'
-          grep -q 'Email is required' /tmp/invalid-reset.json
+          invalid_reset=$(fetch_code POST "$base_url/api/auth/email-otp/request" /tmp/invalid-reset.json \
+            --header 'Content-Type: application/json' --data '{}')
+          expect_code 'Invalid email OTP request' "$invalid_reset" '400'
+          expect_body 'Invalid email OTP request' /tmp/invalid-reset.json 'Email is required'
 
-          for endpoint in \
-            '/api/auth/session-destination' \
-            '/api/account/onboarding-draft?flow=buyer'; do
-            code=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
-              --output /tmp/protected-api.json --write-out '%{http_code}' \
-              "$base_url$endpoint" || true)
-            test "$code" = '401'
-          done
+          session_destination=$(fetch_code GET "$base_url/api/auth/session-destination" /tmp/session-destination.json)
+          expect_code 'Unauthenticated session destination' "$session_destination" '401'
 
-          deletion_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
-            --output /tmp/delete-account.json --write-out '%{http_code}' \
-            --header 'Content-Type: application/json' --data '{}' \
-            "$base_url/api/account/delete/request" || true)
-          test "$deletion_status" = '401'
+          draft=$(fetch_code GET "$base_url/api/account/onboarding-draft?flow=buyer" /tmp/draft.json)
+          expect_code 'Unauthenticated onboarding draft' "$draft" '401'
 
-          google_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
-            --output /tmp/google-status.json --write-out '%{http_code}' \
-            "$base_url/api/auth/google/status" || true)
-          test "$google_status" = '200'
+          deletion=$(fetch_code POST "$base_url/api/account/delete/request" /tmp/delete-account.json \
+            --header 'Content-Type: application/json' --data '{}')
+          expect_code 'Unauthenticated account deletion' "$deletion" '401'
 
-          payment_order=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
-            --output /tmp/payment-order.json --write-out '%{http_code}' \
-            --header 'Content-Type: application/json' --data '{}' \
-            "$base_url/api/razorpay/order" || true)
-          test "$payment_order" = '401'
+          google=$(fetch_code GET "$base_url/api/auth/google/status" /tmp/google-status.json)
+          echo 'Google auth status response:'
+          cat /tmp/google-status.json || true
+          echo
+          expect_code 'Google OAuth readiness' "$google" '200'
 
-          payment_verify=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
-            --output /tmp/payment-verify.json --write-out '%{http_code}' \
-            --header 'Content-Type: application/json' --data '{}' \
-            "$base_url/api/razorpay/verify" || true)
-          test "$payment_verify" = '401'
+          payment_order=$(fetch_code POST "$base_url/api/razorpay/order" /tmp/payment-order.json \
+            --header 'Content-Type: application/json' --data '{}')
+          expect_code 'Unauthenticated Razorpay order' "$payment_order" '401'
 
-          webhook_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
-            --output /tmp/razorpay-webhook.json --write-out '%{http_code}' \
-            --header 'Content-Type: application/json' \
-            --header 'x-razorpay-signature: 00' --data '{}' \
-            "$base_url/api/razorpay/webhook" || true)
-          test "$webhook_status" = '400'
-          grep -qi 'invalid signature' /tmp/razorpay-webhook.json
+          payment_verify=$(fetch_code POST "$base_url/api/razorpay/verify" /tmp/payment-verify.json \
+            --header 'Content-Type: application/json' --data '{}')
+          expect_code 'Unauthenticated Razorpay verification' "$payment_verify" '401'
 
-          shipping_create=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
-            --output /tmp/shiprocket-create.json --write-out '%{http_code}' \
-            --header 'Content-Type: application/json' --data '{}' \
-            "$base_url/api/shiprocket/create-order" || true)
-          test "$shipping_create" = '401'
+          webhook=$(fetch_code POST "$base_url/api/razorpay/webhook" /tmp/razorpay-webhook.json \
+            --header 'Content-Type: application/json' --header 'x-razorpay-signature: 00' --data '{}')
+          expect_code 'Invalid Razorpay webhook signature' "$webhook" '400'
+          expect_body 'Invalid Razorpay webhook signature' /tmp/razorpay-webhook.json 'invalid signature'
 
-          shipping_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
-            --output /tmp/shiprocket-status.json --write-out '%{http_code}' \
-            "$base_url/api/shiprocket/status" || true)
-          test "$shipping_status" = '200'
+          shipping_create=$(fetch_code POST "$base_url/api/shiprocket/create-order" /tmp/shiprocket-create.json \
+            --header 'Content-Type: application/json' --data '{}')
+          expect_code 'Unauthenticated Shiprocket order' "$shipping_create" '401'
+
+          shipping=$(fetch_code GET "$base_url/api/shiprocket/status" /tmp/shiprocket-status.json)
+          expect_code 'Shiprocket readiness' "$shipping" '200'
+          echo 'Shiprocket readiness response:'
+          cat /tmp/shiprocket-status.json || true
+          echo
           if ! grep -q '"configured":true' /tmp/shiprocket-status.json; then
-            echo '::warning::Shiprocket credentials are not configured; dispatch creation will remain unavailable.'
+            echo '::warning::Shiprocket credentials are not configured; automated dispatch remains unavailable.'
           fi
 
-          ai_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
-            --output /tmp/ai-status.json --write-out '%{http_code}' \
-            "$base_url/api/ai/drape-on" || true)
-          test "$ai_status" = '200'
+          ai=$(fetch_code GET "$base_url/api/ai/drape-on" /tmp/ai-status.json)
+          expect_code 'AI Drape readiness' "$ai" '200'
+          echo 'AI Drape readiness response:'
+          cat /tmp/ai-status.json || true
+          echo
           if ! grep -q '"configured":true' /tmp/ai-status.json; then
             echo '::warning::AI Drape has no configured OpenAI or Gemini provider.'
           fi
 
-          echo 'FabricTrad production passed domain, privacy, auth, admin, payment, shipping and AI readiness checks.'
+          gst=$(fetch_code GET "$base_url/api/gstin/status" /tmp/gstin-status.json)
+          expect_code 'GSTIN readiness' "$gst" '200'
+          echo 'GSTIN readiness response:'
+          cat /tmp/gstin-status.json || true
+          echo
+          if ! grep -q '"providerConfigured":true' /tmp/gstin-status.json; then
+            echo '::warning::GSTIN verification is currently using the official-manual review path.'
+          fi
+
+          echo "Production smoke completed with ${failures} failure(s)."
+          test "$failures" -eq 0
 
       - name: Publish verification status on the commit
         if: always()
