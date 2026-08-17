@@ -1,10 +1,11 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
-import { NextRequest, NextResponse } from 'next/server';
+import { after, NextRequest, NextResponse } from 'next/server';
 import { parseCatalogMessage } from '@/lib/catalogAssistant';
 import { createAdminClient } from '@/lib/supabase/admin';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
+export const maxDuration = 60;
 
 const MAX_MEDIA_BYTES = 50 * 1024 * 1024;
 const GRAPH_VERSION = process.env.WHATSAPP_GRAPH_API_VERSION || 'v23.0';
@@ -83,19 +84,22 @@ const verifySignature = (rawBody: string, signature: string | null, secret: stri
 };
 
 async function downloadMetaMedia(mediaId: string, accessToken: string) {
-  const metadataResponse = await fetch(
-    `https://graph.facebook.com/${GRAPH_VERSION}/${encodeURIComponent(mediaId)}`,
-    {
-      headers: { Authorization: `Bearer ${accessToken}` },
-      cache: 'no-store',
-      signal: AbortSignal.timeout(20_000),
-    }
+  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+  const metadataUrl = new URL(
+    `https://graph.facebook.com/${GRAPH_VERSION}/${encodeURIComponent(mediaId)}`
   );
+  if (phoneNumberId) metadataUrl.searchParams.set('phone_number_id', phoneNumberId);
+
+  const metadataResponse = await fetch(metadataUrl, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+    cache: 'no-store',
+    signal: AbortSignal.timeout(20_000),
+  });
   if (!metadataResponse.ok) throw new Error(`media_metadata_${metadataResponse.status}`);
   const metadata = (await metadataResponse.json()) as {
     url?: string;
     mime_type?: string;
-    file_size?: number;
+    file_size?: number | string;
   };
   if (!metadata.url) throw new Error('media_url_missing');
   if (Number(metadata.file_size || 0) > MAX_MEDIA_BYTES) throw new Error('media_too_large');
@@ -270,17 +274,20 @@ export async function POST(request: NextRequest) {
       entry.changes?.flatMap((change) => change.value?.messages || []) || []
     ) || [];
 
-  await Promise.all(
-    messages.map((message) =>
-      ingestMessage(message).catch((error) => {
-        console.error('WhatsApp seller ingestion failed', {
-          messageId: message.id || null,
-          code: error instanceof Error ? error.message : 'unknown',
-        });
-      })
-    )
-  );
+  after(async () => {
+    await Promise.all(
+      messages.map((message) =>
+        ingestMessage(message).catch((error) => {
+          console.error('WhatsApp seller ingestion failed', {
+            messageId: message.id || null,
+            code: error instanceof Error ? error.message : 'unknown',
+          });
+        })
+      )
+    );
+  });
 
-  // Meta expects a fast successful acknowledgement and may retry failed hooks.
+  // Acknowledge immediately. Meta can retry slow/non-2xx webhook deliveries,
+  // while Next.js `after()` keeps the background processing alive separately.
   return json({ received: true });
 }
