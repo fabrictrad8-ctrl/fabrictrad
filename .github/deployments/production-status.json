@@ -1,6 +1,6 @@
 {
-  "sourceCommit": "08f8abfa4702f5395d5dc9ddac51efc736dbb2f9",
-  "recordedAt": "2026-08-16T23:24:29Z",
+  "sourceCommit": "25ce19ca82591d5965ceefe298f68dac3b28e475",
+  "recordedAt": "2026-08-17T15:00:56Z",
   "cloudflareAuthentication": "success",
   "supabaseSecretSync": "success",
   "workerSecretPreflight": "success",
@@ -9,5 +9,5 @@
   "liveAccountApiVerification": "success",
   "liveRazorpayWebhookVerification": "success",
   "razorpayWebhookProbeHttpStatus": "400",
-  "deploymentLogTail": " ⛅️ wrangler 4.123.0\n────────────────────\nCloudflare collects anonymous telemetry about your usage of Wrangler. Learn more at https://github.com/cloudflare/workers-sdk/tree/main/packages/wrangler/telemetry.md\n🌀 Building list of assets...\n✨ Read 210 files from the assets directory /home/runner/work/fabrictrad/fabrictrad/.open-next/assets\n🌀 Starting asset upload...\n🌀 Found 1 new or modified static asset to upload. Proceeding with upload...\n+ /BUILD_ID\nUploaded 1 of 1 asset\n✨ Success! Uploaded 1 file (108 already uploaded) (0.59 sec)\nTotal Upload: 12271.62 KiB / gzip: 2033.03 KiB\nWorker Startup Time: 42 ms\nYour Worker has access to the following bindings:\nBinding            Resource      \nenv.ASSETS         Assets        \nUploaded fabrictrad (5.38 sec)\nNo targets deployed for fabrictrad (0.28 sec)\nCurrent Version ID: 6f9b89fd-0297-46cd-b138-8fcb9eb95923"
+  "deploymentLogTail": " ⛅️ wrangler 4.123.0\n────────────────────\nCloudflare collects anonymous telemetry about your usage of Wrangler. Learn more at https://github.com/cloudflare/workers-sdk/tree/main/packages/wrangler/telemetry.md\n🌀 Building list of assets...\n✨ Read 218 files from the assets directory /home/runner/work/fabrictrad/fabrictrad/.open-next/assets\n🌀 Starting asset upload...\n🌀 Found 4 new or modified static assets to upload. Proceeding with upload...\n+ /BUILD_ID\n+ /_next/static/chunks/app/seller-dashboard/page-8007c90c07bf3071.js\n+ /_next/static/chunks/app/layout-98bfc9080557bd17.js\n+ /_next/static/chunks/app/buyer-registration/page-229e72bed5f26f3f.js\nUploaded 1 of 4 assets\nUploaded 3 of 4 assets\nUploaded 4 of 4 assets\n✨ Success! Uploaded 4 files (105 already uploaded) (1.32 sec)\nTotal Upload: 12492.97 KiB / gzip: 2049.58 KiB\nWorker Startup Time: 30 ms\nYour Worker has access to the following bindings:\nBinding            Resource      \nenv.ASSETS         Assets        \nUploaded fabrictrad (7.09 sec)\nNo targets deployed for fabrictrad (0.36 sec)\nCurrent Version ID: 96ca2f9d-b70e-4123-91f4-90eeef2b53de"
 }
