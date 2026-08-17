@@ -66,6 +66,9 @@ jobs:
       - name: Verify seller onboarding and approval safeguards
         run: node scripts/verify-seller-onboarding.mjs
 
+      - name: Verify mobile persistence and WhatsApp ingestion
+        run: node scripts/verify-mobile-whatsapp.mjs
+
       - name: Verify database security migrations
         run: node scripts/verify-database-security.mjs
 
