@@ -193,12 +193,13 @@ jobs:
 
       - name: Publish verification status on the commit
         if: always()
+        continue-on-error: true
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           SMOKE_OUTCOME: ${{ steps.smoke.outcome }}
         run: |
-          set -euo pipefail
+          set -u -o pipefail
           if [ "$SMOKE_OUTCOME" = "success" ]; then
             state=success
             description='Production system smoke checks passed'
@@ -207,13 +208,26 @@ jobs:
             description='A production system smoke check failed'
           fi
           payload=$(printf '{"state":"%s","context":"fabrictrad/production-smoke","description":"%s"}' "$state" "$description")
-          curl --fail --silent --show-error \
-            --request POST \
-            --header "Authorization: Bearer $GH_TOKEN" \
-            --header 'Accept: application/vnd.github+json' \
-            --header 'X-GitHub-Api-Version: 2022-11-28' \
-            --data "$payload" \
-            "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" > /dev/null
+          published=false
+          for attempt in 1 2 3 4 5; do
+            http_code=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+              --output /tmp/status-publish.json --write-out '%{http_code}' \
+              --request POST \
+              --header "Authorization: Bearer $GH_TOKEN" \
+              --header 'Accept: application/vnd.github+json' \
+              --header 'X-GitHub-Api-Version: 2022-11-28' \
+              --data "$payload" \
+              "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" || true)
+            if [ "$http_code" = '201' ]; then
+              published=true
+              break
+            fi
+            echo "GitHub status API attempt ${attempt}/5 returned HTTP ${http_code}."
+            sleep $((attempt * 2))
+          done
+          if [ "$published" != 'true' ]; then
+            echo '::warning::Production smoke completed, but GitHub status publication was unavailable. The smoke result above remains authoritative.'
+          fi
 
       - name: Fail when production verification failed
         if: steps.smoke.outcome != 'success'

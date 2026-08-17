@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import Icon from '@/components/ui/AppIcon';
 import AppImage from '@/components/ui/AppImage';
 import InWebsiteChat from '@/app/components/InWebsiteChat';
+import WhatsAppCatalogPanel from '@/app/seller-dashboard/components/WhatsAppCatalogPanel';
 
 interface InboxThread {
   id: string;
@@ -47,6 +48,8 @@ export default function SellerInbox() {
 
   return (
     <div>
+      <WhatsAppCatalogPanel />
+
       <div className="flex items-center justify-between mb-5">
         <div>
           <h2 className="text-xl font-800 text-foreground">Buyer Inbox</h2>
@@ -62,17 +65,15 @@ export default function SellerInbox() {
         )}
       </div>
 
-      {/* Privacy Notice */}
-      <div className="flex items-center gap-2 p-3 bg-success/10 border border-success/20 rounded-xl mb-5">
-        <Icon name="ShieldCheckIcon" size={14} className="text-success shrink-0" />
+      <div className="flex items-start gap-2 p-3 bg-success/10 border border-success/20 rounded-xl mb-5">
+        <Icon name="ShieldCheckIcon" size={14} className="text-success mt-0.5 shrink-0" />
         <p className="text-xs text-success">
-          <span className="font-700">Secure messaging:</span> All communication stays on FabricTrad.
-          Sellers cannot initiate a buyer chat first; replies open only after a buyer request,
-          product inquiry, or order message.
+          <span className="font-700">Buyer-chat privacy:</span> buyer conversations stay inside FabricTrad.
+          The WhatsApp connection above is a separate seller-to-FabricTrad catalogue ingestion channel;
+          it does not expose buyer chats or buyer phone numbers to sellers.
         </p>
       </div>
 
-      {/* Filter Tabs */}
       <div className="flex gap-2 mb-4 overflow-x-auto pb-1">
         {[
           { key: 'all', label: 'All Messages' },
@@ -94,7 +95,6 @@ export default function SellerInbox() {
         ))}
       </div>
 
-      {/* Thread List */}
       <div className="space-y-3">
         {filtered.length === 0 && (
           <div className="rounded-2xl border border-dashed border-border bg-card py-12 text-center text-muted-foreground">
@@ -160,7 +160,6 @@ export default function SellerInbox() {
         })}
       </div>
 
-      {/* Chat Window */}
       {activeThread && (
         <InWebsiteChat
           contextId={activeThread.id}

@@ -1,0 +1,47 @@
+name: Mobile persistence and WhatsApp integrity
+
+on:
+  pull_request:
+    paths:
+      - 'src/lib/hooks/useOnboardingDraft.ts'
+      - 'src/lib/hooks/useCatalogComposerDraft.ts'
+      - 'src/app/seller-registration/**'
+      - 'src/app/seller-dashboard/**'
+      - 'src/app/api/whatsapp/**'
+      - 'supabase/migrations/**whatsapp**'
+      - 'supabase/migrations/**trial_room**'
+      - 'scripts/verify-mobile-whatsapp.mjs'
+      - '.github/workflows/mobile-whatsapp-integrity.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/lib/hooks/useOnboardingDraft.ts'
+      - 'src/lib/hooks/useCatalogComposerDraft.ts'
+      - 'src/app/seller-registration/**'
+      - 'src/app/seller-dashboard/**'
+      - 'src/app/api/whatsapp/**'
+      - 'supabase/migrations/**whatsapp**'
+      - 'supabase/migrations/**trial_room**'
+      - 'scripts/verify-mobile-whatsapp.mjs'
+      - '.github/workflows/mobile-whatsapp-integrity.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  integrity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund --package-lock=false --legacy-peer-deps
+      - name: Verify mobile persistence and WhatsApp safeguards
+        run: node scripts/verify-mobile-whatsapp.mjs
+      - name: Type check
+        run: npm run type-check
+      - name: Lint
+        run: npm run lint
