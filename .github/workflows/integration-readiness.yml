@@ -120,7 +120,7 @@ jobs:
             --output /tmp/whatsapp-webhook.json --write-out '%{http_code}' \
             --header 'Content-Type: application/json' \
             --header 'x-hub-signature-256: sha256=00' --data '{}' \
-            "$base_url/api/whatsapp/webhook" || true)
+            "$base_url/api/integrations/whatsapp/webhook" || true)
           echo "WhatsApp forged-signature probe: HTTP ${whatsapp_webhook_status} (expected 401 when configured, 503 while credentials are pending)"
           if [ "$whatsapp_webhook_status" != '401' ] && [ "$whatsapp_webhook_status" != '503' ]; then
             fail "WhatsApp webhook returned HTTP ${whatsapp_webhook_status}; expected 401 or 503."
