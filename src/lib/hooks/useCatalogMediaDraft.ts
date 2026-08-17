@@ -12,7 +12,7 @@ export type CatalogMediaDraftItem = {
 };
 
 type StoredDraft = {
-  key: 'current';
+  key: string;
   items: CatalogMediaDraftItem[];
   savedAt: string;
 };
@@ -21,6 +21,7 @@ const DB_NAME = 'fabrictrad-seller-drafts';
 const DB_VERSION = 1;
 const STORE = 'catalog-media';
 const MAX_PERSISTED_BYTES = 160 * 1024 * 1024;
+const draftKey = (ownerKey: string) => `catalog:${ownerKey}`;
 
 const openDb = () =>
   new Promise<IDBDatabase>((resolve, reject) => {
@@ -39,12 +40,12 @@ const openDb = () =>
     request.onerror = () => reject(request.error || new Error('Unable to open IndexedDB'));
   });
 
-const readDraft = async (): Promise<StoredDraft | null> => {
+const readDraft = async (key: string): Promise<StoredDraft | null> => {
   const database = await openDb();
   try {
     return await new Promise<StoredDraft | null>((resolve, reject) => {
       const transaction = database.transaction(STORE, 'readonly');
-      const request = transaction.objectStore(STORE).get('current');
+      const request = transaction.objectStore(STORE).get(key);
       request.onsuccess = () => resolve((request.result as StoredDraft | undefined) || null);
       request.onerror = () => reject(request.error || new Error('Unable to read media draft'));
     });
@@ -53,7 +54,7 @@ const readDraft = async (): Promise<StoredDraft | null> => {
   }
 };
 
-const writeDraft = async (items: CatalogMediaDraftItem[]) => {
+const writeDraft = async (key: string, items: CatalogMediaDraftItem[]) => {
   const totalBytes = items.reduce((sum, item) => sum + Number(item.file?.size || 0), 0);
   if (totalBytes > MAX_PERSISTED_BYTES) {
     throw new Error('Selected media is too large to keep as a browser recovery draft.');
@@ -65,7 +66,7 @@ const writeDraft = async (items: CatalogMediaDraftItem[]) => {
       const transaction = database.transaction(STORE, 'readwrite');
       transaction.oncomplete = () => resolve();
       transaction.onerror = () => reject(transaction.error || new Error('Unable to save media draft'));
-      transaction.objectStore(STORE).put({ key: 'current', items, savedAt } satisfies StoredDraft);
+      transaction.objectStore(STORE).put({ key, items, savedAt } satisfies StoredDraft);
     });
     return savedAt;
   } finally {
@@ -73,14 +74,14 @@ const writeDraft = async (items: CatalogMediaDraftItem[]) => {
   }
 };
 
-const deleteDraft = async () => {
+const deleteDraft = async (key: string) => {
   const database = await openDb();
   try {
     await new Promise<void>((resolve, reject) => {
       const transaction = database.transaction(STORE, 'readwrite');
       transaction.oncomplete = () => resolve();
       transaction.onerror = () => reject(transaction.error || new Error('Unable to clear media draft'));
-      transaction.objectStore(STORE).delete('current');
+      transaction.objectStore(STORE).delete(key);
     });
   } finally {
     database.close();
@@ -88,10 +89,12 @@ const deleteDraft = async () => {
 };
 
 export function useCatalogMediaDraft({
+  ownerKey,
   items,
   onRestore,
   enabled = true,
 }: {
+  ownerKey: string | null | undefined;
   items: CatalogMediaDraftItem[];
   onRestore: (items: CatalogMediaDraftItem[], savedAt: string) => void;
   enabled?: boolean;
@@ -101,13 +104,17 @@ export function useCatalogMediaDraft({
   const [warning, setWarning] = useState('');
   const itemsRef = useRef(items);
   const restoreRef = useRef(onRestore);
+  const ownerRef = useRef(ownerKey || '');
   itemsRef.current = items;
   restoreRef.current = onRestore;
+  ownerRef.current = ownerKey || '';
 
   const persist = useCallback(async (nextItems = itemsRef.current) => {
-    if (!enabled || !loaded) return;
+    const owner = ownerRef.current;
+    if (!owner || !enabled || !loaded) return;
+    const key = draftKey(owner);
     if (!nextItems.length) {
-      await deleteDraft().catch(() => undefined);
+      await deleteDraft(key).catch(() => undefined);
       setSavedAt(null);
       return;
     }
@@ -115,7 +122,7 @@ export function useCatalogMediaDraft({
       if (navigator.storage?.persist) {
         void navigator.storage.persist().catch(() => false);
       }
-      const timestamp = await writeDraft(nextItems);
+      const timestamp = await writeDraft(key, nextItems);
       setSavedAt(timestamp);
       setWarning('');
     } catch (error) {
@@ -129,7 +136,15 @@ export function useCatalogMediaDraft({
 
   useEffect(() => {
     let cancelled = false;
-    void readDraft()
+    if (!ownerKey) {
+      setLoaded(false);
+      setSavedAt(null);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    void readDraft(draftKey(ownerKey))
       .then((stored) => {
         if (cancelled || !stored?.items?.length) return;
         const validItems = stored.items.filter(
@@ -146,25 +161,27 @@ export function useCatalogMediaDraft({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [ownerKey]);
 
   useEffect(() => {
-    if (!loaded || !enabled) return;
+    if (!loaded || !enabled || !ownerKey) return;
     const timer = window.setTimeout(() => void persist(items), 120);
     return () => window.clearTimeout(timer);
-  }, [enabled, items, loaded, persist]);
+  }, [enabled, items, loaded, ownerKey, persist]);
 
   useEffect(() => {
-    if (!loaded || !enabled) return;
+    if (!loaded || !enabled || !ownerKey) return;
     const visibility = () => {
       if (document.visibilityState === 'hidden') void persist();
     };
     document.addEventListener('visibilitychange', visibility);
     return () => document.removeEventListener('visibilitychange', visibility);
-  }, [enabled, loaded, persist]);
+  }, [enabled, loaded, ownerKey, persist]);
 
   const clear = useCallback(async () => {
-    await deleteDraft().catch(() => undefined);
+    const owner = ownerRef.current;
+    if (!owner) return;
+    await deleteDraft(draftKey(owner)).catch(() => undefined);
     setSavedAt(null);
     setWarning('');
   }, []);
