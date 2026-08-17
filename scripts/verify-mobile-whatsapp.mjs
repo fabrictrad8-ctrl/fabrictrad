@@ -22,7 +22,7 @@ const onboarding = 'src/lib/hooks/useOnboardingDraft.ts';
 const composer = 'src/lib/hooks/useCatalogComposerDraft.ts';
 const mediaDraft = 'src/lib/hooks/useCatalogMediaDraft.ts';
 const catalogUi = 'src/app/seller-dashboard/components/SellerCatalogAssistant.tsx';
-const webhook = 'src/app/api/whatsapp/webhook/route.ts';
+const webhook = 'src/app/api/integrations/whatsapp/webhook/route.ts';
 const status = 'src/app/api/whatsapp/status/route.ts';
 const inboxApi = 'src/app/api/whatsapp/catalog-inbox/route.ts';
 const inboxUi = 'src/app/seller-dashboard/components/WhatsAppCatalogPanel.tsx';
@@ -111,6 +111,7 @@ requireText(trialStatus, 'architecture_ready_provider_pending');
 requireText(status, 'configured');
 requireText(readiness, "fetch_json 'WhatsApp catalog readiness'");
 requireText(readiness, 'WhatsApp forged-signature probe');
+requireText(readiness, '/api/integrations/whatsapp/webhook');
 
 if (failures.length) {
   console.error(`Mobile/WhatsApp verification failed (${failures.length}):`);
