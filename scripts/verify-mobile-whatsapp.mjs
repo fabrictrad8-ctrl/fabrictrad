@@ -29,6 +29,7 @@ const inboxUi = 'src/app/seller-dashboard/components/WhatsAppCatalogPanel.tsx';
 const migration = 'supabase/migrations/20260817143000_whatsapp_catalog_ingestion.sql';
 const trialMigration = 'supabase/migrations/20260817150000_trial_room_asset_pipeline.sql';
 const trialStatus = 'src/app/api/ai/trial-room/status/route.ts';
+const manifest = 'src/app/manifest.ts';
 const readiness = '.github/workflows/integration-readiness.yml';
 
 [
@@ -43,6 +44,7 @@ const readiness = '.github/workflows/integration-readiness.yml';
   migration,
   trialMigration,
   trialStatus,
+  manifest,
   readiness,
 ].forEach(read);
 
@@ -108,6 +110,12 @@ requireText(trialMigration, 'fabric_texture');
 requireText(trialStatus, "currentExperience: 'ai_2d_image_try_on'");
 requireText(trialStatus, 'threeDProviderConfigured');
 requireText(trialStatus, 'architecture_ready_provider_pending');
+
+// Phone-first operation should be installable as a standalone web app without
+// claiming unsupported offline transaction behavior.
+requireText(manifest, "display: 'standalone'");
+requireText(manifest, "start_url: '/'");
+requireText(manifest, "categories: ['business', 'shopping', 'productivity']");
 
 // Production readiness must continuously tell us whether the external Meta
 // number/credentials have actually been connected.
