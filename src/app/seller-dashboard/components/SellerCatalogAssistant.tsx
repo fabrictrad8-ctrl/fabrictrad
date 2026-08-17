@@ -7,21 +7,18 @@ import { useAuth } from '@/contexts/AuthContext';
 import { createClient } from '@/lib/supabase/client';
 import { useCatalogComposerDraft } from '@/lib/hooks/useCatalogComposerDraft';
 import {
+  useCatalogMediaDraft,
+  type CatalogMediaDraftItem,
+} from '@/lib/hooks/useCatalogMediaDraft';
+import {
   catalogVariantKey,
   type ParsedCatalogDraft,
-  type PackageFormat,
   type SaleChannel,
 } from '@/lib/catalogAssistant';
 
 type ViewType = 'front' | 'back' | 'detail' | 'reel' | 'other';
-type Attachment = {
-  id: string;
-  file: File;
+type Attachment = CatalogMediaDraftItem & {
   previewUrl: string;
-  mediaType: 'image' | 'video';
-  durationSeconds: number | null;
-  viewType: ViewType;
-  targetKey: string;
 };
 
 type ChatMessage = {
@@ -135,6 +132,7 @@ export default function SellerCatalogAssistant() {
   );
 
   const { savedAt: composerSavedAt, clear: clearComposerDraft } = useCatalogComposerDraft({
+    ownerKey: user?.id,
     payload: composerPayload,
     onRestore: (saved) => {
       const hasUsefulDraft = Boolean(saved.text?.trim() || saved.draft);
@@ -148,6 +146,25 @@ export default function SellerCatalogAssistant() {
       setListingStatus(saved.listingStatus === 'active' ? 'active' : 'draft');
       setProvider(saved.provider || null);
       if (hasUsefulDraft) toast.success('Recovered your unsaved product draft.');
+    },
+  });
+
+  const {
+    savedAt: mediaSavedAt,
+    warning: mediaDraftWarning,
+    clear: clearMediaDraft,
+  } = useCatalogMediaDraft({
+    ownerKey: user?.id,
+    items: attachments,
+    onRestore: (storedItems) => {
+      setAttachments((current) => {
+        current.forEach((attachment) => URL.revokeObjectURL(attachment.previewUrl));
+        return storedItems.map((item) => ({
+          ...item,
+          previewUrl: URL.createObjectURL(item.file),
+        }));
+      });
+      toast.success('Recovered your selected product photos and reels.');
     },
   });
 
@@ -291,6 +308,7 @@ export default function SellerCatalogAssistant() {
 
   const resetComposer = () => {
     clearComposerDraft();
+    void clearMediaDraft();
     attachmentUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
     attachmentUrlsRef.current = [];
     setText('');
@@ -512,6 +530,7 @@ export default function SellerCatalogAssistant() {
           : 'Catalogue saved privately as a draft.'
       );
       clearComposerDraft();
+      void clearMediaDraft();
       attachmentUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
       attachmentUrlsRef.current = [];
       setText('');
@@ -540,7 +559,7 @@ export default function SellerCatalogAssistant() {
           <p className="text-xs font-800 uppercase tracking-[0.16em] text-primary">In-app catalogue automation</p>
           <h1 className="mt-1 text-2xl font-800 text-foreground">AI Catalog Studio</h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-            Chat with the assistant, attach product media, review the extracted details and publish without leaving FabricTrad. Text and structured product details auto-save on this phone if you switch to Gallery, Files or another app.
+            Chat with the assistant, attach product media, review the extracted details and publish without leaving FabricTrad. Product details and selected media auto-save on this phone if you switch to Gallery, Files, WhatsApp or another app.
           </p>
         </div>
         <div className="flex flex-wrap gap-2 text-xs">
@@ -548,12 +567,18 @@ export default function SellerCatalogAssistant() {
             <Icon name="PlusIcon" size={13} className="mr-1 inline" /> New product
           </button>
           <button type="button" onClick={() => setText(EXAMPLE_TEXT)} className="rounded-full border border-border bg-card px-3 py-1.5 font-800 text-muted-foreground">Use example</button>
-          {composerSavedAt && <span className="rounded-full border border-success/20 bg-success/5 px-3 py-1.5 font-800 text-success">Autosaved</span>}
+          {(composerSavedAt || mediaSavedAt) && <span className="rounded-full border border-success/20 bg-success/5 px-3 py-1.5 font-800 text-success">Autosaved on this phone</span>}
           <span className="rounded-full border border-border bg-card px-3 py-1.5">Images up to 10 MB</span>
           <span className="rounded-full border border-border bg-card px-3 py-1.5">Reels up to 20 seconds</span>
           <span className="rounded-full border border-border bg-card px-3 py-1.5">24 media files per draft</span>
         </div>
       </div>
+
+      {mediaDraftWarning && (
+        <div role="alert" className="mb-5 rounded-xl border border-warning/20 bg-warning/5 p-3 text-xs leading-5 text-warning">
+          {mediaDraftWarning} Your current selected files are still available while this page stays open; publish or reduce the number/size of files before leaving the page.
+        </div>
+      )}
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1.05fr)_minmax(360px,0.95fr)]">
         <section className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
@@ -724,7 +749,7 @@ export default function SellerCatalogAssistant() {
               className="mt-4 flex w-full flex-col items-center justify-center rounded-xl border-2 border-dashed border-primary/25 bg-primary/5 px-4 py-6 text-center transition hover:border-primary/60"
             >
               <Icon name="ArrowUpTrayIcon" size={24} className="text-primary" />
-              <span className="mt-2 text-sm font-800 text-foreground">Drag and drop product photos or a reel</span>
+              <span className="mt-2 text-sm font-800 text-foreground">Choose product photos or a reel</span>
               <span className="mt-1 text-xs text-muted-foreground">{draft ? `${draft.name} · ${draft.widthInches ? `${draft.widthInches} in` : 'width pending'} · ${(draft.variants || []).map((item) => item.colorName).join(', ') || 'colour pending'}` : 'Name, width and colour appear here after extraction'}</span>
             </button>
 
