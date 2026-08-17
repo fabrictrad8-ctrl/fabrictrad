@@ -67,6 +67,7 @@ jobs:
 
           fetch_json 'Google OAuth readiness' '/api/auth/google/status' /tmp/google.json || true
           fetch_json 'AI Drape readiness' '/api/ai/drape-on' /tmp/ai.json || true
+          fetch_json '3D trial-room readiness' '/api/ai/trial-room/status' /tmp/trial-room.json || true
           fetch_json 'Shiprocket readiness' '/api/shiprocket/status' /tmp/shiprocket.json || true
           fetch_json 'GSTIN readiness' '/api/gstin/status' /tmp/gstin.json || true
           fetch_json 'WhatsApp catalog readiness' '/api/whatsapp/status' /tmp/whatsapp.json || true
@@ -78,6 +79,11 @@ jobs:
 
           if [ -s /tmp/ai.json ] && ! grep -q '"configured":true' /tmp/ai.json; then
             echo '::warning::AI Drape provider is not configured.'
+            warnings=$((warnings + 1))
+          fi
+
+          if [ -s /tmp/trial-room.json ] && ! grep -q '"threeDProviderConfigured":true' /tmp/trial-room.json; then
+            echo '::warning::True 3D trial-room asset architecture is present, but no 3D rendering/provider service is configured.'
             warnings=$((warnings + 1))
           fi
 
