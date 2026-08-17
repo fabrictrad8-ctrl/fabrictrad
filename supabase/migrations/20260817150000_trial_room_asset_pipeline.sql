@@ -36,7 +36,17 @@ USING (
   seller_id IN (
     SELECT sp.id FROM public.seller_profiles sp WHERE sp.user_id = (SELECT auth.uid())
   )
-  OR status = 'ready'
+  OR (
+    status = 'ready'
+    AND EXISTS (
+      SELECT 1
+      FROM public.seller_products product
+      WHERE product.id = product_trial_room_assets.product_id
+        AND product.seller_id = product_trial_room_assets.seller_id
+        AND product.status = 'active'
+        AND product.approval_status = 'approved'
+    )
+  )
 );
 
 DROP POLICY IF EXISTS trial_room_assets_seller_insert_own ON public.product_trial_room_assets;
@@ -46,6 +56,22 @@ FOR INSERT TO authenticated
 WITH CHECK (
   seller_id IN (
     SELECT sp.id FROM public.seller_profiles sp WHERE sp.user_id = (SELECT auth.uid())
+  )
+  AND EXISTS (
+    SELECT 1
+    FROM public.seller_products product
+    WHERE product.id = product_trial_room_assets.product_id
+      AND product.seller_id = product_trial_room_assets.seller_id
+  )
+  AND (
+    variant_id IS NULL
+    OR EXISTS (
+      SELECT 1
+      FROM public.seller_product_variants variant
+      WHERE variant.id = product_trial_room_assets.variant_id
+        AND variant.product_id = product_trial_room_assets.product_id
+        AND variant.seller_id = product_trial_room_assets.seller_id
+    )
   )
 );
 
@@ -61,6 +87,22 @@ USING (
 WITH CHECK (
   seller_id IN (
     SELECT sp.id FROM public.seller_profiles sp WHERE sp.user_id = (SELECT auth.uid())
+  )
+  AND EXISTS (
+    SELECT 1
+    FROM public.seller_products product
+    WHERE product.id = product_trial_room_assets.product_id
+      AND product.seller_id = product_trial_room_assets.seller_id
+  )
+  AND (
+    variant_id IS NULL
+    OR EXISTS (
+      SELECT 1
+      FROM public.seller_product_variants variant
+      WHERE variant.id = product_trial_room_assets.variant_id
+        AND variant.product_id = product_trial_room_assets.product_id
+        AND variant.seller_id = product_trial_room_assets.seller_id
+    )
   )
 );
 
