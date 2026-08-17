@@ -1,6 +1,5 @@
 import React from 'react';
 import type { Metadata, Viewport } from 'next';
-import { Plus_Jakarta_Sans } from 'next/font/google';
 import '../styles/tailwind.css';
 import '../styles/shopify-glass.css';
 import '../styles/commerce-polish.css';
@@ -15,16 +14,6 @@ import { AuthProvider } from '@/contexts/AuthContext';
 import AppClientEnhancements from '@/components/AppClientEnhancements';
 import RouteExperienceEnhancer from '@/components/RouteExperienceEnhancer';
 import { AppPreferencesProvider } from '@/contexts/AppPreferencesContext';
-
-const plusJakartaSans = Plus_Jakarta_Sans({
-  subsets: ['latin'],
-  weight: ['400', '500', '600', '700', '800'],
-  variable: '--font-sans',
-  display: 'swap',
-  preload: true,
-  fallback: ['Inter', 'system-ui', 'sans-serif'],
-  adjustFontFallback: true,
-});
 
 export const viewport: Viewport = {
   width: 'device-width',
@@ -64,7 +53,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning className={plusJakartaSans.variable}>
+    <html lang="en" suppressHydrationWarning>
       <head>
         <script
           dangerouslySetInnerHTML={{
@@ -72,7 +61,7 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className={`${plusJakartaSans.className} ft-root`}>
+      <body className="ft-root">
         <AuthProvider>
           <AppPreferencesProvider>
             <RouteExperienceEnhancer />
