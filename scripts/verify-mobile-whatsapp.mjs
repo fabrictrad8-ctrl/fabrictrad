@@ -70,10 +70,13 @@ requireText(catalogUi, 'Recovered your selected product photos and reels.');
 requireText(catalogUi, 'Autosaved on this phone');
 
 // Meta webhook verification and incoming messages must never trust unsigned
-// internet requests or expose provider credentials in the browser.
+// internet requests or expose provider credentials in the browser. Processing
+// is scheduled after the response so media retrieval cannot delay Meta's ack.
 requireText(webhook, "request.headers.get('x-hub-signature-256')");
 requireText(webhook, "createHmac('sha256'");
 requireText(webhook, 'timingSafeEqual');
+requireText(webhook, 'after(async () =>');
+requireText(webhook, "metadataUrl.searchParams.set('phone_number_id'");
 requireText(webhook, 'WHATSAPP_APP_SECRET');
 requireText(webhook, 'WHATSAPP_ACCESS_TOKEN');
 requireText(webhook, 'WHATSAPP_VERIFY_TOKEN');
