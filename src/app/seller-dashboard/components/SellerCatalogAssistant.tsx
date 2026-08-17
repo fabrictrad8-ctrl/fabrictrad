@@ -5,6 +5,7 @@ import toast from 'react-hot-toast';
 import Icon from '@/components/ui/AppIcon';
 import { useAuth } from '@/contexts/AuthContext';
 import { createClient } from '@/lib/supabase/client';
+import { useCatalogComposerDraft } from '@/lib/hooks/useCatalogComposerDraft';
 import {
   catalogVariantKey,
   type ParsedCatalogDraft,
@@ -27,6 +28,14 @@ type ChatMessage = {
   id: string;
   role: 'assistant' | 'seller';
   text: string;
+};
+
+type CatalogComposerPayload = {
+  text: string;
+  draft: ParsedCatalogDraft | null;
+  messages: ChatMessage[];
+  listingStatus: 'draft' | 'active';
+  provider: 'openai' | 'rules' | null;
 };
 
 const EXAMPLE_TEXT = `Catalog = Navratri Vichitra Silk
@@ -113,6 +122,34 @@ export default function SellerCatalogAssistant() {
   const [publishing, setPublishing] = useState(false);
   const [listingStatus, setListingStatus] = useState<'draft' | 'active'>('draft');
   const [provider, setProvider] = useState<'openai' | 'rules' | null>(null);
+
+  const composerPayload = useMemo<CatalogComposerPayload>(
+    () => ({
+      text,
+      draft,
+      messages: messages.slice(-12),
+      listingStatus,
+      provider,
+    }),
+    [draft, listingStatus, messages, provider, text]
+  );
+
+  const { savedAt: composerSavedAt, clear: clearComposerDraft } = useCatalogComposerDraft({
+    payload: composerPayload,
+    onRestore: (saved) => {
+      const hasUsefulDraft = Boolean(saved.text?.trim() || saved.draft);
+      setText(saved.text || '');
+      setDraft(saved.draft || null);
+      setMessages(saved.messages?.length ? saved.messages : [{
+        id: `welcome-${Date.now()}`,
+        role: 'assistant',
+        text: 'Your saved product draft was restored. Continue from where you left off.',
+      }]);
+      setListingStatus(saved.listingStatus === 'active' ? 'active' : 'draft');
+      setProvider(saved.provider || null);
+      if (hasUsefulDraft) toast.success('Recovered your unsaved product draft.');
+    },
+  });
 
   const variantTargets = useMemo(
     () =>
@@ -253,6 +290,7 @@ export default function SellerCatalogAssistant() {
   };
 
   const resetComposer = () => {
+    clearComposerDraft();
     attachmentUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
     attachmentUrlsRef.current = [];
     setText('');
@@ -473,6 +511,7 @@ export default function SellerCatalogAssistant() {
           ? 'Catalogue published and visible to matching buyers.'
           : 'Catalogue saved privately as a draft.'
       );
+      clearComposerDraft();
       attachmentUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
       attachmentUrlsRef.current = [];
       setText('');
@@ -501,7 +540,7 @@ export default function SellerCatalogAssistant() {
           <p className="text-xs font-800 uppercase tracking-[0.16em] text-primary">In-app catalogue automation</p>
           <h1 className="mt-1 text-2xl font-800 text-foreground">AI Catalog Studio</h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-            Chat with the assistant, attach product media, review the extracted details and publish without leaving FabricTrad.
+            Chat with the assistant, attach product media, review the extracted details and publish without leaving FabricTrad. Text and structured product details auto-save on this phone if you switch to Gallery, Files or another app.
           </p>
         </div>
         <div className="flex flex-wrap gap-2 text-xs">
@@ -509,6 +548,7 @@ export default function SellerCatalogAssistant() {
             <Icon name="PlusIcon" size={13} className="mr-1 inline" /> New product
           </button>
           <button type="button" onClick={() => setText(EXAMPLE_TEXT)} className="rounded-full border border-border bg-card px-3 py-1.5 font-800 text-muted-foreground">Use example</button>
+          {composerSavedAt && <span className="rounded-full border border-success/20 bg-success/5 px-3 py-1.5 font-800 text-success">Autosaved</span>}
           <span className="rounded-full border border-border bg-card px-3 py-1.5">Images up to 10 MB</span>
           <span className="rounded-full border border-border bg-card px-3 py-1.5">Reels up to 20 seconds</span>
           <span className="rounded-full border border-border bg-card px-3 py-1.5">24 media files per draft</span>
