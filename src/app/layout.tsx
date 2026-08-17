@@ -1,6 +1,7 @@
 import React from 'react';
 import type { Metadata, Viewport } from 'next';
 import '../styles/tailwind.css';
+import '../styles/font-fallback.css';
 import '../styles/shopify-glass.css';
 import '../styles/commerce-polish.css';
 import '../styles/global-commerce.css';
