@@ -131,7 +131,15 @@ export default function SellerRegistrationEntry() {
     );
   }
 
-  if (user && profile?.can_sell) return <SellerApplicationResume />;
+  const hasSellerBusinessProfile = Boolean(
+    profile?.business_name &&
+      profile?.gstin &&
+      profile?.address_line1 &&
+      profile?.city &&
+      profile?.pincode
+  );
+
+  if (user && profile?.can_sell && hasSellerBusinessProfile) return <SellerApplicationResume />;
   if (user) return <SellerRegistrationFlowV2 />;
 
   return (
