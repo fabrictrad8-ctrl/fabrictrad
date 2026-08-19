@@ -74,6 +74,22 @@ const adminClientOrNull = () => {
   }
 };
 
+const validateDocument = (file: File, documentType: DocumentType) => {
+  if (file.size > 10 * 1024 * 1024) throw new Error(`${file.name} exceeds the 10 MB limit.`);
+  const commonAllowed =
+    file.type === 'application/pdf' ||
+    file.type.startsWith('image/') ||
+    (documentType === 'aadhaar_offline_ekyc' &&
+      ['application/xml', 'text/xml', 'application/zip', 'application/x-zip-compressed'].includes(file.type));
+  if (!commonAllowed) {
+    throw new Error(
+      documentType === 'aadhaar_offline_ekyc'
+        ? `${file.name} must be the UIDAI Offline e-KYC XML/ZIP, PDF or supported image.`
+        : `${file.name} must be a PDF or supported image.`
+    );
+  }
+};
+
 async function resolveUser(
   request: NextRequest,
   formData: FormData,
