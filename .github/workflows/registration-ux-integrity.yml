@@ -5,6 +5,7 @@ on:
     paths:
       - 'src/app/register/**'
       - 'src/app/buyer-registration/**'
+      - 'src/app/seller-registration/**'
       - 'src/app/api/auth/registration-preflight/**'
       - 'src/lib/supabase/client.tsx'
       - 'supabase/migrations/**account_auth_policy_performance.sql'
@@ -15,6 +16,7 @@ on:
     paths:
       - 'src/app/register/**'
       - 'src/app/buyer-registration/**'
+      - 'src/app/seller-registration/**'
       - 'src/app/api/auth/registration-preflight/**'
       - 'src/lib/supabase/client.tsx'
       - 'supabase/migrations/**account_auth_policy_performance.sql'
