@@ -69,7 +69,8 @@ requireText('src/app/buyer-registration/components/BuyerRegistrationFlowV2.tsx',
 requireText('src/app/buyer-registration/components/BuyerRegistrationFlowV2.tsx', "const signup = user ?");
 requireText('src/app/buyer-registration/components/BuyerRegistrationFlowV2.tsx', "password: '', confirmPassword: ''");
 requireText('src/app/buyer-registration/components/BuyerRegistrationEntry.tsx', 'AuthenticatedBuyerRegistrationResume');
-requireText('src/app/buyer-registration/components/BuyerRegistrationEntry.tsx', "searchParams.get('resume') === '1'");
+requireText('src/app/buyer-registration/components/BuyerRegistrationEntry.tsx', 'isAuthenticatedAccount');
+requireText('src/app/buyer-registration/components/BuyerRegistrationEntry.tsx', 'isAuthenticatedAccount ? (');
 requireText('src/app/buyer-registration/components/AuthenticatedBuyerRegistrationResume.tsx', "buyerType === 'retail_store'");
 requireText('src/app/buyer-registration/components/AuthenticatedBuyerRegistrationResume.tsx', "supabase.rpc('set_current_account_phone'");
 requireText('src/app/seller-registration/components/SellerRegistrationFlow.tsx', 'useOnboardingDraft');

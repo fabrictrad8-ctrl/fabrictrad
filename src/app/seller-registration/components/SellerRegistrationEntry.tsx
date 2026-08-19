@@ -8,6 +8,12 @@ import { normalizeEmail, normalizeIndianPhone, validateIndianPhone } from '@/lib
 import SellerApplicationResume from './SellerApplicationResume';
 import SellerRegistrationFlowV2 from './SellerRegistrationFlowV2';
 
+type PreflightResponse = {
+  emailUsed?: boolean;
+  phoneUsed?: boolean;
+  error?: string;
+};
+
 export default function SellerRegistrationEntry() {
   const {
     user,
@@ -16,8 +22,6 @@ export default function SellerRegistrationEntry() {
     profileLoading,
     signUp,
     signIn,
-    checkEmailUnique,
-    checkPhoneUnique,
     refreshProfile,
   } = useAuth();
   const [submitting, setSubmitting] = useState(false);
@@ -31,7 +35,6 @@ export default function SellerRegistrationEntry() {
     phone: '',
     email: '',
     password: '',
-    confirmPassword: '',
   });
 
   useEffect(() => {
@@ -75,22 +78,37 @@ export default function SellerRegistrationEntry() {
     const email = normalizeEmail(form.email);
     const phone = normalizeIndianPhone(form.phone);
     if (!fullName) return setError('Enter the owner or authorised contact name.');
-    if (!email) return setError('Enter the business email address.');
+    if (!email || !email.includes('@')) return setError('Enter a valid business email address.');
     const phoneResult = validateIndianPhone(phone);
     if (!phoneResult.valid) return setError(phoneResult.message);
-    if (form.password.length < 8) return setError('Password must be at least 8 characters.');
-    if (form.password !== form.confirmPassword) return setError('Passwords do not match.');
+    if (form.password.length < 8) return setError('Use a password with at least 8 characters.');
 
     setSubmitting(true);
     try {
-      const [emailCheck, phoneCheck] = await Promise.all([
-        checkEmailUnique(email),
-        checkPhoneUnique(phone),
-      ]);
-      if (!emailCheck.unique || !phoneCheck.unique) {
-        setError(
-          'This email or mobile number already belongs to a FabricTrad account. Sign in to that account and continue seller activation instead of creating a duplicate.'
-        );
+      const preflightResponse = await fetch('/api/auth/registration-preflight', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        cache: 'no-store',
+        body: JSON.stringify({ email, phone }),
+      });
+      const preflight = (await preflightResponse.json().catch(() => ({}))) as PreflightResponse;
+      if (!preflightResponse.ok) {
+        throw new Error(preflight.error || 'Could not check the account details.');
+      }
+
+      if (preflight.emailUsed) {
+        try {
+          await signIn(email, form.password);
+          window.location.replace('/seller-registration?resume=1');
+          return;
+        } catch {
+          setError('That email already has a FabricTrad account. Sign in or reset the password instead of registering again.');
+          return;
+        }
+      }
+      if (preflight.phoneUsed) {
+        setError('That mobile number already belongs to a FabricTrad account. Sign in to the existing account and activate selling there.');
         return;
       }
 
@@ -101,6 +119,8 @@ export default function SellerRegistrationEntry() {
       });
       if (!signup?.user?.id) throw new Error('FabricTrad could not confirm the new account.');
 
+      // signUp provisions the base account. Seller activation explicitly asks
+      // for the seller workspace because the same FabricTrad login can buy too.
       const provisionResponse = await fetch('/api/auth/provision-account', {
         method: 'POST',
         headers: {
@@ -173,9 +193,9 @@ export default function SellerRegistrationEntry() {
       <div className="mx-auto max-w-xl">
         <div className="mb-7 text-center">
           <p className="text-xs font-800 uppercase tracking-[0.16em] text-primary">Seller registration</p>
-          <h1 className="mt-2 text-2xl font-800 text-foreground sm:text-3xl">Create your FabricTrad account first</h1>
+          <h1 className="mt-2 text-2xl font-800 text-foreground sm:text-3xl">Create your FabricTrad login first</h1>
           <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-muted-foreground">
-            This step creates the real login and seller workspace. Only after that do GST, bank and document verification steps open.
+            Four basic details create the real account. GST, bank and document verification starts only after the login is protected, so you can leave and continue later.
           </p>
         </div>
 
@@ -199,44 +219,38 @@ export default function SellerRegistrationEntry() {
             </div>
           ) : (
             <form onSubmit={submitAccount} className="space-y-4">
-              <div className="grid gap-4 sm:grid-cols-2">
-                <label className="text-sm font-700 text-foreground">
-                  Owner / contact name *
-                  <input value={form.fullName} onChange={(event) => setForm((current) => ({ ...current, fullName: event.target.value }))} className="input-base mt-1.5 w-full px-4 py-3 font-400" autoComplete="name" />
-                </label>
-                <label className="text-sm font-700 text-foreground">
-                  Mobile number *
-                  <input value={form.phone} onChange={(event) => setForm((current) => ({ ...current, phone: normalizeIndianPhone(event.target.value) }))} className="input-base mt-1.5 w-full px-4 py-3 font-400" inputMode="numeric" maxLength={10} autoComplete="tel" placeholder="9876543210" />
-                </label>
-              </div>
-
               <label className="block text-sm font-700 text-foreground">
-                Email address *
-                <input type="email" value={form.email} onChange={(event) => setForm((current) => ({ ...current, email: normalizeEmail(event.target.value) }))} className="input-base mt-1.5 w-full px-4 py-3 font-400" autoComplete="email" />
+                Owner / contact name
+                <input value={form.fullName} onChange={(event) => setForm((current) => ({ ...current, fullName: event.target.value }))} className="input-base mt-1.5 w-full px-4 py-3 font-400" autoComplete="name" required />
               </label>
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <label className="text-sm font-700 text-foreground">
-                  Password *
-                  <span className="relative mt-1.5 block">
-                    <input type={showPassword ? 'text' : 'password'} value={form.password} onChange={(event) => setForm((current) => ({ ...current, password: event.target.value }))} className="input-base w-full px-4 py-3 pr-11 font-400" autoComplete="new-password" />
-                    <button type="button" onClick={() => setShowPassword((current) => !current)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground" aria-label={showPassword ? 'Hide password' : 'Show password'}>
-                      <Icon name={showPassword ? 'EyeSlashIcon' : 'EyeIcon'} size={17} />
-                    </button>
-                  </span>
+                  Business email
+                  <input type="email" value={form.email} onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))} className="input-base mt-1.5 w-full px-4 py-3 font-400" autoComplete="email" required />
                 </label>
                 <label className="text-sm font-700 text-foreground">
-                  Confirm password *
-                  <input type="password" value={form.confirmPassword} onChange={(event) => setForm((current) => ({ ...current, confirmPassword: event.target.value }))} className="input-base mt-1.5 w-full px-4 py-3 font-400" autoComplete="new-password" />
+                  Mobile number
+                  <input value={form.phone} onChange={(event) => setForm((current) => ({ ...current, phone: normalizeIndianPhone(event.target.value) }))} className="input-base mt-1.5 w-full px-4 py-3 font-400" inputMode="numeric" maxLength={10} autoComplete="tel" placeholder="9876543210" required />
                 </label>
               </div>
 
+              <label className="block text-sm font-700 text-foreground">
+                Password
+                <span className="relative mt-1.5 block">
+                  <input type={showPassword ? 'text' : 'password'} value={form.password} onChange={(event) => setForm((current) => ({ ...current, password: event.target.value }))} className="input-base w-full px-4 py-3 pr-16 font-400" autoComplete="new-password" minLength={8} placeholder="At least 8 characters" required />
+                  <button type="button" onClick={() => setShowPassword((current) => !current)} className="absolute inset-y-0 right-0 px-4 text-xs font-700 text-muted-foreground hover:text-foreground">
+                    {showPassword ? 'Hide' : 'Show'}
+                  </button>
+                </span>
+              </label>
+
               <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 text-xs leading-5 text-muted-foreground">
-                <strong className="text-foreground">Created immediately:</strong> secure login, FabricTrad profile, buyer capability and seller workspace. Approval is a later step after GST, bank and documents are complete.
+                <strong className="text-foreground">Account first:</strong> FabricTrad creates your secure login and workspace now. Approval happens later after GST, bank and documents are complete.
               </div>
 
               <button type="submit" disabled={submitting} className="btn-primary w-full py-3 text-sm disabled:opacity-50">
-                {submitting ? 'Creating account…' : 'Create account and continue'}
+                {submitting ? 'Creating account…' : 'Create account & continue verification'}
               </button>
               <p className="text-center text-xs text-muted-foreground">
                 Already registered?{' '}

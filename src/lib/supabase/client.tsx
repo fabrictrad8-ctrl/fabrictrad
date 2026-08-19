@@ -7,6 +7,7 @@ const isSecureContextForCookies = () =>
   typeof window !== 'undefined' && window.location.protocol === 'https:';
 
 let _canUseCookiesCache: boolean | null = null;
+
 const canUseCookies = (): boolean => {
   if (!isBrowser()) return false;
   if (_canUseCookiesCache !== null) return _canUseCookiesCache;
@@ -64,8 +65,8 @@ const deleteCookie = (name: string) => {
   document.cookie = `${name}=; Max-Age=0; Path=/; SameSite=Lax${isSecureContextForCookies() ? '; Secure' : ''}`;
 };
 
-export function createClient() {
-  return createBrowserClient(
+const buildClient = () =>
+  createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
@@ -98,4 +99,19 @@ export function createClient() {
       },
     }
   );
+
+type BrowserClient = ReturnType<typeof buildClient>;
+let _browserClient: BrowserClient | null = null;
+
+export function createClient(): BrowserClient {
+  // React components and hooks frequently import this helper independently.
+  // Reusing one browser auth client avoids duplicate auth subscriptions and
+  // repeated session refresh/profile bootstrap work during route transitions.
+  if (isBrowser()) {
+    if (!_browserClient) _browserClient = buildClient();
+    return _browserClient;
+  }
+
+  // Never share a browser-style client across server requests.
+  return buildClient();
 }

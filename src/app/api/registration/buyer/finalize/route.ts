@@ -187,10 +187,10 @@ export async function POST(request: NextRequest) {
   const admin = adminClientOrNull();
   const user = await resolveUser(request, formData, serverClient, admin);
   if (!user) return json({ error: 'Authentication or registration verification is required.' }, 401);
-  if (user.user_metadata?.role === 'seller') {
-    return json({ error: 'Sign in to the existing account and add a buyer profile instead.' }, 403);
-  }
 
+  // A FabricTrad seller is also allowed to buy. Do not reject an existing
+  // seller login here: the same authenticated account may upgrade its buyer
+  // profile to Retail Store without creating another email/mobile identity.
   const client = admin || serverClient;
   try {
     await ensureAccountProvisioned(client, user);

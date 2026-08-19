@@ -4,8 +4,9 @@ import { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Icon from '@/components/ui/AppIcon';
 import { useAuth } from '@/contexts/AuthContext';
-import BuyerRegistrationFlowV2 from './BuyerRegistrationFlowV2';
 import AuthenticatedBuyerRegistrationResume from './AuthenticatedBuyerRegistrationResume';
+import PersonalBuyerQuickSignup from './PersonalBuyerQuickSignup';
+import RetailBuyerAccountStart from './RetailBuyerAccountStart';
 
 type BuyerType = 'retail_store' | 'end_user';
 
@@ -23,56 +24,89 @@ const options: Array<{
     title: 'Retail Store',
     subtitle: 'I am buying for my shop or business',
     description:
-      'Source fabrics for resale, place repeat orders and receive the correct business or GST tax invoice.',
+      'Create the login first, then complete GST and business KYC without risking your progress.',
     icon: 'BuildingStorefrontIcon',
     features: [
-      'Business purchasing profile and wholesale tools',
+      'Secure account created before KYC begins',
       'GSTIN verification when the shop is GST registered',
       'PAN or voluntary Aadhaar Offline e-KYC plus business proof',
       'Can activate selling on the same account after seller verification',
     ],
-    notice: 'Official business KYC required',
+    notice: 'Account first · KYC second',
   },
   {
     value: 'end_user',
-    title: 'Buy for me',
-    subtitle: 'End User / personal purchase',
+    title: 'Personal Buyer',
+    subtitle: 'I am buying for myself, tailoring, an event or my household',
     description:
-      'Buy smaller quantities for personal use, tailoring, events, weddings or a household requirement.',
+      'Create a simple account and start shopping. Add a delivery address later from your profile before fulfilment.',
     icon: 'UserIcon',
     features: [
       'No PAN, Aadhaar, GST certificate or business proof',
-      'Seller-defined personal-purchase quantities',
-      'Consumer invoice with GST where applicable',
-      'Access to products enabled for personal buyers',
+      'One-screen account creation',
+      'Delivery address is not a signup requirement',
+      'Can activate business buying or selling later on the same account',
     ],
-    notice: 'No official documents required',
+    notice: 'Fast signup · no official documents',
   },
 ];
+
+const validBuyerType = (value: string | null): value is BuyerType =>
+  value === 'retail_store' || value === 'end_user';
+
+const persistBuyerType = (value: BuyerType) => {
+  const secure = window.location.protocol === 'https:' ? '; Secure' : '';
+  document.cookie = `fabrictrad_buyer_type=${value}; Path=/; Max-Age=7200; SameSite=Lax${secure}`;
+  window.sessionStorage.setItem('fabrictrad_buyer_type', value);
+  window.localStorage.setItem('fabrictrad_buyer_type', value);
+};
+
+const clearBuyerType = () => {
+  document.cookie = 'fabrictrad_buyer_type=; Path=/; Max-Age=0; SameSite=Lax';
+  window.sessionStorage.removeItem('fabrictrad_buyer_type');
+  window.localStorage.removeItem('fabrictrad_buyer_type');
+};
 
 export default function BuyerRegistrationEntry() {
   const searchParams = useSearchParams();
   const { user, loading } = useAuth();
-  const [buyerType, setBuyerType] = useState<BuyerType | null>(null);
-  const isAuthenticatedResume = searchParams.get('resume') === '1' && Boolean(user);
+  const requestedType = validBuyerType(searchParams.get('type'))
+    ? (searchParams.get('type') as BuyerType)
+    : null;
+  const [buyerType, setBuyerType] = useState<BuyerType | null>(requestedType);
+  const isAuthenticatedAccount = Boolean(user);
 
   useEffect(() => {
-    const stored = window.localStorage.getItem('fabrictrad_buyer_type') || window.sessionStorage.getItem('fabrictrad_buyer_type');
-    if (stored === 'retail_store' || stored === 'end_user') setBuyerType(stored);
-  }, []);
+    if (requestedType) {
+      persistBuyerType(requestedType);
+      setBuyerType(requestedType);
+      return;
+    }
+
+    const stored =
+      window.localStorage.getItem('fabrictrad_buyer_type') ||
+      window.sessionStorage.getItem('fabrictrad_buyer_type');
+    if (validBuyerType(stored)) setBuyerType(stored);
+  }, [requestedType]);
 
   const chooseType = (value: BuyerType) => {
-    const secure = window.location.protocol === 'https:' ? '; Secure' : '';
-    document.cookie = `fabrictrad_buyer_type=${value}; Path=/; Max-Age=7200; SameSite=Lax${secure}`;
-    window.sessionStorage.setItem('fabrictrad_buyer_type', value);
-    window.localStorage.setItem('fabrictrad_buyer_type', value);
+    persistBuyerType(value);
     setBuyerType(value);
+  };
+
+  const changeType = () => {
+    clearBuyerType();
+    setBuyerType(null);
+    if (window.location.search) window.history.replaceState(null, '', '/buyer-registration');
   };
 
   if (loading) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
-        <div className="h-9 w-9 animate-spin rounded-full border-2 border-primary border-t-transparent" aria-label="Loading registration" />
+        <div
+          className="h-9 w-9 animate-spin rounded-full border-2 border-primary border-t-transparent"
+          aria-label="Loading registration"
+        />
       </div>
     );
   }
@@ -92,23 +126,28 @@ export default function BuyerRegistrationEntry() {
               <div>
                 <p className="text-xs font-800 uppercase tracking-[0.13em] text-primary">Buyer type</p>
                 <p className="text-sm font-800 text-foreground">
-                  {buyerType === 'retail_store' ? 'Retail Store · business KYC' : 'Buy for me · no business KYC'}
+                  {buyerType === 'retail_store'
+                    ? 'Retail Store · account first, business KYC second'
+                    : 'Personal Buyer · fast signup, no business KYC'}
                 </p>
               </div>
             </div>
             <button
               type="button"
-              onClick={() => setBuyerType(null)}
+              onClick={changeType}
               className="min-h-11 rounded-xl border border-border bg-card px-4 py-2 text-xs font-800 text-foreground hover:border-primary/40 hover:text-primary"
             >
               Change buyer type
             </button>
           </div>
         </div>
-        {isAuthenticatedResume ? (
+
+        {isAuthenticatedAccount ? (
           <AuthenticatedBuyerRegistrationResume buyerType={buyerType} />
+        ) : buyerType === 'end_user' ? (
+          <PersonalBuyerQuickSignup />
         ) : (
-          <BuyerRegistrationFlowV2 buyerType={buyerType} />
+          <RetailBuyerAccountStart />
         )}
       </div>
     );
@@ -119,13 +158,15 @@ export default function BuyerRegistrationEntry() {
       <div className="mx-auto max-w-5xl">
         <div className="text-center">
           <p className="text-xs font-800 uppercase tracking-[0.16em] text-primary">
-            {isAuthenticatedResume ? 'Continue your FabricTrad setup' : 'Create your FabricTrad account'}
+            {isAuthenticatedAccount ? 'Continue your FabricTrad setup' : 'Create your FabricTrad account'}
           </p>
-          <h1 className="mt-3 text-3xl font-800 tracking-tight text-foreground sm:text-4xl">How will you buy?</h1>
+          <h1 className="mt-3 text-3xl font-800 tracking-tight text-foreground sm:text-4xl">
+            How will you buy?
+          </h1>
           <p className="mx-auto mt-3 max-w-2xl text-sm leading-6 text-muted-foreground sm:text-base">
-            {isAuthenticatedResume
-              ? 'Your login is already secured. Choose the buyer type you were setting up and FabricTrad will continue from the remaining profile steps.'
-              : 'Personal customers register with ordinary account and delivery details. Official tax and identity documents are requested only for a shop or business profile.'}
+            {isAuthenticatedAccount
+              ? 'Your login is already secured. Choose what you need and FabricTrad will update this account instead of creating another one.'
+              : 'Personal buyers get a fast account with no business documents. Retail stores create the login first and complete business verification afterward.'}
           </p>
         </div>
 
@@ -141,12 +182,22 @@ export default function BuyerRegistrationEntry() {
                 <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary transition group-hover:bg-primary group-hover:text-white">
                   <Icon name={option.icon} size={23} />
                 </div>
-                <Icon name="ArrowRightIcon" size={20} className="mt-2 text-muted-foreground transition group-hover:translate-x-1 group-hover:text-primary" />
+                <Icon
+                  name="ArrowRightIcon"
+                  size={20}
+                  className="mt-2 text-muted-foreground transition group-hover:translate-x-1 group-hover:text-primary"
+                />
               </div>
               <h2 className="mt-5 text-xl font-800 text-foreground">{option.title}</h2>
               <p className="mt-1 text-sm font-700 text-primary">{option.subtitle}</p>
               <p className="mt-3 text-sm leading-6 text-muted-foreground">{option.description}</p>
-              <div className={`mt-4 inline-flex rounded-full px-3 py-1 text-xs font-800 ${option.value === 'end_user' ? 'bg-success/10 text-success' : 'bg-amber-100 text-amber-800'}`}>
+              <div
+                className={`mt-4 inline-flex rounded-full px-3 py-1 text-xs font-800 ${
+                  option.value === 'end_user'
+                    ? 'bg-success/10 text-success'
+                    : 'bg-amber-100 text-amber-800'
+                }`}
+              >
                 {option.notice}
               </div>
               <ul className="mt-5 space-y-2.5">
@@ -162,7 +213,8 @@ export default function BuyerRegistrationEntry() {
         </div>
 
         <div className="mx-auto mt-6 max-w-3xl rounded-2xl border border-primary/20 bg-primary/5 p-4 text-xs leading-5 text-muted-foreground">
-          <strong className="text-foreground">GST clarification:</strong> entering a GSTIN does not cancel or remove GST. A verified registered business receives a B2B tax invoice with its GSTIN and may claim eligible input tax credit subject to GST rules.
+          <strong className="text-foreground">One account:</strong> start as a personal buyer now and add
+          retail-store or seller verification later without creating another login or using another mobile number.
         </div>
       </div>
     </section>
