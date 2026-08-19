@@ -39,12 +39,12 @@ const options: Array<{
     title: 'Personal Buyer',
     subtitle: 'I am buying for myself, tailoring, an event or my household',
     description:
-      'Create a simple account and start shopping. Add a delivery address only when you place an order.',
+      'Create a simple account and start shopping. Add a delivery address later from your profile before fulfilment.',
     icon: 'UserIcon',
     features: [
       'No PAN, Aadhaar, GST certificate or business proof',
       'One-screen account creation',
-      'Delivery address can be added at checkout',
+      'Delivery address is not a signup requirement',
       'Can activate business buying or selling later on the same account',
     ],
     notice: 'Fast signup · no official documents',
@@ -70,9 +70,11 @@ const clearBuyerType = () => {
 export default function BuyerRegistrationEntry() {
   const searchParams = useSearchParams();
   const { user, loading } = useAuth();
-  const requestedType = validBuyerType(searchParams.get('type')) ? searchParams.get('type') as BuyerType : null;
+  const requestedType = validBuyerType(searchParams.get('type'))
+    ? (searchParams.get('type') as BuyerType)
+    : null;
   const [buyerType, setBuyerType] = useState<BuyerType | null>(requestedType);
-  const isAuthenticatedResume = searchParams.get('resume') === '1' && Boolean(user);
+  const isAuthenticatedAccount = Boolean(user);
 
   useEffect(() => {
     if (requestedType) {
@@ -140,7 +142,7 @@ export default function BuyerRegistrationEntry() {
           </div>
         </div>
 
-        {isAuthenticatedResume ? (
+        {isAuthenticatedAccount ? (
           <AuthenticatedBuyerRegistrationResume buyerType={buyerType} />
         ) : buyerType === 'end_user' ? (
           <PersonalBuyerQuickSignup />
@@ -156,14 +158,14 @@ export default function BuyerRegistrationEntry() {
       <div className="mx-auto max-w-5xl">
         <div className="text-center">
           <p className="text-xs font-800 uppercase tracking-[0.16em] text-primary">
-            {isAuthenticatedResume ? 'Continue your FabricTrad setup' : 'Create your FabricTrad account'}
+            {isAuthenticatedAccount ? 'Continue your FabricTrad setup' : 'Create your FabricTrad account'}
           </p>
           <h1 className="mt-3 text-3xl font-800 tracking-tight text-foreground sm:text-4xl">
             How will you buy?
           </h1>
           <p className="mx-auto mt-3 max-w-2xl text-sm leading-6 text-muted-foreground sm:text-base">
-            {isAuthenticatedResume
-              ? 'Your login is already secured. Choose the buyer type you were setting up and FabricTrad will continue from the remaining profile steps.'
+            {isAuthenticatedAccount
+              ? 'Your login is already secured. Choose what you need and FabricTrad will update this account instead of creating another one.'
               : 'Personal buyers get a fast account with no business documents. Retail-store verification is only for people buying as a business.'}
           </p>
         </div>
