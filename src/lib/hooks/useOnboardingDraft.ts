@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { createClient } from '@/lib/supabase/client';
 
 type Flow = 'buyer' | 'seller';
 export type DraftEnvelope<T> = {
@@ -57,7 +58,6 @@ export const clearOnboardingDraftLocally = (flow: Flow, userId?: string | null) 
   for (const storage of [window.localStorage, window.sessionStorage]) {
     try {
       storage.removeItem(keyFor(flow, userId));
-      // Clear old unscoped drafts so a previous account cannot overwrite this user.
       storage.removeItem(legacyKeyFor(flow, 'v4'));
       storage.removeItem(legacyKeyFor(flow, 'v3'));
     } catch {
@@ -84,8 +84,6 @@ const parseLocal = <T,>(flow: Flow, userId?: string | null): DraftEnvelope<T> | 
   const candidates: Array<DraftEnvelope<T> | null> = [];
   for (const storage of [window.localStorage, window.sessionStorage]) {
     candidates.push(parseStored<T>(storage, keyFor(flow, userId)));
-    // Only anonymous onboarding may inherit the old unscoped draft. Authenticated
-    // users must never receive another account's browser draft.
     if (!userId) {
       candidates.push(parseStored<T>(storage, legacyKeyFor(flow, 'v4')));
       candidates.push(parseStored<T>(storage, legacyKeyFor(flow, 'v3')));
@@ -115,6 +113,7 @@ export function useOnboardingDraft<T>({
   const [loaded, setLoaded] = useState(false);
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [supabase] = useState(() => createClient());
   const restoreRef = useRef(onRestore);
   const payloadRef = useRef(payload);
   const stepRef = useRef(step);
@@ -126,15 +125,44 @@ export function useOnboardingDraft<T>({
   stepRef.current = step;
   enabledRef.current = enabled;
   userIdRef.current = userId;
-  accessTokenRef.current = accessToken;
+  if (accessToken) accessTokenRef.current = accessToken;
 
-  const requestHeaders = useCallback((json = false) => {
-    const headers: Record<string, string> = {};
-    if (json) headers['Content-Type'] = 'application/json';
-    const token = accessTokenRef.current;
-    if (token) headers.Authorization = `Bearer ${token}`;
-    return headers;
-  }, []);
+  useEffect(() => {
+    if (accessToken) {
+      accessTokenRef.current = accessToken;
+      return;
+    }
+
+    let cancelled = false;
+    void supabase.auth.getSession().then(({ data }) => {
+      if (!cancelled) accessTokenRef.current = data.session?.access_token || null;
+    });
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      accessTokenRef.current = session?.access_token || null;
+    });
+    return () => {
+      cancelled = true;
+      listener.subscription.unsubscribe();
+    };
+  }, [accessToken, supabase]);
+
+  const resolveAccessToken = useCallback(async () => {
+    if (accessTokenRef.current) return accessTokenRef.current;
+    const { data } = await supabase.auth.getSession();
+    accessTokenRef.current = data.session?.access_token || null;
+    return accessTokenRef.current;
+  }, [supabase]);
+
+  const requestHeaders = useCallback(
+    async (json = false) => {
+      const headers: Record<string, string> = {};
+      if (json) headers['Content-Type'] = 'application/json';
+      const token = await resolveAccessToken();
+      if (token) headers.Authorization = `Bearer ${token}`;
+      return headers;
+    },
+    [resolveAccessToken]
+  );
 
   const saveServerDraft = useCallback(
     async (keepalive = false) => {
@@ -144,7 +172,7 @@ export function useOnboardingDraft<T>({
 
       const response = await fetch('/api/account/onboarding-draft', {
         method: 'PUT',
-        headers: requestHeaders(true),
+        headers: await requestHeaders(true),
         credentials: 'same-origin',
         cache: 'no-store',
         keepalive,
@@ -191,7 +219,7 @@ export function useOnboardingDraft<T>({
       if (userId) {
         try {
           const response = await fetch(`/api/account/onboarding-draft?flow=${flow}`, {
-            headers: requestHeaders(false),
+            headers: await requestHeaders(false),
             credentials: 'same-origin',
             cache: 'no-store',
           });
@@ -235,8 +263,6 @@ export function useOnboardingDraft<T>({
     return () => window.clearTimeout(timer);
   }, [enabled, loaded, payload, saveNow, step]);
 
-  // Flush the local copy synchronously before a mobile browser freezes or evicts
-  // the page. The server copy is sent with keepalive and the current bearer token.
   useEffect(() => {
     if (!loaded) return;
     const handleVisibility = () => {
@@ -262,7 +288,7 @@ export function useOnboardingDraft<T>({
     if (userId) {
       const response = await fetch(`/api/account/onboarding-draft?flow=${flow}`, {
         method: 'DELETE',
-        headers: requestHeaders(false),
+        headers: await requestHeaders(false),
         credentials: 'same-origin',
         cache: 'no-store',
       }).catch(() => null);
