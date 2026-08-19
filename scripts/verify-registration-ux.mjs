@@ -23,11 +23,12 @@ const entry = 'src/app/buyer-registration/components/BuyerRegistrationEntry.tsx'
 const quick = 'src/app/buyer-registration/components/PersonalBuyerQuickSignup.tsx';
 const retail = 'src/app/buyer-registration/components/RetailBuyerAccountStart.tsx';
 const seller = 'src/app/seller-registration/components/SellerRegistrationEntry.tsx';
+const buyerFinalize = 'src/app/api/registration/buyer/finalize/route.ts';
 const preflight = 'src/app/api/auth/registration-preflight/route.ts';
 const supabaseClient = 'src/lib/supabase/client.tsx';
 const migration = 'supabase/migrations/20260820043500_account_auth_policy_performance.sql';
 
-[register, entry, quick, retail, seller, preflight, supabaseClient, migration].forEach(read);
+[register, entry, quick, retail, seller, buyerFinalize, preflight, supabaseClient, migration].forEach(read);
 
 // The registration landing page must link directly to the intended buyer type
 // instead of forcing everyone through another chooser screen.
@@ -52,6 +53,7 @@ forbidText(quick, 'GSTIN');
 requireText(retail, 'Create account & continue KYC');
 requireText(retail, '/api/auth/registration-preflight');
 requireText(retail, '/buyer-registration?type=retail_store&resume=1');
+requireText(retail, '/login?next=%2Fbuyer-registration%3Ftype%3Dretail_store%26resume%3D1');
 forbidText(retail, 'confirmPassword');
 requireText(seller, 'Create account & continue verification');
 requireText(seller, '/api/auth/registration-preflight');
@@ -59,6 +61,12 @@ requireText(seller, "requestedRole: 'seller'");
 forbidText(seller, 'confirmPassword');
 forbidText(seller, 'checkEmailUnique');
 forbidText(seller, 'checkPhoneUnique');
+
+// FabricTrad is one account with multiple commerce capabilities. A seller must
+// be able to upgrade the buyer side of the same login to Retail Store instead
+// of being rejected and pushed toward a duplicate account.
+requireText(buyerFinalize, 'same authenticated account may upgrade its buyer');
+forbidText(buyerFinalize, "user.user_metadata?.role === 'seller'");
 
 // Anonymous registration must not pretend a protected client-side RPC worked.
 // The server validates the request and performs the conflict lookup with the
@@ -81,4 +89,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.info('Fast personal signup, account-first business signup, identity preflight and auth bootstrap safeguards passed.');
+console.info('Fast personal signup, account-first business signup, one-account upgrades, identity preflight and auth bootstrap safeguards passed.');
