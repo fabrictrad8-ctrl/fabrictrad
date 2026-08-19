@@ -1,7 +1,9 @@
-import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { createClient as createSupabaseJsClient, type SupabaseClient } from '@supabase/supabase-js';
+import { createClient as createServerClient } from '@/lib/supabase/server';
 
 export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
 const json = (body: Record<string, unknown>, status = 200) =>
   NextResponse.json(body, {
@@ -9,14 +11,41 @@ const json = (body: Record<string, unknown>, status = 200) =>
     headers: { 'Cache-Control': 'no-store, max-age=0' },
   });
 
-export async function GET() {
-  const supabase = await createClient();
+const bearerToken = (request: NextRequest) => {
+  const authorization = request.headers.get('authorization') || '';
+  return authorization.toLowerCase().startsWith('bearer ')
+    ? authorization.slice(7).trim()
+    : '';
+};
+
+const requestClient = async (request: NextRequest): Promise<{ client: SupabaseClient; token: string }> => {
+  const token = bearerToken(request);
+  if (!token) return { client: await createServerClient(), token: '' };
+
+  return {
+    token,
+    client: createSupabaseJsClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        global: { headers: { Authorization: `Bearer ${token}` } },
+        auth: { autoRefreshToken: false, persistSession: false },
+      }
+    ),
+  };
+};
+
+export async function GET(request: NextRequest) {
+  const { client: supabase, token } = await requestClient(request);
   const {
     data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return json({ error: 'Seller sign-in required.' }, 401);
+    error: userError,
+  } = token ? await supabase.auth.getUser(token) : await supabase.auth.getUser();
+  if (userError || !user) return json({ error: 'Seller sign-in required.' }, 401);
 
-  const { data: readiness, error: readinessError } = await supabase.rpc('ensure_current_seller_verification_state');
+  const { data: readiness, error: readinessError } = await supabase.rpc(
+    'ensure_current_seller_verification_state'
+  );
   if (readinessError || !readiness) {
     return json(
       { error: readinessError?.message || 'Seller verification status could not be loaded.' },
