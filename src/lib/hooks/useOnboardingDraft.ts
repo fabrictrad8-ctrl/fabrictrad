@@ -39,12 +39,27 @@ const writeStorage = (key: string, value: string) => {
   }
 };
 
-export const saveOnboardingDraftLocally = <T,>(
+export function saveOnboardingDraftLocally<T>(
+  flow: Flow,
+  step: string,
+  payload: T
+): DraftEnvelope<T>;
+export function saveOnboardingDraftLocally<T>(
   flow: Flow,
   userId: string | null | undefined,
   step: string,
   payload: T
-) => {
+): DraftEnvelope<T>;
+export function saveOnboardingDraftLocally<T>(
+  flow: Flow,
+  userIdOrStep: string | null | undefined,
+  stepOrPayload: string | T,
+  maybePayload?: T
+): DraftEnvelope<T> {
+  const scopedCall = maybePayload !== undefined;
+  const userId = scopedCall ? userIdOrStep : undefined;
+  const step = scopedCall ? String(stepOrPayload) : String(userIdOrStep || '');
+  const payload = (scopedCall ? maybePayload : stepOrPayload) as T;
   const envelope: DraftEnvelope<T> = {
     step,
     payload,
@@ -52,7 +67,7 @@ export const saveOnboardingDraftLocally = <T,>(
   };
   writeStorage(keyFor(flow, userId), JSON.stringify(envelope));
   return envelope;
-};
+}
 
 export const clearOnboardingDraftLocally = (flow: Flow, userId?: string | null) => {
   for (const storage of [window.localStorage, window.sessionStorage]) {
