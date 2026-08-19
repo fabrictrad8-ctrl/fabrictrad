@@ -112,6 +112,7 @@ export async function POST(request: NextRequest) {
   } catch {
     return json({ error: 'Invalid seller application.' }, 400);
   }
+  const draftOnly = formData.get('draftOnly') === '1';
 
   let input: Record<string, unknown>;
   try {
@@ -414,6 +415,19 @@ export async function POST(request: NextRequest) {
       },
       202
     );
+  }
+
+  if (draftOnly) {
+    return json({
+      saved: true,
+      applicationSubmitted: false,
+      sellerProfileId,
+      registrationId,
+      sellerRef,
+      uploadedDocuments,
+      missingDocuments: [],
+      message: 'Your documents are saved. Review will start only when you submit the application.',
+    });
   }
 
   const { error: reviewError } = await supabase.rpc('mark_seller_application_documents_uploaded');
