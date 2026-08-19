@@ -95,8 +95,12 @@ export async function GET() {
   );
   const requiredDocumentTypes = ['gst_certificate', 'pan_card', 'cancelled_cheque'];
   const missingDocuments = requiredDocumentTypes.filter((type) => !uploadedDocumentTypes.has(type));
+  const registrationStatus = String(
+    registration?.registration_status || readinessRecord.registrationStatus || ''
+  );
   const applicationSubmitted = Boolean(
-    registration?.submitted_at &&
+    registrationStatus &&
+      registrationStatus !== 'pending' &&
       readinessRecord.bankDetailsPresent === true &&
       missingDocuments.length === 0
   );
@@ -123,8 +127,7 @@ export async function GET() {
       bankAccountName:
         registration?.bank_account_name || readinessRecord.bankAccountName || null,
       bankName: registration?.bank_name || readinessRecord.bankName || null,
-      registrationStatus:
-        registration?.registration_status || readinessRecord.registrationStatus || null,
+      registrationStatus,
       submittedAt: registration?.submitted_at || null,
       approvedAt: registration?.approved_at || null,
       rejectionReason: registration?.rejection_reason || null,
