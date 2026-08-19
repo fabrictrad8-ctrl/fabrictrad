@@ -181,7 +181,7 @@ export default function RetailBuyerAccountStart() {
 
           <p className="mt-5 text-center text-xs text-muted-foreground">
             Already have a FabricTrad login?{' '}
-            <Link href="/login?next=/buyer-registration?type=retail_store&resume=1" className="font-800 text-primary hover:underline">
+            <Link href="/login?next=%2Fbuyer-registration%3Ftype%3Dretail_store%26resume%3D1" className="font-800 text-primary hover:underline">
               Sign in and continue
             </Link>
           </p>
