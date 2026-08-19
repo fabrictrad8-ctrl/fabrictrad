@@ -1,0 +1,43 @@
+name: Registration UX integrity
+
+on:
+  pull_request:
+    paths:
+      - 'src/app/register/**'
+      - 'src/app/buyer-registration/**'
+      - 'src/app/api/auth/registration-preflight/**'
+      - 'src/lib/supabase/client.tsx'
+      - 'supabase/migrations/**account_auth_policy_performance.sql'
+      - 'scripts/verify-registration-ux.mjs'
+      - '.github/workflows/registration-ux-integrity.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/app/register/**'
+      - 'src/app/buyer-registration/**'
+      - 'src/app/api/auth/registration-preflight/**'
+      - 'src/lib/supabase/client.tsx'
+      - 'supabase/migrations/**account_auth_policy_performance.sql'
+      - 'scripts/verify-registration-ux.mjs'
+      - '.github/workflows/registration-ux-integrity.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  registration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund --package-lock=false --legacy-peer-deps
+      - name: Verify fast registration safeguards
+        run: node scripts/verify-registration-ux.mjs
+      - name: Type check
+        run: npm run type-check
+      - name: Lint
+        run: npm run lint
