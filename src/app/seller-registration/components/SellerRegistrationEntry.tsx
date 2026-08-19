@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import Icon from '@/components/ui/AppIcon';
 import { useAuth } from '@/contexts/AuthContext';
@@ -24,6 +24,8 @@ export default function SellerRegistrationEntry() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [createdMessage, setCreatedMessage] = useState('');
+  const [sellerStatusLoading, setSellerStatusLoading] = useState(false);
+  const [sellerApplicationSubmitted, setSellerApplicationSubmitted] = useState(false);
   const [form, setForm] = useState({
     fullName: '',
     phone: '',
@@ -31,6 +33,38 @@ export default function SellerRegistrationEntry() {
     password: '',
     confirmPassword: '',
   });
+
+  useEffect(() => {
+    if (!user || !profile?.can_sell) {
+      setSellerApplicationSubmitted(false);
+      setSellerStatusLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setSellerStatusLoading(true);
+    const loadStatus = async () => {
+      try {
+        const response = await fetch('/api/seller/verification-status', {
+          credentials: 'same-origin',
+          cache: 'no-store',
+        });
+        const payload = (await response.json().catch(() => ({}))) as {
+          applicationSubmitted?: boolean;
+        };
+        if (!cancelled) setSellerApplicationSubmitted(response.ok && payload.applicationSubmitted === true);
+      } catch {
+        if (!cancelled) setSellerApplicationSubmitted(false);
+      } finally {
+        if (!cancelled) setSellerStatusLoading(false);
+      }
+    };
+
+    void loadStatus();
+    return () => {
+      cancelled = true;
+    };
+  }, [profile?.can_sell, user]);
 
   const submitAccount = async (event: FormEvent) => {
     event.preventDefault();
@@ -120,7 +154,7 @@ export default function SellerRegistrationEntry() {
     }
   };
 
-  if (loading || profileLoading) {
+  if (loading || profileLoading || sellerStatusLoading) {
     return (
       <section className="min-h-screen bg-muted/30 px-4 py-12">
         <div className="mx-auto max-w-3xl rounded-3xl border border-border bg-card p-8 text-center shadow-sm">
@@ -131,15 +165,7 @@ export default function SellerRegistrationEntry() {
     );
   }
 
-  const hasSellerBusinessProfile = Boolean(
-    profile?.business_name &&
-      profile?.gstin &&
-      profile?.address_line1 &&
-      profile?.city &&
-      profile?.pincode
-  );
-
-  if (user && profile?.can_sell && hasSellerBusinessProfile) return <SellerApplicationResume />;
+  if (user && profile?.can_sell && sellerApplicationSubmitted) return <SellerApplicationResume />;
   if (user) return <SellerRegistrationFlowV2 />;
 
   return (
