@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import type { User } from '@supabase/supabase-js';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 
 export const dynamic = 'force-dynamic';
@@ -13,17 +15,35 @@ const noStore = (body: Record<string, unknown>, status = 200) =>
 const validFlow = (value: unknown): value is 'buyer' | 'seller' =>
   value === 'buyer' || value === 'seller';
 
-export async function GET(request: NextRequest) {
+const bearerToken = (request: NextRequest) => {
+  const authorization = request.headers.get('authorization') || '';
+  return authorization.toLowerCase().startsWith('bearer ')
+    ? authorization.slice(7).trim()
+    : '';
+};
+
+const authenticatedUser = async (request: NextRequest): Promise<User | null> => {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const token = bearerToken(request);
+
+  if (token) {
+    const { data, error } = await supabase.auth.getUser(token);
+    if (!error && data.user) return data.user;
+  }
+
+  const { data, error } = await supabase.auth.getUser();
+  return error ? null : data.user;
+};
+
+export async function GET(request: NextRequest) {
+  const user = await authenticatedUser(request);
   if (!user) return noStore({ error: 'Authentication required.' }, 401);
 
   const flow = request.nextUrl.searchParams.get('flow');
   if (!validFlow(flow)) return noStore({ error: 'A valid onboarding flow is required.' }, 400);
 
-  const { data, error } = await supabase
+  const admin = createAdminClient();
+  const { data, error } = await admin
     .from('onboarding_drafts')
     .select('flow,step,payload,updated_at')
     .eq('user_id', user.id)
@@ -35,10 +55,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await authenticatedUser(request);
   if (!user) return noStore({ error: 'Authentication required.' }, 401);
 
   let body: { flow?: unknown; step?: unknown; payload?: unknown };
@@ -50,15 +67,17 @@ export async function PUT(request: NextRequest) {
 
   if (!validFlow(body.flow)) return noStore({ error: 'A valid onboarding flow is required.' }, 400);
   const step = typeof body.step === 'string' ? body.step.trim().slice(0, 64) : '';
-  const payload = body.payload && typeof body.payload === 'object' && !Array.isArray(body.payload)
-    ? body.payload
-    : null;
+  const payload =
+    body.payload && typeof body.payload === 'object' && !Array.isArray(body.payload)
+      ? body.payload
+      : null;
   if (!step || !payload) return noStore({ error: 'Draft step and payload are required.' }, 400);
 
   const serialized = JSON.stringify(payload);
   if (serialized.length > 64_000) return noStore({ error: 'The onboarding draft is too large.' }, 413);
 
-  const { data, error } = await supabase
+  const admin = createAdminClient();
+  const { data, error } = await admin
     .from('onboarding_drafts')
     .upsert(
       {
@@ -72,27 +91,33 @@ export async function PUT(request: NextRequest) {
     )
     .select('flow,step,updated_at')
     .single();
-  if (error) return noStore({ error: 'The onboarding draft could not be saved.' }, 503);
+  if (error) {
+    console.error('Onboarding draft save failed', {
+      userId: user.id,
+      flow: body.flow,
+      step,
+      code: error.code,
+    });
+    return noStore({ error: 'The onboarding draft could not be saved.' }, 503);
+  }
 
   return noStore({ saved: true, draft: data });
 }
 
 export async function DELETE(request: NextRequest) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await authenticatedUser(request);
   if (!user) return noStore({ error: 'Authentication required.' }, 401);
 
   const flow = request.nextUrl.searchParams.get('flow');
   if (!validFlow(flow)) return noStore({ error: 'A valid onboarding flow is required.' }, 400);
 
-  const { error } = await supabase
+  const admin = createAdminClient();
+  const { error } = await admin
     .from('onboarding_drafts')
     .delete()
     .eq('user_id', user.id)
     .eq('flow', flow);
-  if (error) return noStore({ error: 'The onboarding draft could not be cleared.' }, 503);
+  if (error) return noStore({ error: 'The saved onboarding draft could not be cleared.' }, 503);
 
   return noStore({ deleted: true });
 }

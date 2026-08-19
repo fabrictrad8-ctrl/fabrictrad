@@ -19,6 +19,8 @@ const forbidText = (relative, needle) => {
 };
 
 const onboarding = 'src/lib/hooks/useOnboardingDraft.ts';
+const onboardingApi = 'src/app/api/account/onboarding-draft/route.ts';
+const sellerVerification = 'src/app/api/seller/verification-status/route.ts';
 const composer = 'src/lib/hooks/useCatalogComposerDraft.ts';
 const mediaDraft = 'src/lib/hooks/useCatalogMediaDraft.ts';
 const catalogUi = 'src/app/seller-dashboard/components/SellerCatalogAssistant.tsx';
@@ -34,6 +36,8 @@ const readiness = '.github/workflows/integration-readiness.yml';
 
 [
   onboarding,
+  onboardingApi,
+  sellerVerification,
   composer,
   mediaDraft,
   catalogUi,
@@ -56,6 +60,18 @@ requireText(onboarding, 'keepalive');
 requireText(onboarding, 'window.localStorage.setItem');
 requireText(onboarding, 'window.sessionStorage.setItem');
 requireText(onboarding, 'saveNow(true)');
+
+// Signed-in onboarding must use a user-scoped browser key and an explicit
+// Supabase bearer session for cloud persistence. The API authenticates first,
+// then uses the server-only client scoped to that validated user id.
+requireText(onboarding, 'scopeFor(userId)');
+requireText(onboarding, 'headers.Authorization');
+requireText(onboarding, 'supabase.auth.getSession()');
+requireText(onboardingApi, 'bearerToken');
+requireText(onboardingApi, 'createAdminClient');
+requireText(onboardingApi, ".eq('user_id', user.id)");
+requireText(sellerVerification, 'bearerToken');
+requireText(sellerVerification, 'Authorization: `Bearer ${token}`');
 
 // Product entry must preserve both structured text and selected media. Text is
 // seller-scoped Web Storage; files/blobs belong in IndexedDB rather than JSON.
