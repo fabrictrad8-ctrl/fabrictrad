@@ -7,7 +7,6 @@ const isSecureContextForCookies = () =>
   typeof window !== 'undefined' && window.location.protocol === 'https:';
 
 let _canUseCookiesCache: boolean | null = null;
-let _browserClient: ReturnType<typeof createBrowserClient> | null = null;
 
 const canUseCookies = (): boolean => {
   if (!isBrowser()) return false;
@@ -101,7 +100,10 @@ const buildClient = () =>
     }
   );
 
-export function createClient() {
+type BrowserClient = ReturnType<typeof buildClient>;
+let _browserClient: BrowserClient | null = null;
+
+export function createClient(): BrowserClient {
   // React components and hooks frequently import this helper independently.
   // Reusing one browser auth client avoids duplicate auth subscriptions and
   // repeated session refresh/profile bootstrap work during route transitions.
