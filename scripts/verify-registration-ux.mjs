@@ -21,11 +21,13 @@ const forbidText = (relative, needle) => {
 const register = 'src/app/register/page.tsx';
 const entry = 'src/app/buyer-registration/components/BuyerRegistrationEntry.tsx';
 const quick = 'src/app/buyer-registration/components/PersonalBuyerQuickSignup.tsx';
+const retail = 'src/app/buyer-registration/components/RetailBuyerAccountStart.tsx';
+const seller = 'src/app/seller-registration/components/SellerRegistrationEntry.tsx';
 const preflight = 'src/app/api/auth/registration-preflight/route.ts';
 const supabaseClient = 'src/lib/supabase/client.tsx';
 const migration = 'supabase/migrations/20260820043500_account_auth_policy_performance.sql';
 
-[register, entry, quick, preflight, supabaseClient, migration].forEach(read);
+[register, entry, quick, retail, seller, preflight, supabaseClient, migration].forEach(read);
 
 // The registration landing page must link directly to the intended buyer type
 // instead of forcing everyone through another chooser screen.
@@ -35,7 +37,8 @@ requireText(register, 'Fastest · no documents');
 
 // Personal buying is deliberately a separate, lightweight path.
 requireText(entry, "import PersonalBuyerQuickSignup from './PersonalBuyerQuickSignup'");
-requireText(entry, "buyerType === 'end_user'");
+requireText(entry, "import RetailBuyerAccountStart from './RetailBuyerAccountStart'");
+requireText(entry, 'isAuthenticatedAccount');
 requireText(quick, 'Create account & start shopping');
 requireText(quick, 'Add a delivery address when you actually place an order.');
 requireText(quick, '/api/auth/registration-preflight');
@@ -43,6 +46,19 @@ requireText(quick, "buyerType: 'end_user'");
 forbidText(quick, 'confirmPassword');
 forbidText(quick, 'PAN number');
 forbidText(quick, 'GSTIN');
+
+// Business users get a real login before KYC. Their verification may be more
+// detailed, but account creation itself must stay short and recoverable.
+requireText(retail, 'Create account & continue KYC');
+requireText(retail, '/api/auth/registration-preflight');
+requireText(retail, '/buyer-registration?type=retail_store&resume=1');
+forbidText(retail, 'confirmPassword');
+requireText(seller, 'Create account & continue verification');
+requireText(seller, '/api/auth/registration-preflight');
+requireText(seller, "requestedRole: 'seller'");
+forbidText(seller, 'confirmPassword');
+forbidText(seller, 'checkEmailUnique');
+forbidText(seller, 'checkPhoneUnique');
 
 // Anonymous registration must not pretend a protected client-side RPC worked.
 // The server validates the request and performs the conflict lookup with the
@@ -65,4 +81,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.info('Fast personal signup, reliable identity preflight and auth bootstrap safeguards passed.');
+console.info('Fast personal signup, account-first business signup, identity preflight and auth bootstrap safeguards passed.');
