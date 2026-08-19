@@ -26,15 +26,57 @@ type SellerAccessRow = {
   registration_id: string;
 };
 
+type ExistingProfile = {
+  full_name: string | null;
+  phone: string | null;
+  business_name: string | null;
+  gstin: string | null;
+  address_line1: string | null;
+  city: string | null;
+  state: string | null;
+  pincode: string | null;
+};
+
+type ExistingSeller = {
+  id: string;
+  legal_business_name: string | null;
+  display_name: string | null;
+  business_type: string | null;
+  gstin: string | null;
+  pan: string | null;
+};
+
+type ExistingRegistration = {
+  owner_name: string | null;
+  phone: string | null;
+  business_name: string | null;
+  business_type: string | null;
+  city: string | null;
+  state: string | null;
+  pincode: string | null;
+  address: string | null;
+  categories: string[] | null;
+  monthly_capacity: string | null;
+  gstin: string | null;
+  pan: string | null;
+  bank_account_number: string | null;
+  bank_ifsc: string | null;
+  bank_account_name: string | null;
+  bank_name: string | null;
+};
+
 type ExistingBank = {
   account_holder_name: string | null;
   bank_name: string | null;
   account_number_masked: string | null;
   ifsc_code: string | null;
+  is_verified: boolean | null;
 };
 
 const clean = (value: unknown, max = 500) =>
   (typeof value === 'string' ? value.trim() : '').slice(0, max);
+
+const digits = (value: unknown, max = 32) => clean(value, max).replace(/\D/g, '');
 
 const safeFilename = (value: string) =>
   value
@@ -78,42 +120,91 @@ export async function POST(request: NextRequest) {
     return json({ error: 'Seller details are invalid.' }, 400);
   }
 
-  const gstin = clean(input.gstin, 15).toUpperCase();
+  const [{ data: profileData }, { data: sellerData }, { data: registrationData }] = await Promise.all([
+    supabase
+      .from('user_profiles')
+      .select('full_name,phone,business_name,gstin,address_line1,city,state,pincode')
+      .eq('id', user.id)
+      .maybeSingle(),
+    supabase
+      .from('seller_profiles')
+      .select('id,legal_business_name,display_name,business_type,gstin,pan')
+      .eq('user_id', user.id)
+      .maybeSingle(),
+    supabase
+      .from('seller_registrations')
+      .select('owner_name,phone,business_name,business_type,city,state,pincode,address,categories,monthly_capacity,gstin,pan,bank_account_number,bank_ifsc,bank_account_name,bank_name')
+      .eq('user_id', user.id)
+      .maybeSingle(),
+  ]);
+
+  const existingProfile = (profileData as ExistingProfile | null) ?? null;
+  const existingSeller = (sellerData as ExistingSeller | null) ?? null;
+  const existingRegistration = (registrationData as ExistingRegistration | null) ?? null;
+
+  const gstin = (
+    clean(input.gstin, 15) ||
+    clean(existingRegistration?.gstin, 15) ||
+    clean(existingSeller?.gstin, 15) ||
+    clean(existingProfile?.gstin, 15)
+  ).toUpperCase();
   if (!/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(gstin)) {
     return json({ error: 'Enter a valid GSTIN to continue the seller application.' }, 400);
   }
 
-  const businessName = clean(input.businessName, 200);
-  const ownerName = clean(input.ownerName, 160);
-  const phone = clean(input.phone, 10).replace(/\D/g, '');
-  if (!businessName || !ownerName || !/^[6-9]\d{9}$/.test(phone)) {
-    return json({ error: 'Business name, owner name and a valid mobile number are required.' }, 400);
-  }
+  const businessName =
+    clean(input.businessName, 200) ||
+    clean(existingRegistration?.business_name, 200) ||
+    clean(existingSeller?.legal_business_name, 200) ||
+    clean(existingSeller?.display_name, 200) ||
+    clean(existingProfile?.business_name, 200);
+  const ownerName =
+    clean(input.ownerName, 160) ||
+    clean(existingRegistration?.owner_name, 160) ||
+    clean(existingProfile?.full_name, 160);
+  const phone =
+    digits(input.phone, 32).slice(-10) ||
+    digits(existingRegistration?.phone, 32).slice(-10) ||
+    digits(existingProfile?.phone, 32).slice(-10);
 
-  const { data: existingSeller } = await supabase
-    .from('seller_profiles')
-    .select('id')
-    .eq('user_id', user.id)
-    .maybeSingle();
+  if (!businessName || !ownerName || !/^[6-9]\d{9}$/.test(phone)) {
+    return json(
+      {
+        error:
+          'Your saved seller profile is incomplete. Add the business name, owner name and mobile number once; FabricTrad will keep them for the remaining steps.',
+      },
+      400
+    );
+  }
 
   let existingBank: ExistingBank | null = null;
   if (existingSeller?.id) {
     const { data } = await supabase
       .from('seller_bank_profiles')
-      .select('account_holder_name,bank_name,account_number_masked,ifsc_code')
+      .select('account_holder_name,bank_name,account_number_masked,ifsc_code,is_verified')
       .eq('seller_id', existingSeller.id)
       .maybeSingle();
     existingBank = (data as ExistingBank | null) ?? null;
   }
 
-  const accountDigits = clean(input.bankAccountNumber, 32).replace(/\D/g, '');
-  const bankIfsc = clean(input.bankIfsc, 11).toUpperCase() || existingBank?.ifsc_code || '';
+  const accountDigits = digits(input.bankAccountNumber, 32);
+  const bankIfsc = (
+    clean(input.bankIfsc, 11) ||
+    clean(existingRegistration?.bank_ifsc, 11) ||
+    clean(existingBank?.ifsc_code, 11)
+  ).toUpperCase();
   const bankAccountName =
-    clean(input.bankAccountName, 200) || existingBank?.account_holder_name || '';
-  const bankName = clean(input.bankName, 200) || existingBank?.bank_name || '';
+    clean(input.bankAccountName, 200) ||
+    clean(existingRegistration?.bank_account_name, 200) ||
+    clean(existingBank?.account_holder_name, 200);
+  const bankName =
+    clean(input.bankName, 200) ||
+    clean(existingRegistration?.bank_name, 200) ||
+    clean(existingBank?.bank_name, 200);
   const bankAccountNumberMasked = accountDigits
     ? `****${accountDigits.slice(-4)}`
-    : existingBank?.account_number_masked || '';
+    : clean(existingRegistration?.bank_account_number, 32) ||
+      clean(existingBank?.account_number_masked, 32);
 
   if (accountDigits && !/^\d{9,18}$/.test(accountDigits)) {
     return json({ error: 'Enter a valid bank account number containing 9 to 18 digits.' }, 400);
@@ -125,21 +216,59 @@ export async function POST(request: NextRequest) {
     return json({ error: 'Add the account-holder name and bank name.' }, 400);
   }
 
+  const businessType =
+    clean(input.businessType, 100) ||
+    clean(existingRegistration?.business_type, 100) ||
+    clean(existingSeller?.business_type, 100) ||
+    'Business seller';
+  const city =
+    clean(input.city, 120) ||
+    clean(existingRegistration?.city, 120) ||
+    clean(existingProfile?.city, 120);
+  const state =
+    clean(input.state, 120) ||
+    clean(existingRegistration?.state, 120) ||
+    clean(existingProfile?.state, 120);
+  const pincode =
+    clean(input.pincode, 6) ||
+    clean(existingRegistration?.pincode, 6) ||
+    clean(existingProfile?.pincode, 6);
+  const address =
+    clean(input.address, 1000) ||
+    clean(existingRegistration?.address, 1000) ||
+    clean(existingProfile?.address_line1, 1000);
+  const categoriesFromInput = Array.isArray(input.categories)
+    ? input.categories.map((item) => clean(item, 100)).filter(Boolean).slice(0, 30)
+    : [];
+  const categories = categoriesFromInput.length
+    ? categoriesFromInput
+    : (existingRegistration?.categories || []).map((item) => clean(item, 100)).filter(Boolean).slice(0, 30);
+  const monthlyCapacity =
+    clean(input.monthlyCapacity, 100) || clean(existingRegistration?.monthly_capacity, 100);
+  const pan = (
+    clean(input.pan, 10) ||
+    clean(existingRegistration?.pan, 10) ||
+    clean(existingSeller?.pan, 10) ||
+    gstin.slice(2, 12)
+  ).toUpperCase();
+
+  if (pan !== gstin.slice(2, 12)) {
+    return json({ error: 'The PAN must match characters 3–12 of the GSTIN.' }, 400);
+  }
+
   const payload = {
     ownerName,
     phone,
     businessName,
-    businessType: clean(input.businessType, 100),
-    city: clean(input.city, 120),
-    state: clean(input.state, 120),
-    pincode: clean(input.pincode, 6),
-    address: clean(input.address, 1000),
-    categories: Array.isArray(input.categories)
-      ? input.categories.map((item) => clean(item, 100)).filter(Boolean).slice(0, 30)
-      : [],
-    monthlyCapacity: clean(input.monthlyCapacity, 100),
+    businessType,
+    city,
+    state,
+    pincode,
+    address,
+    categories,
+    monthlyCapacity,
     gstin,
-    pan: clean(input.pan, 10).toUpperCase(),
+    pan,
     bankAccountNumberMasked,
     bankIfsc,
     bankAccountName,
@@ -158,6 +287,42 @@ export async function POST(request: NextRequest) {
   const registrationId = String(access.registration_id);
   const sellerRef = `FT-SLR-${user.id.replaceAll('-', '').slice(0, 12).toUpperCase()}`;
   const admin = createAdminClient();
+
+  const bankWasChanged = Boolean(
+    accountDigits ||
+      (clean(input.bankIfsc, 11) && clean(input.bankIfsc, 11).toUpperCase() !== clean(existingBank?.ifsc_code, 11).toUpperCase()) ||
+      (clean(input.bankAccountName, 200) && clean(input.bankAccountName, 200) !== clean(existingBank?.account_holder_name, 200)) ||
+      (clean(input.bankName, 200) && clean(input.bankName, 200) !== clean(existingBank?.bank_name, 200))
+  );
+
+  const { error: bankSaveError } = await admin
+    .from('seller_bank_profiles')
+    .upsert(
+      {
+        seller_id: sellerProfileId,
+        account_holder_name: bankAccountName,
+        bank_name: bankName,
+        account_number_masked: bankAccountNumberMasked,
+        ifsc_code: bankIfsc,
+        is_verified: bankWasChanged ? false : Boolean(existingBank?.is_verified),
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'seller_id' }
+    );
+  if (bankSaveError) {
+    return json(
+      {
+        saved: true,
+        applicationSubmitted: false,
+        sellerProfileId,
+        registrationId,
+        sellerRef,
+        warning: 'Business details were saved, but the settlement account could not be saved. Please retry.',
+      },
+      207
+    );
+  }
+
   let uploadedDocuments = 0;
 
   try {
@@ -176,9 +341,6 @@ export async function POST(request: NextRequest) {
         });
       if (uploadError) throw uploadError;
 
-      // The authenticated upload proves ownership. Metadata is reset through the
-      // service client so a rejected document can safely re-enter review without
-      // giving sellers direct access to administrator review fields.
       const { error: documentError } = await admin
         .from('seller_registration_documents')
         .upsert(
