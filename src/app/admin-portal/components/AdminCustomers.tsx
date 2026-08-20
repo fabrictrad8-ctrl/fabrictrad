@@ -27,9 +27,11 @@ type CustomerRow = {
 
 type Filter = 'all' | 'buyers' | 'sellers' | 'both' | 'pending' | 'inactive' | 'admins';
 
+const isAdminCustomer = (customer: CustomerRow) =>
+  customer.role === 'super_admin' || customer.role === 'admin_staff';
+
 const capabilityLabel = (customer: CustomerRow) => {
-  const admin = customer.role === 'super_admin' || customer.role === 'admin_staff';
-  if (admin) return 'Administrator';
+  if (isAdminCustomer(customer)) return 'Administrator';
   if (customer.can_buy && customer.can_sell) return 'Buyer + Seller';
   if (customer.can_sell || customer.role === 'seller') return 'Seller';
   return 'Buyer';
@@ -44,6 +46,7 @@ export default function AdminCustomers() {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [resettingId, setResettingId] = useState<string | null>(null);
 
   const loadCustomers = async () => {
     setLoading(true);
@@ -78,7 +81,7 @@ export default function AdminCustomers() {
   const filtered = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     return customers.filter((customer) => {
-      const admin = customer.role === 'super_admin' || customer.role === 'admin_staff';
+      const admin = isAdminCustomer(customer);
       const matchesFilter =
         filter === 'all' ||
         (filter === 'buyers' && customer.can_buy === true && customer.can_sell !== true && !admin) ||
@@ -125,6 +128,25 @@ export default function AdminCustomers() {
       toast.error(caughtError instanceof Error ? caughtError.message : 'Account status could not be changed.');
     } finally {
       setUpdatingId(null);
+    }
+  };
+
+  const sendPasswordReset = async (customer: CustomerRow) => {
+    if (!customer.email || isAdminCustomer(customer)) return;
+    setResettingId(customer.id);
+    try {
+      const response = await fetch(`/api/admin/customers/${customer.id}/password-reset`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        cache: 'no-store',
+      });
+      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+      if (!response.ok) throw new Error(payload.error || 'Password reset email could not be sent.');
+      toast.success(`Password reset email sent to ${customer.email}.`);
+    } catch (caughtError) {
+      toast.error(caughtError instanceof Error ? caughtError.message : 'Password reset email could not be sent.');
+    } finally {
+      setResettingId(null);
     }
   };
 
@@ -206,6 +228,14 @@ export default function AdminCustomers() {
         </div>
       </div>
 
+      <div className="mb-4 flex items-start gap-3 rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3 text-xs leading-5 text-muted-foreground">
+        <Icon name="ShieldCheckIcon" size={17} className="mt-0.5 shrink-0 text-primary" />
+        <p>
+          <span className="font-800 text-foreground">Passwords are never displayed.</span>{' '}
+          Supabase stores password hashes rather than the original passwords. Use the reset control below to send a secure recovery email to a customer or seller.
+        </p>
+      </div>
+
       {error && (
         <div role="alert" className="mb-4 rounded-xl border border-error/20 bg-error/10 px-4 py-3 text-sm text-error">{error}</div>
       )}
@@ -216,10 +246,11 @@ export default function AdminCustomers() {
           <span>Live Supabase profiles</span>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[920px] text-sm">
+          <table className="w-full min-w-[1120px] text-sm">
             <thead className="bg-muted/70 text-left text-xs font-800 text-muted-foreground">
               <tr>
                 <th className="px-4 py-3">Customer</th>
+                <th className="px-4 py-3">Password</th>
                 <th className="px-4 py-3">Access</th>
                 <th className="px-4 py-3">Verification</th>
                 <th className="px-4 py-3">Location</th>
@@ -229,10 +260,11 @@ export default function AdminCustomers() {
             </thead>
             <tbody className="divide-y divide-border">
               {!loading && filtered.length === 0 && (
-                <tr><td colSpan={6} className="px-6 py-14 text-center text-sm text-muted-foreground">No customer accounts match this view.</td></tr>
+                <tr><td colSpan={7} className="px-6 py-14 text-center text-sm text-muted-foreground">No customer accounts match this view.</td></tr>
               )}
               {filtered.map((customer) => {
                 const focused = focusId === customer.id;
+                const admin = isAdminCustomer(customer);
                 return (
                   <tr id={`customer-${customer.id}`} key={customer.id} className={focused ? 'bg-primary/10 ring-1 ring-inset ring-primary/30' : 'hover:bg-muted/30'}>
                     <td className="px-4 py-3">
@@ -246,6 +278,28 @@ export default function AdminCustomers() {
                           {customer.business_name && customer.business_name !== customer.full_name && <p className="truncate text-xs text-muted-foreground">{customer.business_name}</p>}
                         </div>
                       </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      {admin ? (
+                        <div>
+                          <p className="text-xs font-800 text-muted-foreground">Not retrievable</p>
+                          <p className="mt-1 text-[11px] text-muted-foreground">Admin recovery is separate</p>
+                        </div>
+                      ) : customer.email ? (
+                        <div className="flex flex-col items-start gap-1.5">
+                          <span className="text-xs font-800 text-muted-foreground">•••••••• · not retrievable</span>
+                          <button
+                            type="button"
+                            disabled={resettingId === customer.id}
+                            onClick={() => void sendPasswordReset(customer)}
+                            className="rounded-lg border border-primary/20 bg-primary/5 px-2.5 py-1.5 text-xs font-800 text-primary hover:bg-primary hover:text-white disabled:opacity-50"
+                          >
+                            {resettingId === customer.id ? 'Sending…' : 'Send reset email'}
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">No email for recovery</span>
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       <span className="rounded-full bg-secondary/10 px-2.5 py-1 text-xs font-800 text-secondary">{capabilityLabel(customer)}</span>
