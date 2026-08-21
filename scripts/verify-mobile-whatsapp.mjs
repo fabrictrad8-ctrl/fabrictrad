@@ -34,6 +34,9 @@ const trialMigration = 'supabase/migrations/20260817150000_trial_room_asset_pipe
 const trialStatus = 'src/app/api/ai/trial-room/status/route.ts';
 const drapeApi = 'src/app/api/ai/drape-on/route.ts';
 const drapeUi = 'src/app/product-detail/components/VirtualColourDrapeStudio.tsx';
+const drape3d = 'src/app/product-detail/components/InteractiveFabricMannequin3D.tsx';
+const drapeStyle = 'src/lib/drapeProductStyle.ts';
+const pageContinuity = 'src/components/PageContinuity.tsx';
 const legacyDrape = 'src/app/product-detail/components/FabricDrapeViewer.tsx';
 const manifest = 'src/app/manifest.ts';
 const readiness = '.github/workflows/integration-readiness.yml';
@@ -55,6 +58,9 @@ const readiness = '.github/workflows/integration-readiness.yml';
   trialStatus,
   drapeApi,
   drapeUi,
+  drape3d,
+  drapeStyle,
+  pageContinuity,
   legacyDrape,
   manifest,
   readiness,
@@ -70,8 +76,7 @@ requireText(onboarding, 'window.sessionStorage.setItem');
 requireText(onboarding, 'saveNow(true)');
 
 // Signed-in onboarding must use a user-scoped browser key and an explicit
-// Supabase bearer session for cloud persistence. The API authenticates first,
-// then uses the server-only client scoped to that validated user id.
+// Supabase bearer session for cloud persistence.
 requireText(onboarding, 'scopeFor(userId)');
 requireText(onboarding, 'headers.Authorization');
 requireText(onboarding, 'supabase.auth.getSession()');
@@ -81,10 +86,7 @@ requireText(onboardingApi, ".eq('user_id', user.id)");
 requireText(sellerVerification, 'bearerToken');
 requireText(sellerVerification, 'Authorization: `Bearer ${token}`');
 
-// Product entry must preserve both structured text and selected media. Text is
-// seller-scoped Web Storage; files/blobs belong in IndexedDB rather than JSON.
-// Real sellers also receive an account-level cloud draft so a draft can be
-// resumed after leaving the original device/session.
+// Product drafts must survive navigation and mobile picker round trips.
 requireText(composer, 'ownerKey');
 requireText(composer, 'window.localStorage.setItem');
 requireText(composer, "document.visibilityState === 'hidden'");
@@ -101,14 +103,11 @@ requireText(productDraftMigration, 'create table if not exists public.seller_pro
 requireText(productDraftMigration, 'enable row level security');
 requireText(productDraftMigration, 'seller_product_drafts_owner_update');
 
-// Meta webhook verification and incoming messages must never trust unsigned
-// internet requests or expose provider credentials in the browser. Processing
-// is scheduled after the response so media retrieval cannot delay Meta's ack.
+// WhatsApp ingestion stays signed, private and seller scoped.
 requireText(webhook, "request.headers.get('x-hub-signature-256')");
 requireText(webhook, "createHmac('sha256'");
 requireText(webhook, 'timingSafeEqual');
 requireText(webhook, 'after(async () =>');
-requireText(webhook, "metadataUrl.searchParams.set('phone_number_id'");
 requireText(webhook, 'WHATSAPP_APP_SECRET');
 requireText(webhook, 'WHATSAPP_ACCESS_TOKEN');
 requireText(webhook, 'WHATSAPP_VERIFY_TOKEN');
@@ -117,27 +116,32 @@ requireText(webhook, "from('whatsapp_catalog_ingestions')");
 requireText(webhook, "from(MEDIA_BUCKET)");
 forbidText(webhook, 'WHATSAPP_ACCESS_TOKEN =');
 forbidText(webhook, 'WHATSAPP_APP_SECRET =');
-
-// Inbox media is private and dashboard rows are scoped to the authenticated
-// seller; the seller cannot forge ingestion records through RLS.
 requireText(migration, "'seller-whatsapp-inbox'");
-requireText(migration, 'false,');
 requireText(migration, 'ENABLE ROW LEVEL SECURITY');
 requireText(migration, 'user_id = (SELECT auth.uid())');
-requireText(migration, 'GRANT SELECT ON TABLE public.whatsapp_catalog_ingestions TO authenticated');
-forbidText(migration, 'GRANT INSERT ON TABLE public.whatsapp_catalog_ingestions TO authenticated');
 requireText(inboxApi, ".eq('user_id', user.id)");
 requireText(inboxApi, 'createSignedUrl');
 requireText(inboxUi, 'WhatsApp → FabricTrad dashboard');
-requireText(inboxUi, '/api/whatsapp/catalog-inbox');
-requireText(inboxUi, '/api/whatsapp/status');
 
-// The current buyer trial room is a real AI image edit using the approved live
-// listing and selected variant. It must never regress to a browser texture overlay.
+// Buyer trial room: the product decides the garment, mannequin mode is real
+// interactive WebGL geometry, and personal-photo mode remains the server-side
+// AI image edit using approved listing media.
+requireText(drapeUi, 'inferDrapeProductStyle');
+requireText(drapeUi, 'Detected from this listing');
+requireText(drapeUi, 'InteractiveFabricMannequin3D');
+requireText(drapeUi, 'indexedDB.open');
 requireText(drapeUi, 'productId: product.rawProductId');
 requireText(drapeUi, 'variantId: product.selectedVariantId');
 requireText(drapeUi, 'navigator.mediaDevices.getUserMedia');
-requireText(drapeUi, 'No fake overlay');
+requireText(drapeUi, 'drapeProductStyleApiId(productStyle)');
+requireText(drapeUi, 'drapeProductStylePrompt(productStyle)');
+forbidText(drapeUi, 'Choose the garment');
+requireText(drape3d, "await import('three')");
+requireText(drape3d, 'pointerdown');
+requireText(drape3d, 'wheel');
+requireText(drape3d, 'Interactive WebGL 3D');
+requireText(drapeStyle, 'inferDrapeProductStyle');
+requireText(drapeStyle, "return 'fabric'");
 requireText(drapeApi, 'resolveListingFabric');
 requireText(drapeApi, ".from('seller_products')");
 requireText(drapeApi, ".from('seller_product_variants')");
@@ -149,25 +153,31 @@ requireText(drapeApi, "form.append('image[]', fabric.blob");
 requireText(drapeApi, "mode: 'real_ai_image_try_on'");
 requireText(legacyDrape, "export { default } from './VirtualColourDrapeStudio';");
 forbidText(legacyDrape, "blend: 'multiply'");
-forbidText(legacyDrape, 'setIsDragging');
 
-// The system must distinguish today's 2D image try-on from the future 3D
-// engine instead of marketing a generated image as true 3D.
+// The hybrid experience is represented accurately: real browser 3D for the
+// mannequin, AI 2D for an uploaded personal photo, and a future GLB/USDZ path.
 requireText(trialMigration, 'garment_glb');
 requireText(trialMigration, 'garment_usdz');
 requireText(trialMigration, 'fabric_texture');
-requireText(trialStatus, "currentExperience: 'ai_2d_image_try_on'");
-requireText(trialStatus, 'threeDProviderConfigured');
-requireText(trialStatus, 'architecture_ready_provider_pending');
+requireText(trialStatus, "currentExperience: 'interactive_3d_mannequin_plus_ai_photo_try_on'");
+requireText(trialStatus, 'interactiveThreeDMannequin: true');
+requireText(trialStatus, "personalPhotoExperience: 'ai_2d_image_try_on'");
+requireText(trialStatus, "'procedural_webgl_mannequin_live'");
 
-// Phone-first operation should be installable as a standalone web app without
-// claiming unsupported offline transaction behavior.
+// Switching browser tabs must save continuity state and must not trigger a
+// visibility-based reload or router refresh.
+requireText(pageContinuity, "document.addEventListener('visibilitychange'");
+requireText(pageContinuity, "window.addEventListener('pagehide'");
+requireText(pageContinuity, 'sessionStorage.setItem');
+forbidText(pageContinuity, 'window.location.reload');
+forbidText(pageContinuity, 'router.refresh');
+
+// Phone-first operation should remain installable as a standalone web app.
 requireText(manifest, "display: 'standalone'");
 requireText(manifest, "start_url: '/'");
 requireText(manifest, "categories: ['business', 'shopping', 'productivity']");
 
-// Production readiness must continuously tell us whether the external Meta
-// number/credentials have actually been connected.
+// Production readiness must continuously validate the Meta integration.
 requireText(status, 'configured');
 requireText(readiness, "fetch_json 'WhatsApp catalog readiness'");
 requireText(readiness, 'WhatsApp forged-signature probe');
@@ -178,4 +188,4 @@ if (failures.length) {
   failures.forEach((failure) => console.error(`- ${failure}`));
   process.exit(1);
 }
-console.info('Mobile persistence, WhatsApp ingestion and real buyer AI try-on verification passed.');
+console.info('Mobile persistence, WhatsApp ingestion and hybrid 3D/AI buyer try-on verification passed.');

@@ -14,6 +14,7 @@ import '../styles/accessibility-target-fixes.css';
 import { AuthProvider } from '@/contexts/AuthContext';
 import AppClientEnhancements from '@/components/AppClientEnhancements';
 import RouteExperienceEnhancer from '@/components/RouteExperienceEnhancer';
+import PageContinuity from '@/components/PageContinuity';
 import { AppPreferencesProvider } from '@/contexts/AppPreferencesContext';
 
 export const viewport: Viewport = {
@@ -67,6 +68,7 @@ export default function RootLayout({
           <AppPreferencesProvider>
             <RouteExperienceEnhancer />
             <AppClientEnhancements />
+            <PageContinuity />
             {children}
           </AppPreferencesProvider>
         </AuthProvider>
