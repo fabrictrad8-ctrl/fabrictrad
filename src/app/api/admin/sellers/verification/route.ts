@@ -12,13 +12,7 @@ const REQUIRED_DOCUMENT_TYPES = [
   'cancelled_cheque',
 ] as const;
 
-type ReviewAction =
-  | 'confirm_gstin'
-  | 'approve_document'
-  | 'reject_document'
-  | 'verify_bank'
-  | 'approve_seller'
-  | 'reject_seller';
+type ReviewAction = 'approve_seller' | 'reject_seller';
 
 type SellerRow = {
   id: string;
@@ -117,6 +111,7 @@ async function requireAdministrator(): Promise<AdminAccess> {
     .select('role,is_active')
     .eq('id', user.id)
     .maybeSingle();
+
   const allowed =
     profile?.is_active === true &&
     (profile.role === 'super_admin' || profile.role === 'admin_staff');
@@ -124,28 +119,30 @@ async function requireAdministrator(): Promise<AdminAccess> {
   return { user };
 }
 
-const sellerBlockers = (input: {
+const submissionBlockers = (input: {
   phone?: string | null;
-  gstinVerified?: boolean;
-  gstinStatus?: string | null;
+  gstin?: string | null;
   documents?: Array<{ document_type: string; upload_status: string }>;
-  bankVerified?: boolean;
-  bankPresent?: boolean;
+  bank?: BankRow | null;
 }) => {
   const blockers: string[] = [];
-  if (!input.phone) blockers.push('Seller mobile number is missing.');
-  if (!input.gstinVerified || input.gstinStatus !== 'active') {
-    blockers.push('GSTIN has not been confirmed Active.');
-  }
+  if (!input.phone?.trim()) blockers.push('Mobile number is missing.');
+  if (!input.gstin?.trim()) blockers.push('GSTIN is missing.');
+
   for (const documentType of REQUIRED_DOCUMENT_TYPES) {
     const document = input.documents?.find((item) => item.document_type === documentType);
-    if (!document) blockers.push(`${documentType.replaceAll('_', ' ')} is missing.`);
-    else if (document.upload_status !== 'approved') {
-      blockers.push(`${documentType.replaceAll('_', ' ')} is not approved.`);
+    if (!document || !['uploaded', 'under_review', 'approved'].includes(document.upload_status)) {
+      blockers.push(`${documentType.replaceAll('_', ' ')} is missing.`);
     }
   }
-  if (!input.bankPresent) blockers.push('Settlement account has not been submitted.');
-  else if (!input.bankVerified) blockers.push('Settlement account has not been verified.');
+
+  if (
+    !input.bank ||
+    !input.bank.account_number_masked?.trim() ||
+    !input.bank.ifsc_code?.trim()
+  ) {
+    blockers.push('Settlement account details are missing.');
+  }
   return blockers;
 };
 
@@ -158,36 +155,39 @@ async function loadApplications(): Promise<ApplicationRow[]> {
     )
     .order('updated_at', { ascending: false });
   if (sellerError) throw sellerError;
+
   const sellers = (sellerData || []) as SellerRow[];
   if (sellers.length === 0) return [];
 
   const userIds = sellers.map((seller) => seller.user_id);
   const sellerIds = sellers.map((seller) => seller.id);
 
-  const { data: userData, error: userError } = await admin
-    .from('user_profiles')
-    .select('id,full_name,email,phone,is_active,can_sell')
-    .in('id', userIds);
+  const [{ data: userData, error: userError }, { data: registrationData, error: registrationError }, { data: bankData, error: bankError }] = await Promise.all([
+    admin
+      .from('user_profiles')
+      .select('id,full_name,email,phone,is_active,can_sell')
+      .in('id', userIds),
+    admin
+      .from('seller_registrations')
+      .select(
+        'id,user_id,business_name,business_type,gstin,pan,registration_status,submitted_at,approved_at,rejection_reason,updated_at'
+      )
+      .in('user_id', userIds)
+      .order('updated_at', { ascending: false }),
+    admin
+      .from('seller_bank_profiles')
+      .select(
+        'id,seller_id,account_holder_name,bank_name,account_number_masked,ifsc_code,is_verified,updated_at'
+      )
+      .in('seller_id', sellerIds),
+  ]);
+
   if (userError) throw userError;
-  const users = (userData || []) as UserRow[];
-
-  const { data: registrationData, error: registrationError } = await admin
-    .from('seller_registrations')
-    .select(
-      'id,user_id,business_name,business_type,gstin,pan,registration_status,submitted_at,approved_at,rejection_reason,updated_at'
-    )
-    .in('user_id', userIds)
-    .order('updated_at', { ascending: false });
   if (registrationError) throw registrationError;
-  const registrations = (registrationData || []) as RegistrationRow[];
-
-  const { data: bankData, error: bankError } = await admin
-    .from('seller_bank_profiles')
-    .select(
-      'id,seller_id,account_holder_name,bank_name,account_number_masked,ifsc_code,is_verified,updated_at'
-    )
-    .in('seller_id', sellerIds);
   if (bankError) throw bankError;
+
+  const users = (userData || []) as UserRow[];
+  const registrations = (registrationData || []) as RegistrationRow[];
   const banks = (bankData || []) as BankRow[];
 
   const latestRegistrationByUser = new Map<string, RegistrationRow>();
@@ -231,24 +231,13 @@ async function loadApplications(): Promise<ApplicationRow[]> {
     const documents = documentsWithUrls.filter(
       (item) => item.registration_id === registration?.id
     );
-    const blockers = sellerBlockers({
+    const blockers = submissionBlockers({
       phone: user?.phone,
-      gstinVerified: seller.gstin_verified === true,
-      gstinStatus: seller.gstin_status,
+      gstin: seller.gstin || registration?.gstin,
       documents,
-      bankPresent: Boolean(bank),
-      bankVerified: bank?.is_verified === true,
+      bank,
     });
-    const requiredUploaded = REQUIRED_DOCUMENT_TYPES.filter((type) =>
-      documents.some(
-        (document) =>
-          document.document_type === type &&
-          ['uploaded', 'under_review', 'approved'].includes(document.upload_status)
-      )
-    ).length;
-    const applicationSubmitted = Boolean(
-      registration?.submitted_at && bank && requiredUploaded === REQUIRED_DOCUMENT_TYPES.length
-    );
+    const applicationSubmitted = Boolean(registration?.submitted_at && blockers.length === 0);
 
     return {
       sellerId: seller.id,
@@ -260,7 +249,8 @@ async function loadApplications(): Promise<ApplicationRow[]> {
       documents,
       blockers,
       applicationSubmitted,
-      readyForApproval: applicationSubmitted && blockers.length === 0,
+      readyForApproval:
+        applicationSubmitted && seller.verification_status !== 'verified',
     };
   });
 }
@@ -268,6 +258,7 @@ async function loadApplications(): Promise<ApplicationRow[]> {
 export async function GET() {
   const access = await requireAdministrator();
   if (access.error) return access.error;
+
   try {
     return json({ applications: await loadApplications() });
   } catch (error) {
@@ -283,185 +274,93 @@ export async function PATCH(request: NextRequest) {
   const payload = (await request.json().catch(() => ({}))) as {
     action?: ReviewAction;
     sellerId?: string;
-    documentId?: string;
     reason?: string;
   };
   const action = payload.action;
   const sellerId = String(payload.sellerId || '');
   const reason = String(payload.reason || '').trim().slice(0, 1000);
-  if (!action || !sellerId) return json({ error: 'Seller and review action are required.' }, 400);
-  if (
-    ![
-      'confirm_gstin',
-      'approve_document',
-      'reject_document',
-      'verify_bank',
-      'approve_seller',
-      'reject_seller',
-    ].includes(action)
-  ) {
+
+  if (!sellerId || !action) return json({ error: 'Seller and review action are required.' }, 400);
+  if (!['approve_seller', 'reject_seller'].includes(action)) {
     return json({ error: 'Unsupported seller review action.' }, 400);
   }
-  if ((action === 'reject_document' || action === 'reject_seller') && reason.length < 5) {
+  if (action === 'reject_seller' && reason.length < 5) {
     return json({ error: 'Add a clear rejection reason.' }, 400);
   }
 
   const admin = createAdminClient();
-  const { data: seller } = await admin
+  const { data: seller, error: sellerReadError } = await admin
     .from('seller_profiles')
-    .select('id,user_id,gstin,gstin_status,gstin_verified,verification_status')
+    .select('id,user_id,verification_status')
     .eq('id', sellerId)
     .maybeSingle();
+  if (sellerReadError) throw sellerReadError;
   if (!seller) return json({ error: 'Seller application not found.' }, 404);
 
-  const { data: registration } = await admin
-    .from('seller_registrations')
-    .select('id,user_id,registration_status,submitted_at')
-    .eq('user_id', seller.user_id)
-    .order('updated_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  const now = new Date().toISOString();
-
   try {
-    if (action === 'confirm_gstin') {
-      if (!seller.gstin) return json({ error: 'The seller has not submitted a GSTIN.' }, 409);
-      const { error: sellerError } = await admin
-        .from('seller_profiles')
-        .update({
-          gstin_status: 'active',
-          gstin_verified: true,
-          gstin_verified_at: now,
-          updated_at: now,
-        })
-        .eq('id', sellerId);
-      if (sellerError) throw sellerError;
-      if (registration) {
-        const { error: registrationError } = await admin
-          .from('seller_registrations')
-          .update({ gstin_verified: true, gstin_verified_at: now, updated_at: now })
-          .eq('id', registration.id);
-        if (registrationError) throw registrationError;
-      }
-    }
-
-    if (action === 'approve_document' || action === 'reject_document') {
-      const documentId = String(payload.documentId || '');
-      if (!registration || !documentId) {
-        return json({ error: 'Select a submitted seller document.' }, 400);
-      }
-      const { data: document } = await admin
-        .from('seller_registration_documents')
-        .select('id,registration_id')
-        .eq('id', documentId)
-        .eq('registration_id', registration.id)
-        .maybeSingle();
-      if (!document) return json({ error: 'Seller document not found.' }, 404);
-      const { error } = await admin
-        .from('seller_registration_documents')
-        .update({
-          upload_status: action === 'approve_document' ? 'approved' : 'rejected',
-          rejection_reason: action === 'approve_document' ? null : reason,
-          reviewed_by: access.user.id,
-          reviewed_at: now,
-          updated_at: now,
-        })
-        .eq('id', documentId);
-      if (error) throw error;
-    }
-
-    if (action === 'verify_bank') {
-      const { data: bank } = await admin
-        .from('seller_bank_profiles')
-        .select('id')
-        .eq('seller_id', sellerId)
-        .maybeSingle();
-      if (!bank) return json({ error: 'The seller has not submitted a settlement account.' }, 409);
-      const { error: bankError } = await admin
-        .from('seller_bank_profiles')
-        .update({ is_verified: true, updated_at: now })
-        .eq('id', bank.id);
-      if (bankError) throw bankError;
-      if (registration) {
-        const { error: registrationError } = await admin
-          .from('seller_registrations')
-          .update({ bank_verified: true, bank_verified_at: now, updated_at: now })
-          .eq('id', registration.id);
-        if (registrationError) throw registrationError;
-      }
-    }
-
     if (action === 'approve_seller') {
+      if (seller.verification_status === 'verified') {
+        return json({ updated: true, action, sellerId, alreadyApproved: true });
+      }
+
       const applications = await loadApplications();
       const current = applications.find((item) => item.sellerId === sellerId);
-      if (!current?.applicationSubmitted) {
+      if (!current?.applicationSubmitted || !current.readyForApproval) {
         return json(
           {
-            error: 'The seller has not completed and submitted the application.',
-            blockers: current?.blockers || [],
+            error: 'This application is not complete enough to approve yet.',
+            blockers: current?.blockers || ['Seller application is incomplete.'],
           },
           409
         );
       }
-      if (!current.readyForApproval) {
-        return json(
-          {
-            error: 'Complete all GSTIN, document and bank checks before final approval.',
-            blockers: current.blockers,
-          },
-          409
-        );
-      }
-      const { error: sellerError } = await admin
-        .from('seller_profiles')
-        .update({
-          verification_status: 'verified',
-          settlement_eligible: true,
-          is_active: true,
-          updated_at: now,
-        })
-        .eq('id', sellerId);
-      if (sellerError) throw sellerError;
-      if (registration) {
-        const { error: registrationError } = await admin
-          .from('seller_registrations')
-          .update({
-            registration_status: 'approved',
-            approved_at: now,
-            rejection_reason: null,
-            updated_at: now,
-          })
-          .eq('id', registration.id);
-        if (registrationError) throw registrationError;
-      }
+
+      const { data, error } = await admin.rpc('admin_approve_seller', {
+        p_seller_id: sellerId,
+        p_admin_id: access.user.id,
+      });
+      if (error) throw error;
+      return json({ updated: true, action, sellerId, approval: data });
     }
 
-    if (action === 'reject_seller') {
-      const { error: sellerError } = await admin
-        .from('seller_profiles')
+    const now = new Date().toISOString();
+    const { data: registration } = await admin
+      .from('seller_registrations')
+      .select('id')
+      .eq('user_id', seller.user_id)
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const { error: sellerError } = await admin
+      .from('seller_profiles')
+      .update({
+        verification_status: 'rejected',
+        settlement_eligible: false,
+        updated_at: now,
+      })
+      .eq('id', sellerId);
+    if (sellerError) throw sellerError;
+
+    if (registration) {
+      const { error: registrationError } = await admin
+        .from('seller_registrations')
         .update({
-          verification_status: 'rejected',
-          settlement_eligible: false,
+          registration_status: 'rejected',
+          rejection_reason: reason,
           updated_at: now,
         })
-        .eq('id', sellerId);
-      if (sellerError) throw sellerError;
-      if (registration) {
-        const { error: registrationError } = await admin
-          .from('seller_registrations')
-          .update({
-            registration_status: 'rejected',
-            rejection_reason: reason,
-            updated_at: now,
-          })
-          .eq('id', registration.id);
-        if (registrationError) throw registrationError;
-      }
+        .eq('id', registration.id);
+      if (registrationError) throw registrationError;
     }
 
     return json({ updated: true, action, sellerId });
   } catch (error) {
     console.error('Administrator seller verification update failed', error);
-    return json({ error: 'Seller verification update could not be saved.' }, 503);
+    const message = error instanceof Error ? error.message : '';
+    return json(
+      { error: message || 'Seller verification update could not be saved.' },
+      503
+    );
   }
 }
