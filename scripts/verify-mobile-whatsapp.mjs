@@ -24,6 +24,7 @@ const sellerVerification = 'src/app/api/seller/verification-status/route.ts';
 const composer = 'src/lib/hooks/useCatalogComposerDraft.ts';
 const mediaDraft = 'src/lib/hooks/useCatalogMediaDraft.ts';
 const catalogUi = 'src/app/seller-dashboard/components/SellerCatalogAssistant.tsx';
+const productDraftMigration = 'supabase/migrations/20260821165000_seller_product_composer_drafts.sql';
 const webhook = 'src/app/api/integrations/whatsapp/webhook/route.ts';
 const status = 'src/app/api/whatsapp/status/route.ts';
 const inboxApi = 'src/app/api/whatsapp/catalog-inbox/route.ts';
@@ -41,6 +42,7 @@ const readiness = '.github/workflows/integration-readiness.yml';
   composer,
   mediaDraft,
   catalogUi,
+  productDraftMigration,
   webhook,
   status,
   inboxApi,
@@ -75,6 +77,8 @@ requireText(sellerVerification, 'Authorization: `Bearer ${token}`');
 
 // Product entry must preserve both structured text and selected media. Text is
 // seller-scoped Web Storage; files/blobs belong in IndexedDB rather than JSON.
+// Real sellers also receive an account-level cloud draft so a draft can be
+// resumed after leaving the original device/session.
 requireText(composer, 'ownerKey');
 requireText(composer, 'window.localStorage.setItem');
 requireText(composer, "document.visibilityState === 'hidden'");
@@ -84,8 +88,12 @@ requireText(mediaDraft, 'MAX_PERSISTED_BYTES');
 requireText(mediaDraft, 'draftKey(owner)');
 requireText(catalogUi, 'useCatalogComposerDraft');
 requireText(catalogUi, 'useCatalogMediaDraft');
-requireText(catalogUi, 'Recovered your selected product photos and reels.');
-requireText(catalogUi, 'Autosaved on this phone');
+requireText(catalogUi, "from('seller_product_drafts')");
+requireText(catalogUi, 'Auto-recovery on this device');
+requireText(catalogUi, 'Draft saved to your FabricTrad account');
+requireText(productDraftMigration, 'create table if not exists public.seller_product_drafts');
+requireText(productDraftMigration, 'enable row level security');
+requireText(productDraftMigration, 'seller_product_drafts_owner_update');
 
 // Meta webhook verification and incoming messages must never trust unsigned
 // internet requests or expose provider credentials in the browser. Processing

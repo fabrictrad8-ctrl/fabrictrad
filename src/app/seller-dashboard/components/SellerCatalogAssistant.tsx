@@ -1,6 +1,14 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type DragEvent,
+} from 'react';
 import toast from 'react-hot-toast';
 import Icon from '@/components/ui/AppIcon';
 import { useAuth } from '@/contexts/AuthContext';
@@ -11,64 +19,124 @@ import {
   type CatalogMediaDraftItem,
 } from '@/lib/hooks/useCatalogMediaDraft';
 import {
-  catalogVariantKey,
+  type CatalogUnit,
+  type PackageFormat,
   type ParsedCatalogDraft,
   type SaleChannel,
 } from '@/lib/catalogAssistant';
 
-type ViewType = 'front' | 'back' | 'detail' | 'reel' | 'other';
-type Attachment = CatalogMediaDraftItem & {
-  previewUrl: string;
-};
+type ViewType = CatalogMediaDraftItem['viewType'];
+type LocalAttachment = CatalogMediaDraftItem & { previewUrl: string };
 
-type ChatMessage = {
+type PersistedMedia = {
   id: string;
-  role: 'assistant' | 'seller';
-  text: string;
+  mediaType: 'image' | 'video';
+  durationSeconds: number | null;
+  viewType: ViewType;
+  publicUrl: string;
+  storagePath: string;
+  originalFilename: string;
+  mimeType: string;
+  fileSize: number;
 };
 
-type CatalogComposerPayload = {
-  text: string;
-  draft: ParsedCatalogDraft | null;
-  messages: ChatMessage[];
-  listingStatus: 'draft' | 'active';
-  provider: 'openai' | 'rules' | null;
+type ProductForm = {
+  draftKey: string;
+  name: string;
+  description: string;
+  category: string;
+  pricePerUnit: string;
+  unit: CatalogUnit;
+  availableQuantity: string;
+  moq: string;
+  widthInches: string;
+  gsm: string;
+  workType: string;
+  saleChannel: SaleChannel;
+  packageFormat: PackageFormat;
 };
 
-const EXAMPLE_TEXT = `Catalog = Navratri Vichitra Silk
-Fabric = vichitra silk
-Category = Silk
-Width = 44
-Work = mirror work
-Rate = 240 per mtr
-MOQ = 3
-Channel = both
-Format = Fabric Only
+type ComposerSnapshot = {
+  form: ProductForm;
+  aiText: string;
+  remoteMedia: PersistedMedia[];
+};
 
-Color = Royal Blue
-Stock = 9 mtr
-Rate = 240 per mtr
-Design = mirror dots
-Details = deep blue shade with all-over mirror motifs
-
-Color = Pink
-Stock = 14 mtr
-Rate = 250 per mtr
-Design = mirror border
-Details = bright pink with a detailed border`;
+type SellerState = {
+  id: string;
+  verificationStatus: string;
+};
 
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 const MAX_VIDEO_BYTES = 50 * 1024 * 1024;
 const MAX_VIDEO_SECONDS = 20.5;
+const MAX_MEDIA_ITEMS = 24;
 const ALLOWED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const ALLOWED_VIDEO_TYPES = new Set(['video/mp4', 'video/quicktime', 'video/webm']);
+
+const CATEGORIES = [
+  'Silk',
+  'Cotton',
+  'Net & Netting',
+  'Georgette',
+  'Polyester',
+  'Handloom',
+  'Velvet',
+  'Organza',
+  'Linen',
+  'Denim',
+  'Wool',
+  'Satin',
+  'Lace',
+  'Other',
+];
+
+const PACKAGE_FORMATS: PackageFormat[] = [
+  'Fabric Only',
+  'Full Set',
+  'Top',
+  'Bottom',
+  'Top & Bottom',
+  'Additional Accessory',
+  'Other',
+];
+
+function makeDraftKey() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `draft-${Date.now()}`;
+}
+
+function blankForm(draftKey = makeDraftKey()): ProductForm {
+  return {
+    draftKey,
+    name: '',
+    description: '',
+    category: 'Other',
+    pricePerUnit: '',
+    unit: 'mtr',
+    availableQuantity: '',
+    moq: '1',
+    widthInches: '',
+    gsm: '',
+    workType: '',
+    saleChannel: 'both',
+    packageFormat: 'Fabric Only',
+  };
+}
 
 function safeFilename(value: string) {
   return value
     .toLowerCase()
     .replace(/[^a-z0-9.]+/g, '-')
     .replace(/^-+|-+$/g, '')
-    .slice(-100);
+    .slice(-100) || 'media';
+}
+
+function formatBytes(bytes: number) {
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 function getVideoDuration(file: File) {
@@ -90,158 +158,197 @@ function getVideoDuration(file: File) {
   });
 }
 
-function formatBytes(bytes: number) {
-  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+function positiveNumber(value: string) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
 }
 
-function labelForChannel(channel: SaleChannel) {
-  if (channel === 'both') return 'B2B + Retail';
-  return channel === 'retail' ? 'Retail / B2C' : 'B2B / Wholesale';
+function optionalPositiveNumber(value: string) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
 
 export default function SellerCatalogAssistant() {
   const { user, profile, isDemoAccount } = useAuth();
-  const inputRef = useRef<HTMLInputElement>(null);
-  const attachmentUrlsRef = useRef<string[]>([]);
-  const [text, setText] = useState('');
-  const [draft, setDraft] = useState<ParsedCatalogDraft | null>(null);
-  const [attachments, setAttachments] = useState<Attachment[]>([]);
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: 'welcome',
-      role: 'assistant',
-      text:
-        'Describe one fabric or product in your own words. Add colours, metres, rates and designs. Then attach front, back, detail photos or a 10–20 second reel. I will organise it into a customer-ready catalogue.',
-    },
-  ]);
-  const [analyzing, setAnalyzing] = useState(false);
-  const [publishing, setPublishing] = useState(false);
-  const [listingStatus, setListingStatus] = useState<'draft' | 'active'>('draft');
-  const [provider, setProvider] = useState<'openai' | 'rules' | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const localUrlsRef = useRef<string[]>([]);
+  const serverHydratedRef = useRef(false);
 
-  const composerPayload = useMemo<CatalogComposerPayload>(
-    () => ({
-      text,
-      draft,
-      messages: messages.slice(-12),
-      listingStatus,
-      provider,
-    }),
-    [draft, listingStatus, messages, provider, text]
+  const [form, setForm] = useState<ProductForm>(() => blankForm());
+  const [aiText, setAiText] = useState('');
+  const [localMedia, setLocalMedia] = useState<LocalAttachment[]>([]);
+  const [remoteMedia, setRemoteMedia] = useState<PersistedMedia[]>([]);
+  const [sellerState, setSellerState] = useState<SellerState | null>(null);
+  const [serverSavedAt, setServerSavedAt] = useState<string | null>(null);
+  const [savingDraft, setSavingDraft] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
+
+  const snapshot = useMemo<ComposerSnapshot>(
+    () => ({ form, aiText, remoteMedia }),
+    [aiText, form, remoteMedia]
   );
 
-  const { savedAt: composerSavedAt, clear: clearComposerDraft } = useCatalogComposerDraft({
+  const {
+    loaded: composerLoaded,
+    savedAt: localSavedAt,
+    saveNow: saveComposerNow,
+    clear: clearComposerDraft,
+  } = useCatalogComposerDraft<ComposerSnapshot>({
     ownerKey: user?.id,
-    payload: composerPayload,
+    payload: snapshot,
     onRestore: (saved) => {
-      const hasUsefulDraft = Boolean(saved.text?.trim() || saved.draft);
-      setText(saved.text || '');
-      setDraft(saved.draft || null);
-      setMessages(saved.messages?.length ? saved.messages : [{
-        id: `welcome-${Date.now()}`,
-        role: 'assistant',
-        text: 'Your saved product draft was restored. Continue from where you left off.',
-      }]);
-      setListingStatus(saved.listingStatus === 'active' ? 'active' : 'draft');
-      setProvider(saved.provider || null);
-      if (hasUsefulDraft) toast.success('Recovered your unsaved product draft.');
+      if (saved?.form) {
+        const draftKey = saved.form.draftKey || makeDraftKey();
+        setForm({ ...blankForm(draftKey), ...saved.form, draftKey });
+      }
+      setAiText(saved?.aiText || '');
+      setRemoteMedia(Array.isArray(saved?.remoteMedia) ? saved.remoteMedia : []);
     },
   });
 
   const {
     savedAt: mediaSavedAt,
     warning: mediaDraftWarning,
+    persist: persistLocalMedia,
     clear: clearMediaDraft,
   } = useCatalogMediaDraft({
     ownerKey: user?.id,
-    items: attachments,
-    onRestore: (storedItems) => {
-      setAttachments((current) => {
-        current.forEach((attachment) => URL.revokeObjectURL(attachment.previewUrl));
-        return storedItems.map((item) => ({
-          ...item,
-          previewUrl: URL.createObjectURL(item.file),
-        }));
+    items: localMedia,
+    onRestore: (items) => {
+      setLocalMedia((current) => {
+        current.forEach((item) => URL.revokeObjectURL(item.previewUrl));
+        return items.map((item) => ({ ...item, previewUrl: URL.createObjectURL(item.file) }));
       });
-      toast.success('Recovered your selected product photos and reels.');
     },
   });
 
-  const variantTargets = useMemo(
-    () =>
-      (draft?.variants || []).map((variant) => ({
-        key: catalogVariantKey(variant.colorName, variant.designName),
-        label: `${variant.colorName} · ${variant.designName}`,
-      })),
-    [draft]
-  );
-
   useEffect(() => {
-    attachmentUrlsRef.current = attachments.map((attachment) => attachment.previewUrl);
-  }, [attachments]);
+    localUrlsRef.current = localMedia.map((item) => item.previewUrl);
+  }, [localMedia]);
 
   useEffect(
     () => () => {
-      attachmentUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+      localUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
     },
     []
   );
 
-  const analyze = async () => {
-    if (!text.trim()) return toast.error('Describe the product first.');
-    setAnalyzing(true);
-    setMessages((current) => [
-      ...current,
-      { id: `seller-${Date.now()}`, role: 'seller', text: text.trim() },
-    ]);
+  const resolveSeller = useCallback(async () => {
+    if (sellerState) return sellerState;
+    if (!user?.id || isDemoAccount) return null;
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from('seller_profiles')
+      .select('id,verification_status')
+      .eq('user_id', user.id)
+      .maybeSingle();
+    if (error) throw error;
+    if (!data?.id) throw new Error('Complete your seller profile before publishing products.');
+    const resolved = {
+      id: String(data.id),
+      verificationStatus: String(data.verification_status || ''),
+    };
+    setSellerState(resolved);
+    return resolved;
+  }, [isDemoAccount, sellerState, user?.id]);
 
+  useEffect(() => {
+    if (!composerLoaded || !user?.id || isDemoAccount || serverHydratedRef.current) return;
+    serverHydratedRef.current = true;
+    let cancelled = false;
+
+    const hydrate = async () => {
+      try {
+        const supabase = createClient();
+        const { data: seller, error: sellerError } = await supabase
+          .from('seller_profiles')
+          .select('id,verification_status')
+          .eq('user_id', user.id)
+          .maybeSingle();
+        if (sellerError || !seller?.id) return;
+        if (!cancelled) {
+          setSellerState({
+            id: String(seller.id),
+            verificationStatus: String(seller.verification_status || ''),
+          });
+        }
+
+        const { data: rows, error: draftError } = await supabase
+          .from('seller_product_drafts')
+          .select('draft_key,payload,media,updated_at')
+          .eq('seller_id', seller.id)
+          .order('updated_at', { ascending: false })
+          .limit(1);
+        if (draftError) throw draftError;
+        const latest = rows?.[0];
+        if (!latest || cancelled) return;
+
+        const serverTime = Date.parse(String(latest.updated_at || '')) || 0;
+        const localTime = Date.parse(localSavedAt || '') || 0;
+        setServerSavedAt(String(latest.updated_at || ''));
+        if (serverTime < localTime) return;
+
+        const payload = (latest.payload || {}) as Partial<ComposerSnapshot>;
+        const serverForm = payload.form;
+        const draftKey = serverForm?.draftKey || String(latest.draft_key) || makeDraftKey();
+        if (serverForm) setForm({ ...blankForm(draftKey), ...serverForm, draftKey });
+        setAiText(payload.aiText || '');
+        setRemoteMedia(Array.isArray(latest.media) ? (latest.media as PersistedMedia[]) : []);
+        toast.success('Your latest saved product draft was restored.');
+      } catch (error) {
+        console.warn('Unable to restore server product draft', error);
+      }
+    };
+
+    void hydrate();
+    return () => {
+      cancelled = true;
+    };
+  }, [composerLoaded, isDemoAccount, localSavedAt, user?.id]);
+
+  const updateForm = <K extends keyof ProductForm>(key: K, value: ProductForm[K]) => {
+    setForm((current) => ({ ...current, [key]: value }));
+  };
+
+  const analyze = async () => {
+    if (!aiText.trim()) return toast.error('Paste or describe the product first.');
+    setAnalyzing(true);
     try {
       const response = await fetch('/api/catalog-assistant/parse', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'same-origin',
         cache: 'no-store',
-        body: JSON.stringify({ text }),
+        body: JSON.stringify({ text: aiText }),
       });
       const payload = (await response.json().catch(() => ({}))) as {
         draft?: ParsedCatalogDraft;
-        provider?: 'openai' | 'rules';
-        message?: string;
         error?: string;
       };
-      if (!response.ok || !payload.draft) throw new Error(payload.error || 'Unable to organise the catalogue.');
-      const organisedDraft = payload.draft;
-
-      setDraft(organisedDraft);
-      setProvider(payload.provider || 'rules');
-      setMessages((current) => [
+      if (!response.ok || !payload.draft) {
+        throw new Error(payload.error || 'The product details could not be organised.');
+      }
+      const parsed = payload.draft;
+      setForm((current) => ({
         ...current,
-        {
-          id: `assistant-${Date.now()}`,
-          role: 'assistant',
-          text: `${payload.message || 'Catalogue organised.'} I found ${organisedDraft.variants.length || 1} variation${organisedDraft.variants.length === 1 ? '' : 's'}. Attach media, choose its colour/view, and review before saving.`,
-        },
-      ]);
-      setAttachments((current) =>
-        current.map((attachment) => ({
-          ...attachment,
-          targetKey:
-            attachment.targetKey &&
-            organisedDraft.variants.some(
-              (variant) => catalogVariantKey(variant.colorName, variant.designName) === attachment.targetKey
-            )
-              ? attachment.targetKey
-              : '',
-        }))
-      );
+        name: parsed.name || current.name,
+        description: parsed.description || current.description,
+        category: parsed.category || current.category,
+        pricePerUnit: parsed.pricePerUnit > 0 ? String(parsed.pricePerUnit) : current.pricePerUnit,
+        unit: parsed.unit || current.unit,
+        availableQuantity:
+          parsed.availableQuantity >= 0 ? String(parsed.availableQuantity) : current.availableQuantity,
+        moq: parsed.moq > 0 ? String(parsed.moq) : current.moq,
+        widthInches: parsed.widthInches ? String(parsed.widthInches) : current.widthInches,
+        gsm: parsed.gsm ? String(parsed.gsm) : current.gsm,
+        workType: parsed.workType || current.workType,
+        saleChannel: parsed.saleChannel || current.saleChannel,
+        packageFormat: parsed.packageFormat || current.packageFormat,
+      }));
+      toast.success('Product fields filled. Review them and publish when ready.');
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unable to organise the catalogue.';
-      toast.error(message);
-      setMessages((current) => [
-        ...current,
-        { id: `assistant-error-${Date.now()}`, role: 'assistant', text: message },
-      ]);
+      toast.error(error instanceof Error ? error.message : 'Unable to organise the product.');
     } finally {
       setAnalyzing(false);
     }
@@ -249,13 +356,15 @@ export default function SellerCatalogAssistant() {
 
   const ingestFiles = async (files: File[]) => {
     if (!files.length) return;
+    const remainingSlots = Math.max(0, MAX_MEDIA_ITEMS - remoteMedia.length - localMedia.length);
+    if (!remainingSlots) return toast.error(`A product can contain up to ${MAX_MEDIA_ITEMS} media files.`);
 
-    const accepted: Attachment[] = [];
-    for (const file of files) {
+    const accepted: LocalAttachment[] = [];
+    for (const file of files.slice(0, remainingSlots)) {
       const isImage = ALLOWED_IMAGE_TYPES.has(file.type);
       const isVideo = ALLOWED_VIDEO_TYPES.has(file.type);
       if (!isImage && !isVideo) {
-        toast.error(`${file.name}: choose JPG, PNG, WebP, MP4, MOV or WebM.`);
+        toast.error(`${file.name}: use JPG, PNG, WebP, MP4, MOV or WebM.`);
         continue;
       }
       if (isImage && file.size > MAX_IMAGE_BYTES) {
@@ -276,137 +385,238 @@ export default function SellerCatalogAssistant() {
           continue;
         }
         if (durationSeconds < 1 || durationSeconds > MAX_VIDEO_SECONDS) {
-          toast.error(`${file.name}: reels must be between 1 and 20 seconds.`);
+          toast.error(`${file.name}: videos must be between 1 and 20 seconds.`);
           continue;
         }
       }
 
+      const existingImages = remoteMedia.filter((item) => item.mediaType === 'image').length +
+        localMedia.filter((item) => item.mediaType === 'image').length +
+        accepted.filter((item) => item.mediaType === 'image').length;
+
       accepted.push({
-        id: `${Date.now()}-${crypto.randomUUID()}`,
+        id: crypto.randomUUID(),
         file,
         previewUrl: URL.createObjectURL(file),
         mediaType: isVideo ? 'video' : 'image',
         durationSeconds,
-        viewType: isVideo ? 'reel' : accepted.length === 0 ? 'front' : 'detail',
+        viewType: isVideo ? 'reel' : existingImages === 0 ? 'front' : 'detail',
         targetKey: '',
       });
     }
-
-    setAttachments((current) => [...current, ...accepted].slice(0, 24));
+    setLocalMedia((current) => [...current, ...accepted]);
   };
 
-  const addFiles = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const addFiles = async (event: ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files || []);
     event.target.value = '';
     await ingestFiles(files);
   };
 
-  const handleDrop = async (event: React.DragEvent<HTMLDivElement>) => {
+  const handleDrop = async (event: DragEvent<HTMLElement>) => {
     event.preventDefault();
     await ingestFiles(Array.from(event.dataTransfer.files || []));
   };
 
-  const resetComposer = () => {
-    clearComposerDraft();
-    void clearMediaDraft();
-    attachmentUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
-    attachmentUrlsRef.current = [];
-    setText('');
-    setDraft(null);
-    setAttachments([]);
-    setProvider(null);
-    setListingStatus('draft');
-    setMessages([{
-      id: `welcome-${Date.now()}`,
-      role: 'assistant',
-      text: 'New product ready. Describe the fabric or drop its photos, then I will organise the name, width, colours, rates and stock.',
-    }]);
-    inputRef.current?.focus();
-  };
-
-  const updateAttachment = (id: string, patch: Partial<Attachment>) => {
-    setAttachments((current) =>
-      current.map((attachment) => (attachment.id === id ? { ...attachment, ...patch } : attachment))
-    );
-  };
-
-  const removeAttachment = (id: string) => {
-    setAttachments((current) => {
-      const target = current.find((attachment) => attachment.id === id);
+  const removeLocalMedia = (id: string) => {
+    setLocalMedia((current) => {
+      const target = current.find((item) => item.id === id);
       if (target) URL.revokeObjectURL(target.previewUrl);
-      return current.filter((attachment) => attachment.id !== id);
+      return current.filter((item) => item.id !== id);
     });
   };
 
+  const updateLocalMedia = (id: string, viewType: ViewType) => {
+    setLocalMedia((current) =>
+      current.map((item) => (item.id === id ? { ...item, viewType } : item))
+    );
+  };
+
+  const updateRemoteMedia = (id: string, viewType: ViewType) => {
+    setRemoteMedia((current) =>
+      current.map((item) => (item.id === id ? { ...item, viewType } : item))
+    );
+  };
+
+  const removeRemoteMedia = (id: string) => {
+    setRemoteMedia((current) => current.filter((item) => item.id !== id));
+  };
+
+  const uploadPendingMedia = useCallback(
+    async (sellerId: string) => {
+      if (!user?.id || !localMedia.length) return remoteMedia;
+      const supabase = createClient();
+      const uploaded = remoteMedia.filter(
+        (remote) => !localMedia.some((local) => local.id === remote.id)
+      );
+
+      for (const item of localMedia) {
+        const storagePath = `${user.id}/${sellerId}/drafts/${form.draftKey}/${item.id}-${safeFilename(item.file.name)}`;
+        const { error: uploadError } = await supabase.storage
+          .from('seller-product-media')
+          .upload(storagePath, item.file, {
+            cacheControl: '31536000',
+            contentType: item.file.type,
+            upsert: true,
+          });
+        if (uploadError) throw uploadError;
+        const { data: publicData } = supabase.storage
+          .from('seller-product-media')
+          .getPublicUrl(storagePath);
+        uploaded.push({
+          id: item.id,
+          mediaType: item.mediaType,
+          durationSeconds: item.durationSeconds,
+          viewType: item.viewType,
+          publicUrl: publicData.publicUrl,
+          storagePath,
+          originalFilename: item.file.name,
+          mimeType: item.file.type,
+          fileSize: item.file.size,
+        });
+      }
+
+      localMedia.forEach((item) => URL.revokeObjectURL(item.previewUrl));
+      setRemoteMedia(uploaded);
+      setLocalMedia([]);
+      await clearMediaDraft();
+      return uploaded;
+    },
+    [clearMediaDraft, form.draftKey, localMedia, remoteMedia, user?.id]
+  );
+
+  const saveDraft = async () => {
+    if (savingDraft || publishing) return;
+    saveComposerNow();
+    await persistLocalMedia().catch(() => undefined);
+
+    if (isDemoAccount) {
+      toast.success('Draft saved in this browser. Use a real seller account to save it to FabricTrad.');
+      return;
+    }
+    if (!user?.id) return toast.error('Sign in again to save this draft.');
+
+    setSavingDraft(true);
+    try {
+      const seller = await resolveSeller();
+      if (!seller) throw new Error('Seller profile not found.');
+      const media = await uploadPendingMedia(seller.id);
+      const supabase = createClient();
+      const now = new Date().toISOString();
+      const { error } = await supabase.from('seller_product_drafts').upsert(
+        {
+          seller_id: seller.id,
+          draft_key: form.draftKey,
+          payload: { form, aiText },
+          media,
+          updated_at: now,
+        },
+        { onConflict: 'seller_id,draft_key' }
+      );
+      if (error) throw error;
+      setServerSavedAt(now);
+      toast.success('Draft saved. You can come back and finish it later.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Draft could not be saved.');
+    } finally {
+      setSavingDraft(false);
+    }
+  };
+
+  const imageCount = useMemo(
+    () =>
+      remoteMedia.filter((item) => item.mediaType === 'image').length +
+      localMedia.filter((item) => item.mediaType === 'image').length,
+    [localMedia, remoteMedia]
+  );
+
+  const videoCount = useMemo(
+    () =>
+      remoteMedia.filter((item) => item.mediaType === 'video').length +
+      localMedia.filter((item) => item.mediaType === 'video').length,
+    [localMedia, remoteMedia]
+  );
+
+  const publishMissing = useMemo(() => {
+    const missing: string[] = [];
+    if (form.name.trim().length < 2) missing.push('product name');
+    if (form.description.trim().length < 5) missing.push('description');
+    if (positiveNumber(form.pricePerUnit) <= 0) missing.push('price');
+    if (positiveNumber(form.availableQuantity) <= 0) missing.push('stock quantity');
+    if (imageCount < 1) missing.push('at least 1 photo');
+    return missing;
+  }, [form.availableQuantity, form.description, form.name, form.pricePerUnit, imageCount]);
+
   const publish = async () => {
-    if (!draft) return toast.error('Ask the assistant to organise the product first.');
-    if (isDemoAccount) return toast.error('Use a real seller account to publish catalogue products.');
-    if (!user?.id) return toast.error('Sign in as a seller again.');
-    if (listingStatus === 'active' && !attachments.some((item) => item.mediaType === 'image')) {
-      return toast.error('Add at least one product image before publishing a live listing.');
+    if (publishing || savingDraft) return;
+    if (isDemoAccount) return toast.error('Use a real verified seller account to publish products.');
+    if (!user?.id) return toast.error('Sign in again to publish this product.');
+    if (publishMissing.length) {
+      return toast.error(`Before publishing, add: ${publishMissing.join(', ')}.`);
     }
 
     setPublishing(true);
-    const supabase = createClient();
     try {
-      const { data: seller, error: sellerError } = await supabase
-        .from('seller_profiles')
-        .select('id')
-        .eq('user_id', user.id)
-        .maybeSingle();
-      if (sellerError || !seller?.id) {
-        throw new Error(sellerError?.message || 'Complete your seller profile before publishing.');
+      const seller = await resolveSeller();
+      if (!seller) throw new Error('Seller profile not found.');
+      if (seller.verificationStatus !== 'verified') {
+        throw new Error('Your seller account must be approved before products can go live.');
       }
 
-      const sourceReference = `assistant:${seller.id}:${draft.catalogKey}`;
+      const media = await uploadPendingMedia(seller.id);
+      const images = media.filter((item) => item.mediaType === 'image').map((item) => item.publicUrl);
+      if (!images.length) throw new Error('Add at least one product photo before publishing.');
+
+      const supabase = createClient();
+      const sourceReference = `composer:${seller.id}:${form.draftKey}`;
+      const generatedSku = `FT-${form.draftKey.replace(/[^a-z0-9]/gi, '').slice(0, 18).toUpperCase()}`;
       const parentPayload = {
         seller_id: seller.id,
-        name: draft.name,
-        sku: `AI-${draft.catalogKey.replace(/[^a-z0-9]/gi, '').slice(0, 18).toUpperCase() || Date.now()}`,
-        category: draft.category || 'Other',
-        description: draft.description,
-        price_per_unit: draft.pricePerUnit,
-        unit: draft.unit,
-        available_quantity: draft.availableQuantity,
+        name: form.name.trim(),
+        sku: generatedSku || `FT-${Date.now()}`,
+        category: form.category || 'Other',
+        description: form.description.trim(),
+        price_per_unit: positiveNumber(form.pricePerUnit),
+        unit: form.unit,
+        available_quantity: positiveNumber(form.availableQuantity),
         reserved_quantity: 0,
         min_stock: 0,
-        moq: Math.max(1, Math.ceil(draft.moq)),
-        gsm: draft.gsm,
-        width_inches: draft.widthInches,
-        work_type: draft.workType,
-        image_url: null,
-        image_urls: [],
+        moq: Math.max(1, Math.floor(positiveNumber(form.moq) || 1)),
+        gsm: optionalPositiveNumber(form.gsm),
+        width_inches: optionalPositiveNumber(form.widthInches),
+        work_type: form.workType.trim() || 'Plain',
+        image_url: images[0],
+        image_urls: images,
         dispatch_days: 3,
         origin_city: profile?.city || null,
         origin_state: profile?.state || null,
-        status: listingStatus,
-        source: 'assistant',
+        status: 'active',
+        source: 'manual',
         source_reference: sourceReference,
         approval_status: 'approved',
-        sale_channel: draft.saleChannel,
-        package_format: draft.packageFormat,
+        sale_channel: form.saleChannel,
+        package_format: form.packageFormat,
       };
 
-      const { data: existingParent, error: existingError } = await supabase
+      const { data: existing, error: existingError } = await supabase
         .from('seller_products')
         .select('id,sku')
         .eq('seller_id', seller.id)
-        .eq('source', 'assistant')
         .eq('source_reference', sourceReference)
         .maybeSingle();
       if (existingError) throw existingError;
 
       let productId: string;
-      if (existingParent?.id) {
+      if (existing?.id) {
         const { data, error } = await supabase
           .from('seller_products')
-          .update({ ...parentPayload, sku: existingParent.sku })
-          .eq('id', existingParent.id)
+          .update({ ...parentPayload, sku: existing.sku })
+          .eq('id', existing.id)
           .eq('seller_id', seller.id)
           .select('id')
           .single();
         if (error) throw error;
-        productId = data.id;
+        productId = String(data.id);
       } else {
         const { data, error } = await supabase
           .from('seller_products')
@@ -414,329 +624,317 @@ export default function SellerCatalogAssistant() {
           .select('id')
           .single();
         if (error) throw error;
-        productId = data.id;
+        productId = String(data.id);
       }
 
-      const variantIdByKey = new Map<string, string>();
-      for (let index = 0; index < draft.variants.length; index += 1) {
-        const variant = draft.variants[index];
-        const key = catalogVariantKey(variant.colorName, variant.designName);
-        const payload = {
-          product_id: productId,
-          seller_id: seller.id,
-          variant_key: key,
-          variant_code: `${parentPayload.sku}-${String(index + 1).padStart(2, '0')}`,
-          color_name: variant.colorName,
-          color_hex: variant.colorHex,
-          design_name: variant.designName,
-          description: variant.description || null,
-          price_per_unit: variant.pricePerUnit,
-          unit: variant.unit,
-          available_quantity: variant.availableQuantity,
-          reserved_quantity: 0,
-          moq: variant.moq,
-          source: 'assistant',
-          source_reference: `${sourceReference}:${key}`,
-          approval_status: 'approved',
-          status: listingStatus,
-        };
-        const { data, error } = await supabase
-          .from('seller_product_variants')
-          .upsert(payload, { onConflict: 'product_id,variant_key' })
-          .select('id,variant_key')
-          .single();
-        if (error) throw error;
-        variantIdByKey.set(String(data.variant_key), String(data.id));
-      }
+      const { error: deleteMediaError } = await supabase
+        .from('seller_product_media')
+        .delete()
+        .eq('product_id', productId)
+        .eq('seller_id', seller.id);
+      if (deleteMediaError) throw deleteMediaError;
 
-      const parentImages: string[] = [];
-      const variantImages = new Map<string, string[]>();
-      const now = Date.now();
-
-      for (let index = 0; index < attachments.length; index += 1) {
-        const attachment = attachments[index];
-        const extension = safeFilename(attachment.file.name).split('.').pop() ||
-          (attachment.mediaType === 'video' ? 'mp4' : 'jpg');
-        const storagePath = `${user.id}/${seller.id}/${productId}/${now}-${index + 1}.${extension}`;
-        const { error: uploadError } = await supabase.storage
-          .from('seller-product-media')
-          .upload(storagePath, attachment.file, {
-            cacheControl: '31536000',
-            contentType: attachment.file.type,
-            upsert: true,
-          });
-        if (uploadError) throw uploadError;
-
-        const { data: publicData } = supabase.storage
-          .from('seller-product-media')
-          .getPublicUrl(storagePath);
-        const publicUrl = publicData.publicUrl;
-        const variantId = attachment.targetKey
-          ? variantIdByKey.get(attachment.targetKey) || null
-          : null;
-
-        const { error: mediaError } = await supabase.from('seller_product_media').insert({
-          product_id: productId,
-          variant_id: variantId,
-          seller_id: seller.id,
-          media_type: attachment.mediaType,
-          view_type: attachment.viewType,
-          public_url: publicUrl,
-          storage_path: storagePath,
-          original_filename: attachment.file.name,
-          mime_type: attachment.file.type,
-          file_size: attachment.file.size,
-          duration_seconds: attachment.durationSeconds,
-          alt_text: `${draft.name} ${attachment.viewType} ${attachment.targetKey || 'product'} view`,
-          sort_order: index,
-        });
+      if (media.length) {
+        const { error: mediaError } = await supabase.from('seller_product_media').insert(
+          media.map((item, index) => ({
+            product_id: productId,
+            variant_id: null,
+            seller_id: seller.id,
+            media_type: item.mediaType,
+            view_type: item.viewType,
+            public_url: item.publicUrl,
+            storage_path: item.storagePath,
+            original_filename: item.originalFilename,
+            mime_type: item.mimeType,
+            file_size: item.fileSize,
+            duration_seconds: item.durationSeconds,
+            alt_text: `${form.name.trim()} ${item.viewType} view`,
+            sort_order: index,
+          }))
+        );
         if (mediaError) throw mediaError;
-
-        if (attachment.mediaType === 'image') {
-          if (attachment.targetKey) {
-            variantImages.set(attachment.targetKey, [
-              ...(variantImages.get(attachment.targetKey) || []),
-              publicUrl,
-            ]);
-          } else {
-            parentImages.push(publicUrl);
-          }
-        }
       }
 
-      if (parentImages.length) {
-        const { error } = await supabase
-          .from('seller_products')
-          .update({ image_url: parentImages[0], image_urls: parentImages })
-          .eq('id', productId)
-          .eq('seller_id', seller.id);
-        if (error) throw error;
-      }
+      await supabase
+        .from('seller_product_drafts')
+        .delete()
+        .eq('seller_id', seller.id)
+        .eq('draft_key', form.draftKey);
 
-      for (const [key, images] of variantImages.entries()) {
-        const variantId = variantIdByKey.get(key);
-        if (!variantId || !images.length) continue;
-        const { error } = await supabase
-          .from('seller_product_variants')
-          .update({ image_url: images[0], image_urls: images })
-          .eq('id', variantId)
-          .eq('seller_id', seller.id);
-        if (error) throw error;
-      }
-
-      toast.success(
-        listingStatus === 'active'
-          ? 'Catalogue published and visible to matching buyers.'
-          : 'Catalogue saved privately as a draft.'
-      );
       clearComposerDraft();
-      void clearMediaDraft();
-      attachmentUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
-      attachmentUrlsRef.current = [];
-      setText('');
-      setDraft(null);
-      setAttachments([]);
-      setProvider(null);
-      setListingStatus('draft');
-      setMessages([{
-        id: `published-${Date.now()}`,
-        role: 'assistant',
-        text: listingStatus === 'active'
-          ? 'Published. The form is cleared and ready for your next product.'
-          : 'Draft saved. The form is cleared and ready for your next product.',
-      }]);
+      await clearMediaDraft();
+      setForm(blankForm());
+      setAiText('');
+      setRemoteMedia([]);
+      setLocalMedia([]);
+      setServerSavedAt(null);
+      toast.success('Product published. It is now available to matching buyers.');
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'The catalogue could not be saved.');
+      toast.error(error instanceof Error ? error.message : 'Product could not be published.');
     } finally {
       setPublishing(false);
     }
   };
 
+  const newProduct = () => {
+    clearComposerDraft();
+    void clearMediaDraft();
+    localUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+    localUrlsRef.current = [];
+    setForm(blankForm());
+    setAiText('');
+    setLocalMedia([]);
+    setRemoteMedia([]);
+    setServerSavedAt(null);
+  };
+
+  const allMedia = [
+    ...remoteMedia.map((item) => ({
+      id: item.id,
+      source: 'remote' as const,
+      mediaType: item.mediaType,
+      viewType: item.viewType,
+      previewUrl: item.publicUrl,
+      filename: item.originalFilename,
+      fileSize: item.fileSize,
+      durationSeconds: item.durationSeconds,
+    })),
+    ...localMedia.map((item) => ({
+      id: item.id,
+      source: 'local' as const,
+      mediaType: item.mediaType,
+      viewType: item.viewType,
+      previewUrl: item.previewUrl,
+      filename: item.file.name,
+      fileSize: item.file.size,
+      durationSeconds: item.durationSeconds,
+    })),
+  ];
+
   return (
-    <div className="mx-auto max-w-7xl">
-      <div className="mb-6 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+    <div className="mx-auto max-w-6xl pb-8">
+      <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <p className="text-xs font-800 uppercase tracking-[0.16em] text-primary">In-app catalogue automation</p>
-          <h1 className="mt-1 text-2xl font-800 text-foreground">AI Catalog Studio</h1>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-            Chat with the assistant, attach product media, review the extracted details and publish without leaving FabricTrad. Product details and selected media auto-save on this phone if you switch to Gallery, Files, WhatsApp or another app.
+          <p className="text-xs font-800 uppercase tracking-[0.15em] text-primary">Add product</p>
+          <h1 className="mt-1 text-2xl font-800 text-foreground">Create a product listing</h1>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+            Add the basic product details, photos, price and available stock. Video is optional. Save a draft at any time or publish when the essentials are ready.
           </p>
         </div>
-        <div className="flex flex-wrap gap-2 text-xs">
-          <button type="button" onClick={resetComposer} className="rounded-full border border-primary/30 bg-primary/5 px-3 py-1.5 font-800 text-primary">
-            <Icon name="PlusIcon" size={13} className="mr-1 inline" /> New product
-          </button>
-          <button type="button" onClick={() => setText(EXAMPLE_TEXT)} className="rounded-full border border-border bg-card px-3 py-1.5 font-800 text-muted-foreground">Use example</button>
-          {(composerSavedAt || mediaSavedAt) && <span className="rounded-full border border-success/20 bg-success/5 px-3 py-1.5 font-800 text-success">Autosaved on this phone</span>}
-          <span className="rounded-full border border-border bg-card px-3 py-1.5">Images up to 10 MB</span>
-          <span className="rounded-full border border-border bg-card px-3 py-1.5">Reels up to 20 seconds</span>
-          <span className="rounded-full border border-border bg-card px-3 py-1.5">24 media files per draft</span>
-        </div>
+        <button
+          type="button"
+          onClick={newProduct}
+          className="btn-secondary inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-xs"
+        >
+          <Icon name="PlusIcon" size={15} /> New product
+        </button>
       </div>
 
-      {mediaDraftWarning && (
-        <div role="alert" className="mb-5 rounded-xl border border-warning/20 bg-warning/5 p-3 text-xs leading-5 text-warning">
-          {mediaDraftWarning} Your current selected files are still available while this page stays open; publish or reduce the number/size of files before leaving the page.
+      {(localSavedAt || mediaSavedAt || serverSavedAt) && (
+        <div className="mb-4 flex flex-wrap gap-2 text-[11px] font-800">
+          {(localSavedAt || mediaSavedAt) && (
+            <span className="rounded-full border border-success/20 bg-success/5 px-3 py-1.5 text-success">
+              Auto-recovery on this device
+            </span>
+          )}
+          {serverSavedAt && (
+            <span className="rounded-full border border-primary/20 bg-primary/5 px-3 py-1.5 text-primary">
+              Draft saved to your FabricTrad account
+            </span>
+          )}
         </div>
       )}
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.05fr)_minmax(360px,0.95fr)]">
-        <section className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
-          <div className="border-b border-border bg-gradient-to-r from-primary/8 to-secondary/8 px-5 py-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-white">
-                <Icon name="SparklesIcon" size={20} />
+      {mediaDraftWarning && (
+        <div className="mb-4 rounded-xl border border-warning/20 bg-warning/5 p-3 text-xs text-warning">
+          {mediaDraftWarning}
+        </div>
+      )}
+
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)]">
+        <section className="rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-6">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-800 uppercase tracking-wide text-muted-foreground">Product details</p>
+              <h2 className="mt-1 text-lg font-800 text-foreground">What are you selling?</h2>
+            </div>
+            <span className="rounded-full bg-primary/10 px-3 py-1 text-[11px] font-800 text-primary">
+              Simple listing
+            </span>
+          </div>
+
+          <div className="mt-5 space-y-4">
+            <div>
+              <label className="text-xs font-800 text-foreground">Product name <span className="text-error">*</span></label>
+              <input
+                value={form.name}
+                onChange={(event) => updateForm('name', event.target.value)}
+                className="input-base mt-2 w-full rounded-xl px-4 py-3 text-sm"
+                placeholder="e.g. Royal Blue Banarasi Silk"
+                maxLength={160}
+              />
+            </div>
+
+            <div>
+              <label className="text-xs font-800 text-foreground">Description <span className="text-error">*</span></label>
+              <textarea
+                value={form.description}
+                onChange={(event) => updateForm('description', event.target.value)}
+                rows={5}
+                className="input-base mt-2 w-full resize-y rounded-xl px-4 py-3 text-sm leading-6"
+                placeholder="Describe the fabric, finish, pattern, use, feel, work or any important buyer information."
+              />
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label className="text-xs font-800 text-foreground">Category</label>
+                <select
+                  value={form.category}
+                  onChange={(event) => updateForm('category', event.target.value)}
+                  className="input-base mt-2 w-full rounded-xl px-3 py-3 text-sm"
+                >
+                  {CATEGORIES.map((category) => <option key={category}>{category}</option>)}
+                </select>
               </div>
               <div>
-                <p className="text-sm font-800 text-foreground">FabricTrad Catalogue Assistant</p>
-                <p className="text-xs text-muted-foreground">
-                  {provider === 'openai' ? 'AI extraction active' : 'Built-in textile parser ready'}
-                </p>
+                <label className="text-xs font-800 text-foreground">Work / finish <span className="text-muted-foreground">optional</span></label>
+                <input
+                  value={form.workType}
+                  onChange={(event) => updateForm('workType', event.target.value)}
+                  className="input-base mt-2 w-full rounded-xl px-4 py-3 text-sm"
+                  placeholder="Plain, embroidery, print, zari…"
+                />
               </div>
             </div>
-          </div>
 
-          <div className="max-h-80 space-y-3 overflow-y-auto bg-muted/20 p-4 sm:p-5">
-            {messages.slice(-6).map((message) => (
-              <div
-                key={message.id}
-                className={`flex ${message.role === 'seller' ? 'justify-end' : 'justify-start'}`}
-              >
-                <div
-                  className={`max-w-[92%] rounded-2xl px-4 py-3 text-sm leading-6 ${
-                    message.role === 'seller'
-                      ? 'rounded-br-md bg-primary text-white'
-                      : 'rounded-bl-md border border-border bg-card text-foreground'
-                  }`}
-                >
-                  {message.text}
+            <div className="rounded-2xl border border-primary/15 bg-primary/5 p-4">
+              <p className="text-xs font-800 uppercase tracking-wide text-primary">Price & stock</p>
+              <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                <div>
+                  <label className="text-xs font-800 text-foreground">Price <span className="text-error">*</span></label>
+                  <div className="mt-2 flex rounded-xl border border-border bg-card focus-within:border-primary">
+                    <span className="flex items-center px-3 text-sm font-800 text-muted-foreground">₹</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={form.pricePerUnit}
+                      onChange={(event) => updateForm('pricePerUnit', event.target.value)}
+                      className="min-w-0 flex-1 bg-transparent px-2 py-3 text-sm outline-none"
+                      placeholder="250"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs font-800 text-foreground">Unit</label>
+                  <select
+                    value={form.unit}
+                    onChange={(event) => updateForm('unit', event.target.value as CatalogUnit)}
+                    className="input-base mt-2 w-full rounded-xl px-3 py-3 text-sm"
+                  >
+                    <option value="mtr">metre</option>
+                    <option value="kg">kg</option>
+                    <option value="piece">piece</option>
+                    <option value="roll">roll</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-800 text-foreground">Available {form.unit === 'mtr' ? 'metres' : 'stock'} <span className="text-error">*</span></label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={form.availableQuantity}
+                    onChange={(event) => updateForm('availableQuantity', event.target.value)}
+                    className="input-base mt-2 w-full rounded-xl px-4 py-3 text-sm"
+                    placeholder={form.unit === 'mtr' ? '100' : '25'}
+                  />
                 </div>
               </div>
-            ))}
-          </div>
+              <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                <div>
+                  <label className="text-xs font-800 text-foreground">Minimum order</label>
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={form.moq}
+                    onChange={(event) => updateForm('moq', event.target.value)}
+                    className="input-base mt-2 w-full rounded-xl px-4 py-3 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-800 text-foreground">Width (inches) <span className="text-muted-foreground">optional</span></label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.1"
+                    value={form.widthInches}
+                    onChange={(event) => updateForm('widthInches', event.target.value)}
+                    className="input-base mt-2 w-full rounded-xl px-4 py-3 text-sm"
+                    placeholder="44"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-800 text-foreground">GSM <span className="text-muted-foreground">optional</span></label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={form.gsm}
+                    onChange={(event) => updateForm('gsm', event.target.value)}
+                    className="input-base mt-2 w-full rounded-xl px-4 py-3 text-sm"
+                    placeholder="120"
+                  />
+                </div>
+              </div>
+            </div>
 
-          <div className="p-4 sm:p-5">
-            <label className="text-xs font-800 uppercase tracking-wide text-muted-foreground">
-              Product message
-            </label>
-            <textarea
-              value={text}
-              onChange={(event) => setText(event.target.value)}
-              rows={16}
-              className="input-base mt-2 w-full resize-y rounded-xl px-4 py-3 font-mono text-sm leading-6"
-              placeholder="Tell me the fabric, rate, stock, colours, design, channel and format…"
-            />
-            <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-              <button
-                type="button"
-                onClick={() => void analyze()}
-                disabled={analyzing || !text.trim()}
-                className="btn-primary inline-flex flex-1 items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm disabled:opacity-50"
-              >
-                <Icon name="CpuChipIcon" size={17} />
-                {analyzing ? 'Organising catalogue…' : draft ? 'Analyse again' : 'Ask AI to organise'}
-              </button>
-              <button
-                type="button"
-                onClick={() => inputRef.current?.click()}
-                className="btn-secondary inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm"
-              >
-                <Icon name="PaperClipIcon" size={17} /> Add photos or reel
-              </button>
-              <input
-                ref={inputRef}
-                type="file"
-                multiple
-                accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,video/webm"
-                onChange={(event) => void addFiles(event)}
-                className="hidden"
-              />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label className="text-xs font-800 text-foreground">Sell to</label>
+                <select
+                  value={form.saleChannel}
+                  onChange={(event) => updateForm('saleChannel', event.target.value as SaleChannel)}
+                  className="input-base mt-2 w-full rounded-xl px-3 py-3 text-sm"
+                >
+                  <option value="both">Business + retail buyers</option>
+                  <option value="b2b">Business buyers only</option>
+                  <option value="retail">Retail buyers only</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-800 text-foreground">Product format</label>
+                <select
+                  value={form.packageFormat}
+                  onChange={(event) => updateForm('packageFormat', event.target.value as PackageFormat)}
+                  className="input-base mt-2 w-full rounded-xl px-3 py-3 text-sm"
+                >
+                  {PACKAGE_FORMATS.map((format) => <option key={format}>{format}</option>)}
+                </select>
+              </div>
             </div>
           </div>
         </section>
 
-        <section className="space-y-5">
-          <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-xs font-800 uppercase tracking-wide text-muted-foreground">Structured preview</p>
-                <h2 className="mt-1 text-lg font-800 text-foreground">
-                  {draft?.name || 'Waiting for product details'}
-                </h2>
-              </div>
-              {draft && (
-                <span className="rounded-full bg-success/10 px-3 py-1 text-xs font-800 text-success">
-                  Ready to review
-                </span>
-              )}
-            </div>
-
-            {draft ? (
-              <>
-                <div className="mt-4 grid grid-cols-2 gap-3 text-xs">
-                  {[
-                    ['Category', draft.category],
-                    ['Channel', labelForChannel(draft.saleChannel)],
-                    ['Format', draft.packageFormat],
-                    ['Fabric name', draft.name],
-                    ['Width', draft.widthInches ? `${draft.widthInches} in` : 'Not provided'],
-                    ['Base rate', `₹${draft.pricePerUnit.toLocaleString('en-IN')}/${draft.unit}`],
-                    ['Total stock', `${draft.availableQuantity.toLocaleString('en-IN')} ${draft.unit}`],
-                    ['Variations', String(draft.variants.length || 1)],
-                  ].map(([label, value]) => (
-                    <div key={label} className="rounded-xl bg-muted p-3">
-                      <p className="text-[10px] font-800 uppercase tracking-wider text-muted-foreground">{label}</p>
-                      <p className="mt-1 font-800 text-foreground">{value}</p>
-                    </div>
-                  ))}
-                </div>
-
-                {!!draft.variants.length && (
-                  <div className="mt-4 space-y-2">
-                    <p className="text-xs font-800 uppercase tracking-wide text-muted-foreground">Colours & designs</p>
-                    {draft.variants.map((variant) => (
-                      <div
-                        key={catalogVariantKey(variant.colorName, variant.designName)}
-                        className="flex items-center justify-between gap-3 rounded-xl border border-border p-3 text-xs"
-                      >
-                        <div className="min-w-0">
-                          <p className="truncate font-800 text-foreground">{variant.colorName} · {variant.designName}</p>
-                          <p className="text-muted-foreground">
-                            {variant.availableQuantity.toLocaleString('en-IN')} {variant.unit} · MOQ {variant.moq}
-                          </p>
-                        </div>
-                        <p className="shrink-0 font-800 text-primary">
-                          ₹{variant.pricePerUnit.toLocaleString('en-IN')}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </>
-            ) : (
-              <div className="mt-5 rounded-xl border border-dashed border-border py-12 text-center">
-                <Icon name="ChatBubbleBottomCenterTextIcon" size={30} className="mx-auto text-muted-foreground" />
-                <p className="mt-3 text-sm font-800 text-foreground">Send the product message to begin</p>
-                <p className="mx-auto mt-1 max-w-sm text-xs leading-5 text-muted-foreground">
-                  The assistant will separate the parent product, colours, designs, rates and stock.
-                </p>
-              </div>
-            )}
-          </div>
-
-          <div
+        <div className="space-y-5">
+          <section
             className="rounded-2xl border border-border bg-card p-5 shadow-sm"
             onDragOver={(event) => event.preventDefault()}
             onDrop={(event) => void handleDrop(event)}
           >
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="text-xs font-800 uppercase tracking-wide text-muted-foreground">Product media</p>
-                <p className="mt-1 text-sm font-800 text-foreground">Front, back, details and reels</p>
+                <p className="text-xs font-800 uppercase tracking-wide text-muted-foreground">Photos & video</p>
+                <h2 className="mt-1 text-lg font-800 text-foreground">Show the product clearly</h2>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                  At least one photo is required to publish. Short videos are optional.
+                </p>
               </div>
               <button
                 type="button"
-                onClick={() => inputRef.current?.click()}
+                onClick={() => fileInputRef.current?.click()}
                 className="rounded-xl border border-border px-3 py-2 text-xs font-800 hover:border-primary hover:text-primary"
               >
                 Add media
@@ -745,119 +943,164 @@ export default function SellerCatalogAssistant() {
 
             <button
               type="button"
-              onClick={() => inputRef.current?.click()}
+              onClick={() => fileInputRef.current?.click()}
               className="mt-4 flex w-full flex-col items-center justify-center rounded-xl border-2 border-dashed border-primary/25 bg-primary/5 px-4 py-6 text-center transition hover:border-primary/60"
             >
               <Icon name="ArrowUpTrayIcon" size={24} className="text-primary" />
-              <span className="mt-2 text-sm font-800 text-foreground">Choose product photos or a reel</span>
-              <span className="mt-1 text-xs text-muted-foreground">{draft ? `${draft.name} · ${draft.widthInches ? `${draft.widthInches} in` : 'width pending'} · ${(draft.variants || []).map((item) => item.colorName).join(', ') || 'colour pending'}` : 'Name, width and colour appear here after extraction'}</span>
+              <span className="mt-2 text-sm font-800 text-foreground">Add product photos</span>
+              <span className="mt-1 text-xs text-muted-foreground">JPG, PNG or WebP · video optional up to 20 sec</span>
             </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,video/webm"
+              onChange={(event) => void addFiles(event)}
+              className="hidden"
+            />
 
-            {attachments.length ? (
+            {allMedia.length > 0 && (
               <div className="mt-4 space-y-3">
-                {attachments.map((attachment) => (
-                  <article key={attachment.id} className="grid gap-3 rounded-xl border border-border p-3 sm:grid-cols-[88px_1fr_auto]">
+                {allMedia.map((item) => (
+                  <article key={`${item.source}-${item.id}`} className="grid grid-cols-[76px_1fr_auto] gap-3 rounded-xl border border-border p-3">
                     <div className="h-20 overflow-hidden rounded-lg bg-muted">
-                      {attachment.mediaType === 'video' ? (
-                        <video src={attachment.previewUrl} className="h-full w-full object-cover" muted playsInline />
+                      {item.mediaType === 'video' ? (
+                        <video src={item.previewUrl} className="h-full w-full object-cover" muted playsInline />
                       ) : (
-                        // Browser object URLs are intentionally rendered without the image optimiser.
+                        // Object and public URLs are intentionally rendered directly.
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src={attachment.previewUrl} alt={attachment.file.name} className="h-full w-full object-cover" />
+                        <img src={item.previewUrl} alt={item.filename} className="h-full w-full object-cover" />
                       )}
                     </div>
-                    <div className="min-w-0 space-y-2">
-                      <div>
-                        <p className="truncate text-xs font-800 text-foreground">{attachment.file.name}</p>
-                        <p className="text-[11px] text-muted-foreground">
-                          {formatBytes(attachment.file.size)}
-                          {attachment.durationSeconds ? ` · ${attachment.durationSeconds.toFixed(1)} sec` : ''}
-                        </p>
-                      </div>
-                      <div className="grid gap-2 sm:grid-cols-2">
-                        <select
-                          value={attachment.targetKey}
-                          onChange={(event) => updateAttachment(attachment.id, { targetKey: event.target.value })}
-                          className="input-base rounded-lg px-2 py-1.5 text-xs"
-                        >
-                          <option value="">Parent product</option>
-                          {variantTargets.map((target) => (
-                            <option key={target.key} value={target.key}>{target.label}</option>
-                          ))}
-                        </select>
-                        <select
-                          value={attachment.viewType}
-                          onChange={(event) => updateAttachment(attachment.id, { viewType: event.target.value as ViewType })}
-                          className="input-base rounded-lg px-2 py-1.5 text-xs"
-                        >
-                          <option value="front">Front view</option>
-                          <option value="back">Back view</option>
-                          <option value="detail">Zoom / detail</option>
-                          <option value="reel">Video / reel</option>
-                          <option value="other">Other</option>
-                        </select>
-                      </div>
+                    <div className="min-w-0">
+                      <p className="truncate text-xs font-800 text-foreground">{item.filename}</p>
+                      <p className="mt-0.5 text-[11px] text-muted-foreground">
+                        {formatBytes(item.fileSize)}
+                        {item.durationSeconds ? ` · ${item.durationSeconds.toFixed(1)} sec` : ''}
+                        {item.source === 'remote' ? ' · saved' : ' · pending save'}
+                      </p>
+                      <select
+                        value={item.viewType}
+                        onChange={(event) => {
+                          const viewType = event.target.value as ViewType;
+                          if (item.source === 'remote') updateRemoteMedia(item.id, viewType);
+                          else updateLocalMedia(item.id, viewType);
+                        }}
+                        className="input-base mt-2 w-full rounded-lg px-2 py-1.5 text-xs"
+                      >
+                        <option value="front">Front view</option>
+                        <option value="back">Back view</option>
+                        <option value="detail">Detail / close-up</option>
+                        <option value="reel">Video / reel</option>
+                        <option value="other">Other</option>
+                      </select>
                     </div>
                     <button
                       type="button"
-                      onClick={() => removeAttachment(attachment.id)}
+                      onClick={() => item.source === 'remote' ? removeRemoteMedia(item.id) : removeLocalMedia(item.id)}
                       className="h-9 rounded-lg px-2 text-error hover:bg-error/5"
-                      aria-label={`Remove ${attachment.file.name}`}
+                      aria-label={`Remove ${item.filename}`}
                     >
                       <Icon name="TrashIcon" size={16} />
                     </button>
                   </article>
                 ))}
               </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => inputRef.current?.click()}
-                className="mt-4 flex w-full flex-col items-center justify-center rounded-xl border-2 border-dashed border-border px-4 py-10 text-center hover:border-primary/50 hover:bg-primary/5"
-              >
-                <Icon name="PhotoIcon" size={28} className="text-muted-foreground" />
-                <span className="mt-2 text-sm font-800 text-foreground">Upload product media</span>
-                <span className="mt-1 text-xs text-muted-foreground">Add front/back photos, close-ups and one or more short reels.</span>
-              </button>
             )}
-          </div>
 
-          <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
-            <p className="text-xs font-800 uppercase tracking-wide text-muted-foreground">Save & visibility</p>
-            <div className="mt-3 grid grid-cols-2 gap-2 rounded-xl bg-muted p-1">
-              <button
-                type="button"
-                onClick={() => setListingStatus('draft')}
-                className={`rounded-lg px-3 py-2.5 text-xs font-800 ${listingStatus === 'draft' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'}`}
-              >
-                Draft · private
-              </button>
-              <button
-                type="button"
-                onClick={() => setListingStatus('active')}
-                className={`rounded-lg px-3 py-2.5 text-xs font-800 ${listingStatus === 'active' ? 'bg-success text-white shadow-sm' : 'text-muted-foreground'}`}
-              >
-                Active · visible
-              </button>
+            <div className="mt-4 flex gap-2 text-[11px] font-800">
+              <span className={`rounded-full px-2.5 py-1 ${imageCount ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning'}`}>
+                {imageCount} photo{imageCount === 1 ? '' : 's'}
+              </span>
+              <span className="rounded-full bg-muted px-2.5 py-1 text-muted-foreground">
+                {videoCount} optional video{videoCount === 1 ? '' : 's'}
+              </span>
             </div>
-            <p className="mt-2 text-xs leading-5 text-muted-foreground">
-              Archived products remain hidden. Drafts are visible only to you. Active products appear in buyer search according to the selected B2B/Retail channel.
+          </section>
+
+          <details className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+            <summary className="cursor-pointer list-none text-sm font-800 text-foreground">
+              <span className="inline-flex items-center gap-2">
+                <Icon name="SparklesIcon" size={17} className="text-primary" /> AI helper <span className="text-xs font-600 text-muted-foreground">optional</span>
+              </span>
+            </summary>
+            <p className="mt-3 text-xs leading-5 text-muted-foreground">
+              Paste a catalogue message or describe the item. AI can fill the form, but it is never required to save or publish.
             </p>
+            <textarea
+              value={aiText}
+              onChange={(event) => setAiText(event.target.value)}
+              rows={4}
+              className="input-base mt-3 w-full resize-y rounded-xl px-4 py-3 text-sm leading-6"
+              placeholder="e.g. blue silk, ₹250/mtr, 80 metres, 44 inch width, zari work…"
+            />
+            <button
+              type="button"
+              onClick={() => void analyze()}
+              disabled={analyzing || !aiText.trim()}
+              className="btn-secondary mt-3 inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs disabled:opacity-50"
+            >
+              <Icon name="CpuChipIcon" size={15} /> {analyzing ? 'Filling fields…' : 'Fill fields with AI'}
+            </button>
+          </details>
+
+          <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-800 uppercase tracking-wide text-muted-foreground">Ready to publish</p>
+                <h2 className="mt-1 text-base font-800 text-foreground">
+                  {publishMissing.length ? `${publishMissing.length} item${publishMissing.length === 1 ? '' : 's'} left` : 'Everything required is ready'}
+                </h2>
+              </div>
+              <div className={`flex h-10 w-10 items-center justify-center rounded-full ${publishMissing.length ? 'bg-warning/10 text-warning' : 'bg-success/10 text-success'}`}>
+                <Icon name={publishMissing.length ? 'ClockIcon' : 'CheckCircleIcon'} size={20} />
+              </div>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {['product name', 'description', 'price', 'stock quantity', 'at least 1 photo'].map((requirement) => {
+                const missing = publishMissing.includes(requirement);
+                return (
+                  <span key={requirement} className={`rounded-full px-2.5 py-1 text-[11px] font-800 ${missing ? 'bg-warning/10 text-warning' : 'bg-success/10 text-success'}`}>
+                    {missing ? '○' : '✓'} {requirement}
+                  </span>
+                );
+              })}
+            </div>
+          </section>
+        </div>
+      </div>
+
+      <section className="mt-5 rounded-2xl border border-border bg-card p-4 shadow-sm sm:p-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm font-800 text-foreground">Save whenever you want</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Drafts stay private. Publishing only checks the five essentials above; videos, width, GSM and work details are optional.
+            </p>
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <button
+              type="button"
+              onClick={() => void saveDraft()}
+              disabled={savingDraft || publishing}
+              className="btn-secondary inline-flex min-w-36 items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm disabled:opacity-50"
+            >
+              <Icon name="DocumentCheckIcon" size={17} /> {savingDraft ? 'Saving…' : 'Save draft'}
+            </button>
             <button
               type="button"
               onClick={() => void publish()}
-              disabled={!draft || publishing || isDemoAccount}
-              className="btn-primary mt-4 flex w-full items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={publishing || savingDraft}
+              className="btn-primary inline-flex min-w-44 items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm disabled:opacity-50"
             >
-              <Icon name={listingStatus === 'active' ? 'RocketLaunchIcon' : 'DocumentCheckIcon'} size={17} />
-              {publishing ? 'Uploading and saving…' : listingStatus === 'active' ? 'Publish catalogue' : 'Save catalogue draft'}
+              <Icon name="RocketLaunchIcon" size={17} /> {publishing ? 'Publishing…' : 'Publish product'}
             </button>
-            {isDemoAccount && (
-              <p className="mt-2 text-center text-xs text-warning">The demo account can test parsing and media preview but cannot publish.</p>
-            )}
           </div>
-        </section>
-      </div>
+        </div>
+        {isDemoAccount && (
+          <p className="mt-3 text-xs text-warning">Demo sellers can test the form and local drafts, but only verified real sellers can publish.</p>
+        )}
+      </section>
     </div>
   );
 }
