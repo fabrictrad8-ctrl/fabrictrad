@@ -82,7 +82,7 @@ export default function BuyerCatalogOrders() {
     const { data, error } = await supabase
       .from('catalog_order_requests')
       .select(
-        'id,buyer_id,seller_id,product_id,variant_id,quantity,unit,price_per_unit,subtotal,gst_amount,total_amount,status,payment_status,amount_paid,amount_refunded,payment_terms,deposit_percent,payment_due_at,notes,created_at,seller_products(name,sku),seller_product_variants(color_name,design_name)'
+        'id,buyer_id,seller_id,product_id,variant_id,quantity,unit,price_per_unit,subtotal,gst_amount,total_amount,status,payment_status,amount_paid,amount_refunded,payment_terms,deposit_percent,payment_due_at,notes,created_at,seller_products!catalog_order_requests_product_id_fkey(name,sku),seller_product_variants!catalog_order_requests_variant_id_fkey(color_name,design_name)'
       )
       .eq('buyer_id', user.id)
       .order('created_at', { ascending: false })
