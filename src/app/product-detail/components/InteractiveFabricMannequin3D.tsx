@@ -123,23 +123,9 @@ export default function InteractiveFabricMannequin3D({
         addBody(new THREE.SphereGeometry(0.72, 48, 40), 0, 1.08, 0, [0.98, 1.24, 0.68]);
         addBody(new THREE.SphereGeometry(0.67, 48, 40), 0, -0.1, 0, [1.05, 0.82, 0.78]);
 
-        const leftArm = addBody(
-          new THREE.CapsuleGeometry(0.15, 1.45, 12, 24),
-          -0.86,
-          0.92,
-          0,
-          [1, 1, 1],
-          [0, 0, -0.16]
-        );
+        const leftArm = addBody(new THREE.CapsuleGeometry(0.15, 1.45, 12, 24), -0.86, 0.92, 0);
         leftArm.rotation.z = -0.16;
-        const rightArm = addBody(
-          new THREE.CapsuleGeometry(0.15, 1.45, 12, 24),
-          0.86,
-          0.92,
-          0,
-          [1, 1, 1],
-          [0, 0, 0.16]
-        );
+        const rightArm = addBody(new THREE.CapsuleGeometry(0.15, 1.45, 12, 24), 0.86, 0.92, 0);
         rightArm.rotation.z = 0.16;
         addBody(new THREE.SphereGeometry(0.17, 24, 20), -0.99, -0.02, 0);
         addBody(new THREE.SphereGeometry(0.17, 24, 20), 0.99, -0.02, 0);
@@ -148,7 +134,11 @@ export default function InteractiveFabricMannequin3D({
         addBody(new THREE.BoxGeometry(0.42, 0.18, 0.78), -0.33, -2.82, 0.2, [1, 1, 1], [0, 0, 0], shoeMaterial);
         addBody(new THREE.BoxGeometry(0.42, 0.18, 0.78), 0.33, -2.82, 0.2, [1, 1, 1], [0, 0, 0], shoeMaterial);
 
-        let garmentMaterial: THREE.MeshPhysicalMaterial;
+        let garmentMaterial = new THREE.MeshPhysicalMaterial({
+          color: 0xc96c21,
+          roughness: 0.78,
+          side: THREE.DoubleSide,
+        });
         try {
           const texture = await new Promise<THREE.Texture>((resolve, reject) => {
             const loader = new THREE.TextureLoader();
@@ -160,6 +150,7 @@ export default function InteractiveFabricMannequin3D({
           texture.wrapT = THREE.RepeatWrapping;
           texture.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
           texture.repeat.set(style === 'saree' || style === 'dupatta' ? 1.0 : 1.35, 2.25);
+          garmentMaterial.dispose();
           garmentMaterial = new THREE.MeshPhysicalMaterial({
             map: texture,
             roughness: 0.72,
@@ -171,11 +162,6 @@ export default function InteractiveFabricMannequin3D({
           });
           setTextureReady(true);
         } catch {
-          garmentMaterial = new THREE.MeshPhysicalMaterial({
-            color: 0xc96c21,
-            roughness: 0.78,
-            side: THREE.DoubleSide,
-          });
           setTextureReady(false);
         }
 
@@ -203,9 +189,7 @@ export default function InteractiveFabricMannequin3D({
               const theta = start + (u - 0.5) * options.arc;
               const fold = Math.sin(u * Math.PI * 2 * folds + v * 2.4) * foldDepth * (0.3 + 0.7 * v);
               const radius = baseRadius + fold;
-              const x = Math.sin(theta) * radius;
-              const z = Math.cos(theta) * radius + verticalSway;
-              positions.push(x, y, z);
+              positions.push(Math.sin(theta) * radius, y, Math.cos(theta) * radius + verticalSway);
               uvs.push(u, 1 - v);
             }
           }
@@ -226,13 +210,7 @@ export default function InteractiveFabricMannequin3D({
           return geometry;
         };
 
-        const createFlowingPanel = (
-          width: number,
-          height: number,
-          wave = 0.16,
-          cols = 44,
-          rows = 66
-        ) => {
+        const createFlowingPanel = (width: number, height: number, wave = 0.16, cols = 44, rows = 66) => {
           const geometry = new THREE.PlaneGeometry(width, height, cols, rows);
           const position = geometry.getAttribute('position');
           for (let i = 0; i < position.count; i += 1) {
@@ -292,9 +270,9 @@ export default function InteractiveFabricMannequin3D({
           addGarment(torsoShell(length, style === 'kurta' ? 0.9 : 0.8));
           const sleeveLength = style === 'top' ? 0.85 : 1.45;
           const sleeveTop = 0.22 * fitScale;
-          const left = addGarment(new THREE.CylinderGeometry(sleeveTop, sleeveTop * 0.84, sleeveLength, 30, 6, true), -0.87, 0.9, 0, [0, 0, -0.16]);
+          const left = addGarment(new THREE.CylinderGeometry(sleeveTop, sleeveTop * 0.84, sleeveLength, 30, 6, true), -0.87, 0.9, 0);
           left.rotation.z = -0.16;
-          const right = addGarment(new THREE.CylinderGeometry(sleeveTop, sleeveTop * 0.84, sleeveLength, 30, 6, true), 0.87, 0.9, 0, [0, 0, 0.16]);
+          const right = addGarment(new THREE.CylinderGeometry(sleeveTop, sleeveTop * 0.84, sleeveLength, 30, 6, true), 0.87, 0.9, 0);
           right.rotation.z = 0.16;
         } else if (style === 'bottom') {
           addGarment(createClothShell({ topY: 0.1, height: 2.55, topRadius: 0.68, bottomRadius: 0.98, arc: Math.PI * 1.96, folds: 10, foldDepth: 0.045 }));
@@ -302,8 +280,6 @@ export default function InteractiveFabricMannequin3D({
           const panel = addGarment(createFlowingPanel(2.5, 3.65, 0.18), 0, 0.25, 0.47, [0.02, 0, 0.02]);
           panel.geometry.rotateZ(-0.08);
         } else {
-          // Neutral fabric-only preview: a curved textile wrap around the mannequin,
-          // never a flat rectangle pasted in front of the body.
           addGarment(createClothShell({
             topY: 1.7,
             height: 3.95,
