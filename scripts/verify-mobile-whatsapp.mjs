@@ -72,16 +72,12 @@ const readiness = '.github/workflows/integration-readiness.yml';
   readiness,
 ].forEach(read);
 
-// Onboarding must survive app backgrounding, gallery/file picker switches and
-// mobile tab eviction without waiting for the debounce timer.
 requireText(onboarding, "document.addEventListener('visibilitychange'");
 requireText(onboarding, "window.addEventListener('pagehide'");
 requireText(onboarding, 'keepalive');
 requireText(onboarding, 'window.localStorage.setItem');
 requireText(onboarding, 'window.sessionStorage.setItem');
 requireText(onboarding, 'saveNow(true)');
-
-// Signed-in onboarding must use a user-scoped browser key and explicit bearer session.
 requireText(onboarding, 'scopeFor(userId)');
 requireText(onboarding, 'headers.Authorization');
 requireText(onboarding, 'supabase.auth.getSession()');
@@ -91,7 +87,6 @@ requireText(onboardingApi, ".eq('user_id', user.id)");
 requireText(sellerVerification, 'bearerToken');
 requireText(sellerVerification, 'Authorization: `Bearer ${token}`');
 
-// Product drafts must survive navigation and mobile picker round trips.
 requireText(composer, 'ownerKey');
 requireText(composer, 'window.localStorage.setItem');
 requireText(composer, "document.visibilityState === 'hidden'");
@@ -108,7 +103,6 @@ requireText(productDraftMigration, 'create table if not exists public.seller_pro
 requireText(productDraftMigration, 'enable row level security');
 requireText(productDraftMigration, 'seller_product_drafts_owner_update');
 
-// Seller catalogue taxonomy is DIY: suggestions are optional and arbitrary text is persisted.
 requireText(catalogUi, 'Fabric name');
 requireText(catalogUi, 'Type any fabric name');
 requireText(catalogUi, 'Product type / format');
@@ -127,7 +121,6 @@ requireText(flexibleProductMigration, 'add column if not exists unit_label text'
 requireText(flexibleProductMigration, "'yard'::text,'farma'::text,'custom'::text");
 requireText(flexibleProductMigration, 'check (char_length(trim(package_format)) between 1 and 160)');
 
-// WhatsApp ingestion stays signed, private and seller scoped.
 requireText(webhook, "request.headers.get('x-hub-signature-256')");
 requireText(webhook, "createHmac('sha256'");
 requireText(webhook, 'timingSafeEqual');
@@ -147,8 +140,6 @@ requireText(inboxApi, ".eq('user_id', user.id)");
 requireText(inboxApi, 'createSignedUrl');
 requireText(inboxUi, 'WhatsApp → FabricTrad dashboard');
 
-// Buyer virtual drape: product-derived garment logic, selectable man/woman 3D human,
-// and personal-photo-only AI try-on. There is no stock studio-model AI shortcut.
 requireText(drapeRoute, "export { default } from './HybridVirtualDrapeStudio';");
 requireText(drapeUi, 'inferDrapeProductStyle');
 requireText(drapeUi, 'Detected from this seller listing');
@@ -170,8 +161,6 @@ forbidText(drapeUi, 'DEFAULT_MODEL_IMAGE');
 forbidText(drapeUi, 'Studio model');
 forbidText(drapeUi, 'Choose the garment');
 
-// 3D mode must be a recognisable human avatar with gender-specific body/face cues,
-// curved product-driven textile geometry and direct 360 manipulation.
 requireText(drape3d, "export type DrapeAvatarGender = 'woman' | 'man'");
 requireText(drape3d, "avatarGender === 'woman'");
 requireText(drape3d, 'Human head + visible facial cues');
@@ -186,7 +175,6 @@ forbidText(drape3d, 'around the mannequin');
 requireText(drapeStyle, 'inferDrapeProductStyle');
 requireText(drapeStyle, "return 'fabric'");
 
-// AI photo mode still resolves approved seller media and calls the provider server-side.
 requireText(drapeApi, 'resolveListingFabric');
 requireText(drapeApi, ".from('seller_products')");
 requireText(drapeApi, ".from('seller_product_variants')");
@@ -198,10 +186,9 @@ requireText(drapeApi, "form.append('image[]', fabric.blob");
 requireText(drapeApi, "mode: 'real_ai_image_try_on'");
 forbidText(drapeUi, 'OPENAI_API_KEY');
 forbidText(drapeUi, 'GEMINI_API_KEY');
-requireText(legacyDrape, "export { default } from './VirtualColourDrapeStudio';");
+requireText(legacyDrape, "export { default } from './HybridVirtualDrapeStudio';");
 forbidText(legacyDrape, "blend: 'multiply'");
 
-// Report the experience accurately: human 3D + AI personal photo, with future GLB/USDZ assets.
 requireText(trialMigration, 'garment_glb');
 requireText(trialMigration, 'garment_usdz');
 requireText(trialMigration, 'fabric_texture');
@@ -211,8 +198,6 @@ requireText(trialStatus, "avatarChoices: ['woman', 'man']");
 requireText(trialStatus, "personalPhotoInput: ['upload', 'camera']");
 requireText(trialStatus, "'procedural_webgl_human_avatar_live'");
 
-// Switching browser tabs saves continuity state and token refresh must not trigger
-// a profile reload that makes the page appear to remount.
 requireText(pageContinuity, "document.addEventListener('visibilitychange'");
 requireText(pageContinuity, "window.addEventListener('pagehide'");
 requireText(pageContinuity, 'sessionStorage.setItem');
@@ -221,12 +206,9 @@ forbidText(pageContinuity, 'router.refresh');
 requireText(authContext, "event === 'TOKEN_REFRESHED'");
 requireText(authContext, 'must not re-fetch the whole profile');
 
-// Phone-first operation should remain installable as a standalone web app.
 requireText(manifest, "display: 'standalone'");
 requireText(manifest, "start_url: '/'");
 requireText(manifest, "categories: ['business', 'shopping', 'productivity']");
-
-// Production readiness must continuously validate the Meta integration.
 requireText(status, 'configured');
 requireText(readiness, "fetch_json 'WhatsApp catalog readiness'");
 requireText(readiness, 'WhatsApp forged-signature probe');
