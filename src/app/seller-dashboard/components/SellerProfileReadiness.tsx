@@ -30,18 +30,36 @@ type VerificationItem = {
 
 const itemClass: Record<VerificationItem['state'], string> = {
   complete: 'border-success/25 bg-success/10 text-success',
-  pending: 'border-amber-300/60 bg-amber-50 text-amber-900 dark:border-amber-300/20 dark:bg-amber-300/10 dark:text-amber-200',
+  pending:
+    'border-amber-300/60 bg-amber-50 text-amber-900 dark:border-amber-300/20 dark:bg-amber-300/10 dark:text-amber-200',
   missing: 'border-border bg-card text-muted-foreground',
 };
 
 export default function SellerProfileReadiness() {
-  const { profile, isDemoAccount } = useAuth();
+  const { user, profile, isDemoAccount } = useAuth();
   const [verification, setVerification] = useState<SellerVerificationState | null>(null);
   const [statusError, setStatusError] = useState('');
+  const [statusResolved, setStatusResolved] = useState(false);
+  const [reloadToken, setReloadToken] = useState(0);
 
   useEffect(() => {
-    if (isDemoAccount || !(profile?.can_sell ?? profile?.role === 'seller')) return;
+    const canSell = profile?.can_sell ?? profile?.role === 'seller';
+
+    if (isDemoAccount || !user?.id || !canSell) {
+      setVerification(null);
+      setStatusError('');
+      setStatusResolved(true);
+      return;
+    }
+
     let cancelled = false;
+
+    // Never render guessed readiness values while the authoritative seller state is loading.
+    // Resetting here also prevents a previous account's verification state from flashing after
+    // an account/session switch in the same browser tab.
+    setVerification(null);
+    setStatusError('');
+    setStatusResolved(false);
 
     const load = async () => {
       try {
@@ -63,8 +81,12 @@ export default function SellerProfileReadiness() {
         }
       } catch (caught) {
         if (!cancelled) {
-          setStatusError(caught instanceof Error ? caught.message : 'Verification status could not be loaded.');
+          setStatusError(
+            caught instanceof Error ? caught.message : 'Verification status could not be loaded.'
+          );
         }
+      } finally {
+        if (!cancelled) setStatusResolved(true);
       }
     };
 
@@ -72,7 +94,7 @@ export default function SellerProfileReadiness() {
     return () => {
       cancelled = true;
     };
-  }, [isDemoAccount, profile?.can_sell, profile?.role]);
+  }, [isDemoAccount, profile?.can_sell, profile?.role, reloadToken, user?.id]);
 
   const profileChecks = useMemo(
     () => [
@@ -94,7 +116,11 @@ export default function SellerProfileReadiness() {
     return (
       <section className="mb-5 rounded-2xl border border-secondary/20 bg-secondary/5 p-4 sm:p-5">
         <div className="flex items-start gap-3">
-          <Icon name="IdentificationIcon" size={19} className="mt-0.5 shrink-0 text-secondary" />
+          <Icon
+            name="IdentificationIcon"
+            size={19}
+            className="mt-0.5 shrink-0 text-secondary"
+          />
           <div>
             <p className="text-sm font-800 text-foreground">Demo seller workspace</p>
             <p className="mt-1 text-xs leading-5 text-muted-foreground">
@@ -106,10 +132,40 @@ export default function SellerProfileReadiness() {
     );
   }
 
-  const documentTotal = verification?.requiredDocumentsTotal ?? 3;
-  const documentsUploaded = verification?.requiredDocumentsUploaded ?? 0;
-  const documentsApproved = verification?.requiredDocumentsApproved ?? 0;
-  const phonePresent = Boolean(verification?.phonePresent || profile?.phone?.trim());
+  // The previous implementation rendered default 0/3 and pending values before this request
+  // finished, which made fully verified sellers briefly see a false 1/4 readiness card on reload.
+  if (!statusResolved) return null;
+
+  // A failed status request must never be presented as an incomplete seller account. Show a
+  // compact retry state instead of inventing verification blockers from local defaults.
+  if (!verification) {
+    if (!statusError) return null;
+    return (
+      <section className="mb-5 flex flex-col gap-3 rounded-2xl border border-warning/20 bg-warning/5 p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 items-start gap-3">
+          <Icon name="ExclamationTriangleIcon" size={18} className="mt-0.5 shrink-0 text-warning" />
+          <div className="min-w-0">
+            <p className="text-sm font-800 text-foreground">Couldn&apos;t refresh verification status</p>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">
+              Your seller access has not changed. Retry the status check instead of showing stale verification steps.
+            </p>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => setReloadToken((value) => value + 1)}
+          className="btn-secondary inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-xl px-4 text-xs"
+        >
+          <Icon name="ArrowPathIcon" size={15} /> Retry
+        </button>
+      </section>
+    );
+  }
+
+  const documentTotal = verification.requiredDocumentsTotal ?? 3;
+  const documentsUploaded = verification.requiredDocumentsUploaded ?? 0;
+  const documentsApproved = verification.requiredDocumentsApproved ?? 0;
+  const phonePresent = Boolean(verification.phonePresent || profile?.phone?.trim());
 
   const items: VerificationItem[] = [
     {
@@ -119,26 +175,27 @@ export default function SellerProfileReadiness() {
     },
     {
       label: 'GST registration',
-      state: verification?.gstinVerified
+      state: verification.gstinVerified
         ? 'complete'
-        : verification?.gstinEntered || profile?.gstin
+        : verification.gstinEntered || profile?.gstin
           ? 'pending'
           : 'missing',
-      detail: verification?.gstinVerified
+      detail: verification.gstinVerified
         ? 'Active GSTIN confirmed'
-        : verification?.gstinStatus === 'manual_review'
+        : verification.gstinStatus === 'manual_review'
           ? 'Official GST status review pending'
-          : verification?.gstinEntered || profile?.gstin
+          : verification.gstinEntered || profile?.gstin
             ? 'GST verification pending'
             : 'GSTIN missing',
     },
     {
       label: 'KYC documents',
-      state: documentsApproved >= documentTotal
-        ? 'complete'
-        : documentsUploaded >= documentTotal
-          ? 'pending'
-          : 'missing',
+      state:
+        documentsApproved >= documentTotal
+          ? 'complete'
+          : documentsUploaded >= documentTotal
+            ? 'pending'
+            : 'missing',
       detail:
         documentsApproved >= documentTotal
           ? `${documentTotal}/${documentTotal} approved`
@@ -148,24 +205,29 @@ export default function SellerProfileReadiness() {
     },
     {
       label: 'Settlement bank',
-      state: verification?.bankVerified
+      state: verification.bankVerified
         ? 'complete'
-        : verification?.bankDetailsPresent
+        : verification.bankDetailsPresent
           ? 'pending'
           : 'missing',
-      detail: verification?.bankVerified
+      detail: verification.bankVerified
         ? 'Bank account verified'
-        : verification?.bankDetailsPresent
+        : verification.bankDetailsPresent
           ? 'Bank review pending'
           : 'Settlement details missing',
     },
   ];
 
   const verificationCompleted = items.filter((item) => item.state === 'complete').length;
-  const fullyVerified = profilePercent === 100 && verificationCompleted === items.length;
+  const serverVerified =
+    verification.verificationStatus === 'verified' &&
+    verification.gstinVerified === true &&
+    verification.bankVerified === true &&
+    documentsApproved >= documentTotal;
+  const fullyVerified = serverVerified || (profilePercent === 100 && verificationCompleted === items.length);
   if (fullyVerified) return null;
 
-  const nextAction = verification?.nextAction;
+  const nextAction = verification.nextAction;
   const action =
     nextAction === 'add_phone'
       ? {
@@ -206,7 +268,13 @@ export default function SellerProfileReadiness() {
                 <div key={item.label} className={`rounded-xl border p-3 ${itemClass[item.state]}`}>
                   <div className="flex items-center gap-2">
                     <Icon
-                      name={item.state === 'complete' ? 'CheckCircleIcon' : item.state === 'pending' ? 'ClockIcon' : 'MinusCircleIcon'}
+                      name={
+                        item.state === 'complete'
+                          ? 'CheckCircleIcon'
+                          : item.state === 'pending'
+                            ? 'ClockIcon'
+                            : 'MinusCircleIcon'
+                      }
                       size={15}
                     />
                     <p className="text-xs font-800">{item.label}</p>
@@ -215,18 +283,16 @@ export default function SellerProfileReadiness() {
                 </div>
               ))}
             </div>
-
-            {statusError && (
-              <p role="alert" className="mt-3 text-xs text-error">
-                {statusError}
-              </p>
-            )}
           </div>
 
           <div className="w-full shrink-0 xl:w-56">
             <div className="rounded-xl border border-border bg-card/80 p-3 text-center">
-              <p className="text-2xl font-800 text-foreground">{verificationCompleted}/{items.length}</p>
-              <p className="text-[11px] font-700 text-muted-foreground">verification checks complete</p>
+              <p className="text-2xl font-800 text-foreground">
+                {verificationCompleted}/{items.length}
+              </p>
+              <p className="text-[11px] font-700 text-muted-foreground">
+                verification checks complete
+              </p>
             </div>
             <Link
               href={action.href}
