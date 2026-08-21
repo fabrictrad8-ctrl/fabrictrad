@@ -9,15 +9,17 @@ export async function GET() {
 
   return NextResponse.json(
     {
-      currentExperience: 'interactive_3d_mannequin_plus_ai_photo_try_on',
+      currentExperience: 'interactive_3d_human_avatar_plus_ai_personal_photo_try_on',
       ai2dConfigured,
-      interactiveThreeDMannequin: true,
+      interactiveThreeDHumanAvatar: true,
+      avatarChoices: ['woman', 'man'],
       personalPhotoExperience: 'ai_2d_image_try_on',
+      personalPhotoInput: ['upload', 'camera'],
       threeDAssetPipeline: true,
       threeDProviderConfigured,
       threeDStatus: threeDProviderConfigured
         ? 'external_asset_provider_configured'
-        : 'procedural_webgl_mannequin_live',
+        : 'procedural_webgl_human_avatar_live',
       supportedFutureAssets: [
         'fabric_texture',
         'normal_map',
