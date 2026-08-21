@@ -4,6 +4,7 @@ const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf
 
 const enableSelling = read('src/app/api/account/enable-selling/route.ts');
 const statusRoute = read('src/app/api/seller/verification-status/route.ts');
+const readiness = read('src/app/seller-dashboard/components/SellerProfileReadiness.tsx');
 const entry = read('src/app/seller-registration/components/SellerRegistrationEntry.tsx');
 const resume = read('src/app/seller-registration/components/SellerApplicationResume.tsx');
 const adminReview = read('src/app/api/admin/sellers/verification/route.ts');
@@ -28,6 +29,14 @@ assert(
     statusRoute.includes('missingDocuments') &&
     statusRoute.includes('submittedAt'),
   'Seller status must distinguish a draft from an application submitted for review.'
+);
+assert(
+  readiness.includes('payload.status') && statusRoute.includes('status: readinessRecord'),
+  'Seller dashboard readiness and verification-status API must share the same status response contract.'
+);
+assert(
+  statusRoute.includes('...readinessRecord'),
+  'Seller verification-status API must preserve its flat response for registration consumers.'
 );
 assert(
   entry.includes('profile?.can_sell') && entry.includes('<SellerApplicationResume />'),
@@ -56,4 +65,4 @@ assert(
   'Registration bank details must synchronize to an unverified masked settlement profile.'
 );
 
-console.log('Seller onboarding, resumability and staged approval checks passed.');
+console.log('Seller onboarding, readiness, resumability and staged approval checks passed.');
