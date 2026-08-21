@@ -249,11 +249,20 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    } = supabase.auth.onAuthStateChange((event, nextSession) => {
       if (cancelled || demoActiveRef.current) return;
       setSession(nextSession);
       setUser(nextSession?.user ?? null);
       setIsDemoAccount(false);
+
+      // Supabase may refresh an access token when a background browser tab becomes active.
+      // Updating the token must not re-fetch the whole profile or make the current page look
+      // as if it has reloaded. Explicit profile refreshes and real auth transitions still load it.
+      if (event === 'TOKEN_REFRESHED') {
+        setLoading(false);
+        return;
+      }
+
       if (nextSession?.user) {
         void loadProfile(nextSession.user.id).catch(() => setProfile(null));
       } else {
