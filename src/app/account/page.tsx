@@ -41,6 +41,7 @@ export default function AccountHomePage() {
   const { user, profile, loading, signOut } = useAuth();
   const [signingOut, setSigningOut] = useState(false);
   const [workspaceStatus, setWorkspaceStatus] = useState<WorkspaceStatus | null>(null);
+  const [workspaceStatusReady, setWorkspaceStatusReady] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) router.replace('/login');
@@ -59,6 +60,7 @@ export default function AccountHomePage() {
   useEffect(() => {
     if (!user || !profile) return;
     const controller = new AbortController();
+    setWorkspaceStatusReady(false);
 
     const loadWorkspaceStatus = async () => {
       try {
@@ -73,6 +75,8 @@ export default function AccountHomePage() {
         if (response.ok && !controller.signal.aborted) setWorkspaceStatus(payload);
       } catch {
         // Capability fields below remain a safe fallback if the status endpoint is temporarily unavailable.
+      } finally {
+        if (!controller.signal.aborted) setWorkspaceStatusReady(true);
       }
     };
 
@@ -81,9 +85,9 @@ export default function AccountHomePage() {
   }, [profile, user]);
 
   const buyerVerified = workspaceStatus?.buyer.verified ?? (canBuy && profile?.account_kind === 'individual');
-  const sellerVerified = workspaceStatus?.seller.verified ?? false;
-  const buyerDetail = workspaceStatus?.buyer.label || (buyerVerified ? 'Buyer access active' : 'Buyer setup pending');
-  const sellerDetail = workspaceStatus?.seller.label || (sellerVerified ? 'Verified seller' : 'Seller access active');
+  const sellerVerified = workspaceStatus?.seller.verified ?? (canSell && profile?.verification_status === 'verified');
+  const buyerDetail = workspaceStatus?.buyer.label || (workspaceStatusReady ? (buyerVerified ? 'Buyer access active' : 'Buyer setup needs attention') : 'Checking buyer status…');
+  const sellerDetail = workspaceStatus?.seller.label || (workspaceStatusReady ? (sellerVerified ? 'Verified seller' : 'Seller setup needs attention') : 'Checking seller status…');
 
   const onboarding = useMemo<ReadinessItem[]>(() => {
     const items: ReadinessItem[] = [
@@ -112,7 +116,7 @@ export default function AccountHomePage() {
         label: 'Buyer verification',
         complete: buyerVerified,
         detail: buyerDetail,
-        href: buyerVerified ? undefined : '/buyer-registration',
+        href: workspaceStatusReady && !buyerVerified ? '/buyer-registration' : undefined,
       });
     }
 
@@ -121,21 +125,23 @@ export default function AccountHomePage() {
         label: 'Seller verification',
         complete: sellerVerified,
         detail: sellerDetail,
-        href: sellerVerified ? undefined : '/seller-registration',
+        href: workspaceStatusReady && !sellerVerified ? '/seller-registration' : undefined,
       });
     }
 
     return items;
-  }, [buyerDetail, buyerVerified, canBuy, canSell, profile, sellerDetail, sellerVerified, user]);
+  }, [buyerDetail, buyerVerified, canBuy, canSell, profile, sellerDetail, sellerVerified, user, workspaceStatusReady]);
 
   const completedSteps = onboarding.filter((step) => step.complete).length;
   const verificationSummary =
     workspaceStatus?.verificationSummary ||
-    (canBuy && canSell
-      ? `Buyer ${buyerVerified ? 'active' : 'setup pending'} · Seller ${sellerVerified ? 'verified' : 'review pending'}`
-      : canSell
-        ? sellerDetail
-        : buyerDetail);
+    (!workspaceStatusReady
+      ? 'Checking workspace verification…'
+      : canBuy && canSell
+        ? `Buyer ${buyerVerified ? 'active' : 'setup pending'} · Seller ${sellerVerified ? 'verified' : 'review pending'}`
+        : canSell
+          ? sellerDetail
+          : buyerDetail);
 
   const logout = async () => {
     if (signingOut) return;
