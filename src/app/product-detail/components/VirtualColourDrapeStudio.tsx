@@ -36,42 +36,12 @@ const models = [
 ] as const;
 
 const garments = [
-  {
-    id: 'saree',
-    label: 'Saree',
-    description:
-      'a complete six-yard saree with a fitted blouse, realistic waist pleats and a naturally falling pallu',
-  },
-  {
-    id: 'lehenga',
-    label: 'Lehenga',
-    description:
-      'a complete lehenga with a fitted blouse, full skirt and coordinated dupatta, with realistic tailoring and textile fall',
-  },
-  {
-    id: 'kurta',
-    label: 'Kurta',
-    description:
-      'a properly tailored long-sleeve kurta with a finished neckline, side seams and natural fabric folds',
-  },
-  {
-    id: 'shirt',
-    label: 'Shirt',
-    description:
-      'a premium long-sleeve shirt with a structured collar, buttons, cuffs and anatomically correct seams',
-  },
-  {
-    id: 'dress',
-    label: 'Dress',
-    description:
-      'a modern midi dress with a finished neckline, sleeves and clean tailoring that follows the body naturally',
-  },
-  {
-    id: 'dupatta',
-    label: 'Dupatta',
-    description:
-      'a full-length dupatta draped naturally over both shoulders and the existing outfit with realistic folds and gravity',
-  },
+  { id: 'saree', label: 'Saree' },
+  { id: 'lehenga', label: 'Lehenga' },
+  { id: 'kurta', label: 'Kurta' },
+  { id: 'shirt', label: 'Shirt' },
+  { id: 'dress', label: 'Dress' },
+  { id: 'dupatta', label: 'Dupatta' },
 ] as const;
 
 const fits = ['Relaxed', 'Regular', 'Tailored'] as const;
@@ -81,6 +51,8 @@ type ServiceStatus = {
   configured: boolean;
   provider?: string | null;
   model?: string | null;
+  mode?: string;
+  usesListingMedia?: boolean;
 };
 
 type GenerationResult = {
@@ -88,6 +60,11 @@ type GenerationResult = {
   analysis?: string;
   provider?: string;
   model?: string;
+  fabricReference?: {
+    name?: string;
+    variantName?: string | null;
+    imageCount?: number;
+  };
   error?: string;
 };
 
@@ -110,6 +87,8 @@ function PortraitImage({
   className?: string;
 }) {
   if (src.startsWith('data:') || src.startsWith('blob:')) {
+    // User-selected images are local data/blob URLs and cannot use next/image.
+    // eslint-disable-next-line @next/next/no-img-element
     return <img src={src} alt={alt} className={className} />;
   }
 
@@ -125,21 +104,25 @@ function StepHeading({ number, children }: { number: number; children: ReactNode
 }
 
 export default function VirtualColourDrapeStudio() {
-  const { product } = useProduct();
+  const { product, loading: productLoading } = useProduct();
   const { user } = useAuth();
   const uploadRef = useRef<HTMLInputElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
 
   const [modelId, setModelId] = useState<(typeof models)[number]['id']>(models[0].id);
-  const [garmentId, setGarmentId] = useState<(typeof garments)[number]['id']>(
-    garments[0].id
-  );
+  const [garmentId, setGarmentId] = useState<(typeof garments)[number]['id']>('saree');
   const [fit, setFit] = useState<(typeof fits)[number]>('Regular');
   const [personImage, setPersonImage] = useState<string | null>(null);
   const [photoConsent, setPhotoConsent] = useState(false);
+  const [cameraActive, setCameraActive] = useState(false);
+  const [cameraError, setCameraError] = useState('');
   const [result, setResult] = useState<string | null>(null);
   const [analysis, setAnalysis] = useState('');
   const [provider, setProvider] = useState('');
   const [modelUsed, setModelUsed] = useState('');
+  const [usedFabric, setUsedFabric] = useState<GenerationResult['fabricReference']>(null);
   const [compare, setCompare] = useState(58);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -153,12 +136,31 @@ export default function VirtualColourDrapeStudio() {
     () => garments.find((item) => item.id === garmentId) || garments[0],
     [garmentId]
   );
+  const selectedVariant = useMemo(
+    () => product.variants.find((variant) => variant.id === product.selectedVariantId) || null,
+    [product.selectedVariantId, product.variants]
+  );
   const baseImage = personImage || selectedModel.image;
-  const fabricImage = product.images?.[0] || product.image || '';
+  const fabricImage =
+    selectedVariant?.images?.[0] || selectedVariant?.image || product.images?.[0] || product.image || '';
+  const fabricLabel = selectedVariant
+    ? `${selectedVariant.colorName}${selectedVariant.designName ? ` · ${selectedVariant.designName}` : ''}`
+    : null;
+
+  const stopCamera = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+    setCameraActive(false);
+  };
+
+  useEffect(() => {
+    return () => stopCamera();
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
-
     const loadStatus = async () => {
       try {
         const response = await fetch('/api/ai/drape-on', {
@@ -172,13 +174,14 @@ export default function VirtualColourDrapeStudio() {
             configured: response.ok && payload.configured === true,
             provider: payload.provider || null,
             model: payload.model || null,
+            mode: payload.mode,
+            usesListingMedia: payload.usesListingMedia,
           });
         }
       } catch {
         if (!cancelled) setServiceStatus({ configured: false });
       }
     };
-
     void loadStatus();
     return () => {
       cancelled = true;
@@ -190,14 +193,22 @@ export default function VirtualColourDrapeStudio() {
     setAnalysis('');
     setProvider('');
     setModelUsed('');
+    setUsedFabric(null);
     setCompare(58);
     setError('');
   };
 
+  // A colour/variant switch changes the actual fabric reference, so never leave an old result visible.
+  useEffect(() => {
+    clearGeneratedResult();
+  }, [product.rawProductId, product.selectedVariantId]);
+
   const selectModel = (nextModel: (typeof models)[number]['id']) => {
+    stopCamera();
     setModelId(nextModel);
     setPersonImage(null);
     setPhotoConsent(false);
+    setCameraError('');
     clearGeneratedResult();
   };
 
@@ -217,6 +228,8 @@ export default function VirtualColourDrapeStudio() {
     if (!file) return;
 
     setError('');
+    setCameraError('');
+    stopCamera();
     if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
       setError('Upload a JPG, PNG or WebP image.');
       return;
@@ -227,8 +240,7 @@ export default function VirtualColourDrapeStudio() {
     }
 
     try {
-      const image = await readImage(file);
-      setPersonImage(image);
+      setPersonImage(await readImage(file));
       setPhotoConsent(false);
       clearGeneratedResult();
     } catch (uploadError) {
@@ -236,16 +248,75 @@ export default function VirtualColourDrapeStudio() {
     }
   };
 
+  const startCamera = async () => {
+    setCameraError('');
+    setError('');
+    clearGeneratedResult();
+    try {
+      stopCamera();
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: 'user',
+          width: { ideal: 960 },
+          height: { ideal: 1280 },
+        },
+        audio: false,
+      });
+      streamRef.current = stream;
+      setCameraActive(true);
+      requestAnimationFrame(() => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          void videoRef.current.play().catch(() => undefined);
+        }
+      });
+    } catch {
+      setCameraError('Camera access was blocked. Allow camera permission or upload a photo instead.');
+    }
+  };
+
+  const captureCamera = () => {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas || !video.videoWidth || !video.videoHeight) {
+      setCameraError('Camera is still starting. Try again in a moment.');
+      return;
+    }
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const context = canvas.getContext('2d');
+    if (!context) return;
+    context.translate(canvas.width, 0);
+    context.scale(-1, 1);
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    setPersonImage(canvas.toDataURL('image/jpeg', 0.9));
+    setPhotoConsent(false);
+    stopCamera();
+    clearGeneratedResult();
+  };
+
+  const useModelAgain = () => {
+    stopCamera();
+    setPersonImage(null);
+    setPhotoConsent(false);
+    setCameraError('');
+    clearGeneratedResult();
+  };
+
   const generate = async () => {
     setError('');
     setAnalysis('');
 
     if (!user) {
-      setError('Sign in as a buyer to generate a private AI drape preview.');
+      setError('Sign in as a buyer to generate a private AI try-on.');
+      return;
+    }
+    if (!product.rawProductId || product.rawProductId === 'unavailable') {
+      setError('Open a live FabricTrad product before generating a try-on.');
       return;
     }
     if (!fabricImage) {
-      setError('This listing does not have a usable fabric image.');
+      setError('This listing does not have a usable fabric photo.');
       return;
     }
     if (serviceStatus?.configured === false) {
@@ -253,7 +324,7 @@ export default function VirtualColourDrapeStudio() {
       return;
     }
     if (personImage && !photoConsent) {
-      setError('Confirm that you have permission to use the uploaded photo.');
+      setError('Confirm that you own the uploaded/captured photo or have permission to use it.');
       return;
     }
 
@@ -264,30 +335,32 @@ export default function VirtualColourDrapeStudio() {
         headers: { 'Content-Type': 'application/json' },
         credentials: 'same-origin',
         body: JSON.stringify({
-          fabricImage,
+          productId: product.rawProductId,
+          variantId: product.selectedVariantId,
           modelImage: baseImage,
-          fabricName: `${product.name || 'Selected fabric'}; ${product.gsm || 'unknown'} GSM; ${product.work || 'textile fabric'}`,
-          styleName: `${fit.toLowerCase()} fit ${garment.description}`,
+          garmentId,
+          fit,
         }),
       });
       const payload = (await response.json().catch(() => ({}))) as GenerationResult;
       if (!response.ok || !payload.image) {
-        throw new Error(payload.error || 'Unable to generate the AI drape preview.');
+        throw new Error(payload.error || 'Unable to generate the AI try-on.');
       }
 
       setResult(payload.image);
       setAnalysis(
         payload.analysis ||
-          'AI drape generated. Confirm the exact shade, scale and hand-feel with a physical sample before production.'
+          'AI try-on generated from the selected live listing. Confirm the physical fabric before production.'
       );
       setProvider(payload.provider || serviceStatus?.provider || 'AI image provider');
       setModelUsed(payload.model || serviceStatus?.model || '');
+      setUsedFabric(payload.fabricReference || null);
       setCompare(58);
     } catch (generationError) {
       setError(
         generationError instanceof Error
           ? generationError.message
-          : 'Unable to generate the AI drape preview.'
+          : 'Unable to generate the AI try-on.'
       );
     } finally {
       setLoading(false);
@@ -295,11 +368,13 @@ export default function VirtualColourDrapeStudio() {
   };
 
   const reset = () => {
+    stopCamera();
     setModelId(models[0].id);
-    setGarmentId(garments[0].id);
+    setGarmentId('saree');
     setFit('Regular');
     setPersonImage(null);
     setPhotoConsent(false);
+    setCameraError('');
     clearGeneratedResult();
   };
 
@@ -307,14 +382,18 @@ export default function VirtualColourDrapeStudio() {
     if (!result) return;
     const link = document.createElement('a');
     link.href = result;
-    link.download = `${(product.name || 'fabrictrad-ai-drape')
+    link.download = `${(product.name || 'fabrictrad-ai-try-on')
       .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')}-ai-drape.jpg`;
+      .replace(/[^a-z0-9]+/g, '-')}-ai-try-on.jpg`;
     link.click();
   };
 
   const generationDisabled =
-    loading || serviceStatus?.configured === false || Boolean(personImage && !photoConsent);
+    loading ||
+    productLoading ||
+    serviceStatus?.configured === false ||
+    !product.rawProductId ||
+    Boolean(personImage && !photoConsent);
 
   return (
     <div className="overflow-hidden rounded-[2rem] border border-border bg-card card-shadow-lg">
@@ -322,29 +401,29 @@ export default function VirtualColourDrapeStudio() {
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="flex items-center gap-2 text-xs font-800 uppercase tracking-[0.18em] text-gold">
-              <Icon name="SparklesIcon" size={16} /> FabricTrad AI Drape-On
+              <Icon name="SparklesIcon" size={16} /> FabricTrad AI Try-On
             </p>
             <h2 className="mt-2 text-2xl font-800 sm:text-3xl">
-              Generate the fabric as a real garment on a person
+              See this exact fabric as a wearable garment
             </h2>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-white/75">
-              Choose a model or upload your own full, clear photo. Select the garment and fit,
-              then AI creates a new virtual try-on image using this product&apos;s actual fabric.
+              FabricTrad sends the selected live product and colour reference to the AI together with
+              your chosen person. It generates a new garment image — not a colour overlay.
             </p>
           </div>
           <div className="rounded-2xl border border-white/15 bg-white/10 px-4 py-3 text-xs text-white/80">
             <p className="flex items-center gap-2 font-800 text-white">
               <Icon name="CpuChipIcon" size={15} /> Real image generation
             </p>
-            <p className="mt-1 max-w-[240px] leading-5">
-              Your selected portrait and fabric are sent securely to the configured AI image
-              provider only when you press Generate.
+            <p className="mt-1 max-w-[250px] leading-5">
+              Uses the listing&apos;s saved fabric photos on the server, including the selected colour
+              variant when available.
             </p>
           </div>
         </div>
       </header>
 
-      <div className="grid xl:grid-cols-[370px_minmax(0,1fr)]">
+      <div className="grid xl:grid-cols-[390px_minmax(0,1fr)]">
         <aside className="border-b border-border p-5 sm:p-6 xl:border-b-0 xl:border-r">
           <div
             className={`rounded-2xl border p-4 ${
@@ -376,23 +455,27 @@ export default function VirtualColourDrapeStudio() {
               <div>
                 <p className="text-xs font-800 text-foreground">
                   {serviceStatus === null
-                    ? 'Checking AI image service'
+                    ? 'Checking AI service'
                     : serviceStatus.configured
                       ? `${serviceStatus.provider || 'AI image service'} ready`
                       : 'AI image service unavailable'}
                 </p>
                 <p className="mt-1 text-xs leading-5 text-muted-foreground">
                   {serviceStatus?.configured
-                    ? `This generates a new virtual try-on image${serviceStatus.model ? ` with ${serviceStatus.model}` : ''}.`
+                    ? `Real AI image editing${serviceStatus.model ? ` · ${serviceStatus.model}` : ''}.`
                     : serviceStatus === null
-                      ? 'This takes only a moment.'
-                      : 'Generation is disabled until the server API key is configured.'}
+                      ? 'Checking the live image-generation endpoint.'
+                      : 'Generation is disabled until an AI image provider is configured.'}
                 </p>
               </div>
             </div>
           </div>
 
           <StepHeading number={1}>Choose a person</StepHeading>
+          <p className="mt-2 text-xs leading-5 text-muted-foreground">
+            For your own photo, a clear standing 3/4 or full-body image with visible arms gives the
+            best garment shape.
+          </p>
           <div className="mt-3 grid grid-cols-3 gap-2">
             {models.map((item) => (
               <button
@@ -422,28 +505,80 @@ export default function VirtualColourDrapeStudio() {
             className="hidden"
             onChange={handleUpload}
           />
-          <button
-            type="button"
-            onClick={() => uploadRef.current?.click()}
-            className="btn-secondary mt-3 flex w-full items-center justify-center gap-2 rounded-xl py-3 text-xs"
-          >
-            <Icon name="ArrowUpTrayIcon" size={16} />
-            {personImage ? 'Replace your photo' : 'Upload your own photo'}
-          </button>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => uploadRef.current?.click()}
+              className="btn-secondary flex items-center justify-center gap-2 rounded-xl py-3 text-xs"
+            >
+              <Icon name="ArrowUpTrayIcon" size={16} /> Upload photo
+            </button>
+            <button
+              type="button"
+              onClick={() => void startCamera()}
+              className="btn-secondary flex items-center justify-center gap-2 rounded-xl py-3 text-xs"
+            >
+              <Icon name="CameraIcon" size={16} /> Use camera
+            </button>
+          </div>
+
+          {cameraActive && (
+            <div className="mt-3 overflow-hidden rounded-2xl border border-primary/25 bg-black">
+              <video
+                ref={videoRef}
+                muted
+                playsInline
+                autoPlay
+                className="aspect-[3/4] w-full scale-x-[-1] object-cover"
+              />
+              <div className="grid grid-cols-2 gap-2 bg-card p-3">
+                <button
+                  type="button"
+                  onClick={captureCamera}
+                  className="btn-primary rounded-xl py-2.5 text-xs"
+                >
+                  Capture photo
+                </button>
+                <button
+                  type="button"
+                  onClick={stopCamera}
+                  className="btn-secondary rounded-xl py-2.5 text-xs"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+          <canvas ref={canvasRef} className="hidden" />
+
+          {cameraError && (
+            <p className="mt-3 rounded-xl border border-warning/20 bg-warning/10 p-3 text-xs leading-5 text-warning">
+              {cameraError}
+            </p>
+          )}
 
           {personImage && (
-            <label className="mt-3 flex cursor-pointer items-start gap-3 rounded-xl border border-border bg-muted/35 p-3 text-xs leading-5 text-muted-foreground">
-              <input
-                type="checkbox"
-                checked={photoConsent}
-                onChange={(event) => {
-                  setPhotoConsent(event.target.checked);
-                  setError('');
-                }}
-                className="mt-1 h-4 w-4 rounded border-border accent-primary"
-              />
-              <span>I confirm that I own this photo or have permission to use it for AI generation.</span>
-            </label>
+            <div className="mt-3 space-y-2">
+              <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-border bg-muted/35 p-3 text-xs leading-5 text-muted-foreground">
+                <input
+                  type="checkbox"
+                  checked={photoConsent}
+                  onChange={(event) => {
+                    setPhotoConsent(event.target.checked);
+                    setError('');
+                  }}
+                  className="mt-1 h-4 w-4 rounded border-border accent-primary"
+                />
+                <span>I own this photo or have permission to use it for AI generation.</span>
+              </label>
+              <button
+                type="button"
+                onClick={useModelAgain}
+                className="w-full rounded-xl py-2 text-xs font-800 text-muted-foreground hover:bg-muted"
+              >
+                Use a FabricTrad model instead
+              </button>
+            </div>
           )}
 
           <StepHeading number={2}>Choose the garment</StepHeading>
@@ -482,10 +617,15 @@ export default function VirtualColourDrapeStudio() {
             ))}
           </div>
 
-          <div className="mt-5 flex items-center gap-3 rounded-2xl border border-border bg-muted/50 p-3">
+          <div className="mt-5 flex items-center gap-3 rounded-2xl border border-primary/20 bg-primary/5 p-3">
             <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl border border-border bg-background">
               {fabricImage ? (
-                <AppImage src={fabricImage} alt={product.name || 'Selected fabric'} fill className="object-cover" />
+                <AppImage
+                  src={fabricImage}
+                  alt={product.name || 'Selected live fabric'}
+                  fill
+                  className="object-cover"
+                />
               ) : (
                 <div className="flex h-full w-full items-center justify-center text-muted-foreground">
                   <Icon name="PhotoIcon" size={20} />
@@ -494,32 +634,36 @@ export default function VirtualColourDrapeStudio() {
             </div>
             <div className="min-w-0">
               <p className="text-[10px] font-800 uppercase tracking-wider text-primary">
-                Fabric reference
+                Live listing fabric
               </p>
               <p className="mt-1 truncate text-sm font-800 text-foreground">
                 {product.name || 'Selected fabric'}
               </p>
               <p className="mt-1 truncate text-xs text-muted-foreground">
-                {product.gsm ? `${product.gsm} GSM · ` : ''}
-                {product.work || 'Texture and colour reference'}
+                {fabricLabel || (product.gsm ? `${product.gsm} GSM` : product.work || 'Product reference')}
               </p>
+              {product.selectedVariantId && (
+                <p className="mt-1 text-[10px] font-700 text-success">
+                  Selected colour variant will be used by the server
+                </p>
+              )}
             </div>
           </div>
 
           <button
             type="button"
-            onClick={generate}
+            onClick={() => void generate()}
             disabled={generationDisabled}
             className="btn-primary mt-5 flex w-full items-center justify-center gap-2 rounded-xl py-3.5 disabled:cursor-not-allowed disabled:opacity-55"
           >
             {loading ? (
               <>
                 <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                Generating real AI drape…
+                Creating virtual garment…
               </>
             ) : (
               <>
-                <Icon name="SparklesIcon" size={18} /> Generate AI drape
+                <Icon name="SparklesIcon" size={18} /> Generate AI try-on
               </>
             )}
           </button>
@@ -533,8 +677,8 @@ export default function VirtualColourDrapeStudio() {
             </p>
           )}
           <p className="mt-3 text-center text-[10px] leading-4 text-muted-foreground">
-            A detailed image can take up to about two minutes. Keep this page open while it is
-            being generated.
+            Generation can take around a minute or two. Your personal photo is sent only when you
+            press Generate and is not added to the seller&apos;s listing.
           </p>
 
           <button
@@ -543,7 +687,7 @@ export default function VirtualColourDrapeStudio() {
             disabled={loading}
             className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-xs font-800 text-muted-foreground hover:bg-muted disabled:opacity-50"
           >
-            <Icon name="ArrowPathIcon" size={15} /> Reset studio
+            <Icon name="ArrowPathIcon" size={15} /> Reset try-on
           </button>
 
           {error && (
@@ -558,10 +702,10 @@ export default function VirtualColourDrapeStudio() {
             <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <p className="text-xs font-800 uppercase tracking-wider text-primary">
-                  Virtual try-on preview
+                  AI virtual try-on
                 </p>
                 <h3 className="mt-1 text-xl font-800 text-foreground">
-                  {result ? 'AI-generated drape compared with the original' : 'Ready for AI generation'}
+                  {result ? 'Compare the generated garment with the original' : 'Ready for generation'}
                 </h3>
               </div>
               <p className="text-xs text-muted-foreground">
@@ -571,10 +715,7 @@ export default function VirtualColourDrapeStudio() {
 
             <div className="relative mx-auto aspect-[2/3] max-h-[900px] overflow-hidden rounded-3xl border border-border bg-card shadow-2xl">
               <div className="absolute inset-0">
-                <PortraitImage
-                  src={baseImage}
-                  alt="Original person selected for the AI fabric try-on"
-                />
+                <PortraitImage src={baseImage} alt="Person selected for AI virtual try-on" />
               </div>
 
               {result && (
@@ -582,9 +723,11 @@ export default function VirtualColourDrapeStudio() {
                   className="absolute inset-y-0 left-0 overflow-hidden"
                   style={{ width: `${compare}%` }}
                 >
+                  {/* AI outputs are data URLs and cannot use next/image. */}
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={result}
-                    alt="AI-generated garment using the selected fabric"
+                    alt="AI-generated garment made from the selected FabricTrad textile"
                     className="h-full max-w-none object-cover"
                     style={{ width: `${10000 / compare}%` }}
                   />
@@ -603,7 +746,7 @@ export default function VirtualColourDrapeStudio() {
               )}
 
               <span className="absolute left-4 top-4 rounded-full bg-black/60 px-3 py-1.5 text-[10px] font-800 uppercase tracking-wider text-white backdrop-blur-sm">
-                {result ? 'AI garment' : personImage ? 'Your uploaded photo' : 'Selected model'}
+                {result ? 'AI garment' : personImage ? 'Your photo' : 'Selected model'}
               </span>
               {result && (
                 <span className="absolute right-4 top-4 rounded-full bg-black/60 px-3 py-1.5 text-[10px] font-800 uppercase tracking-wider text-white backdrop-blur-sm">
@@ -617,8 +760,9 @@ export default function VirtualColourDrapeStudio() {
                     <Icon name="SparklesIcon" size={17} className="text-gold" /> No fake overlay
                   </p>
                   <p className="mt-1 text-xs leading-5 text-white/75">
-                    Press Generate AI drape to create a new image with real garment construction,
-                    folds, seams, shadows and fabric texture on this person.
+                    The server uses this product&apos;s real listing photos as textile references and
+                    asks the image model to construct a new garment with seams, folds, shadows and
+                    fabric texture.
                   </p>
                 </div>
               )}
@@ -627,10 +771,10 @@ export default function VirtualColourDrapeStudio() {
                 <div className="absolute inset-0 flex items-center justify-center bg-secondary/75 p-6 text-center text-white backdrop-blur-sm">
                   <div className="max-w-sm">
                     <span className="mx-auto block h-11 w-11 animate-spin rounded-full border-4 border-white/30 border-t-white" />
-                    <p className="mt-5 text-lg font-800">Generating the virtual garment</p>
+                    <p className="mt-5 text-lg font-800">Constructing the virtual garment</p>
                     <p className="mt-2 text-sm leading-6 text-white/75">
-                      AI is combining the person, garment structure and this fabric&apos;s texture.
-                      Please keep the page open.
+                      AI is matching the person, garment structure and the selected live fabric
+                      reference. Keep this page open until it finishes.
                     </p>
                   </div>
                 </div>
@@ -640,7 +784,7 @@ export default function VirtualColourDrapeStudio() {
             {result ? (
               <div className="mt-4 rounded-2xl border border-border bg-card p-4 sm:p-5">
                 <label className="flex items-center justify-between gap-4 text-xs font-800 text-foreground">
-                  <span>Drag to compare AI result with the original</span>
+                  <span>Compare AI result with the original person</span>
                   <span className="text-primary">{compare}% AI</span>
                 </label>
                 <input
@@ -657,17 +801,36 @@ export default function VirtualColourDrapeStudio() {
                       Generated by {provider || 'AI image service'}
                       {modelUsed ? ` · ${modelUsed}` : ''}
                     </p>
+                    {usedFabric?.name && (
+                      <p className="mt-1 text-xs font-800 text-success">
+                        Fabric: {usedFabric.name}
+                        {usedFabric.variantName ? ` · ${usedFabric.variantName}` : ''}
+                        {usedFabric.imageCount && usedFabric.imageCount > 1
+                          ? ` · ${usedFabric.imageCount} listing references used`
+                          : ''}
+                      </p>
+                    )}
                     <p className="mt-1 max-w-2xl text-xs leading-5 text-muted-foreground">
                       {analysis}
                     </p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={download}
-                    className="btn-secondary flex shrink-0 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-xs"
-                  >
-                    <Icon name="ArrowDownTrayIcon" size={16} /> Download result
-                  </button>
+                  <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
+                    <button
+                      type="button"
+                      onClick={() => void generate()}
+                      disabled={loading}
+                      className="btn-secondary flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-xs"
+                    >
+                      <Icon name="ArrowPathIcon" size={15} /> Generate again
+                    </button>
+                    <button
+                      type="button"
+                      onClick={download}
+                      className="btn-secondary flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-xs"
+                    >
+                      <Icon name="ArrowDownTrayIcon" size={16} /> Download
+                    </button>
+                  </div>
                 </div>
               </div>
             ) : (
@@ -675,32 +838,33 @@ export default function VirtualColourDrapeStudio() {
                 <div>
                   <p className="text-[10px] font-800 uppercase tracking-wider text-primary">Person</p>
                   <p className="mt-1 text-xs font-800 text-foreground">
-                    {personImage ? 'Your uploaded photo' : selectedModel.label}
+                    {personImage ? 'Your uploaded/captured photo' : selectedModel.label}
                   </p>
                 </div>
                 <div>
                   <p className="text-[10px] font-800 uppercase tracking-wider text-primary">Garment</p>
-                  <p className="mt-1 text-xs font-800 text-foreground">{garment.label}</p>
+                  <p className="mt-1 text-xs font-800 text-foreground">
+                    {garment.label} · {fit}
+                  </p>
                 </div>
                 <div>
                   <p className="text-[10px] font-800 uppercase tracking-wider text-primary">Fabric</p>
                   <p className="mt-1 truncate text-xs font-800 text-foreground">
                     {product.name || 'Selected fabric'}
                   </p>
+                  {fabricLabel && (
+                    <p className="mt-0.5 truncate text-[10px] text-muted-foreground">{fabricLabel}</p>
+                  )}
                 </div>
               </div>
             )}
 
             <div className="mt-5 flex items-start gap-3 rounded-2xl border border-border bg-card p-4 text-xs leading-5 text-muted-foreground">
-              <Icon
-                name="InformationCircleIcon"
-                size={17}
-                className="mt-0.5 shrink-0 text-primary"
-              />
+              <Icon name="InformationCircleIcon" size={17} className="mt-0.5 shrink-0 text-primary" />
               <p>
-                AI try-on images are visual sourcing previews. The generated garment may vary in
-                exact construction, shade and pattern placement. Confirm the final colour, weave,
-                hand-feel and production details with a physical fabric sample.
+                AI try-on is a sourcing preview, not a physical fit guarantee. Exact shade, pattern
+                placement, drape, thickness and tailoring can vary. Confirm important production
+                details against the seller&apos;s physical fabric sample.
               </p>
             </div>
           </div>
