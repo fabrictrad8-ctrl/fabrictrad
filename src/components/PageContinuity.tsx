@@ -1,15 +1,14 @@
 'use client';
 
 import { useEffect } from 'react';
-import { usePathname, useSearchParams } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 
 export default function PageContinuity() {
   const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const search = searchParams.toString();
-  const routeKey = `${pathname}${search ? `?${search}` : ''}`;
 
   useEffect(() => {
+    const search = window.location.search || '';
+    const routeKey = `${pathname}${search}`;
     const key = `fabrictrad:page:${routeKey}`;
     const save = () => {
       try {
@@ -34,7 +33,7 @@ export default function PageContinuity() {
       window.removeEventListener('pagehide', save);
       document.removeEventListener('visibilitychange', onVisibility);
     };
-  }, [routeKey]);
+  }, [pathname]);
 
   return null;
 }
