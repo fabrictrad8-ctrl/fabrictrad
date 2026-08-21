@@ -32,6 +32,8 @@ const adminListings = read('src/app/admin-portal/components/AdminListings.tsx');
 const buyerLayout = read('src/app/buyer-dashboard/components/ModernBuyerDashboardLayout.tsx');
 const sellerLayout = read('src/app/seller-dashboard/components/SellerDashboardLayout.tsx');
 const buyerOrders = read('src/app/buyer-dashboard/components/BuyerOrders.tsx');
+const buyerCatalogOrders = read('src/app/buyer-dashboard/components/BuyerCatalogOrders.tsx');
+const sellerCatalogOrders = read('src/app/seller-dashboard/components/SellerCatalogOrders.tsx');
 const orderDocuments = read('src/lib/orderDocuments.ts');
 const middleware = read('src/middleware.ts');
 const phoneCollection = read('src/app/auth/phone/PhoneCollectionPage.tsx');
@@ -111,6 +113,22 @@ assert(
   headerReflow.includes('margin-left: 0 !important') &&
     headerReflow.includes('minmax(160px, max-content)'),
   'Commerce header must reserve brand space so Marketplace never overlaps the FabricTrad logo.'
+);
+
+// Catalogue order joins must identify the intended foreign key because an order can also
+// reference a separate fulfillment variant after inventory reservation.
+const orderVariantRelationship =
+  'seller_product_variants!catalog_order_requests_variant_id_fkey(color_name,design_name)';
+const orderProductRelationship = 'seller_products!catalog_order_requests_product_id_fkey';
+assert(
+  buyerCatalogOrders.includes(orderVariantRelationship) &&
+    sellerCatalogOrders.includes(orderVariantRelationship),
+  'Buyer and seller catalogue orders must disambiguate the requested variant relationship.'
+);
+assert(
+  buyerCatalogOrders.includes(orderProductRelationship) &&
+    sellerCatalogOrders.includes(orderProductRelationship),
+  'Buyer and seller catalogue orders must use the explicit product relationship.'
 );
 
 // Administrator OTP must use Supabase custom SMTP directly.
