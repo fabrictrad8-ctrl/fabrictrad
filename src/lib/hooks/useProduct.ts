@@ -20,7 +20,7 @@ const EMPTY_PRODUCT: CatalogProduct = {
   category: 'Other',
   price: 0,
   priceMax: 0,
-  unit: 'mtr',
+  unit: 'metre',
   moq: 1,
   available: 0,
   gsm: 0,
@@ -47,6 +47,15 @@ const EMPTY_PRODUCT: CatalogProduct = {
   saleChannel: 'b2b',
   packageFormat: 'Fabric Only',
 };
+
+function displayUnit(row: Record<string, unknown>) {
+  const label = String(row.unit_label || '').trim();
+  if (label) return label;
+  const unit = String(row.unit || 'mtr');
+  if (unit === 'mtr') return 'metre';
+  if (unit === 'piece') return 'piece';
+  return unit;
+}
 
 function mapMedia(row: Record<string, unknown>): CatalogMedia {
   return {
@@ -79,7 +88,7 @@ function mapVariant(row: Record<string, unknown>, media: CatalogMedia[]): Catalo
     designName: String(row.design_name || 'Standard'),
     description: String(row.description || ''),
     price: Number(row.price_per_unit || 0),
-    unit: String(row.unit || 'mtr'),
+    unit: displayUnit(row),
     available: Math.max(
       0,
       Number(row.available_quantity || 0) - Number(row.reserved_quantity || 0)
@@ -142,6 +151,13 @@ function mapSellerProduct(
         0,
         Number(row.available_quantity || 0) - Number(row.reserved_quantity || 0)
       );
+  const parentUnit = displayUnit(row);
+  const productType = String(row.product_type || row.package_format || 'Fabric Only');
+  const fabricName = String(row.fabric_name || '').trim();
+  const quality = String(row.quality || '').trim();
+  const extraDescription = [fabricName && `Fabric: ${fabricName}`, quality && `Quality: ${quality}`]
+    .filter(Boolean)
+    .join(' · ');
 
   return {
     id: `seller-${String(row.id)}`,
@@ -151,12 +167,12 @@ function mapSellerProduct(
     name: String(row.name || 'Untitled fabric'),
     seller: sellerName,
     city: [row.origin_city, row.origin_state].filter(Boolean).join(', ') || 'India',
-    category: String(row.category || 'Other'),
+    category: String(row.category || fabricName || productType || 'Other'),
     price:
       selectedVariant?.price ||
       (prices.length ? Math.min(...prices) : Number(row.price_per_unit || 0)),
     priceMax: prices.length ? Math.max(...prices) : Number(row.price_per_unit || 0),
-    unit: selectedVariant?.unit || String(row.unit || 'mtr'),
+    unit: selectedVariant?.unit || parentUnit,
     moq: selectedVariant?.moq || Number(row.moq || 1),
     available: selectedVariant ? selectedVariant.available : available,
     gsm: Number(row.gsm || 0),
@@ -172,18 +188,22 @@ function mapSellerProduct(
     alt: `${String(row.name || 'Fabric')} supplied by ${sellerName}`,
     dispatchDays: Number(row.dispatch_days || 3),
     gst: Number(row.gst_rate || 0) > 0,
-    description: selectedVariant?.description || String(row.description || ''),
+    description:
+      selectedVariant?.description ||
+      [String(row.description || ''), extraDescription].filter(Boolean).join('\n'),
     sku: selectedVariant?.code || (row.sku ? String(row.sku) : null),
     variantCount: variants.length || Number(row.variant_count || 0),
     colors: variants.map((variant) => variant.colorName),
     variants,
     selectedVariantId: selectedVariant?.id || null,
-    searchTerms: String(row.search_terms || ''),
+    searchTerms: [row.search_terms, row.fabric_name, row.quality, row.product_type]
+      .filter(Boolean)
+      .join(' '),
     saleChannel:
       row.sale_channel === 'retail' || row.sale_channel === 'both'
         ? row.sale_channel
         : 'b2b',
-    packageFormat: (row.package_format || 'Fabric Only') as CatalogProduct['packageFormat'],
+    packageFormat: productType as CatalogProduct['packageFormat'],
   };
 }
 
@@ -254,9 +274,7 @@ export function useProduct() {
         return mapVariant(
           variant as Record<string, unknown>,
           media
-            .filter(
-              ({ row: mediaRow }) => String(mediaRow.variant_id || '') === variantId
-            )
+            .filter(({ row: mediaRow }) => String(mediaRow.variant_id || '') === variantId)
             .map(({ item }) => item)
         );
       });
@@ -267,9 +285,7 @@ export function useProduct() {
       setProduct(
         mapSellerProduct(
           row,
-          seller?.display_name ||
-            seller?.legal_business_name ||
-            'Verified FabricTrad Seller',
+          seller?.display_name || seller?.legal_business_name || 'Verified FabricTrad Seller',
           variants,
           parentMedia,
           selectedVariantId

@@ -14,8 +14,14 @@ type ProductRow = {
   name: string | null;
   sku: string | null;
   category: string | null;
+  fabric_name: string | null;
+  quality: string | null;
+  product_type: string | null;
+  product_url: string | null;
+  custom_attributes: Record<string, string> | null;
   price_per_unit: number | null;
   unit: string | null;
+  unit_label: string | null;
   available_quantity: number | null;
   reserved_quantity: number | null;
   moq: number | null;
@@ -41,13 +47,15 @@ const effectiveStatus = (product: ProductRow) =>
 
 const statusTone = (status: string) => {
   if (['approved', 'active'].includes(status)) return 'bg-success/10 text-success border-success/20';
-  if (['rejected'].includes(status)) return 'bg-error/10 text-error border-error/20';
-  if (['paused'].includes(status)) return 'bg-muted text-muted-foreground border-border';
+  if (status === 'rejected') return 'bg-error/10 text-error border-error/20';
+  if (status === 'paused') return 'bg-muted text-muted-foreground border-border';
   return 'bg-warning/10 text-warning border-warning/20';
 };
 
 const statusLabel = (status: string) =>
   status.replace(/_/g, ' ').replace(/\b\w/g, (character) => character.toUpperCase());
+
+const displayUnit = (product: ProductRow) => product.unit_label?.trim() || product.unit || 'unit';
 
 export default function AdminListings() {
   const searchParams = useSearchParams();
@@ -58,10 +66,7 @@ export default function AdminListings() {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
   const [selected, setSelected] = useState<string[]>([]);
-  const [reviewing, setReviewing] = useState<{
-    ids: string[];
-    action: ReviewAction;
-  } | null>(null);
+  const [reviewing, setReviewing] = useState<{ ids: string[]; action: ReviewAction } | null>(null);
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -71,7 +76,7 @@ export default function AdminListings() {
     const supabase = createClient();
     const { data: rows, error: productsError } = await supabase
       .from('seller_products')
-      .select('id,seller_id,name,sku,category,price_per_unit,unit,available_quantity,reserved_quantity,moq,image_url,status,approval_status,admin_review_notes,variant_count,gtin,gtin_status,hsn_code,gst_rate,created_at,updated_at')
+      .select('id,seller_id,name,sku,category,fabric_name,quality,product_type,product_url,custom_attributes,price_per_unit,unit,unit_label,available_quantity,reserved_quantity,moq,image_url,status,approval_status,admin_review_notes,variant_count,gtin,gtin_status,hsn_code,gst_rate,created_at,updated_at')
       .order('updated_at', { ascending: false })
       .limit(1000);
 
@@ -113,10 +118,7 @@ export default function AdminListings() {
   useEffect(() => {
     if (!focusId || loading) return;
     window.setTimeout(() => {
-      document.getElementById(`product-${focusId}`)?.scrollIntoView({
-        behavior: 'smooth',
-        block: 'center',
-      });
+      document.getElementById(`product-${focusId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }, 100);
   }, [focusId, loading]);
 
@@ -137,10 +139,15 @@ export default function AdminListings() {
         product.name,
         product.sku,
         product.category,
+        product.fabric_name,
+        product.quality,
+        product.product_type,
+        product.unit_label,
         product.seller_name,
         product.gtin,
         product.hsn_code,
         status,
+        ...Object.entries(product.custom_attributes || {}).flat(),
       ]
         .filter(Boolean)
         .join(' ')
@@ -159,7 +166,6 @@ export default function AdminListings() {
       toast.error('Add a clear rejection reason for the seller.');
       return;
     }
-
     setSaving(true);
     try {
       for (const id of reviewing.ids) {
@@ -204,7 +210,7 @@ export default function AdminListings() {
           <p className="text-xs font-800 uppercase tracking-[0.14em] text-primary">Products</p>
           <h1 className="mt-1 text-2xl font-800 tracking-tight text-foreground">Marketplace product review</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Review live seller listings, variants, GTIN and inventory before products appear to buyers.
+            Review the seller&apos;s own fabric names, categories, units and custom attributes. Product URL is optional and only appears when supplied.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -230,15 +236,16 @@ export default function AdminListings() {
                   SKU: product.sku || '',
                   Seller: product.seller_name || '',
                   Category: product.category || '',
+                  Fabric: product.fabric_name || '',
+                  Quality: product.quality || '',
+                  'Product Type': product.product_type || '',
                   Price: Number(product.price_per_unit || 0),
-                  Unit: product.unit || '',
+                  Unit: displayUnit(product),
                   Stock: Number(product.available_quantity || 0),
-                  Reserved: Number(product.reserved_quantity || 0),
                   MOQ: Number(product.moq || 0),
-                  Variants: Number(product.variant_count || 0),
                   Status: effectiveStatus(product),
+                  URL: product.product_url || '',
                   GTIN: product.gtin || '',
-                  'GTIN Status': product.gtin_status || '',
                   HSN: product.hsn_code || '',
                   'GST Rate': Number(product.gst_rate || 0),
                 })),
@@ -260,18 +267,13 @@ export default function AdminListings() {
               type="search"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search product, SKU, seller, GTIN, HSN or category"
+              placeholder="Search product, custom fabric, quality, type, unit, seller, GTIN or HSN"
               className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
             />
           </label>
           <div className="flex gap-1 overflow-x-auto pb-1 lg:pb-0">
             {filters.map((item) => (
-              <button
-                key={item.key}
-                type="button"
-                onClick={() => setFilter(item.key)}
-                className={`shrink-0 rounded-xl px-3 py-2 text-xs font-800 transition ${filter === item.key ? 'bg-primary text-white' : 'border border-border bg-card text-muted-foreground hover:text-foreground'}`}
-              >
+              <button key={item.key} type="button" onClick={() => setFilter(item.key)} className={`shrink-0 rounded-xl px-3 py-2 text-xs font-800 transition ${filter === item.key ? 'bg-primary text-white' : 'border border-border bg-card text-muted-foreground hover:text-foreground'}`}>
                 {item.label}
               </button>
             ))}
@@ -284,67 +286,49 @@ export default function AdminListings() {
       <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
         <div className="flex items-center justify-between border-b border-border px-4 py-3 text-xs text-muted-foreground">
           <span>{loading ? 'Loading products…' : `${filtered.length} of ${products.length} products`}</span>
-          <span>Live seller catalogue</span>
+          <span>Flexible seller catalogue</span>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1080px] text-sm">
+          <table className="w-full min-w-[1220px] text-sm">
             <thead className="bg-muted/70 text-left text-xs font-800 text-muted-foreground">
               <tr>
                 <th className="w-12 px-4 py-3">
-                  <input
-                    type="checkbox"
-                    aria-label="Select all visible products"
-                    checked={filtered.length > 0 && filtered.every((product) => selected.includes(product.id))}
-                    onChange={(event) =>
-                      setSelected(event.target.checked ? filtered.map((product) => product.id) : [])
-                    }
-                    className="rounded border-border text-primary focus:ring-primary"
-                  />
+                  <input type="checkbox" aria-label="Select all visible products" checked={filtered.length > 0 && filtered.every((product) => selected.includes(product.id))} onChange={(event) => setSelected(event.target.checked ? filtered.map((product) => product.id) : [])} className="rounded border-border text-primary focus:ring-primary" />
                 </th>
                 <th className="px-4 py-3">Product</th>
-                <th className="px-4 py-3">Seller</th>
-                <th className="px-4 py-3 text-right">Price & stock</th>
+                <th className="px-4 py-3">Seller details</th>
+                <th className="px-4 py-3 text-right">Price & availability</th>
                 <th className="px-4 py-3">Identifiers</th>
                 <th className="px-4 py-3 text-center">Status</th>
                 <th className="px-4 py-3 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {!loading && filtered.length === 0 && (
-                <tr><td colSpan={7} className="px-6 py-14 text-center text-sm text-muted-foreground">No products match this view.</td></tr>
-              )}
+              {!loading && filtered.length === 0 && <tr><td colSpan={7} className="px-6 py-14 text-center text-sm text-muted-foreground">No products match this view.</td></tr>}
               {filtered.map((product) => {
                 const status = effectiveStatus(product);
                 const focused = focusId === product.id;
+                const customEntries = Object.entries(product.custom_attributes || {}).slice(0, 4);
                 return (
                   <tr id={`product-${product.id}`} key={product.id} className={focused ? 'bg-primary/10 ring-1 ring-inset ring-primary/30' : 'hover:bg-muted/30'}>
                     <td className="px-4 py-3">
-                      <input
-                        type="checkbox"
-                        aria-label={`Select ${product.name || 'product'}`}
-                        checked={selected.includes(product.id)}
-                        onChange={() =>
-                          setSelected((current) =>
-                            current.includes(product.id)
-                              ? current.filter((id) => id !== product.id)
-                              : [...current, product.id]
-                          )
-                        }
-                        className="rounded border-border text-primary focus:ring-primary"
-                      />
+                      <input type="checkbox" aria-label={`Select ${product.name || 'product'}`} checked={selected.includes(product.id)} onChange={() => setSelected((current) => current.includes(product.id) ? current.filter((id) => id !== product.id) : [...current, product.id])} className="rounded border-border text-primary focus:ring-primary" />
                     </td>
                     <td className="px-4 py-3">
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-start gap-3">
                         <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-xl border border-border bg-muted">
-                          {product.image_url ? (
-                            <AppImage src={product.image_url} alt={product.name || 'Fabric product'} fill sizes="48px" className="object-cover" />
-                          ) : (
-                            <span className="flex h-full w-full items-center justify-center"><Icon name="PhotoIcon" size={18} className="text-muted-foreground" /></span>
-                          )}
+                          {product.image_url ? <AppImage src={product.image_url} alt={product.name || 'Fabric product'} fill sizes="48px" className="object-cover" /> : <span className="flex h-full w-full items-center justify-center"><Icon name="PhotoIcon" size={18} className="text-muted-foreground" /></span>}
                         </div>
                         <div className="min-w-0">
                           <p className="max-w-72 truncate font-800 text-foreground">{product.name || 'Untitled product'}</p>
-                          <p className="truncate text-xs text-muted-foreground">{product.category || 'Uncategorized'} · {product.variant_count || 0} variants</p>
+                          <p className="mt-0.5 text-xs text-muted-foreground">{product.fabric_name || product.category || 'Custom product'}{product.quality ? ` · ${product.quality}` : ''}</p>
+                          <p className="mt-0.5 text-xs text-muted-foreground">{product.product_type || product.category || 'Other'} · {product.variant_count || 0} variants</p>
+                          {customEntries.length > 0 && <p className="mt-1 max-w-80 truncate text-[11px] text-muted-foreground">{customEntries.map(([name, value]) => `${name}: ${value}`).join(' · ')}</p>}
+                          {product.product_url && (
+                            <a href={product.product_url} target="_blank" rel="noreferrer" className="mt-1 inline-flex items-center gap-1 text-[11px] font-800 text-primary hover:underline">
+                              Seller product URL <Icon name="ArrowTopRightOnSquareIcon" size={11} />
+                            </a>
+                          )}
                           <p className="mono-id mt-1">{product.sku || product.id.slice(0, 8)}</p>
                         </div>
                       </div>
@@ -354,29 +338,21 @@ export default function AdminListings() {
                       <p className="mono-id mt-1">{product.seller_id.slice(0, 8)}</p>
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <p className="font-800 text-foreground">₹{Number(product.price_per_unit || 0).toLocaleString('en-IN')}/{product.unit || 'unit'}</p>
+                      <p className="font-800 text-foreground">₹{Number(product.price_per_unit || 0).toLocaleString('en-IN')}/{displayUnit(product)}</p>
                       <p className={`mt-1 text-xs font-700 ${Number(product.available_quantity || 0) <= 0 ? 'text-error' : Number(product.available_quantity || 0) <= 10 ? 'text-warning' : 'text-muted-foreground'}`}>
-                        {Number(product.available_quantity || 0).toLocaleString('en-IN')} available · MOQ {Number(product.moq || 0)}
+                        {Number(product.available_quantity || 0).toLocaleString('en-IN')} {displayUnit(product)} available · MOQ {Number(product.moq || 0)}
                       </p>
                     </td>
                     <td className="px-4 py-3">
                       <p className="text-xs font-700 text-foreground">GTIN: {product.gtin || 'Not added'}</p>
                       <p className="mt-1 text-xs capitalize text-muted-foreground">{product.gtin_status || 'unverified'} · HSN {product.hsn_code || '—'} · GST {Number(product.gst_rate || 0)}%</p>
                     </td>
-                    <td className="px-4 py-3 text-center">
-                      <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-800 ${statusTone(status)}`}>{statusLabel(status)}</span>
-                    </td>
+                    <td className="px-4 py-3 text-center"><span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-800 ${statusTone(status)}`}>{statusLabel(status)}</span></td>
                     <td className="px-4 py-3 text-right">
                       <div className="inline-flex items-center gap-1.5">
-                        {!['active', 'approved'].includes(status) && (
-                          <button type="button" onClick={() => setReviewing({ ids: [product.id], action: 'approve' })} className="rounded-lg border border-success/20 bg-success/10 px-2.5 py-1.5 text-xs font-800 text-success">Approve</button>
-                        )}
-                        {!['rejected'].includes(status) && (
-                          <button type="button" onClick={() => setReviewing({ ids: [product.id], action: 'reject' })} className="rounded-lg border border-error/20 bg-error/10 px-2.5 py-1.5 text-xs font-800 text-error">Reject</button>
-                        )}
-                        {['active', 'approved'].includes(status) && (
-                          <button type="button" onClick={() => setReviewing({ ids: [product.id], action: 'pause' })} className="rounded-lg border border-border px-2.5 py-1.5 text-xs font-800 text-foreground">Pause</button>
-                        )}
+                        {!['active', 'approved'].includes(status) && <button type="button" onClick={() => setReviewing({ ids: [product.id], action: 'approve' })} className="rounded-lg border border-success/20 bg-success/10 px-2.5 py-1.5 text-xs font-800 text-success">Approve</button>}
+                        {status !== 'rejected' && <button type="button" onClick={() => setReviewing({ ids: [product.id], action: 'reject' })} className="rounded-lg border border-error/20 bg-error/10 px-2.5 py-1.5 text-xs font-800 text-error">Reject</button>}
+                        {['active', 'approved'].includes(status) && <button type="button" onClick={() => setReviewing({ ids: [product.id], action: 'pause' })} className="rounded-lg border border-border px-2.5 py-1.5 text-xs font-800 text-foreground">Pause</button>}
                       </div>
                     </td>
                   </tr>
@@ -400,21 +376,14 @@ export default function AdminListings() {
             </div>
             <p className="mt-3 text-sm leading-6 text-muted-foreground">
               {reviewing.action === 'approve'
-                ? 'Approval publishes eligible products to the marketplace. The seller must already be active and GST verified.'
+                ? 'Approval does not require a product URL. If the seller supplied one, it is shown in the product row; otherwise no URL field is displayed.'
                 : reviewing.action === 'reject'
                   ? 'The rejection reason is saved for the seller and the product remains unavailable to buyers.'
                   : 'Pausing removes the product from active marketplace results without deleting seller data.'}
             </p>
             <label className="mt-5 block text-sm font-700 text-foreground">
               {reviewing.action === 'reject' ? 'Reason for seller' : 'Administrator note (optional)'}
-              <textarea
-                value={notes}
-                onChange={(event) => setNotes(event.target.value)}
-                rows={4}
-                maxLength={1000}
-                placeholder={reviewing.action === 'reject' ? 'Explain what the seller must correct…' : 'Add an internal review note…'}
-                className="mt-2 w-full rounded-xl border border-border bg-muted/40 px-3 py-3 text-sm text-foreground outline-none focus:border-primary/40"
-              />
+              <textarea value={notes} onChange={(event) => setNotes(event.target.value)} rows={4} maxLength={1000} placeholder={reviewing.action === 'reject' ? 'Explain what the seller must correct…' : 'Add an internal review note…'} className="mt-2 w-full rounded-xl border border-border bg-muted/40 px-3 py-3 text-sm text-foreground outline-none focus:border-primary/40" />
             </label>
             <div className="mt-5 flex justify-end gap-2">
               <button type="button" onClick={() => setReviewing(null)} disabled={saving} className="ft-secondary-action px-4 py-2.5 text-sm">Cancel</button>
