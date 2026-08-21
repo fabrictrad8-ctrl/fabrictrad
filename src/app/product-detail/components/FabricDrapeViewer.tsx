@@ -1,1 +1,1 @@
-export { default } from './VirtualColourDrapeStudio';
+export { default } from './HybridVirtualDrapeStudio';
