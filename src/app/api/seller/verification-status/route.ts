@@ -133,6 +133,7 @@ export async function GET(request: NextRequest) {
   );
 
   return json({
+    status: readinessRecord,
     ...readinessRecord,
     applicationSubmitted,
     missingDocuments,
