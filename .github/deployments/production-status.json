@@ -1,6 +1,6 @@
 {
-  "sourceCommit": "e1f592e392ffde0db44c4a479a2b5cf79cc25ad1",
-  "recordedAt": "2026-08-21T20:39:56Z",
+  "sourceCommit": "66a87ff2d26d3bc17db335f68d825791712595eb",
+  "recordedAt": "2026-08-21T20:59:47Z",
   "cloudflareAuthentication": "success",
   "supabaseSecretSync": "success",
   "aiProviderSecretSync": "success",
@@ -12,5 +12,5 @@
   "aiDrapeProbeHttpStatus": "200",
   "liveRazorpayWebhookVerification": "success",
   "razorpayWebhookProbeHttpStatus": "400",
-  "deploymentLogTail": " ⛅️ wrangler 4.125.0\n────────────────────\nCloudflare collects anonymous telemetry about your usage of Wrangler. Learn more at https://github.com/cloudflare/workers-sdk/tree/main/packages/wrangler/telemetry.md\n🌀 Building list of assets...\n✨ Read 229 files from the assets directory /home/runner/work/fabrictrad/fabrictrad/.open-next/assets\n🌀 Starting asset upload...\n🌀 Found 7 new or modified static assets to upload. Proceeding with upload...\n+ /BUILD_ID\n+ /_next/static/css/90c89051430ffba5.css\n+ /_next/static/chunks/bd904a5c.a41790b73ae35279.js\n+ /_next/static/chunks/webpack-ddf633c71fd964cb.js\n+ /_next/static/chunks/app/product-detail/page-831c76f0bfd25746.js\n+ /_next/static/chunks/app/layout-6bc3b624b5c0d215.js\n+ /_next/static/chunks/b536a0f1.a89aaee2c858350d.js\nUploaded 3 of 7 assets\nUploaded 5 of 7 assets\nUploaded 7 of 7 assets\n✨ Success! Uploaded 7 files (108 already uploaded) (1.23 sec)\nTotal Upload: 13782.78 KiB / gzip: 2266.20 KiB\nWorker Startup Time: 52 ms\nYour Worker has access to the following bindings:\nBinding            Resource      \nenv.ASSETS         Assets        \nUploaded fabrictrad (6.63 sec)\nNo targets deployed for fabrictrad (0.42 sec)\nCurrent Version ID: 4ea15149-62bb-4d28-8a43-71fae425570b"
+  "deploymentLogTail": " ⛅️ wrangler 4.125.0\n────────────────────\nCloudflare collects anonymous telemetry about your usage of Wrangler. Learn more at https://github.com/cloudflare/workers-sdk/tree/main/packages/wrangler/telemetry.md\n🌀 Building list of assets...\n✨ Read 227 files from the assets directory /home/runner/work/fabrictrad/fabrictrad/.open-next/assets\n🌀 Starting asset upload...\n🌀 Found 2 new or modified static assets to upload. Proceeding with upload...\n+ /BUILD_ID\n+ /_next/static/chunks/app/product-detail/page-11a001ac12b51bf6.js\nUploaded 1 of 2 assets\nUploaded 2 of 2 assets\n✨ Success! Uploaded 2 files (111 already uploaded) (1.29 sec)\nTotal Upload: 12727.42 KiB / gzip: 2056.85 KiB\nWorker Startup Time: 27 ms\nYour Worker has access to the following bindings:\nBinding            Resource      \nenv.ASSETS         Assets        \nUploaded fabrictrad (5.81 sec)\nNo targets deployed for fabrictrad (0.29 sec)\nCurrent Version ID: 2a147c0f-1c75-419b-9952-c13e70a5abe6"
 }
