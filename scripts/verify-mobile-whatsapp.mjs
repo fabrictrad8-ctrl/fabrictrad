@@ -32,6 +32,9 @@ const inboxUi = 'src/app/seller-dashboard/components/WhatsAppCatalogPanel.tsx';
 const migration = 'supabase/migrations/20260817143000_whatsapp_catalog_ingestion.sql';
 const trialMigration = 'supabase/migrations/20260817150000_trial_room_asset_pipeline.sql';
 const trialStatus = 'src/app/api/ai/trial-room/status/route.ts';
+const drapeApi = 'src/app/api/ai/drape-on/route.ts';
+const drapeUi = 'src/app/product-detail/components/VirtualColourDrapeStudio.tsx';
+const legacyDrape = 'src/app/product-detail/components/FabricDrapeViewer.tsx';
 const manifest = 'src/app/manifest.ts';
 const readiness = '.github/workflows/integration-readiness.yml';
 
@@ -50,6 +53,9 @@ const readiness = '.github/workflows/integration-readiness.yml';
   migration,
   trialMigration,
   trialStatus,
+  drapeApi,
+  drapeUi,
+  legacyDrape,
   manifest,
   readiness,
 ].forEach(read);
@@ -126,6 +132,25 @@ requireText(inboxUi, 'WhatsApp → FabricTrad dashboard');
 requireText(inboxUi, '/api/whatsapp/catalog-inbox');
 requireText(inboxUi, '/api/whatsapp/status');
 
+// The current buyer trial room is a real AI image edit using the approved live
+// listing and selected variant. It must never regress to a browser texture overlay.
+requireText(drapeUi, 'productId: product.rawProductId');
+requireText(drapeUi, 'variantId: product.selectedVariantId');
+requireText(drapeUi, 'navigator.mediaDevices.getUserMedia');
+requireText(drapeUi, 'No fake overlay');
+requireText(drapeApi, 'resolveListingFabric');
+requireText(drapeApi, ".from('seller_products')");
+requireText(drapeApi, ".from('seller_product_variants')");
+requireText(drapeApi, ".from('seller_product_media')");
+requireText(drapeApi, "p_feature: 'ai_drape'");
+requireText(drapeApi, "fetch('https://api.openai.com/v1/images/edits'");
+requireText(drapeApi, "form.append('image[]', person.blob");
+requireText(drapeApi, "form.append('image[]', fabric.blob");
+requireText(drapeApi, "mode: 'real_ai_image_try_on'");
+requireText(legacyDrape, "export { default } from './VirtualColourDrapeStudio';");
+forbidText(legacyDrape, "blend: 'multiply'");
+forbidText(legacyDrape, 'setIsDragging');
+
 // The system must distinguish today's 2D image try-on from the future 3D
 // engine instead of marketing a generated image as true 3D.
 requireText(trialMigration, 'garment_glb');
@@ -153,4 +178,4 @@ if (failures.length) {
   failures.forEach((failure) => console.error(`- ${failure}`));
   process.exit(1);
 }
-console.info('Mobile persistence, WhatsApp ingestion and trial-room foundation verification passed.');
+console.info('Mobile persistence, WhatsApp ingestion and real buyer AI try-on verification passed.');
