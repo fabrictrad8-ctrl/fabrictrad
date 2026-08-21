@@ -13,6 +13,29 @@ import PreferenceControls from '@/components/PreferenceControls';
 import { useAppPreferences } from '@/contexts/AppPreferencesContext';
 
 type NavLink = { label: string; href: string; icon: string };
+type Workspace = 'public' | 'buyer' | 'seller' | 'account' | 'admin';
+
+const BUYER_PATH_PREFIXES = [
+  '/marketplace',
+  '/categories',
+  '/vendors',
+  '/buyer-dashboard',
+  '/buyer-requirements',
+  '/cart',
+  '/checkout',
+  '/product-detail',
+  '/company-purchasing',
+  '/orders',
+];
+
+const SELLER_PATH_PREFIXES = [
+  '/seller-dashboard',
+  '/seller-registration',
+  '/catalogs-pricing',
+];
+
+const pathMatches = (pathname: string, prefixes: string[]) =>
+  prefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
 
 export default function Header() {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -22,18 +45,29 @@ export default function Header() {
   const { user, profile, loading, signOut } = useAuth();
   const { t } = useAppPreferences();
   const router = useRouter();
-  const pathname = usePathname();
+  const pathname = usePathname() || '/';
 
   const isAdmin = profile?.role === 'admin_staff' || profile?.role === 'super_admin';
   const canBuy = !isAdmin && (profile?.can_buy ?? (profile?.role === 'buyer' || profile?.role === 'seller'));
   const canSell = !isAdmin && (profile?.can_sell ?? profile?.role === 'seller');
   const isLoggedIn = Boolean(user && profile);
 
+  const activeWorkspace: Workspace = useMemo(() => {
+    if (!isLoggedIn) return 'public';
+    if (isAdmin) return 'admin';
+    if (pathMatches(pathname, SELLER_PATH_PREFIXES)) return 'seller';
+    if (pathMatches(pathname, BUYER_PATH_PREFIXES)) return 'buyer';
+    return 'account';
+  }, [isAdmin, isLoggedIn, pathname]);
+
+  const buyerContext = activeWorkspace === 'buyer';
+  const sellerContext = activeWorkspace === 'seller';
+
   const notificationsHref = isAdmin
     ? '/admin-portal?tab=activity'
-    : canBuy
-      ? '/buyer-dashboard?tab=notifications'
-      : '/seller-dashboard?tab=notifications';
+    : sellerContext
+      ? '/seller-dashboard?tab=notifications'
+      : '/buyer-dashboard?tab=notifications';
 
   const accountRoleLabel = isAdmin
     ? 'Admin'
@@ -53,24 +87,34 @@ export default function Header() {
     [t]
   );
 
+  const buyerNavLinks = useMemo<NavLink[]>(
+    () => [
+      { label: t('nav.marketplace'), href: '/marketplace', icon: 'ShoppingBagIcon' },
+      { label: 'Categories', href: '/categories', icon: 'Squares2X2Icon' },
+      { label: 'Vendors', href: '/vendors', icon: 'BuildingStorefrontIcon' },
+      { label: 'Requirements', href: '/buyer-requirements', icon: 'MegaphoneIcon' },
+    ],
+    [t]
+  );
+
+  const sellerNavLinks = useMemo<NavLink[]>(
+    () => [
+      { label: 'Seller dashboard', href: '/seller-dashboard', icon: 'HomeIcon' },
+      { label: 'Products', href: '/seller-dashboard?tab=inventory', icon: 'ArchiveBoxIcon' },
+      { label: 'Orders', href: '/seller-dashboard?tab=orders', icon: 'ClipboardDocumentListIcon' },
+    ],
+    []
+  );
+
   const navLinks = useMemo<NavLink[]>(() => {
     if (!isLoggedIn) return publicNavLinks;
     if (isAdmin) return [];
-
-    const links: NavLink[] = [];
-    if (canBuy) {
-      links.push(
-        { label: t('nav.marketplace'), href: '/marketplace', icon: 'ShoppingBagIcon' },
-        { label: 'Categories', href: '/categories', icon: 'Squares2X2Icon' },
-        { label: 'Vendors', href: '/vendors', icon: 'BuildingStorefrontIcon' },
-        { label: 'Requirements', href: '/buyer-requirements', icon: 'MegaphoneIcon' }
-      );
-    }
-    if (canSell) {
-      links.push({ label: 'Seller tools', href: '/seller-dashboard', icon: 'BuildingOfficeIcon' });
-    }
-    return links;
-  }, [canBuy, canSell, isAdmin, isLoggedIn, publicNavLinks, t]);
+    if (sellerContext) return canSell ? sellerNavLinks : [];
+    if (buyerContext) return canBuy ? buyerNavLinks : [];
+    if (canBuy && !canSell) return buyerNavLinks;
+    if (canSell && !canBuy) return sellerNavLinks;
+    return [];
+  }, [buyerContext, buyerNavLinks, canBuy, canSell, isAdmin, isLoggedIn, publicNavLinks, sellerContext, sellerNavLinks]);
 
   const workspaceLinks = useMemo<NavLink[]>(() => {
     if (!isLoggedIn) return [];
@@ -86,30 +130,39 @@ export default function Header() {
     const links: NavLink[] = [];
     if (canBuy) {
       links.push(
-        { label: 'Buyer dashboard', href: '/buyer-dashboard', icon: 'HomeIcon' },
-        { label: 'Purchases', href: '/buyer-dashboard?tab=orders', icon: 'ShoppingBagIcon' },
-        { label: 'Shipment tracking', href: '/buyer-dashboard?tab=tracking', icon: 'TruckIcon' }
+        { label: 'Open buyer workspace', href: '/marketplace', icon: 'ShoppingBagIcon' },
+        { label: 'Buyer dashboard', href: '/buyer-dashboard', icon: 'HomeIcon' }
       );
     }
     if (canSell) {
       links.push(
-        { label: 'Seller dashboard', href: '/seller-dashboard', icon: 'BuildingStorefrontIcon' },
-        { label: 'Products & inventory', href: '/seller-dashboard?tab=inventory', icon: 'ArchiveBoxIcon' },
-        { label: 'Seller orders', href: '/seller-dashboard?tab=orders', icon: 'ClipboardDocumentListIcon' }
+        { label: 'Open seller workspace', href: '/seller-dashboard', icon: 'BuildingStorefrontIcon' },
+        { label: 'Products & inventory', href: '/seller-dashboard?tab=inventory', icon: 'ArchiveBoxIcon' }
       );
-    } else {
+    } else if (canBuy) {
       links.push({ label: 'Activate selling', href: '/seller-registration', icon: 'PlusCircleIcon' });
     }
+    links.push({ label: 'Account overview', href: '/account', icon: 'UserCircleIcon' });
     return links;
   }, [canBuy, canSell, isAdmin, isLoggedIn]);
 
   const quickAction = isAdmin
     ? { label: 'Review sellers', href: '/admin-portal?tab=sellers', icon: 'ShieldCheckIcon' }
-    : canSell
+    : sellerContext && canSell
       ? { label: 'Add product', href: '/seller-dashboard?tab=upload', icon: 'PlusIcon' }
-      : canBuy
+      : buyerContext && canBuy
         ? { label: 'Post requirement', href: '/buyer-requirements', icon: 'PlusIcon' }
         : null;
+
+  const brandHref = isAdmin
+    ? '/admin-portal'
+    : sellerContext && canSell
+      ? '/seller-dashboard'
+      : buyerContext && canBuy
+        ? '/marketplace'
+        : isLoggedIn
+          ? '/account'
+          : '/';
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 12);
@@ -152,6 +205,7 @@ export default function Header() {
 
   const avatarInitial = (profile?.full_name || user?.email || 'F').charAt(0).toUpperCase();
   const marketplaceSearchHref = pathname === '/marketplace' ? '#marketplace-search' : '/marketplace#marketplace-search';
+  const showBuyerUtilities = isLoggedIn && canBuy && buyerContext;
 
   return (
     <>
@@ -161,12 +215,12 @@ export default function Header() {
         }`}
       >
         <div className="ft-header-inner mx-auto h-16 max-w-[1760px] gap-3 px-4 sm:px-6 lg:px-8">
-          <Link href="/" className="ft-header-brand flex shrink-0 items-center gap-2.5" onClick={closeMenus}>
+          <Link href={brandHref} className="ft-header-brand flex shrink-0 items-center gap-2.5" onClick={closeMenus}>
             <AppLogo size={36} />
             <span className="hidden text-lg font-800 tracking-tight text-foreground sm:block">FabricTrad</span>
           </Link>
 
-          <nav className="ft-header-primary-nav ml-auto hidden items-center gap-1" aria-label="Primary navigation">
+          <nav className="ft-header-primary-nav hidden items-center gap-1" aria-label="Primary navigation">
             {navLinks.slice(0, 5).map((link) => (
               <Link
                 key={`${link.label}-${link.href}`}
@@ -179,7 +233,7 @@ export default function Header() {
           </nav>
 
           <div className="ft-header-actions ml-auto hidden items-center gap-2 md:flex">
-            {isLoggedIn && canBuy && (
+            {showBuyerUtilities && (
               <Link
                 href={marketplaceSearchHref}
                 onClick={closeMenus}
@@ -191,7 +245,7 @@ export default function Header() {
               </Link>
             )}
 
-            {navLinks.length > 0 && (
+            {buyerContext && navLinks.length > 0 && (
               <Link href="/categories" className="ft-header-browse hidden items-center gap-2 md:inline-flex">
                 <Icon name="Squares2X2Icon" size={16} />
                 <span>Browse</span>
@@ -226,6 +280,11 @@ export default function Header() {
                         <p className="mt-1 truncate text-sm font-750 text-foreground">
                           {profile?.business_name || profile?.full_name || user?.email}
                         </p>
+                        {!isAdmin && (
+                          <p className="mt-1 text-[11px] text-muted-foreground">
+                            Current: {sellerContext ? 'Seller workspace' : buyerContext ? 'Buyer workspace' : 'Account'}
+                          </p>
+                        )}
                       </div>
                       <div className="p-2">
                         {workspaceLinks.map((link) => (
@@ -235,7 +294,7 @@ export default function Header() {
                           </Link>
                         ))}
                         <Link href="/profile" onClick={closeMenus} className="ft-workspace-link" role="menuitem">
-                          <Icon name="UserCircleIcon" size={17} />
+                          <Icon name="Cog6ToothIcon" size={17} />
                           <span>Account settings</span>
                         </Link>
                       </div>
@@ -250,10 +309,12 @@ export default function Header() {
                   </Link>
                 )}
 
-                {canBuy && <WishlistMenu />}
-                <Link href={notificationsHref} className="ft-icon-button" aria-label="Open notifications">
-                  <Icon name="BellIcon" size={18} />
-                </Link>
+                {showBuyerUtilities && <WishlistMenu />}
+                {(isAdmin || buyerContext || sellerContext) && (
+                  <Link href={notificationsHref} className="ft-icon-button" aria-label="Open notifications">
+                    <Icon name="BellIcon" size={18} />
+                  </Link>
+                )}
                 <div className="ft-header-profile">
                   <ProfileMenu />
                 </div>
@@ -321,7 +382,7 @@ export default function Header() {
                 </div>
               )}
 
-              {isLoggedIn && canBuy && (
+              {showBuyerUtilities && (
                 <form onSubmit={handleSearch} className="ft-header-search flex">
                   <Icon name="MagnifyingGlassIcon" size={18} className="ml-3 shrink-0 text-muted-foreground" />
                   <input
@@ -335,18 +396,22 @@ export default function Header() {
                 </form>
               )}
 
-              <div>
-                <p className="mb-2 px-1 text-[11px] font-800 uppercase tracking-[0.15em] text-muted-foreground">Explore</p>
-                <div className="space-y-1">
-                  {navLinks.map((link) => (
-                    <Link key={`${link.label}-${link.href}`} href={link.href} onClick={closeMenus} className="ft-mobile-menu-link">
-                      <Icon name={link.icon as 'ShoppingBagIcon'} size={18} />
-                      <span>{link.label}</span>
-                      <Icon name="ChevronRightIcon" size={15} className="ml-auto text-muted-foreground" />
-                    </Link>
-                  ))}
+              {navLinks.length > 0 && (
+                <div>
+                  <p className="mb-2 px-1 text-[11px] font-800 uppercase tracking-[0.15em] text-muted-foreground">
+                    {sellerContext ? 'Seller tools' : 'Explore'}
+                  </p>
+                  <div className="space-y-1">
+                    {navLinks.map((link) => (
+                      <Link key={`${link.label}-${link.href}`} href={link.href} onClick={closeMenus} className="ft-mobile-menu-link">
+                        <Icon name={link.icon as 'ShoppingBagIcon'} size={18} />
+                        <span>{link.label}</span>
+                        <Icon name="ChevronRightIcon" size={15} className="ml-auto text-muted-foreground" />
+                      </Link>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
 
               {isLoggedIn && (
                 <div>
@@ -359,13 +424,15 @@ export default function Header() {
                       </Link>
                     ))}
                     <Link href="/profile" onClick={closeMenus} className="ft-mobile-menu-link">
-                      <Icon name="UserCircleIcon" size={18} />
+                      <Icon name="Cog6ToothIcon" size={18} />
                       <span>Profile & preferences</span>
                     </Link>
-                    <Link href={notificationsHref} onClick={closeMenus} className="ft-mobile-menu-link">
-                      <Icon name="BellIcon" size={18} />
-                      <span>Notifications</span>
-                    </Link>
+                    {(isAdmin || buyerContext || sellerContext) && (
+                      <Link href={notificationsHref} onClick={closeMenus} className="ft-mobile-menu-link">
+                        <Icon name="BellIcon" size={18} />
+                        <span>Notifications</span>
+                      </Link>
+                    )}
                   </div>
                 </div>
               )}

@@ -14,6 +14,9 @@ const passwordResetRequest = read('src/app/api/auth/email-otp/request/route.ts')
 const passwordResetPage = read('src/app/auth/reset-password/page.tsx');
 const accountLogin = read('src/app/login/EmailOtpLoginClient.tsx');
 const accountHome = read('src/app/account/page.tsx');
+const workspaceStatus = read('src/app/api/account/workspace-status/route.ts');
+const commerceHeader = read('src/components/Header.tsx');
+const headerReflow = read('src/styles/header-reflow.css');
 const adminOtpRequest = read('src/app/api/auth/admin-otp/request/route.ts');
 const authEmailDocs = read('docs/AUTH_EMAIL_SERVER.md');
 const environmentExample = read('.env.example');
@@ -69,15 +72,46 @@ assert(passwordResetRequest.includes("method: 'password_recovery'"), 'Recovery e
 assert(passwordResetPage.includes('updatePassword(password)'), 'Recovery screen must save the new password through Supabase Auth.');
 assert(accountLogin.includes('Send password reset email'), 'Account login must request a recovery email.');
 assert(accountLogin.includes('One account for textile commerce'), 'Sign-in must present one unified buyer and seller account.');
-assert(accountLogin.includes("role === 'admin_staff' || role === 'super_admin' ? '/admin-portal' : role === 'seller' ? '/account' : '/marketplace'"), 'Buyer accounts must open the marketplace while administrators retain the admin portal.');
+assert(
+  accountLogin.includes("role === 'admin_staff' || role === 'super_admin'") &&
+    accountLogin.includes("? '/admin-portal'") &&
+    accountLogin.includes("role === 'seller'") &&
+    accountLogin.includes("? '/account'") &&
+    accountLogin.includes(": '/marketplace'"),
+  'Buyer accounts must open the marketplace while administrators retain the admin portal.'
+);
 assert(!accountLogin.includes("type LoginRole = 'buyer' | 'seller'"), 'Login must not require the user to choose a duplicate buyer/seller identity.');
 assert(middleware.includes("'/auth/reset-password'"), 'The public recovery page must load before browser auth tokens are persisted.');
 
-// Unified account and logout access.
-assert(accountHome.includes('One account · multiple workspaces'), 'Account home must explain shared buyer and seller access.');
+// Unified account, role-specific verification and explicit workspace switching.
+assert(accountHome.includes('One account · separate workspaces'), 'Account home must explain buyer and seller workspace separation.');
 assert(accountHome.includes("profile?.can_buy ?? (profile?.role === 'buyer' || profile?.role === 'seller')"), 'Account home must resolve buyer capability safely.');
 assert(accountHome.includes("window.location.replace('/login')"), 'Unified account home must provide reliable logout.');
-assert(accountHome.includes("canSell ? '/seller-dashboard' : '/seller-registration'"), 'Account home must open or activate seller access from the same account.');
+assert(accountHome.includes("fetch('/api/account/workspace-status'"), 'Account home must load role-specific verification state.');
+assert(
+  accountHome.includes("href: workspaceStatusReady && !buyerVerified ? '/buyer-registration' : undefined") &&
+    accountHome.includes("href: workspaceStatusReady && !sellerVerified ? '/seller-registration' : undefined"),
+  'Completed buyer and seller verification rows must not route back into onboarding.'
+);
+assert(
+  workspaceStatus.includes("buyer?.buyer_type === 'end_user'") &&
+    workspaceStatus.includes('business_kyc_status') &&
+    workspaceStatus.includes("seller?.verification_status === 'verified'"),
+  'Workspace status must resolve buyer and seller verification independently.'
+);
+assert(
+  commerceHeader.includes("type Workspace = 'public' | 'buyer' | 'seller' | 'account' | 'admin'") &&
+    commerceHeader.includes("const buyerContext = activeWorkspace === 'buyer'") &&
+    commerceHeader.includes("const sellerContext = activeWorkspace === 'seller'") &&
+    commerceHeader.includes("buyerContext && canBuy") &&
+    commerceHeader.includes("sellerContext && canSell"),
+  'Commerce header actions must stay inside the active buyer or seller workspace.'
+);
+assert(
+  headerReflow.includes('margin-left: 0 !important') &&
+    headerReflow.includes('minmax(160px, max-content)'),
+  'Commerce header must reserve brand space so Marketplace never overlaps the FabricTrad logo.'
+);
 
 // Administrator OTP must use Supabase custom SMTP directly.
 assert(adminOtpRequest.includes('configuredAdminEmail()'), 'Administrator OTP must remain restricted to the configured address.');
@@ -163,4 +197,4 @@ assert(sellerRegistration.includes('Open official GST Portal'), 'Seller onboardi
 assert(buyerRegistration.includes('Open official GST Portal'), 'Business buyer onboarding must expose the official GST reference.');
 assert(gstVerificationDocs.includes('GST Suvidha Providers'), 'GST documentation must explain the authorised GSP option.');
 
-console.log('Unified account, live admin operations, logout, printable commerce documents, email OTP, GST and seller verification checks passed.');
+console.log('Unified account, workspace isolation, live admin operations, logout, printable commerce documents, email OTP, GST and seller verification checks passed.');
