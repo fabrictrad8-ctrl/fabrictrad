@@ -9,12 +9,22 @@ export async function GET() {
 
   return NextResponse.json(
     {
-      currentExperience: 'ai_2d_image_try_on',
+      currentExperience: 'interactive_3d_mannequin_plus_ai_photo_try_on',
       ai2dConfigured,
+      interactiveThreeDMannequin: true,
+      personalPhotoExperience: 'ai_2d_image_try_on',
       threeDAssetPipeline: true,
       threeDProviderConfigured,
-      threeDStatus: threeDProviderConfigured ? 'provider_configured' : 'architecture_ready_provider_pending',
-      supportedFutureAssets: ['fabric_texture', 'normal_map', 'roughness_map', 'garment_glb', 'garment_usdz'],
+      threeDStatus: threeDProviderConfigured
+        ? 'external_asset_provider_configured'
+        : 'procedural_webgl_mannequin_live',
+      supportedFutureAssets: [
+        'fabric_texture',
+        'normal_map',
+        'roughness_map',
+        'garment_glb',
+        'garment_usdz',
+      ],
     },
     { headers: { 'Cache-Control': 'no-store, max-age=0' } }
   );
