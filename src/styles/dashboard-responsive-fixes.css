@@ -1,0 +1,16 @@
+/* Dashboard responsive safeguards.
+ *
+ * `.ft-icon-button` intentionally supplies `display: inline-grid` for icon
+ * controls. Because that component class is loaded after Tailwind utilities,
+ * it can otherwise win over `md:hidden` and make mobile-only controls visible
+ * on desktop. That produced a visible hamburger whose off-canvas drawer was
+ * still correctly hidden at desktop widths, so clicking it appeared to do
+ * nothing. Keep the reusable button styling while restoring the intended
+ * responsive visibility contract.
+ */
+
+@media (min-width: 768px) {
+  .ft-icon-button[class~='md:hidden'] {
+    display: none !important;
+  }
+}
