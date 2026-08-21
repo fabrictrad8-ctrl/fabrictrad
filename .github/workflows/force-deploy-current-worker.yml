@@ -74,6 +74,29 @@ jobs:
             echo 'No GitHub Actions Supabase server secret is available to sync.'
           fi
 
+      - name: Sync AI image provider secret to Worker
+        id: sync-ai-secret
+        shell: bash
+        env:
+          OPENAI_API_KEY_FROM_GITHUB: ${{ secrets.OPENAI_API_KEY }}
+          GEMINI_API_KEY_FROM_GITHUB: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          set -euo pipefail
+          synced=false
+          if [ -n "${OPENAI_API_KEY_FROM_GITHUB:-}" ]; then
+            printf '%s' "$OPENAI_API_KEY_FROM_GITHUB" | npx wrangler secret put OPENAI_API_KEY --config wrangler.jsonc
+            echo 'Synced OPENAI_API_KEY from GitHub Actions to the Cloudflare Worker.'
+            synced=true
+          fi
+          if [ -n "${GEMINI_API_KEY_FROM_GITHUB:-}" ]; then
+            printf '%s' "$GEMINI_API_KEY_FROM_GITHUB" | npx wrangler secret put GEMINI_API_KEY --config wrangler.jsonc
+            echo 'Synced GEMINI_API_KEY from GitHub Actions to the Cloudflare Worker.'
+            synced=true
+          fi
+          if [ "$synced" != 'true' ]; then
+            echo 'No GitHub Actions AI provider secret was available to sync; checking existing Worker secrets next.'
+          fi
+
       - name: Check required Worker secret names
         id: secret-preflight
         shell: bash
@@ -89,13 +112,17 @@ jobs:
           if (!names.has('SUPABASE_SECRET_KEY') && !names.has('SUPABASE_SERVICE_ROLE_KEY')) {
             missing.push('SUPABASE_SECRET_KEY_OR_SERVICE_ROLE_KEY');
           }
+          if (!names.has('OPENAI_API_KEY') && !names.has('GEMINI_API_KEY')) {
+            missing.push('OPENAI_API_KEY_OR_GEMINI_API_KEY');
+          }
           fs.writeFileSync('/tmp/missing-worker-secrets.txt', missing.join('\n'));
           console.log(`Configured Razorpay secret names: ${required.filter((name) => names.has(name)).join(', ') || 'none'}`);
+          console.log(`AI image provider secret configured: ${names.has('OPENAI_API_KEY') ? 'OpenAI' : names.has('GEMINI_API_KEY') ? 'Gemini' : 'none'}`);
           if (missing.length) {
             console.error(`Missing required integration secret names: ${missing.join(', ')}`);
             process.exit(1);
           }
-          console.log('All required Razorpay and Supabase Worker secret names are configured.');
+          console.log('All required Razorpay, Supabase and AI image provider Worker secret names are configured.');
           NODE
 
       - name: Validate current application
@@ -104,6 +131,7 @@ jobs:
           npm run lint
           node scripts/verify-account-lifecycle.mjs
           node scripts/verify-marketplace-integrity.mjs
+          node scripts/verify-mobile-whatsapp.mjs
 
       - name: Build OpenNext Worker
         run: npm run build:sites
@@ -151,6 +179,35 @@ jobs:
           grep -qi 'email or password is incorrect' /tmp/login.json
           echo 'Current FabricTrad Worker and account lifecycle APIs are live.'
 
+      - name: Verify production AI Drape-On
+        id: ai-drape-verification
+        shell: bash
+        run: |
+          set -euo pipefail
+          ai_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+            --output /tmp/ai-drape.json --write-out '%{http_code}' \
+            https://fabrictrad.com/api/ai/drape-on || true)
+          printf '%s' "$ai_status" > /tmp/ai-drape-status.txt
+          echo "AI Drape readiness probe returned HTTP ${ai_status}."
+          if [ "$ai_status" != '200' ]; then
+            cat /tmp/ai-drape.json || true
+            echo '::error::Production AI Drape readiness endpoint is unhealthy.'
+            exit 1
+          fi
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const payload = JSON.parse(fs.readFileSync('/tmp/ai-drape.json', 'utf8'));
+          if (payload.configured !== true) {
+            console.error('AI Drape endpoint reports that no image provider is configured.');
+            process.exit(1);
+          }
+          if (payload.mode !== 'real_ai_image_try_on' || payload.usesListingMedia !== true) {
+            console.error('AI Drape endpoint is not reporting the verified listing-media try-on mode.');
+            process.exit(1);
+          }
+          console.log(`Production AI Drape is ready via ${payload.provider || 'configured provider'} (${payload.model || 'default model'}).`);
+          NODE
+
       - name: Verify production Razorpay webhook
         id: razorpay-webhook-verification
         shell: bash
@@ -178,9 +235,11 @@ jobs:
         env:
           AUTH_OUTCOME: ${{ steps.cloudflare-auth.outcome }}
           SECRET_SYNC_OUTCOME: ${{ steps.sync-supabase-secret.outcome }}
+          AI_SECRET_SYNC_OUTCOME: ${{ steps.sync-ai-secret.outcome }}
           SECRET_PREFLIGHT_OUTCOME: ${{ steps.secret-preflight.outcome }}
           DEPLOY_OUTCOME: ${{ steps.deploy.outcome }}
           VERIFY_OUTCOME: ${{ steps.live-verification.outcome }}
+          AI_DRAPE_OUTCOME: ${{ steps.ai-drape-verification.outcome }}
           RAZORPAY_WEBHOOK_OUTCOME: ${{ steps.razorpay-webhook-verification.outcome }}
         run: |
           set -euo pipefail
@@ -210,6 +269,10 @@ jobs:
           if [ -s /tmp/razorpay-webhook-status.txt ]; then
             webhook_status_json=$(node -e "const fs=require('fs'); console.log(JSON.stringify(fs.readFileSync('/tmp/razorpay-webhook-status.txt','utf8').trim() || null))")
           fi
+          ai_status_json='null'
+          if [ -s /tmp/ai-drape-status.txt ]; then
+            ai_status_json=$(node -e "const fs=require('fs'); console.log(JSON.stringify(fs.readFileSync('/tmp/ai-drape-status.txt','utf8').trim() || null))")
+          fi
           mkdir -p .github/deployments
           cat > .github/deployments/production-status.json <<JSON
           {
@@ -217,10 +280,13 @@ jobs:
             "recordedAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
             "cloudflareAuthentication": "${AUTH_OUTCOME}",
             "supabaseSecretSync": "${SECRET_SYNC_OUTCOME}",
+            "aiProviderSecretSync": "${AI_SECRET_SYNC_OUTCOME}",
             "workerSecretPreflight": "${SECRET_PREFLIGHT_OUTCOME}",
             "missingRequiredWorkerSecrets": ${missing_json},
             "workerDeployment": "${DEPLOY_OUTCOME}",
             "liveAccountApiVerification": "${VERIFY_OUTCOME}",
+            "liveAiDrapeVerification": "${AI_DRAPE_OUTCOME}",
+            "aiDrapeProbeHttpStatus": ${ai_status_json},
             "liveRazorpayWebhookVerification": "${RAZORPAY_WEBHOOK_OUTCOME}",
             "razorpayWebhookProbeHttpStatus": ${webhook_status_json},
             "deploymentLogTail": ${deployment_log_json}
