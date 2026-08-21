@@ -1,16 +1,16 @@
 {
-  "sourceCommit": "98ce8cb5030008d908583e6b9e55216560727f2b",
-  "recordedAt": "2026-08-21T19:43:30Z",
+  "sourceCommit": "969c9c7cf7d1e52bbd26fd2a58380736566eeff8",
+  "recordedAt": "2026-08-21T20:07:39Z",
   "cloudflareAuthentication": "success",
   "supabaseSecretSync": "success",
   "aiProviderSecretSync": "success",
-  "workerSecretPreflight": "failure",
-  "missingRequiredWorkerSecrets": ["OPENAI_API_KEY_OR_GEMINI_API_KEY"],
-  "workerDeployment": "skipped",
-  "liveAccountApiVerification": "skipped",
-  "liveAiDrapeVerification": "skipped",
-  "aiDrapeProbeHttpStatus": null,
-  "liveRazorpayWebhookVerification": "skipped",
-  "razorpayWebhookProbeHttpStatus": null,
-  "deploymentLogTail": null
+  "workerSecretPreflight": "success",
+  "missingRequiredWorkerSecrets": [],
+  "workerDeployment": "success",
+  "liveAccountApiVerification": "success",
+  "liveAiDrapeVerification": "success",
+  "aiDrapeProbeHttpStatus": "200",
+  "liveRazorpayWebhookVerification": "success",
+  "razorpayWebhookProbeHttpStatus": "400",
+  "deploymentLogTail": " ⛅️ wrangler 4.125.0\n────────────────────\nCloudflare collects anonymous telemetry about your usage of Wrangler. Learn more at https://github.com/cloudflare/workers-sdk/tree/main/packages/wrangler/telemetry.md\n🌀 Building list of assets...\n✨ Read 227 files from the assets directory /home/runner/work/fabrictrad/fabrictrad/.open-next/assets\n🌀 Starting asset upload...\n🌀 Found 1 new or modified static asset to upload. Proceeding with upload...\n+ /BUILD_ID\nUploaded 1 of 1 asset\n✨ Success! Uploaded 1 file (112 already uploaded) (0.59 sec)\nTotal Upload: 12693.87 KiB / gzip: 2062.24 KiB\nWorker Startup Time: 28 ms\nYour Worker has access to the following bindings:\nBinding            Resource      \nenv.ASSETS         Assets        \nUploaded fabrictrad (6.18 sec)\nNo targets deployed for fabrictrad (0.46 sec)\nCurrent Version ID: 13a9a20b-59e9-47a2-9d36-48f9c9d18f20"
 }
