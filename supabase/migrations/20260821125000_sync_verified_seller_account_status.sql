@@ -10,6 +10,8 @@ set search_path = ''
 as $$
 begin
   if new.verification_status = 'verified'::public.seller_status then
+    perform set_config('fabrictrad.trusted_capability_change', '1', true);
+
     update public.user_profiles
     set verification_status = 'verified',
         updated_at = now()
@@ -34,6 +36,8 @@ when (new.verification_status = 'verified'::public.seller_status)
 execute function public.sync_verified_seller_account_status();
 
 -- Repair already-approved sellers created before this trigger existed.
+select set_config('fabrictrad.trusted_capability_change', '1', true);
+
 update public.user_profiles as account
 set verification_status = 'verified',
     updated_at = now()
