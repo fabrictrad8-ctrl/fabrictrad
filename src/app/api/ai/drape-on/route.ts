@@ -9,7 +9,6 @@ type DrapeRequest = {
   modelImage?: string;
   garmentId?: string;
   fit?: string;
-  // Kept only for older clients/demo tooling. The buyer product page uses productId/variantId.
   fabricImage?: string;
   fabricName?: string;
   styleName?: string;
@@ -32,6 +31,7 @@ type GeneratedDrape = {
   image: string;
   provider: string;
   model: string;
+  requestId?: string | null;
 };
 
 type OpenAIImageResponse = {
@@ -50,12 +50,14 @@ type OpenAIImageResponse = {
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 const MAX_REQUEST_BYTES = 12 * 1024 * 1024;
 const MAX_FABRIC_REFERENCES = 2;
+const MAX_REDIRECTS = 4;
 const DEMO_COOKIE_NAME = 'fabrictrad_demo_role';
 const USAGE_COOKIE_NAME = 'fabrictrad_ai_drape_usage';
 const ALLOWED_MIME = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const DEFAULT_REMOTE_HOSTS = new Set([
   'images.unsplash.com',
+  'plus.unsplash.com',
   'images.pexels.com',
   'images.pixabay.com',
   'img.rocket.new',
@@ -74,6 +76,14 @@ const GARMENTS: Record<string, string> = {
     'a modern midi dress with a finished neckline, sleeves and clean tailoring that follows the body naturally',
   dupatta:
     'a full-length dupatta draped naturally over both shoulders and the existing outfit with realistic folds and gravity',
+  fabric:
+    'a premium draped textile wrap shaped naturally around the body, preserving the original fabric without inventing unrelated tailoring details',
+  top:
+    'a fitted premium top with a finished neckline, sleeves and natural body-following folds',
+  bottom:
+    'a properly tailored lower-body garment with natural folds, hems and realistic textile gravity',
+  set:
+    'a coordinated complete outfit constructed from the selected textile with realistic seams, folds and body fit',
 };
 
 const FITS: Record<string, string> = {
@@ -84,11 +94,13 @@ const FITS: Record<string, string> = {
 
 class DrapeClientError extends Error {
   status: number;
+  code?: string;
 
-  constructor(message: string, status = 400) {
+  constructor(message: string, status = 400, code?: string) {
     super(message);
     this.name = 'DrapeClientError';
     this.status = status;
+    this.code = code;
   }
 }
 
@@ -123,20 +135,102 @@ const allowedRemoteHosts = () => {
   return new Set([...DEFAULT_REMOTE_HOSTS, ...configured, ...supabaseHosts]);
 };
 
+const normalizeMime = (mime: string) => (mime === 'image/jpg' ? 'image/jpeg' : mime);
+
 const extensionFor = (mime: string): ImageInput['extension'] => {
-  if (mime === 'image/jpeg') return 'jpg';
-  if (mime === 'image/webp') return 'webp';
+  const normalized = normalizeMime(mime);
+  if (normalized === 'image/jpeg') return 'jpg';
+  if (normalized === 'image/webp') return 'webp';
   return 'png';
 };
 
-async function inputToBlob(input: string): Promise<ImageInput> {
+function validateRemoteUrl(url: URL) {
+  if (url.protocol !== 'https:' || !allowedRemoteHosts().has(url.hostname.toLowerCase())) {
+    throw new DrapeClientError('Image host is not allowed.', 400, 'IMAGE_HOST_NOT_ALLOWED');
+  }
+}
+
+function normalizeRemoteImageUrl(url: URL) {
+  const next = new URL(url.toString());
+  if (next.hostname === 'images.unsplash.com' || next.hostname === 'plus.unsplash.com') {
+    next.searchParams.delete('auto');
+    next.searchParams.set('fm', 'jpg');
+    if (!next.searchParams.has('q')) next.searchParams.set('q', '88');
+  }
+  return next;
+}
+
+async function fetchAllowedRemoteImage(initialUrl: URL, label: string) {
+  let current = normalizeRemoteImageUrl(initialUrl);
+
+  for (let redirectCount = 0; redirectCount <= MAX_REDIRECTS; redirectCount += 1) {
+    validateRemoteUrl(current);
+
+    let response: Response;
+    try {
+      response = await fetch(current, {
+        cache: 'no-store',
+        redirect: 'manual',
+        signal: AbortSignal.timeout(20_000),
+        headers: {
+          Accept: 'image/jpeg,image/png,image/webp;q=0.9,*/*;q=0.1',
+          'User-Agent': 'FabricTrad-AI-Drape/1.0',
+        },
+      });
+    } catch (error) {
+      console.error(`AI drape ${label} image fetch failed`, {
+        host: current.hostname,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw new DrapeClientError(
+        `Unable to load the ${label} image for AI processing. Please retry.`,
+        502,
+        'REFERENCE_IMAGE_FETCH_FAILED'
+      );
+    }
+
+    if (response.status >= 300 && response.status < 400) {
+      const location = response.headers.get('location');
+      if (!location || redirectCount === MAX_REDIRECTS) {
+        throw new DrapeClientError(
+          `Unable to load the ${label} image for AI processing.`,
+          502,
+          'REFERENCE_IMAGE_REDIRECT_FAILED'
+        );
+      }
+      current = normalizeRemoteImageUrl(new URL(location, current));
+      continue;
+    }
+
+    if (!response.ok) {
+      console.error(`AI drape ${label} image returned ${response.status}`, {
+        host: current.hostname,
+      });
+      throw new DrapeClientError(
+        `Unable to load the ${label} image for AI processing.`,
+        502,
+        'REFERENCE_IMAGE_HTTP_ERROR'
+      );
+    }
+
+    return response;
+  }
+
+  throw new DrapeClientError(
+    `Unable to load the ${label} image for AI processing.`,
+    502,
+    'REFERENCE_IMAGE_REDIRECT_LIMIT'
+  );
+}
+
+async function inputToBlob(input: string, label = 'reference'): Promise<ImageInput> {
   if (input.startsWith('data:')) {
     const match = input.match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/);
-    if (!match) throw new DrapeClientError('Unsupported image data.');
-    const mime = match[1];
+    if (!match) throw new DrapeClientError('Unsupported image data.', 400, 'UNSUPPORTED_IMAGE_DATA');
+    const mime = normalizeMime(match[1]);
     const buffer = Buffer.from(match[2], 'base64');
     if (buffer.byteLength < 1 || buffer.byteLength > MAX_IMAGE_BYTES) {
-      throw new DrapeClientError('Image must be smaller than 8 MB.');
+      throw new DrapeClientError('Image must be smaller than 8 MB.', 400, 'IMAGE_TOO_LARGE');
     }
     return {
       blob: new Blob([buffer], { type: mime }),
@@ -149,31 +243,36 @@ async function inputToBlob(input: string): Promise<ImageInput> {
   try {
     url = new URL(input);
   } catch {
-    throw new DrapeClientError('Invalid image URL.');
+    throw new DrapeClientError('Invalid image URL.', 400, 'INVALID_IMAGE_URL');
   }
 
-  if (url.protocol !== 'https:' || !allowedRemoteHosts().has(url.hostname.toLowerCase())) {
-    throw new DrapeClientError('Image host is not allowed.');
+  validateRemoteUrl(url);
+  const response = await fetchAllowedRemoteImage(url, label);
+
+  const mime = normalizeMime(
+    (response.headers.get('content-type') || '').split(';')[0].trim().toLowerCase()
+  );
+  if (!ALLOWED_MIME.has(mime)) {
+    console.error('AI drape unsupported remote image type', {
+      label,
+      mime,
+      host: new URL(response.url || url.toString()).hostname,
+    });
+    throw new DrapeClientError(
+      `The ${label} image format cannot be processed. Use JPG, PNG or WebP.`,
+      400,
+      'UNSUPPORTED_IMAGE_TYPE'
+    );
   }
-
-  const response = await fetch(url, {
-    cache: 'no-store',
-    redirect: 'error',
-    signal: AbortSignal.timeout(15_000),
-  });
-  if (!response.ok) throw new DrapeClientError('Unable to fetch image.');
-
-  const mime = (response.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
-  if (!ALLOWED_MIME.has(mime)) throw new DrapeClientError('Unsupported image type.');
 
   const contentLength = Number(response.headers.get('content-length') || 0);
   if (contentLength > MAX_IMAGE_BYTES) {
-    throw new DrapeClientError('Image must be smaller than 8 MB.');
+    throw new DrapeClientError('Image must be smaller than 8 MB.', 400, 'IMAGE_TOO_LARGE');
   }
 
   const buffer = Buffer.from(await response.arrayBuffer());
   if (buffer.byteLength < 1 || buffer.byteLength > MAX_IMAGE_BYTES) {
-    throw new DrapeClientError('Image must be smaller than 8 MB.');
+    throw new DrapeClientError('Image must be smaller than 8 MB.', 400, 'IMAGE_TOO_LARGE');
   }
 
   return {
@@ -207,17 +306,15 @@ async function resolveListingFabric(
   variantId?: string | null
 ): Promise<FabricReference> {
   if (!UUID_PATTERN.test(productId)) {
-    throw new DrapeClientError('Invalid product reference.');
+    throw new DrapeClientError('Invalid product reference.', 400, 'INVALID_PRODUCT');
   }
   if (variantId && !UUID_PATTERN.test(variantId)) {
-    throw new DrapeClientError('Invalid colour variant reference.');
+    throw new DrapeClientError('Invalid colour variant reference.', 400, 'INVALID_VARIANT');
   }
 
   const { data: product, error: productError } = await supabase
     .from('seller_products')
-    .select(
-      'id,name,gsm,work_type,image_url,image_urls,status,approval_status,seller_id'
-    )
+    .select('id,name,gsm,work_type,image_url,image_urls,status,approval_status,seller_id')
     .eq('id', productId)
     .eq('status', 'active')
     .eq('approval_status', 'approved')
@@ -225,30 +322,37 @@ async function resolveListingFabric(
 
   if (productError) {
     console.error('AI drape product lookup failed', productError.message);
-    throw new DrapeClientError('Unable to load this product for AI try-on.', 500);
+    throw new DrapeClientError('Unable to load this product for AI try-on.', 500, 'PRODUCT_LOOKUP_FAILED');
   }
   if (!product) {
-    throw new DrapeClientError('This product is no longer available for AI try-on.', 404);
+    throw new DrapeClientError(
+      'This product is no longer available for AI try-on.',
+      404,
+      'PRODUCT_UNAVAILABLE'
+    );
   }
 
   let variant: Record<string, unknown> | null = null;
   if (variantId) {
     const { data, error } = await supabase
       .from('seller_product_variants')
-      .select(
-        'id,product_id,color_name,design_name,description,image_url,image_urls,status,approval_status'
-      )
+      .select('id,product_id,color_name,design_name,description,image_url,image_urls,status,approval_status')
       .eq('id', variantId)
       .eq('product_id', productId)
       .eq('status', 'active')
       .eq('approval_status', 'approved')
       .maybeSingle();
+
     if (error) {
       console.error('AI drape variant lookup failed', error.message);
-      throw new DrapeClientError('Unable to load this colour for AI try-on.', 500);
+      throw new DrapeClientError('Unable to load this colour for AI try-on.', 500, 'VARIANT_LOOKUP_FAILED');
     }
     if (!data) {
-      throw new DrapeClientError('The selected colour is no longer available for AI try-on.', 404);
+      throw new DrapeClientError(
+        'The selected colour is no longer available for AI try-on.',
+        404,
+        'VARIANT_UNAVAILABLE'
+      );
     }
     variant = data as Record<string, unknown>;
   }
@@ -282,7 +386,11 @@ async function resolveListingFabric(
   ]).slice(0, MAX_FABRIC_REFERENCES);
 
   if (!imageUrls.length) {
-    throw new DrapeClientError('This listing does not have a usable fabric photo.', 400);
+    throw new DrapeClientError(
+      'This listing does not have a usable fabric photo.',
+      400,
+      'NO_FABRIC_IMAGE'
+    );
   }
 
   const variantName = variant
@@ -361,9 +469,8 @@ function resolveGarment(body: DrapeRequest) {
   if (GARMENTS[garmentId]) {
     return `${FITS[fitKey] || 'regular'} fit ${GARMENTS[garmentId]}`;
   }
-  // Legacy clients may still send styleName. Keep it tightly bounded.
   const legacy = String(body.styleName || '').trim().slice(0, 180);
-  return legacy || `regular fit ${GARMENTS.kurta}`;
+  return legacy || `regular fit ${GARMENTS.fabric}`;
 }
 
 function buildPrompt(fabric: FabricReference, styleName: string, referenceCount: number) {
@@ -407,12 +514,27 @@ async function generateWithOpenAI(
   form.append('output_compression', '90');
   form.append('moderation', 'auto');
 
-  const response = await fetch('https://api.openai.com/v1/images/edits', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${apiKey}` },
-    body: form,
-    signal: AbortSignal.timeout(115_000),
+  console.info('AI drape sending request to OpenAI GPT Image', {
+    model,
+    fabricReferenceCount: fabrics.length,
+    size,
+    quality,
   });
+
+  let response: Response;
+  try {
+    response = await fetch('https://api.openai.com/v1/images/edits', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${apiKey}` },
+      body: form,
+      signal: AbortSignal.timeout(115_000),
+    });
+  } catch (error) {
+    console.error('OpenAI virtual try-on network request failed', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    throw new Error('OpenAI GPT Image could not be reached.');
+  }
 
   const requestId = response.headers.get('x-request-id');
   const payload = (await response.json().catch(() => ({}))) as OpenAIImageResponse;
@@ -427,19 +549,23 @@ async function generateWithOpenAI(
     if (payload.error?.code === 'moderation_blocked') {
       throw new DrapeClientError(
         'The selected photo could not be processed. Try a clear, fully clothed adult photo.',
-        400
+        400,
+        'OPENAI_MODERATION_BLOCKED'
       );
     }
-    throw new Error(payload.error?.message || 'OpenAI image generation failed.');
+    throw new Error(payload.error?.message || `OpenAI GPT Image returned HTTP ${response.status}.`);
   }
 
   const base64Image = payload.data?.[0]?.b64_json;
   if (!base64Image) throw new Error('OpenAI returned no generated image.');
 
+  console.info('AI drape OpenAI GPT Image generation completed', { model, requestId });
+
   return {
     image: `data:image/jpeg;base64,${base64Image}`,
     provider: 'OpenAI',
     model,
+    requestId,
   };
 }
 
@@ -491,13 +617,16 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   const contentLength = Number(request.headers.get('content-length') || 0);
   if (contentLength > MAX_REQUEST_BYTES) {
-    return NextResponse.json({ error: 'Request is too large.' }, { status: 413 });
+    return NextResponse.json({ error: 'Request is too large.', code: 'REQUEST_TOO_LARGE' }, { status: 413 });
   }
 
   const openAiKey = process.env.OPENAI_API_KEY;
   const geminiKey = process.env.GEMINI_API_KEY;
   if (!openAiKey && !geminiKey) {
-    return NextResponse.json({ error: 'AI image service is not configured.' }, { status: 503 });
+    return NextResponse.json(
+      { error: 'AI image service is not configured.', code: 'AI_PROVIDER_NOT_CONFIGURED' },
+      { status: 503 }
+    );
   }
 
   const supabase = await createClient();
@@ -508,7 +637,10 @@ export async function POST(request: NextRequest) {
   const isDemoBuyer = !user && demoRole === 'buyer';
 
   if (!user && !isDemoBuyer) {
-    return NextResponse.json({ error: 'Buyer authentication is required.' }, { status: 401 });
+    return NextResponse.json(
+      { error: 'Buyer authentication is required.', code: 'BUYER_AUTH_REQUIRED' },
+      { status: 401 }
+    );
   }
 
   if (user) {
@@ -518,14 +650,17 @@ export async function POST(request: NextRequest) {
       .eq('id', user.id)
       .maybeSingle();
     if (accessError || !buyerAccess?.is_active || !buyerAccess?.can_buy) {
-      return NextResponse.json({ error: 'Buyer access is required for AI try-on.' }, { status: 403 });
+      return NextResponse.json(
+        { error: 'Buyer access is required for AI try-on.', code: 'BUYER_ACCESS_REQUIRED' },
+        { status: 403 }
+      );
     }
   }
 
   try {
     const body = (await request.json()) as DrapeRequest;
     if (!body.modelImage) {
-      throw new DrapeClientError('Choose or upload a person photo first.');
+      throw new DrapeClientError('Choose or upload a person photo first.', 400, 'PERSON_IMAGE_REQUIRED');
     }
 
     let fabricReference: FabricReference;
@@ -539,18 +674,35 @@ export async function POST(request: NextRequest) {
         imageUrls: [body.fabricImage],
       };
     } else {
-      throw new DrapeClientError('Select a live FabricTrad product before generating a try-on.');
+      throw new DrapeClientError(
+        'Select a live FabricTrad product before generating a try-on.',
+        400,
+        'PRODUCT_REQUIRED'
+      );
     }
+
+    console.info('AI drape preparing references', {
+      productId: body.productId || null,
+      variantId: body.variantId || null,
+      fabricReferenceCount: fabricReference.imageUrls.length,
+      provider: openAiKey ? 'OpenAI' : 'Gemini',
+    });
 
     const [person, ...fabricInputs] = await Promise.all([
-      inputToBlob(body.modelImage),
-      ...fabricReference.imageUrls.map((url) => inputToBlob(url)),
+      inputToBlob(body.modelImage, 'person reference'),
+      ...fabricReference.imageUrls.map((url, index) =>
+        inputToBlob(url, `seller textile reference ${index + 1}`)
+      ),
     ]);
+
     if (!fabricInputs.length) {
-      throw new DrapeClientError('This listing does not have a usable fabric photo.');
+      throw new DrapeClientError(
+        'This listing does not have a usable fabric photo.',
+        400,
+        'NO_FABRIC_INPUT'
+      );
     }
 
-    // Consume quota only after the request, listing and image inputs are valid.
     const cookieSecret = process.env.AI_DRAPE_COOKIE_SECRET || openAiKey || geminiKey!;
     let cookieQuotaUsed = false;
     let usageCount = 0;
@@ -564,7 +716,10 @@ export async function POST(request: NextRequest) {
         console.warn('AI drape database quota unavailable; using signed browser quota.', quotaError.message);
         cookieQuotaUsed = true;
       } else if (!quotaAllowed) {
-        return NextResponse.json({ error: 'Daily AI image limit reached.' }, { status: 429 });
+        return NextResponse.json(
+          { error: 'Daily AI image limit reached.', code: 'AI_DAILY_LIMIT_REACHED' },
+          { status: 429 }
+        );
       }
     } else {
       cookieQuotaUsed = true;
@@ -577,7 +732,10 @@ export async function POST(request: NextRequest) {
         : safeInteger(process.env.AI_DRAPE_FALLBACK_DAILY_LIMIT, 3, 1, 10);
       if (usageCount >= cookieLimit) {
         return NextResponse.json(
-          { error: 'Daily AI image limit reached for this browser.' },
+          {
+            error: 'Daily AI image limit reached for this browser.',
+            code: 'AI_BROWSER_DAILY_LIMIT_REACHED',
+          },
           { status: 429 }
         );
       }
@@ -585,7 +743,7 @@ export async function POST(request: NextRequest) {
 
     const styleName = resolveGarment(body);
     const prompt = buildPrompt(fabricReference, styleName, fabricInputs.length);
-    const providerErrors: string[] = [];
+    const providerErrors: Array<{ provider: string; message: string }> = [];
     let generated: GeneratedDrape | null = null;
 
     if (openAiKey) {
@@ -594,7 +752,7 @@ export async function POST(request: NextRequest) {
       } catch (error) {
         if (error instanceof DrapeClientError) throw error;
         const message = error instanceof Error ? error.message : 'OpenAI image generation failed.';
-        providerErrors.push(message);
+        providerErrors.push({ provider: 'OpenAI', message });
         console.error('OpenAI drape generation failed:', error);
       }
     }
@@ -604,14 +762,21 @@ export async function POST(request: NextRequest) {
         generated = await generateWithGemini(person, fabricInputs, prompt, geminiKey);
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Gemini image generation failed.';
-        providerErrors.push(message);
+        providerErrors.push({ provider: 'Gemini', message });
         console.error('Gemini drape generation failed:', error);
       }
     }
 
     if (!generated) {
       return NextResponse.json(
-        { error: 'AI virtual try-on generation failed. Please try another clear photo.' },
+        {
+          error: openAiKey
+            ? 'OpenAI GPT Image received the drape request but could not produce a result. Please retry.'
+            : 'AI virtual try-on generation failed. Please retry.',
+          code: 'AI_PROVIDER_GENERATION_FAILED',
+          providerAttempted: openAiKey ? 'OpenAI' : geminiKey ? 'Gemini' : null,
+          providerError: providerErrors[0]?.message || null,
+        },
         { status: 502 }
       );
     }
@@ -621,6 +786,7 @@ export async function POST(request: NextRequest) {
         image: generated.image,
         provider: generated.provider,
         model: generated.model,
+        providerRequestId: generated.requestId || null,
         fabricReference: {
           name: fabricReference.name,
           variantName: fabricReference.variantName,
@@ -637,9 +803,19 @@ export async function POST(request: NextRequest) {
     return response;
   } catch (error) {
     if (error instanceof DrapeClientError) {
-      return NextResponse.json({ error: error.message }, { status: error.status });
+      return NextResponse.json(
+        { error: error.message, code: error.code || 'DRAPE_CLIENT_ERROR' },
+        { status: error.status }
+      );
     }
-    console.error('AI drape request failed:', error);
-    return NextResponse.json({ error: 'Unable to generate AI virtual try-on.' }, { status: 500 });
+    console.error('AI drape request failed before provider generation:', error);
+    return NextResponse.json(
+      {
+        error: 'The AI try-on failed while preparing the reference images. Please retry.',
+        code: 'AI_REFERENCE_PREPARATION_FAILED',
+        providerAttempted: false,
+      },
+      { status: 500 }
+    );
   }
 }
