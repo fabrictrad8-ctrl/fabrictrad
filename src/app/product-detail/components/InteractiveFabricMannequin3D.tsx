@@ -10,6 +10,19 @@ type Props = {
   fit: 'Relaxed' | 'Regular' | 'Tailored';
 };
 
+type ClothOptions = {
+  topY: number;
+  height: number;
+  topRadius: number;
+  bottomRadius: number;
+  arc: number;
+  startAngle?: number;
+  folds?: number;
+  foldDepth?: number;
+  rows?: number;
+  cols?: number;
+};
+
 export default function InteractiveFabricMannequin3D({
   fabricImage,
   productName,
@@ -24,88 +37,118 @@ export default function InteractiveFabricMannequin3D({
   useEffect(() => {
     const mount = mountRef.current;
     if (!mount) return;
+
     let disposed = false;
     let animationFrame = 0;
     let resizeObserver: ResizeObserver | null = null;
-    let cleanupInteractions = () => undefined;
+    let cleanup = () => undefined;
 
     const boot = async () => {
       try {
         const THREE = await import('three');
         if (disposed || !mountRef.current) return;
         mount.innerHTML = '';
+        setReady(false);
+        setError('');
 
         const scene = new THREE.Scene();
-        scene.background = new THREE.Color('#0f172a');
-        const camera = new THREE.PerspectiveCamera(35, 1, 0.1, 100);
-        camera.position.set(0, 0.25, 7.8);
+        scene.background = new THREE.Color('#0b1220');
+        scene.fog = new THREE.Fog('#0b1220', 10, 18);
+
+        const camera = new THREE.PerspectiveCamera(32, 1, 0.1, 100);
+        camera.position.set(0, 0.1, 8.3);
 
         const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
         renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
         renderer.outputColorSpace = THREE.SRGBColorSpace;
         renderer.shadowMap.enabled = true;
         renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.domElement.style.cursor = 'grab';
+        renderer.domElement.style.touchAction = 'none';
         mount.appendChild(renderer.domElement);
 
-        const ambient = new THREE.HemisphereLight(0xffffff, 0x172033, 2.2);
-        scene.add(ambient);
-        const key = new THREE.DirectionalLight(0xffffff, 3.6);
-        key.position.set(4, 6, 5);
+        scene.add(new THREE.HemisphereLight(0xffffff, 0x172033, 2.8));
+        const key = new THREE.DirectionalLight(0xffffff, 4.2);
+        key.position.set(4.5, 6.5, 5.5);
         key.castShadow = true;
         scene.add(key);
-        const fill = new THREE.DirectionalLight(0xf2b36f, 1.7);
-        fill.position.set(-4, 2, 3);
-        scene.add(fill);
+        const rim = new THREE.DirectionalLight(0x9db5ff, 2.1);
+        rim.position.set(-4, 3.5, -4.5);
+        scene.add(rim);
+        const warm = new THREE.DirectionalLight(0xffbf78, 1.45);
+        warm.position.set(-3, 1.5, 4);
+        scene.add(warm);
 
         const platform = new THREE.Mesh(
-          new THREE.CylinderGeometry(1.75, 1.9, 0.18, 64),
-          new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.75, metalness: 0.2 })
+          new THREE.CylinderGeometry(1.65, 1.9, 0.16, 72),
+          new THREE.MeshStandardMaterial({ color: 0x172033, roughness: 0.72, metalness: 0.18 })
         );
-        platform.position.y = -3.05;
+        platform.position.y = -3.02;
         platform.receiveShadow = true;
         scene.add(platform);
 
         const group = new THREE.Group();
-        group.position.y = -0.05;
+        group.position.y = -0.03;
         scene.add(group);
 
-        const mannequinMaterial = new THREE.MeshStandardMaterial({
-          color: 0xc8b7aa,
-          roughness: 0.88,
+        const mannequinMaterial = new THREE.MeshPhysicalMaterial({
+          color: 0xd3b7a2,
+          roughness: 0.78,
           metalness: 0,
+          clearcoat: 0.05,
         });
-        const darkMaterial = new THREE.MeshStandardMaterial({ color: 0x111827, roughness: 0.8 });
-        const addMesh = (geometry: THREE.BufferGeometry, material: THREE.Material, x: number, y: number, z = 0) => {
+        const shoeMaterial = new THREE.MeshStandardMaterial({ color: 0x171a21, roughness: 0.62 });
+
+        const addBody = (
+          geometry: THREE.BufferGeometry,
+          x: number,
+          y: number,
+          z = 0,
+          scale: [number, number, number] = [1, 1, 1],
+          rotation: [number, number, number] = [0, 0, 0],
+          material: THREE.Material = mannequinMaterial
+        ) => {
           const mesh = new THREE.Mesh(geometry, material);
           mesh.position.set(x, y, z);
+          mesh.scale.set(...scale);
+          mesh.rotation.set(...rotation);
           mesh.castShadow = true;
           mesh.receiveShadow = true;
           group.add(mesh);
           return mesh;
         };
 
-        addMesh(new THREE.SphereGeometry(0.48, 40, 32), mannequinMaterial, 0, 2.42, 0);
-        addMesh(new THREE.CylinderGeometry(0.16, 0.18, 0.34, 28), mannequinMaterial, 0, 1.93, 0);
-        addMesh(new THREE.CylinderGeometry(0.66, 0.82, 1.7, 48), mannequinMaterial, 0, 0.96, 0);
-        const leftArm = addMesh(new THREE.CylinderGeometry(0.18, 0.15, 2.05, 24), mannequinMaterial, -0.92, 0.92, 0);
-        leftArm.rotation.z = -0.12;
-        const rightArm = addMesh(new THREE.CylinderGeometry(0.18, 0.15, 2.05, 24), mannequinMaterial, 0.92, 0.92, 0);
-        rightArm.rotation.z = 0.12;
-        addMesh(new THREE.SphereGeometry(0.19, 24, 20), mannequinMaterial, -1.04, -0.09, 0);
-        addMesh(new THREE.SphereGeometry(0.19, 24, 20), mannequinMaterial, 1.04, -0.09, 0);
-        addMesh(new THREE.CylinderGeometry(0.26, 0.22, 2.25, 28), mannequinMaterial, -0.38, -1.63, 0);
-        addMesh(new THREE.CylinderGeometry(0.26, 0.22, 2.25, 28), mannequinMaterial, 0.38, -1.63, 0);
-        addMesh(new THREE.BoxGeometry(0.45, 0.16, 0.85), darkMaterial, -0.38, -2.83, 0.2);
-        addMesh(new THREE.BoxGeometry(0.45, 0.16, 0.85), darkMaterial, 0.38, -2.83, 0.2);
+        addBody(new THREE.SphereGeometry(0.43, 48, 40), 0, 2.46, 0, [0.88, 1.08, 0.9]);
+        addBody(new THREE.CylinderGeometry(0.14, 0.16, 0.3, 30), 0, 1.98, 0);
+        addBody(new THREE.SphereGeometry(0.72, 48, 40), 0, 1.08, 0, [0.98, 1.24, 0.68]);
+        addBody(new THREE.SphereGeometry(0.67, 48, 40), 0, -0.1, 0, [1.05, 0.82, 0.78]);
 
-        let garmentMaterial: THREE.MeshStandardMaterial;
-        const fallbackMaterial = () =>
-          new THREE.MeshStandardMaterial({
-            color: 0xc8600a,
-            roughness: 0.72,
-            side: THREE.DoubleSide,
-          });
+        const leftArm = addBody(
+          new THREE.CapsuleGeometry(0.15, 1.45, 12, 24),
+          -0.86,
+          0.92,
+          0,
+          [1, 1, 1],
+          [0, 0, -0.16]
+        );
+        leftArm.rotation.z = -0.16;
+        const rightArm = addBody(
+          new THREE.CapsuleGeometry(0.15, 1.45, 12, 24),
+          0.86,
+          0.92,
+          0,
+          [1, 1, 1],
+          [0, 0, 0.16]
+        );
+        rightArm.rotation.z = 0.16;
+        addBody(new THREE.SphereGeometry(0.17, 24, 20), -0.99, -0.02, 0);
+        addBody(new THREE.SphereGeometry(0.17, 24, 20), 0.99, -0.02, 0);
+        addBody(new THREE.CapsuleGeometry(0.2, 1.62, 12, 24), -0.33, -1.72, 0);
+        addBody(new THREE.CapsuleGeometry(0.2, 1.62, 12, 24), 0.33, -1.72, 0);
+        addBody(new THREE.BoxGeometry(0.42, 0.18, 0.78), -0.33, -2.82, 0.2, [1, 1, 1], [0, 0, 0], shoeMaterial);
+        addBody(new THREE.BoxGeometry(0.42, 0.18, 0.78), 0.33, -2.82, 0.2, [1, 1, 1], [0, 0, 0], shoeMaterial);
 
+        let garmentMaterial: THREE.MeshPhysicalMaterial;
         try {
           const texture = await new Promise<THREE.Texture>((resolve, reject) => {
             const loader = new THREE.TextureLoader();
@@ -115,79 +158,177 @@ export default function InteractiveFabricMannequin3D({
           texture.colorSpace = THREE.SRGBColorSpace;
           texture.wrapS = THREE.RepeatWrapping;
           texture.wrapT = THREE.RepeatWrapping;
-          texture.repeat.set(style === 'fabric' || style === 'dupatta' ? 1.2 : 1.8, 2.2);
-          garmentMaterial = new THREE.MeshStandardMaterial({
+          texture.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+          texture.repeat.set(style === 'saree' || style === 'dupatta' ? 1.0 : 1.35, 2.25);
+          garmentMaterial = new THREE.MeshPhysicalMaterial({
             map: texture,
-            roughness: 0.68,
-            metalness: 0.02,
+            roughness: 0.72,
+            metalness: 0,
+            sheen: 0.22,
+            sheenRoughness: 0.75,
+            clearcoat: 0.03,
             side: THREE.DoubleSide,
           });
           setTextureReady(true);
         } catch {
-          garmentMaterial = fallbackMaterial();
+          garmentMaterial = new THREE.MeshPhysicalMaterial({
+            color: 0xc96c21,
+            roughness: 0.78,
+            side: THREE.DoubleSide,
+          });
           setTextureReady(false);
         }
 
-        const fitScale = fit === 'Relaxed' ? 1.08 : fit === 'Tailored' ? 0.94 : 1;
+        const fitScale = fit === 'Relaxed' ? 1.08 : fit === 'Tailored' ? 0.95 : 1;
+
+        const createClothShell = (options: ClothOptions) => {
+          const rows = options.rows ?? 72;
+          const cols = options.cols ?? 80;
+          const positions: number[] = [];
+          const uvs: number[] = [];
+          const indices: number[] = [];
+          const start = options.startAngle ?? 0;
+          const folds = options.folds ?? 8;
+          const foldDepth = options.foldDepth ?? 0.035;
+
+          for (let row = 0; row <= rows; row += 1) {
+            const v = row / rows;
+            const y = options.topY - v * options.height;
+            const baseRadius =
+              (options.topRadius + (options.bottomRadius - options.topRadius) * Math.pow(v, 1.05)) * fitScale;
+            const verticalSway = Math.sin(v * Math.PI) * 0.035;
+
+            for (let col = 0; col <= cols; col += 1) {
+              const u = col / cols;
+              const theta = start + (u - 0.5) * options.arc;
+              const fold = Math.sin(u * Math.PI * 2 * folds + v * 2.4) * foldDepth * (0.3 + 0.7 * v);
+              const radius = baseRadius + fold;
+              const x = Math.sin(theta) * radius;
+              const z = Math.cos(theta) * radius + verticalSway;
+              positions.push(x, y, z);
+              uvs.push(u, 1 - v);
+            }
+          }
+
+          for (let row = 0; row < rows; row += 1) {
+            for (let col = 0; col < cols; col += 1) {
+              const a = row * (cols + 1) + col;
+              const b = a + cols + 1;
+              indices.push(a, b, a + 1, b, b + 1, a + 1);
+            }
+          }
+
+          const geometry = new THREE.BufferGeometry();
+          geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+          geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+          geometry.setIndex(indices);
+          geometry.computeVertexNormals();
+          return geometry;
+        };
+
+        const createFlowingPanel = (
+          width: number,
+          height: number,
+          wave = 0.16,
+          cols = 44,
+          rows = 66
+        ) => {
+          const geometry = new THREE.PlaneGeometry(width, height, cols, rows);
+          const position = geometry.getAttribute('position');
+          for (let i = 0; i < position.count; i += 1) {
+            const x = position.getX(i);
+            const y = position.getY(i);
+            const normalizedY = (y + height / 2) / height;
+            const z =
+              Math.sin((x / width) * Math.PI * 5 + normalizedY * 2.4) * wave * (0.35 + normalizedY * 0.65) +
+              Math.sin(normalizedY * Math.PI) * 0.08;
+            position.setZ(i, z);
+          }
+          geometry.computeVertexNormals();
+          return geometry;
+        };
+
         const addGarment = (
           geometry: THREE.BufferGeometry,
-          x: number,
-          y: number,
+          x = 0,
+          y = 0,
           z = 0,
           rotation: [number, number, number] = [0, 0, 0]
         ) => {
           const mesh = new THREE.Mesh(geometry, garmentMaterial);
           mesh.position.set(x, y, z);
           mesh.rotation.set(...rotation);
-          mesh.scale.x *= fitScale;
           mesh.castShadow = true;
           mesh.receiveShadow = true;
           group.add(mesh);
           return mesh;
         };
 
+        const torsoShell = (length = 1.65, bottomRadius = 0.82) =>
+          createClothShell({
+            topY: 1.7,
+            height: length,
+            topRadius: 0.72,
+            bottomRadius,
+            arc: Math.PI * 1.92,
+            folds: 7,
+            foldDepth: 0.018,
+          });
+
         if (style === 'saree') {
-          addGarment(new THREE.CylinderGeometry(0.75, 1.18, 2.55, 64, 8, true), 0, -0.9, 0);
-          const pallu = addGarment(new THREE.PlaneGeometry(1.25, 3.6, 18, 32), 0.38, 0.45, 0.55, [0.08, -0.28, -0.34]);
-          pallu.geometry.rotateZ(0.08);
-          addGarment(new THREE.CylinderGeometry(0.7, 0.78, 0.72, 48, 4, true), 0, 1.08, 0);
+          addGarment(createClothShell({ topY: 0.2, height: 2.65, topRadius: 0.69, bottomRadius: 1.03, arc: Math.PI * 1.95, folds: 12, foldDepth: 0.055 }));
+          addGarment(createClothShell({ topY: 1.62, height: 0.72, topRadius: 0.7, bottomRadius: 0.72, arc: Math.PI * 1.9, folds: 6, foldDepth: 0.015 }));
+          const pallu = addGarment(createFlowingPanel(1.35, 3.5, 0.13), 0.46, 0.34, 0.46, [0.08, -0.33, -0.28]);
+          pallu.geometry.rotateZ(0.1);
         } else if (style === 'lehenga') {
-          addGarment(new THREE.CylinderGeometry(0.7, 1.45, 2.35, 64, 10, true), 0, -1.0, 0);
-          addGarment(new THREE.CylinderGeometry(0.7, 0.79, 0.72, 48, 4, true), 0, 1.08, 0);
-          addGarment(new THREE.PlaneGeometry(1.2, 3.0, 12, 24), 0.55, 0.0, 0.5, [0.05, -0.2, -0.3]);
+          addGarment(createClothShell({ topY: 0.15, height: 2.55, topRadius: 0.7, bottomRadius: 1.38, arc: Math.PI * 1.96, folds: 14, foldDepth: 0.07 }));
+          addGarment(createClothShell({ topY: 1.62, height: 0.72, topRadius: 0.7, bottomRadius: 0.72, arc: Math.PI * 1.9, folds: 5, foldDepth: 0.015 }));
+          addGarment(createFlowingPanel(1.15, 3.0, 0.13), 0.55, 0.18, 0.5, [0.04, -0.22, -0.26]);
         } else if (style === 'dress' || style === 'set') {
-          addGarment(new THREE.CylinderGeometry(0.7, 0.88, 1.45, 48, 6, true), 0, 0.78, 0);
-          addGarment(new THREE.CylinderGeometry(0.82, 1.3, 2.15, 64, 8, true), 0, -1.02, 0);
+          addGarment(torsoShell(1.25, 0.8));
+          addGarment(createClothShell({ topY: 0.62, height: 2.15, topRadius: 0.75, bottomRadius: 1.18, arc: Math.PI * 1.96, folds: 10, foldDepth: 0.05 }));
         } else if (style === 'kurta' || style === 'shirt' || style === 'top') {
-          const length = style === 'kurta' ? 2.35 : 1.55;
-          addGarment(new THREE.CylinderGeometry(0.7, style === 'kurta' ? 0.94 : 0.82, length, 48, 6, true), 0, style === 'kurta' ? 0.35 : 0.78, 0);
-          const sleeveLength = style === 'top' ? 1.0 : 1.62;
-          const l = addGarment(new THREE.CylinderGeometry(0.22, 0.18, sleeveLength, 24, 2, true), -0.92, 0.9, 0);
-          l.rotation.z = -0.12;
-          const r = addGarment(new THREE.CylinderGeometry(0.22, 0.18, sleeveLength, 24, 2, true), 0.92, 0.9, 0);
-          r.rotation.z = 0.12;
+          const length = style === 'kurta' ? 2.25 : 1.5;
+          addGarment(torsoShell(length, style === 'kurta' ? 0.9 : 0.8));
+          const sleeveLength = style === 'top' ? 0.85 : 1.45;
+          const sleeveTop = 0.22 * fitScale;
+          const left = addGarment(new THREE.CylinderGeometry(sleeveTop, sleeveTop * 0.84, sleeveLength, 30, 6, true), -0.87, 0.9, 0, [0, 0, -0.16]);
+          left.rotation.z = -0.16;
+          const right = addGarment(new THREE.CylinderGeometry(sleeveTop, sleeveTop * 0.84, sleeveLength, 30, 6, true), 0.87, 0.9, 0, [0, 0, 0.16]);
+          right.rotation.z = 0.16;
         } else if (style === 'bottom') {
-          addGarment(new THREE.CylinderGeometry(0.7, 1.05, 2.45, 64, 8, true), 0, -1.15, 0);
+          addGarment(createClothShell({ topY: 0.1, height: 2.55, topRadius: 0.68, bottomRadius: 0.98, arc: Math.PI * 1.96, folds: 10, foldDepth: 0.045 }));
         } else if (style === 'dupatta') {
-          addGarment(new THREE.PlaneGeometry(2.3, 3.6, 20, 32), 0, 0.3, 0.58, [0.02, 0, 0]);
+          const panel = addGarment(createFlowingPanel(2.5, 3.65, 0.18), 0, 0.25, 0.47, [0.02, 0, 0.02]);
+          panel.geometry.rotateZ(-0.08);
         } else {
-          const wrap = addGarment(new THREE.PlaneGeometry(2.65, 3.5, 24, 36), 0.1, 0.1, 0.6, [0.05, -0.08, -0.08]);
-          wrap.geometry.rotateZ(-0.08);
+          // Neutral fabric-only preview: a curved textile wrap around the mannequin,
+          // never a flat rectangle pasted in front of the body.
+          addGarment(createClothShell({
+            topY: 1.7,
+            height: 3.95,
+            topRadius: 0.75,
+            bottomRadius: 1.05,
+            arc: Math.PI * 1.72,
+            startAngle: -0.15,
+            folds: 11,
+            foldDepth: 0.055,
+          }));
         }
 
-        const target = new THREE.Vector3(0, 0, 0);
+        const target = new THREE.Vector3(0, -0.05, 0);
         let yaw = 0;
         let pitch = 0.03;
-        let distance = 7.8;
+        let distance = 8.1;
         let dragging = false;
         let lastX = 0;
         let lastY = 0;
-        let idleTicks = 0;
+        let idleFrames = 0;
 
         const updateCamera = () => {
           camera.position.set(
             Math.sin(yaw) * Math.cos(pitch) * distance,
-            Math.sin(pitch) * distance + 0.2,
+            Math.sin(pitch) * distance + 0.15,
             Math.cos(yaw) * Math.cos(pitch) * distance
           );
           camera.lookAt(target);
@@ -196,47 +337,43 @@ export default function InteractiveFabricMannequin3D({
 
         const pointerDown = (event: PointerEvent) => {
           dragging = true;
-          idleTicks = 0;
+          idleFrames = 0;
           lastX = event.clientX;
           lastY = event.clientY;
+          renderer.domElement.style.cursor = 'grabbing';
           renderer.domElement.setPointerCapture(event.pointerId);
         };
         const pointerMove = (event: PointerEvent) => {
           if (!dragging) return;
           yaw -= (event.clientX - lastX) * 0.009;
-          pitch = Math.max(-0.32, Math.min(0.42, pitch + (event.clientY - lastY) * 0.004));
+          pitch = Math.max(-0.3, Math.min(0.34, pitch + (event.clientY - lastY) * 0.0035));
           lastX = event.clientX;
           lastY = event.clientY;
           updateCamera();
         };
         const pointerUp = (event: PointerEvent) => {
           dragging = false;
+          renderer.domElement.style.cursor = 'grab';
           if (renderer.domElement.hasPointerCapture(event.pointerId)) {
             renderer.domElement.releasePointerCapture(event.pointerId);
           }
         };
         const wheel = (event: WheelEvent) => {
           event.preventDefault();
-          distance = Math.max(5.1, Math.min(10.2, distance + event.deltaY * 0.006));
+          distance = Math.max(5.4, Math.min(11.2, distance + event.deltaY * 0.006));
           updateCamera();
         };
+
         renderer.domElement.addEventListener('pointerdown', pointerDown);
         renderer.domElement.addEventListener('pointermove', pointerMove);
         renderer.domElement.addEventListener('pointerup', pointerUp);
         renderer.domElement.addEventListener('pointercancel', pointerUp);
         renderer.domElement.addEventListener('wheel', wheel, { passive: false });
-        cleanupInteractions = () => {
-          renderer.domElement.removeEventListener('pointerdown', pointerDown);
-          renderer.domElement.removeEventListener('pointermove', pointerMove);
-          renderer.domElement.removeEventListener('pointerup', pointerUp);
-          renderer.domElement.removeEventListener('pointercancel', pointerUp);
-          renderer.domElement.removeEventListener('wheel', wheel);
-        };
 
         const resize = () => {
           if (!mountRef.current) return;
-          const width = Math.max(280, mountRef.current.clientWidth);
-          const height = Math.max(440, Math.min(760, Math.round(width * 1.28)));
+          const width = Math.max(300, mountRef.current.clientWidth);
+          const height = Math.max(540, Math.min(820, Math.round(width * 1.12)));
           renderer.setSize(width, height, false);
           camera.aspect = width / height;
           camera.updateProjectionMatrix();
@@ -247,9 +384,9 @@ export default function InteractiveFabricMannequin3D({
 
         const animate = () => {
           if (disposed) return;
-          idleTicks += 1;
-          if (!dragging && idleTicks > 240) {
-            yaw += 0.0015;
+          idleFrames += 1;
+          if (!dragging && idleFrames > 260) {
+            yaw += 0.0012;
             updateCamera();
           }
           renderer.render(scene, camera);
@@ -258,24 +395,28 @@ export default function InteractiveFabricMannequin3D({
         animate();
         setReady(true);
 
-        cleanupInteractions = ((previous) => () => {
-          previous();
+        cleanup = () => {
+          renderer.domElement.removeEventListener('pointerdown', pointerDown);
+          renderer.domElement.removeEventListener('pointermove', pointerMove);
+          renderer.domElement.removeEventListener('pointerup', pointerUp);
+          renderer.domElement.removeEventListener('pointercancel', pointerUp);
+          renderer.domElement.removeEventListener('wheel', wheel);
           resizeObserver?.disconnect();
           cancelAnimationFrame(animationFrame);
           scene.traverse((object) => {
-            if (object instanceof THREE.Mesh) {
-              object.geometry.dispose();
-              const material = object.material;
-              const materials = Array.isArray(material) ? material : [material];
-              materials.forEach((item) => {
-                if (item instanceof THREE.MeshStandardMaterial && item.map) item.map.dispose();
-                item.dispose();
-              });
-            }
+            if (!(object instanceof THREE.Mesh)) return;
+            object.geometry.dispose();
+            const materials = Array.isArray(object.material) ? object.material : [object.material];
+            materials.forEach((material) => {
+              if (material instanceof THREE.MeshPhysicalMaterial && material.map) {
+                material.map.dispose();
+              }
+              material.dispose();
+            });
           });
           renderer.dispose();
           renderer.domElement.remove();
-        })(cleanupInteractions);
+        };
       } catch (bootError) {
         console.error('3D drape viewer failed to start', bootError);
         setError('This browser could not start the interactive 3D viewer.');
@@ -285,7 +426,7 @@ export default function InteractiveFabricMannequin3D({
     void boot();
     return () => {
       disposed = true;
-      cleanupInteractions();
+      cleanup();
       resizeObserver?.disconnect();
       cancelAnimationFrame(animationFrame);
     };
@@ -293,24 +434,34 @@ export default function InteractiveFabricMannequin3D({
 
   return (
     <div className="relative overflow-hidden rounded-3xl border border-border bg-slate-950">
-      <div ref={mountRef} className="min-h-[520px] w-full touch-none" aria-label={`Interactive 3D drape of ${productName}`} />
+      <div
+        ref={mountRef}
+        className="min-h-[560px] w-full touch-none"
+        aria-label={`Interactive 360 degree 3D drape of ${productName}`}
+      />
+
       {!ready && !error && (
         <div className="absolute inset-0 flex items-center justify-center bg-slate-950 text-white">
           <div className="text-center">
             <span className="mx-auto block h-9 w-9 animate-spin rounded-full border-2 border-white/25 border-t-white" />
-            <p className="mt-3 text-sm font-800">Building 3D drape…</p>
+            <p className="mt-3 text-sm font-800">Building garment-shaped 3D drape…</p>
           </div>
         </div>
       )}
+
       {error && (
-        <div className="absolute inset-0 flex items-center justify-center bg-slate-950 p-6 text-center text-sm text-red-300">{error}</div>
+        <div className="absolute inset-0 flex items-center justify-center bg-slate-950 p-6 text-center text-sm text-red-300">
+          {error}
+        </div>
       )}
-      <div className="pointer-events-none absolute left-4 top-4 rounded-full border border-white/15 bg-black/55 px-3 py-1.5 text-[10px] font-800 uppercase tracking-wider text-white backdrop-blur">
-        Interactive WebGL 3D · drag 360° · wheel to zoom
+
+      <div className="pointer-events-none absolute left-4 top-4 rounded-full border border-white/15 bg-black/60 px-3 py-1.5 text-[10px] font-800 uppercase tracking-wider text-white">
+        Interactive 3D · drag 360° · wheel/pinch to zoom
       </div>
-      <div className="pointer-events-none absolute inset-x-4 bottom-4 rounded-2xl border border-white/10 bg-black/60 p-3 text-xs leading-5 text-white/80 backdrop-blur">
-        <strong className="text-white">{textureReady ? 'Live listing textile applied' : '3D geometry ready'}</strong>
-        <span> · The shape follows the product type detected from the seller listing. This is a sourcing preview, not a body-measurement or tailoring simulation.</span>
+
+      <div className="pointer-events-none absolute bottom-4 left-4 right-4 rounded-2xl border border-white/10 bg-black/65 p-3 text-xs leading-5 text-white/80 backdrop-blur-sm">
+        <span className="font-800 text-white">{textureReady ? 'Live seller textile mapped to curved garment geometry' : 'Garment preview'}</span>
+        {' · '}This preview follows the product type detected from the seller listing and wraps the textile around the mannequin instead of placing a flat image in front of it.
       </div>
     </div>
   );
