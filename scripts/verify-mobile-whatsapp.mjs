@@ -33,7 +33,8 @@ const migration = 'supabase/migrations/20260817143000_whatsapp_catalog_ingestion
 const trialMigration = 'supabase/migrations/20260817150000_trial_room_asset_pipeline.sql';
 const trialStatus = 'src/app/api/ai/trial-room/status/route.ts';
 const drapeApi = 'src/app/api/ai/drape-on/route.ts';
-const drapeUi = 'src/app/product-detail/components/VirtualColourDrapeStudio.tsx';
+const drapeUi = 'src/app/product-detail/components/HybridVirtualDrapeStudio.tsx';
+const drapeRoute = 'src/app/product-detail/components/ModernFabricDrapeViewer.tsx';
 const drape3d = 'src/app/product-detail/components/InteractiveFabricMannequin3D.tsx';
 const drapeStyle = 'src/lib/drapeProductStyle.ts';
 const pageContinuity = 'src/components/PageContinuity.tsx';
@@ -58,6 +59,7 @@ const readiness = '.github/workflows/integration-readiness.yml';
   trialStatus,
   drapeApi,
   drapeUi,
+  drapeRoute,
   drape3d,
   drapeStyle,
   pageContinuity,
@@ -123,12 +125,16 @@ requireText(inboxApi, ".eq('user_id', user.id)");
 requireText(inboxApi, 'createSignedUrl');
 requireText(inboxUi, 'WhatsApp → FabricTrad dashboard');
 
-// Buyer trial room: the product decides the garment, mannequin mode is real
-// interactive WebGL geometry, and personal-photo mode remains the server-side
-// AI image edit using approved listing media.
+// Buyer virtual drape: the live product route must expose both an interactive
+// 360-degree 3D mannequin and the real server-side AI photo try-on. The seller
+// listing decides the garment; buyers never choose an unrelated garment type.
+requireText(drapeRoute, "export { default } from './HybridVirtualDrapeStudio';");
 requireText(drapeUi, 'inferDrapeProductStyle');
-requireText(drapeUi, 'Detected from this listing');
+requireText(drapeUi, 'Detected from this seller listing');
 requireText(drapeUi, 'InteractiveFabricMannequin3D');
+requireText(drapeUi, 'Interactive 3D');
+requireText(drapeUi, 'AI photo try-on');
+requireText(drapeUi, 'Generate AI drape reference');
 requireText(drapeUi, 'indexedDB.open');
 requireText(drapeUi, 'productId: product.rawProductId');
 requireText(drapeUi, 'variantId: product.selectedVariantId');
@@ -136,12 +142,22 @@ requireText(drapeUi, 'navigator.mediaDevices.getUserMedia');
 requireText(drapeUi, 'drapeProductStyleApiId(productStyle)');
 requireText(drapeUi, 'drapeProductStylePrompt(productStyle)');
 forbidText(drapeUi, 'Choose the garment');
+
+// The mannequin must use curved garment geometry rather than the old flat
+// rectangular texture panel. It remains directly manipulable in the browser.
 requireText(drape3d, "await import('three')");
+requireText(drape3d, 'createClothShell');
+requireText(drape3d, 'new THREE.CapsuleGeometry');
 requireText(drape3d, 'pointerdown');
 requireText(drape3d, 'wheel');
-requireText(drape3d, 'Interactive WebGL 3D');
+requireText(drape3d, 'Interactive 3D · drag 360°');
+requireText(drape3d, 'Live seller textile mapped to curved garment geometry');
 requireText(drapeStyle, 'inferDrapeProductStyle');
 requireText(drapeStyle, "return 'fabric'");
+
+// AI photo mode must still resolve the approved seller listing media and call
+// the configured server-side image provider. Provider secrets never belong in
+// the browser component.
 requireText(drapeApi, 'resolveListingFabric');
 requireText(drapeApi, ".from('seller_products')");
 requireText(drapeApi, ".from('seller_product_variants')");
@@ -151,11 +167,13 @@ requireText(drapeApi, "fetch('https://api.openai.com/v1/images/edits'");
 requireText(drapeApi, "form.append('image[]', person.blob");
 requireText(drapeApi, "form.append('image[]', fabric.blob");
 requireText(drapeApi, "mode: 'real_ai_image_try_on'");
+forbidText(drapeUi, 'OPENAI_API_KEY');
+forbidText(drapeUi, 'GEMINI_API_KEY');
 requireText(legacyDrape, "export { default } from './VirtualColourDrapeStudio';");
 forbidText(legacyDrape, "blend: 'multiply'");
 
-// The hybrid experience is represented accurately: real browser 3D for the
-// mannequin, AI 2D for an uploaded personal photo, and a future GLB/USDZ path.
+// The hybrid experience is represented accurately: interactive browser 3D for
+// the mannequin, AI 2D for a personal photo, and a future GLB/USDZ asset path.
 requireText(trialMigration, 'garment_glb');
 requireText(trialMigration, 'garment_usdz');
 requireText(trialMigration, 'fabric_texture');
