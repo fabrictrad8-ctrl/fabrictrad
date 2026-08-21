@@ -413,7 +413,7 @@ export default function SellerCatalogAssistant() {
     await ingestFiles(files);
   };
 
-  const handleDrop = async (event: DragEvent<HTMLDivElement>) => {
+  const handleDrop = async (event: DragEvent<HTMLElement>) => {
     event.preventDefault();
     await ingestFiles(Array.from(event.dataTransfer.files || []));
   };
