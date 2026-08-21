@@ -1,6 +1,6 @@
 {
-  "sourceCommit": "02a06e0bf8724cac831d0beb9727a89983d3b121",
-  "recordedAt": "2026-08-21T21:33:08Z",
+  "sourceCommit": "4ac162ab214fc86f6163c8f82b5da268019332d8",
+  "recordedAt": "2026-08-21T21:55:50Z",
   "cloudflareAuthentication": "success",
   "supabaseSecretSync": "success",
   "aiProviderSecretSync": "success",
@@ -12,5 +12,5 @@
   "aiDrapeProbeHttpStatus": "200",
   "liveRazorpayWebhookVerification": "success",
   "razorpayWebhookProbeHttpStatus": "400",
-  "deploymentLogTail": " ⛅️ wrangler 4.125.0\n────────────────────\nCloudflare collects anonymous telemetry about your usage of Wrangler. Learn more at https://github.com/cloudflare/workers-sdk/tree/main/packages/wrangler/telemetry.md\n🌀 Building list of assets...\n✨ Read 229 files from the assets directory /home/runner/work/fabrictrad/fabrictrad/.open-next/assets\n🌀 Starting asset upload...\n🌀 Found 2 new or modified static assets to upload. Proceeding with upload...\n+ /BUILD_ID\n+ /_next/static/chunks/app/product-detail/page-bbcc27d517dea667.js\nUploaded 1 of 2 assets\nUploaded 2 of 2 assets\n✨ Success! Uploaded 2 files (113 already uploaded) (0.86 sec)\nTotal Upload: 13785.27 KiB / gzip: 2267.15 KiB\nWorker Startup Time: 31 ms\nYour Worker has access to the following bindings:\nBinding            Resource      \nenv.ASSETS         Assets        \nUploaded fabrictrad (5.58 sec)\nNo targets deployed for fabrictrad (0.41 sec)\nCurrent Version ID: 32bebf03-8074-4668-b52b-b007b7b51f9a"
+  "deploymentLogTail": " ⛅️ wrangler 4.125.0\n────────────────────\nCloudflare collects anonymous telemetry about your usage of Wrangler. Learn more at https://github.com/cloudflare/workers-sdk/tree/main/packages/wrangler/telemetry.md\n🌀 Building list of assets...\n✨ Read 229 files from the assets directory /home/runner/work/fabrictrad/fabrictrad/.open-next/assets\n🌀 Starting asset upload...\n🌀 Found 1 new or modified static asset to upload. Proceeding with upload...\n+ /BUILD_ID\nUploaded 1 of 1 asset\n✨ Success! Uploaded 1 file (114 already uploaded) (0.71 sec)\nTotal Upload: 13789.68 KiB / gzip: 2270.96 KiB\nWorker Startup Time: 28 ms\nYour Worker has access to the following bindings:\nBinding            Resource      \nenv.ASSETS         Assets        \nUploaded fabrictrad (6.81 sec)\nNo targets deployed for fabrictrad (0.36 sec)\nCurrent Version ID: bdda6baf-2f0b-45f9-b684-86eb20d51c51"
 }
