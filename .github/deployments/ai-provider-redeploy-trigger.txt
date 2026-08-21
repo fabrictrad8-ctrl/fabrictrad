@@ -1,0 +1,1 @@
+AI provider secret was configured for the production deployment pipeline on 2026-08-22. This file exists only to trigger the deployment workflow after the repository secret became available.
