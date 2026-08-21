@@ -89,8 +89,8 @@ assert(accountHome.includes("profile?.can_buy ?? (profile?.role === 'buyer' || p
 assert(accountHome.includes("window.location.replace('/login')"), 'Unified account home must provide reliable logout.');
 assert(accountHome.includes("fetch('/api/account/workspace-status'"), 'Account home must load role-specific verification state.');
 assert(
-  accountHome.includes("href: buyerVerified ? undefined : '/buyer-registration'") &&
-    accountHome.includes("href: sellerVerified ? undefined : '/seller-registration'"),
+  accountHome.includes("href: workspaceStatusReady && !buyerVerified ? '/buyer-registration' : undefined") &&
+    accountHome.includes("href: workspaceStatusReady && !sellerVerified ? '/seller-registration' : undefined"),
   'Completed buyer and seller verification rows must not route back into onboarding.'
 );
 assert(
