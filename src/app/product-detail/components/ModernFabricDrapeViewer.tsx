@@ -1,1 +1,1 @@
-export { default } from './RealAIDrapeStudio';
+export { default } from './HybridVirtualDrapeStudio';
