@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { imageEdit } from '@rocketnew/llm-sdk';
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 
 type DrapeRequest = {
   productId?: string;
@@ -665,7 +666,7 @@ export async function POST(request: NextRequest) {
 
     let fabricReference: FabricReference;
     if (body.productId) {
-      fabricReference = await resolveListingFabric(supabase, body.productId, body.variantId);
+      fabricReference = await resolveListingFabric(createAdminClient(), body.productId, body.variantId);
     } else if (body.fabricImage) {
       fabricReference = {
         name: String(body.fabricName || 'Selected textile').slice(0, 160),
