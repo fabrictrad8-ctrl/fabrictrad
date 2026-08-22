@@ -56,6 +56,70 @@ jobs:
         id: cloudflare-auth
         run: npx wrangler whoami
 
+      - name: Verify provided Razorpay API credentials
+        id: razorpay-api-verification
+        shell: bash
+        env:
+          RAZORPAY_KEY_ID: ${{ secrets.RAZORPAY_KEY_ID }}
+          RAZORPAY_KEY_SECRET: ${{ secrets.RAZORPAY_KEY_SECRET }}
+          RAZORPAY_WEBHOOK_SECRET: ${{ secrets.RAZORPAY_WEBHOOK_SECRET }}
+        run: |
+          set -euo pipefail
+          key_present=false
+          secret_present=false
+          [ -n "${RAZORPAY_KEY_ID:-}" ] && key_present=true
+          [ -n "${RAZORPAY_KEY_SECRET:-}" ] && secret_present=true
+
+          if [ "$key_present" != "$secret_present" ]; then
+            printf '%s' 'incomplete_github_credential_pair' > /tmp/razorpay-api-verification.txt
+            echo '::error::RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET must be configured together in repository Actions secrets.'
+            exit 1
+          fi
+
+          if [ "$key_present" = 'false' ]; then
+            printf '%s' 'not_run_existing_worker_credentials' > /tmp/razorpay-api-verification.txt
+            echo 'No GitHub Actions Razorpay key pair is available. Existing Worker credentials will be preserved.'
+            exit 0
+          fi
+
+          npm run verify:razorpay -- --api
+          printf '%s' 'verified_against_razorpay_api' > /tmp/razorpay-api-verification.txt
+          echo 'Razorpay Key ID and Key Secret authenticate successfully against the Orders API.'
+
+      - name: Sync Razorpay server secrets to Worker
+        id: sync-razorpay-secret
+        shell: bash
+        env:
+          RAZORPAY_KEY_ID_FROM_GITHUB: ${{ secrets.RAZORPAY_KEY_ID }}
+          RAZORPAY_KEY_SECRET_FROM_GITHUB: ${{ secrets.RAZORPAY_KEY_SECRET }}
+          RAZORPAY_WEBHOOK_SECRET_FROM_GITHUB: ${{ secrets.RAZORPAY_WEBHOOK_SECRET }}
+        run: |
+          set -euo pipefail
+          key_present=false
+          secret_present=false
+          [ -n "${RAZORPAY_KEY_ID_FROM_GITHUB:-}" ] && key_present=true
+          [ -n "${RAZORPAY_KEY_SECRET_FROM_GITHUB:-}" ] && secret_present=true
+
+          if [ "$key_present" != "$secret_present" ]; then
+            echo '::error::RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET must be configured together.'
+            exit 1
+          fi
+
+          if [ "$key_present" = 'true' ]; then
+            printf '%s' "$RAZORPAY_KEY_ID_FROM_GITHUB" | npx wrangler secret put RAZORPAY_KEY_ID --config wrangler.jsonc
+            printf '%s' "$RAZORPAY_KEY_SECRET_FROM_GITHUB" | npx wrangler secret put RAZORPAY_KEY_SECRET --config wrangler.jsonc
+            echo 'Synced the verified Razorpay Key ID and Key Secret to the Cloudflare Worker.'
+          else
+            echo 'No GitHub Actions Razorpay key pair supplied; existing Worker Key ID/Secret remain unchanged.'
+          fi
+
+          if [ -n "${RAZORPAY_WEBHOOK_SECRET_FROM_GITHUB:-}" ]; then
+            printf '%s' "$RAZORPAY_WEBHOOK_SECRET_FROM_GITHUB" | npx wrangler secret put RAZORPAY_WEBHOOK_SECRET --config wrangler.jsonc
+            echo 'Synced the Razorpay webhook secret to the Cloudflare Worker.'
+          else
+            echo 'No GitHub Actions webhook secret supplied; existing Worker webhook secret remains unchanged.'
+          fi
+
       - name: Sync Supabase server secret to Worker
         id: sync-supabase-secret
         shell: bash
@@ -234,6 +298,8 @@ jobs:
         shell: bash
         env:
           AUTH_OUTCOME: ${{ steps.cloudflare-auth.outcome }}
+          RAZORPAY_API_OUTCOME: ${{ steps.razorpay-api-verification.outcome }}
+          RAZORPAY_SECRET_SYNC_OUTCOME: ${{ steps.sync-razorpay-secret.outcome }}
           SECRET_SYNC_OUTCOME: ${{ steps.sync-supabase-secret.outcome }}
           AI_SECRET_SYNC_OUTCOME: ${{ steps.sync-ai-secret.outcome }}
           SECRET_PREFLIGHT_OUTCOME: ${{ steps.secret-preflight.outcome }}
@@ -273,12 +339,19 @@ jobs:
           if [ -s /tmp/ai-drape-status.txt ]; then
             ai_status_json=$(node -e "const fs=require('fs'); console.log(JSON.stringify(fs.readFileSync('/tmp/ai-drape-status.txt','utf8').trim() || null))")
           fi
+          razorpay_api_state_json='null'
+          if [ -s /tmp/razorpay-api-verification.txt ]; then
+            razorpay_api_state_json=$(node -e "const fs=require('fs'); console.log(JSON.stringify(fs.readFileSync('/tmp/razorpay-api-verification.txt','utf8').trim() || null))")
+          fi
           mkdir -p .github/deployments
           cat > .github/deployments/production-status.json <<JSON
           {
             "sourceCommit": "${GITHUB_SHA}",
             "recordedAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
             "cloudflareAuthentication": "${AUTH_OUTCOME}",
+            "razorpayApiCredentialCheckStep": "${RAZORPAY_API_OUTCOME}",
+            "razorpayApiCredentialVerification": ${razorpay_api_state_json},
+            "razorpaySecretSync": "${RAZORPAY_SECRET_SYNC_OUTCOME}",
             "supabaseSecretSync": "${SECRET_SYNC_OUTCOME}",
             "aiProviderSecretSync": "${AI_SECRET_SYNC_OUTCOME}",
             "workerSecretPreflight": "${SECRET_PREFLIGHT_OUTCOME}",
