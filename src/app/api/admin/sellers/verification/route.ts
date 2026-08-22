@@ -99,6 +99,9 @@ const json = (body: Record<string, unknown>, status = 200) =>
     headers: { 'Cache-Control': 'no-store, max-age=0' },
   });
 
+const normalizeGstin = (value: string | null | undefined) =>
+  String(value || '').trim().toUpperCase();
+
 async function requireAdministrator(): Promise<AdminAccess> {
   const supabase = await createClient();
   const {
@@ -158,6 +161,19 @@ async function loadApplications(): Promise<ApplicationRow[]> {
 
   const sellers = (sellerData || []) as SellerRow[];
   if (sellers.length === 0) return [];
+
+  const verifiedGstinOwners = new Map<string, string>();
+  for (const seller of sellers) {
+    const gstin = normalizeGstin(seller.gstin);
+    if (
+      gstin &&
+      seller.is_active &&
+      seller.gstin_verified &&
+      seller.verification_status === 'verified'
+    ) {
+      verifiedGstinOwners.set(gstin, seller.id);
+    }
+  }
 
   const userIds = sellers.map((seller) => seller.user_id);
   const sellerIds = sellers.map((seller) => seller.id);
@@ -231,13 +247,22 @@ async function loadApplications(): Promise<ApplicationRow[]> {
     const documents = documentsWithUrls.filter(
       (item) => item.registration_id === registration?.id
     );
-    const blockers = submissionBlockers({
+    const submissionIssues = submissionBlockers({
       phone: user?.phone,
       gstin: seller.gstin || registration?.gstin,
       documents,
       bank,
     });
-    const applicationSubmitted = Boolean(registration?.submitted_at && blockers.length === 0);
+    const blockers = [...submissionIssues];
+    const normalizedGstin = normalizeGstin(seller.gstin || registration?.gstin);
+    const verifiedOwner = normalizedGstin ? verifiedGstinOwners.get(normalizedGstin) : undefined;
+    const duplicateVerifiedGstin = Boolean(verifiedOwner && verifiedOwner !== seller.id);
+    if (duplicateVerifiedGstin) {
+      blockers.push('GSTIN is already linked to another verified seller account.');
+    }
+    const applicationSubmitted = Boolean(
+      registration?.submitted_at && submissionIssues.length === 0
+    );
 
     return {
       sellerId: seller.id,
@@ -250,7 +275,9 @@ async function loadApplications(): Promise<ApplicationRow[]> {
       blockers,
       applicationSubmitted,
       readyForApproval:
-        applicationSubmitted && seller.verification_status !== 'verified',
+        applicationSubmitted &&
+        !duplicateVerifiedGstin &&
+        seller.verification_status !== 'verified',
     };
   });
 }
@@ -291,7 +318,7 @@ export async function PATCH(request: NextRequest) {
   const admin = createAdminClient();
   const { data: seller, error: sellerReadError } = await admin
     .from('seller_profiles')
-    .select('id,user_id,verification_status')
+    .select('id,user_id,gstin,gstin_verified,verification_status,is_active')
     .eq('id', sellerId)
     .maybeSingle();
   if (sellerReadError) throw sellerReadError;
@@ -310,6 +337,32 @@ export async function PATCH(request: NextRequest) {
           {
             error: 'This application is not complete enough to approve yet.',
             blockers: current?.blockers || ['Seller application is incomplete.'],
+          },
+          409
+        );
+      }
+
+      const gstin = normalizeGstin(seller.gstin || current.registration?.gstin);
+      if (!gstin) {
+        return json({ error: 'GSTIN is missing from the seller application.' }, 409);
+      }
+
+      const { data: verifiedOwner, error: verifiedOwnerError } = await admin
+        .from('seller_profiles')
+        .select('id')
+        .eq('gstin', gstin)
+        .eq('verification_status', 'verified')
+        .eq('gstin_verified', true)
+        .eq('is_active', true)
+        .neq('id', sellerId)
+        .limit(1)
+        .maybeSingle();
+      if (verifiedOwnerError) throw verifiedOwnerError;
+      if (verifiedOwner) {
+        return json(
+          {
+            error: 'This GSTIN is already linked to another verified seller account.',
+            blockers: ['GSTIN is already linked to another verified seller account.'],
           },
           409
         );
