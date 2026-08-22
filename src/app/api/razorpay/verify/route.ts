@@ -7,6 +7,7 @@ import {
   paiseToRupees,
   verifyCheckoutSignature,
 } from '@/lib/razorpayIntegrity';
+import { getRazorpayCredentials } from '@/lib/razorpayCredentials';
 
 type PaymentKind = 'bulk' | 'catalog';
 type VerifyBody = {
@@ -127,14 +128,14 @@ export async function POST(request: NextRequest) {
     return json({ error: 'Payment verification details are incomplete.' }, 400);
   }
 
-  const keyId = process.env.RAZORPAY_KEY_ID?.trim();
-  const keySecret = process.env.RAZORPAY_KEY_SECRET?.trim();
-  if (!keyId || !keySecret) {
+  const credentials = await getRazorpayCredentials();
+  if (!credentials) {
     return json(
       { error: 'Payment verification is temporarily unavailable.', code: 'PAYMENT_SERVICE_UNAVAILABLE' },
       503
     );
   }
+  const { keyId, keySecret } = credentials;
 
   const admin = createAdminClient();
   let kind: PaymentKind | null = null;
