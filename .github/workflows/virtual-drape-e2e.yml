@@ -1,0 +1,134 @@
+name: Virtual drape production E2E
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/virtual-drape-e2e.yml'
+      - 'src/app/api/ai/drape-on/**'
+      - 'src/app/product-detail/components/HybridVirtualDrapeStudio.tsx'
+      - 'src/lib/drapeProductStyle.ts'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  statuses: write
+
+concurrency:
+  group: fabrictrad-virtual-drape-e2e
+  cancel-in-progress: true
+
+jobs:
+  live-drape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check deployed AI drape readiness
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --connect-timeout 10 --max-time 30 \
+            https://fabrictrad.com/api/ai/drape-on > /tmp/drape-status.json
+          python - <<'PY'
+          import json
+          p=json.load(open('/tmp/drape-status.json'))
+          assert p.get('configured') is True, p
+          assert p.get('mode') == 'real_ai_image_try_on', p
+          assert p.get('usesListingMedia') is True, p
+          assert str(p.get('provider') or '').startswith('OpenAI'), p
+          print('Readiness:', {k:p.get(k) for k in ['configured','mode','usesListingMedia','provider','model']})
+          PY
+
+      - name: Generate real try-on from live product
+        id: generation
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat >/tmp/drape-request.json <<'JSON'
+          {
+            "productId":"5414877f-663f-4bbb-acd9-ad4c2a60580e",
+            "modelImage":"https://images.unsplash.com/photo-1529139574466-a303027c1d8b?fm=jpg&w=768&q=85",
+            "garmentId":"shirt",
+            "fit":"regular",
+            "styleName":"FabricTrad production E2E"
+          }
+          JSON
+          http=$(curl --silent --show-error --connect-timeout 15 --max-time 240 \
+            --output /tmp/drape-response.json --write-out '%{http_code}' \
+            --header 'Content-Type: application/json' \
+            --header 'Cookie: fabrictrad_demo_role=buyer' \
+            --data @/tmp/drape-request.json \
+            https://fabrictrad.com/api/ai/drape-on || true)
+          echo "HTTP ${http}"
+          if [ "$http" != '200' ]; then
+            cat /tmp/drape-response.json
+            exit 1
+          fi
+          python - <<'PY'
+          import base64, json, pathlib
+          p=json.load(open('/tmp/drape-response.json'))
+          image=p.get('image','')
+          assert image.startswith('data:image/'), {'keys': sorted(p.keys()), 'provider':p.get('provider'),'model':p.get('model')}
+          prefix,b64=image.split(',',1)
+          raw=base64.b64decode(b64)
+          assert len(raw) > 20_000, len(raw)
+          assert p.get('provider') == 'OpenAI', p.get('provider')
+          assert p.get('model'), p
+          fabric=p.get('fabricReference') or {}
+          assert fabric.get('name') == 'hahaha', fabric
+          assert int(fabric.get('imageCount') or 0) >= 1, fabric
+          ext='png' if 'png' in prefix else 'webp' if 'webp' in prefix else 'jpg'
+          out=pathlib.Path(f'/tmp/fabrictrad-drape-result.{ext}')
+          out.write_bytes(raw)
+          summary={
+            'success': True,
+            'provider': p.get('provider'),
+            'model': p.get('model'),
+            'providerRequestId': p.get('providerRequestId'),
+            'fabricReference': fabric,
+            'imageBytes': len(raw),
+            'imageFormat': ext,
+          }
+          pathlib.Path('/tmp/drape-e2e-summary.json').write_text(json.dumps(summary,indent=2))
+          print(json.dumps(summary,indent=2))
+          PY
+
+      - name: Upload generated proof
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fabrictrad-virtual-drape-e2e-proof
+          path: |
+            /tmp/fabrictrad-drape-result.*
+            /tmp/drape-e2e-summary.json
+          retention-days: 7
+
+      - name: Publish status
+        if: always()
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          set -euo pipefail
+          if [ "$JOB_STATUS" = success ]; then
+            state=success
+            description='Live virtual drape returned an OpenAI generated image'
+          else
+            state=failure
+            description='Live virtual drape E2E generation failed'
+          fi
+          payload=$(python - "$state" "$description" <<'PY'
+          import json,sys
+          print(json.dumps({'state':sys.argv[1],'context':'fabrictrad/virtual-drape-e2e','description':sys.argv[2]}))
+          PY
+          )
+          curl --fail --silent --show-error \
+            --request POST \
+            --header "Authorization: Bearer ${GH_TOKEN}" \
+            --header 'Accept: application/vnd.github+json' \
+            --header 'X-GitHub-Api-Version: 2022-11-28' \
+            --header 'Content-Type: application/json' \
+            --data "$payload" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" >/dev/null
