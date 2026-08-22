@@ -1,0 +1,149 @@
+name: Razorpay hotfix deploy
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'src/lib/razorpayCredentials.ts'
+      - 'src/app/api/razorpay/**'
+      - 'supabase/migrations/20260822160500_server_razorpay_credentials_vault_reader.sql'
+      - '.github/workflows/razorpay-hotfix-deploy.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  statuses: write
+
+concurrency:
+  group: fabrictrad-razorpay-hotfix
+  cancel-in-progress: true
+
+jobs:
+  deploy-and-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: aa4ff7a482130e543f176e2d73c93f45
+      NEXT_PUBLIC_SUPABASE_URL: https://rdhfwlzhcvwjhkxhhpoo.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: sb_publishable_Un2-RQfjGbIiXF3Mb2oGIA_p-Z1kMls
+      NEXT_PUBLIC_SITE_URL: https://fabrictrad.com
+      NEXT_PUBLIC_ENABLE_GOOGLE_AUTH: 'true'
+      ADMIN_EMAIL: fabrictrad8@gmail.com
+      OPENAI_DRAPE_IMAGE_MODEL: gpt-image-2
+      OPENAI_DRAPE_IMAGE_SIZE: 1024x1536
+      OPENAI_DRAPE_IMAGE_QUALITY: medium
+      OPENAI_CATALOG_MODEL: gpt-4.1-mini
+      AI_DRAPE_DAILY_LIMIT: '10'
+      AI_DRAPE_DEMO_DAILY_LIMIT: '2'
+      AI_DRAPE_FALLBACK_DAILY_LIMIT: '3'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund --package-lock=false --legacy-peer-deps
+
+      - name: Verify Cloudflare authentication
+        run: npx wrangler whoami
+
+      - name: Validate Razorpay hotfix source
+        run: |
+          npm run type-check
+          npx eslint \
+            src/lib/razorpayCredentials.ts \
+            src/app/api/razorpay/order/route.ts \
+            src/app/api/razorpay/verify/route.ts \
+            src/app/api/razorpay/status/route.ts
+          node scripts/verify-marketplace-integrity.mjs
+
+      - name: Build OpenNext Worker
+        run: npm run build:sites
+
+      - name: Deploy Razorpay hotfix to Cloudflare
+        run: npx wrangler deploy --config wrangler.jsonc --keep-vars
+
+      - name: Verify live Razorpay authentication
+        id: live-razorpay
+        shell: bash
+        run: |
+          set -euo pipefail
+          ready=false
+          for attempt in $(seq 1 36); do
+            status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+              --output /tmp/razorpay-status.json --write-out '%{http_code}' \
+              https://fabrictrad.com/api/razorpay/status || true)
+            echo "Attempt ${attempt}/36: Razorpay status HTTP ${status}"
+            cat /tmp/razorpay-status.json || true
+            echo
+            if [ "$status" = '200' ] && grep -q '"authenticated":true' /tmp/razorpay-status.json; then
+              ready=true
+              break
+            fi
+            sleep 10
+          done
+          if [ "$ready" != 'true' ]; then
+            echo '::error::The deployed FabricTrad worker still cannot authenticate to Razorpay.'
+            exit 1
+          fi
+
+      - name: Verify protected payment endpoints
+        shell: bash
+        run: |
+          set -euo pipefail
+          order_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+            --output /tmp/order.json --write-out '%{http_code}' \
+            --header 'Content-Type: application/json' --data '{}' \
+            https://fabrictrad.com/api/razorpay/order || true)
+          verify_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+            --output /tmp/verify.json --write-out '%{http_code}' \
+            --header 'Content-Type: application/json' --data '{}' \
+            https://fabrictrad.com/api/razorpay/verify || true)
+          webhook_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+            --output /tmp/webhook.json --write-out '%{http_code}' \
+            --header 'Content-Type: application/json' \
+            --header 'x-razorpay-signature: 00' --data '{}' \
+            https://fabrictrad.com/api/razorpay/webhook || true)
+          echo "order=${order_status} verify=${verify_status} webhook=${webhook_status}"
+          [ "$order_status" = '401' ]
+          [ "$verify_status" = '401' ]
+          [ "$webhook_status" = '400' ]
+          grep -qi 'invalid signature' /tmp/webhook.json
+
+      - name: Publish Razorpay hotfix status
+        if: always()
+        continue-on-error: true
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          set -euo pipefail
+          if [ "$JOB_STATUS" = 'success' ]; then
+            state='success'
+            description='Razorpay checkout authentication is live and verified'
+          else
+            state='failure'
+            description='Razorpay hotfix deployment or live verification failed'
+          fi
+          payload=$(python - "$state" "$description" <<'PY'
+          import json, sys
+          print(json.dumps({
+            'state': sys.argv[1],
+            'context': 'fabrictrad/razorpay-hotfix',
+            'description': sys.argv[2],
+          }))
+          PY
+          )
+          curl --fail --silent --show-error \
+            --request POST \
+            --header "Authorization: Bearer ${GH_TOKEN}" \
+            --header 'Accept: application/vnd.github+json' \
+            --header 'X-GitHub-Api-Version: 2022-11-28' \
+            --header 'Content-Type: application/json' \
+            --data "$payload" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" >/dev/null
