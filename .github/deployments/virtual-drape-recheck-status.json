@@ -1,0 +1,27 @@
+{
+  "sourceCommit": "55586ec40d850cf53a56dcb1719798c7f31c00cd",
+  "outcome": "success",
+  "http": "200",
+  "response": {
+    "provider": "OpenAI",
+    "model": "gpt-image-2",
+    "providerRequestId": "req_48769dab51d5437eb49ac546b97c02d9",
+    "fabricReference": {
+      "name": "hahaha",
+      "variantName": null,
+      "imageCount": 2
+    },
+    "analysis": "OpenAI generated a regular fit a premium long-sleeve shirt with a structured collar, buttons, cuffs and anatomically correct seams using the live FabricTrad listing \u201chahaha\u201d. This is a visual sourcing preview; confirm the physical textile before production."
+  },
+  "success": {
+    "provider": "OpenAI",
+    "model": "gpt-image-2",
+    "providerRequestId": "req_48769dab51d5437eb49ac546b97c02d9",
+    "fabricReference": {
+      "name": "hahaha",
+      "variantName": null,
+      "imageCount": 2
+    },
+    "imageBytes": 202110
+  }
+}
