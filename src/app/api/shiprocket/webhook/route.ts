@@ -35,7 +35,8 @@ export async function POST(request: NextRequest) {
   }
 
   const bearer = request.headers.get('authorization')?.replace(/^Bearer\s+/i, '') || '';
-  const suppliedToken = request.headers.get('x-api-key') || request.headers.get('x-shiprocket-token') || bearer;
+  const suppliedToken =
+    request.headers.get('x-api-key') || request.headers.get('x-shiprocket-token') || bearer;
   if (!safeEqual(expectedToken, suppliedToken)) {
     return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
   }
@@ -51,7 +52,10 @@ export async function POST(request: NextRequest) {
   const shipmentId = String(body.shipment_id || '');
   const rawStatus = String(body.current_status || body.status || '');
   if ((!awb && !shipmentId) || !rawStatus) {
-    return NextResponse.json({ error: 'Shipment identifier and status are required.' }, { status: 400 });
+    return NextResponse.json(
+      { error: 'Shipment identifier and status are required.' },
+      { status: 400 }
+    );
   }
 
   const eventTimestamp = String(body.timestamp || body.updated_at || new Date().toISOString());
@@ -96,18 +100,36 @@ export async function POST(request: NextRequest) {
       .eq('id', shipment.id);
     if (updateError) throw updateError;
 
-    if (status === 'delivered') {
-      await admin
-        .from('bulk_orders')
-        .update({ status: 'delivered', updated_at: new Date().toISOString() })
-        .eq('id', shipment.order_id)
-        .in('status', ['paid', 'shipped', 'delivered']);
-    } else if (['picked_up', 'in_transit', 'out_for_delivery'].includes(status)) {
-      await admin
-        .from('bulk_orders')
-        .update({ status: 'shipped', updated_at: new Date().toISOString() })
-        .eq('id', shipment.order_id)
-        .in('status', ['paid', 'shipped']);
+    if (shipment.catalog_order_id) {
+      if (status === 'delivered') {
+        const { error: catalogUpdateError } = await admin
+          .from('catalog_order_requests')
+          .update({
+            status: 'fulfilled',
+            fulfilled_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', shipment.catalog_order_id)
+          .eq('payment_status', 'paid')
+          .in('status', ['paid', 'fulfilled']);
+        if (catalogUpdateError) throw catalogUpdateError;
+      }
+    } else if (shipment.bulk_order_id) {
+      if (status === 'delivered') {
+        const { error: deliveredError } = await admin
+          .from('bulk_orders')
+          .update({ status: 'delivered', updated_at: new Date().toISOString() })
+          .eq('id', shipment.bulk_order_id)
+          .in('status', ['paid', 'shipped', 'delivered']);
+        if (deliveredError) throw deliveredError;
+      } else if (['picked_up', 'in_transit', 'out_for_delivery'].includes(status)) {
+        const { error: shippedError } = await admin
+          .from('bulk_orders')
+          .update({ status: 'shipped', updated_at: new Date().toISOString() })
+          .eq('id', shipment.bulk_order_id)
+          .in('status', ['paid', 'shipped']);
+        if (shippedError) throw shippedError;
+      }
     }
 
     const { error: eventError } = await admin.from('webhook_events').insert({
@@ -119,7 +141,12 @@ export async function POST(request: NextRequest) {
     });
     if (eventError && eventError.code !== '23505') throw eventError;
 
-    return NextResponse.json({ received: true, status });
+    return NextResponse.json({
+      received: true,
+      status,
+      orderType: shipment.catalog_order_id ? 'catalog' : 'bulk',
+      orderId: shipment.catalog_order_id || shipment.bulk_order_id || shipment.order_id,
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Webhook processing failed.';
     console.error('Shiprocket webhook failed:', message);
