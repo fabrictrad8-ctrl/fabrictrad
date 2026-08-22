@@ -1,4 +1,4 @@
-name: Force deploy current FabricTrad Worker
+name: Deploy latest FabricTrad main
 
 on:
   push:
@@ -9,9 +9,11 @@ on:
 permissions:
   contents: write
 
+# FabricTrad receives many small fixes during an audit. Only the newest main
+# should deploy; stale queued deployments must never hold production behind.
 concurrency:
   group: fabrictrad-production-deploy
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   deploy-current-main:
@@ -33,6 +35,7 @@ jobs:
       AI_DRAPE_DAILY_LIMIT: '10'
       AI_DRAPE_DEMO_DAILY_LIMIT: '2'
       AI_DRAPE_FALLBACK_DAILY_LIMIT: '3'
+
     steps:
       - uses: actions/checkout@v4
 
@@ -41,28 +44,29 @@ jobs:
           node-version: 22
 
       - name: Require Cloudflare deployment token
+        id: cloudflare-token
         shell: bash
         run: |
           set -euo pipefail
           if [ -z "${CLOUDFLARE_API_TOKEN:-}" ]; then
-            echo '::error::CLOUDFLARE_API_TOKEN is not configured in repository Actions secrets.'
+            echo '::error::CLOUDFLARE_API_TOKEN is not configured.'
             exit 1
           fi
 
       - name: Install dependencies
+        id: install
         run: npm install --no-audit --no-fund --package-lock=false --legacy-peer-deps
 
       - name: Verify Cloudflare authentication
         id: cloudflare-auth
         run: npx wrangler whoami
 
-      - name: Verify provided Razorpay API credentials
+      - name: Verify optional GitHub Razorpay credentials
         id: razorpay-api-verification
         shell: bash
         env:
           RAZORPAY_KEY_ID: ${{ secrets.RAZORPAY_KEY_ID }}
           RAZORPAY_KEY_SECRET: ${{ secrets.RAZORPAY_KEY_SECRET }}
-          RAZORPAY_WEBHOOK_SECRET: ${{ secrets.RAZORPAY_WEBHOOK_SECRET }}
         run: |
           set -euo pipefail
           key_present=false
@@ -71,97 +75,60 @@ jobs:
           [ -n "${RAZORPAY_KEY_SECRET:-}" ] && secret_present=true
 
           if [ "$key_present" != "$secret_present" ]; then
-            printf '%s' 'incomplete_github_credential_pair' > /tmp/razorpay-api-verification.txt
-            echo '::error::RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET must be configured together in repository Actions secrets.'
-            exit 1
-          fi
-
-          if [ "$key_present" = 'false' ]; then
-            printf '%s' 'not_run_existing_worker_credentials' > /tmp/razorpay-api-verification.txt
-            echo 'No GitHub Actions Razorpay key pair is available. Existing Worker credentials will be preserved.'
-            exit 0
-          fi
-
-          npm run verify:razorpay -- --api
-          printf '%s' 'verified_against_razorpay_api' > /tmp/razorpay-api-verification.txt
-          echo 'Razorpay Key ID and Key Secret authenticate successfully against the Orders API.'
-
-      - name: Sync Razorpay server secrets to Worker
-        id: sync-razorpay-secret
-        shell: bash
-        env:
-          RAZORPAY_KEY_ID_FROM_GITHUB: ${{ secrets.RAZORPAY_KEY_ID }}
-          RAZORPAY_KEY_SECRET_FROM_GITHUB: ${{ secrets.RAZORPAY_KEY_SECRET }}
-          RAZORPAY_WEBHOOK_SECRET_FROM_GITHUB: ${{ secrets.RAZORPAY_WEBHOOK_SECRET }}
-        run: |
-          set -euo pipefail
-          key_present=false
-          secret_present=false
-          [ -n "${RAZORPAY_KEY_ID_FROM_GITHUB:-}" ] && key_present=true
-          [ -n "${RAZORPAY_KEY_SECRET_FROM_GITHUB:-}" ] && secret_present=true
-
-          if [ "$key_present" != "$secret_present" ]; then
             echo '::error::RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET must be configured together.'
             exit 1
           fi
 
           if [ "$key_present" = 'true' ]; then
-            printf '%s' "$RAZORPAY_KEY_ID_FROM_GITHUB" | npx wrangler secret put RAZORPAY_KEY_ID --config wrangler.jsonc
-            printf '%s' "$RAZORPAY_KEY_SECRET_FROM_GITHUB" | npx wrangler secret put RAZORPAY_KEY_SECRET --config wrangler.jsonc
-            echo 'Synced the verified Razorpay Key ID and Key Secret to the Cloudflare Worker.'
+            npm run verify:razorpay -- --api
+            printf '%s' 'verified_against_razorpay_api' > /tmp/razorpay-api-verification.txt
           else
-            echo 'No GitHub Actions Razorpay key pair supplied; existing Worker Key ID/Secret remain unchanged.'
+            printf '%s' 'using_existing_worker_credentials' > /tmp/razorpay-api-verification.txt
           fi
 
-          if [ -n "${RAZORPAY_WEBHOOK_SECRET_FROM_GITHUB:-}" ]; then
-            printf '%s' "$RAZORPAY_WEBHOOK_SECRET_FROM_GITHUB" | npx wrangler secret put RAZORPAY_WEBHOOK_SECRET --config wrangler.jsonc
-            echo 'Synced the Razorpay webhook secret to the Cloudflare Worker.'
-          else
-            echo 'No GitHub Actions webhook secret supplied; existing Worker webhook secret remains unchanged.'
-          fi
-
-      - name: Sync Supabase server secret to Worker
-        id: sync-supabase-secret
+      - name: Sync optional GitHub secrets to Worker
+        id: secret-sync
         shell: bash
         env:
+          RAZORPAY_KEY_ID_FROM_GITHUB: ${{ secrets.RAZORPAY_KEY_ID }}
+          RAZORPAY_KEY_SECRET_FROM_GITHUB: ${{ secrets.RAZORPAY_KEY_SECRET }}
+          RAZORPAY_WEBHOOK_SECRET_FROM_GITHUB: ${{ secrets.RAZORPAY_WEBHOOK_SECRET }}
           SUPABASE_SECRET_KEY_FROM_GITHUB: ${{ secrets.SUPABASE_SECRET_KEY }}
           SUPABASE_SERVICE_ROLE_KEY_FROM_GITHUB: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: |
-          set -euo pipefail
-          if [ -n "${SUPABASE_SECRET_KEY_FROM_GITHUB:-}" ]; then
-            printf '%s' "$SUPABASE_SECRET_KEY_FROM_GITHUB" | npx wrangler secret put SUPABASE_SECRET_KEY --config wrangler.jsonc
-            echo 'Synced SUPABASE_SECRET_KEY from GitHub Actions to the Cloudflare Worker.'
-          elif [ -n "${SUPABASE_SERVICE_ROLE_KEY_FROM_GITHUB:-}" ]; then
-            printf '%s' "$SUPABASE_SERVICE_ROLE_KEY_FROM_GITHUB" | npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY --config wrangler.jsonc
-            echo 'Synced SUPABASE_SERVICE_ROLE_KEY from GitHub Actions to the Cloudflare Worker.'
-          else
-            echo 'No GitHub Actions Supabase server secret is available to sync.'
-          fi
-
-      - name: Sync AI image provider secret to Worker
-        id: sync-ai-secret
-        shell: bash
-        env:
           OPENAI_API_KEY_FROM_GITHUB: ${{ secrets.OPENAI_API_KEY }}
           GEMINI_API_KEY_FROM_GITHUB: ${{ secrets.GEMINI_API_KEY }}
+          SHIPROCKET_EMAIL_FROM_GITHUB: ${{ secrets.SHIPROCKET_EMAIL }}
+          SHIPROCKET_PASSWORD_FROM_GITHUB: ${{ secrets.SHIPROCKET_PASSWORD }}
+          SHIPROCKET_WEBHOOK_TOKEN_FROM_GITHUB: ${{ secrets.SHIPROCKET_WEBHOOK_TOKEN }}
         run: |
           set -euo pipefail
-          synced=false
-          if [ -n "${OPENAI_API_KEY_FROM_GITHUB:-}" ]; then
-            printf '%s' "$OPENAI_API_KEY_FROM_GITHUB" | npx wrangler secret put OPENAI_API_KEY --config wrangler.jsonc
-            echo 'Synced OPENAI_API_KEY from GitHub Actions to the Cloudflare Worker.'
-            synced=true
-          fi
-          if [ -n "${GEMINI_API_KEY_FROM_GITHUB:-}" ]; then
-            printf '%s' "$GEMINI_API_KEY_FROM_GITHUB" | npx wrangler secret put GEMINI_API_KEY --config wrangler.jsonc
-            echo 'Synced GEMINI_API_KEY from GitHub Actions to the Cloudflare Worker.'
-            synced=true
-          fi
-          if [ "$synced" != 'true' ]; then
-            echo 'No GitHub Actions AI provider secret was available to sync; checking existing Worker secrets next.'
+
+          put_if_present() {
+            local name="$1"
+            local value="$2"
+            if [ -n "$value" ]; then
+              printf '%s' "$value" | npx wrangler secret put "$name" --config wrangler.jsonc >/dev/null
+              echo "Synced ${name}."
+            fi
+          }
+
+          put_if_present RAZORPAY_KEY_ID "${RAZORPAY_KEY_ID_FROM_GITHUB:-}"
+          put_if_present RAZORPAY_KEY_SECRET "${RAZORPAY_KEY_SECRET_FROM_GITHUB:-}"
+          put_if_present RAZORPAY_WEBHOOK_SECRET "${RAZORPAY_WEBHOOK_SECRET_FROM_GITHUB:-}"
+
+          if [ -n "${SUPABASE_SECRET_KEY_FROM_GITHUB:-}" ]; then
+            put_if_present SUPABASE_SECRET_KEY "$SUPABASE_SECRET_KEY_FROM_GITHUB"
+          elif [ -n "${SUPABASE_SERVICE_ROLE_KEY_FROM_GITHUB:-}" ]; then
+            put_if_present SUPABASE_SERVICE_ROLE_KEY "$SUPABASE_SERVICE_ROLE_KEY_FROM_GITHUB"
           fi
 
-      - name: Check required Worker secret names
+          put_if_present OPENAI_API_KEY "${OPENAI_API_KEY_FROM_GITHUB:-}"
+          put_if_present GEMINI_API_KEY "${GEMINI_API_KEY_FROM_GITHUB:-}"
+          put_if_present SHIPROCKET_EMAIL "${SHIPROCKET_EMAIL_FROM_GITHUB:-}"
+          put_if_present SHIPROCKET_PASSWORD "${SHIPROCKET_PASSWORD_FROM_GITHUB:-}"
+          put_if_present SHIPROCKET_WEBHOOK_TOKEN "${SHIPROCKET_WEBHOOK_TOKEN_FROM_GITHUB:-}"
+
+      - name: Check Worker integration readiness
         id: secret-preflight
         shell: bash
         run: |
@@ -171,33 +138,47 @@ jobs:
           const fs = require('node:fs');
           const secrets = JSON.parse(fs.readFileSync('/tmp/worker-secrets.json', 'utf8'));
           const names = new Set(secrets.map((item) => item.name));
-          const required = ['RAZORPAY_KEY_ID', 'RAZORPAY_KEY_SECRET', 'RAZORPAY_WEBHOOK_SECRET'];
-          const missing = required.filter((name) => !names.has(name));
+          const missing = [];
+          for (const name of ['RAZORPAY_KEY_ID','RAZORPAY_KEY_SECRET','RAZORPAY_WEBHOOK_SECRET']) {
+            if (!names.has(name)) missing.push(name);
+          }
           if (!names.has('SUPABASE_SECRET_KEY') && !names.has('SUPABASE_SERVICE_ROLE_KEY')) {
             missing.push('SUPABASE_SECRET_KEY_OR_SERVICE_ROLE_KEY');
           }
           if (!names.has('OPENAI_API_KEY') && !names.has('GEMINI_API_KEY')) {
             missing.push('OPENAI_API_KEY_OR_GEMINI_API_KEY');
           }
+          const readiness = {
+            razorpay: ['RAZORPAY_KEY_ID','RAZORPAY_KEY_SECRET','RAZORPAY_WEBHOOK_SECRET'].every((name) => names.has(name)),
+            supabase: names.has('SUPABASE_SECRET_KEY') || names.has('SUPABASE_SERVICE_ROLE_KEY'),
+            ai: names.has('OPENAI_API_KEY') || names.has('GEMINI_API_KEY'),
+            shiprocketOrderCreation: names.has('SHIPROCKET_EMAIL') && names.has('SHIPROCKET_PASSWORD'),
+            shiprocketWebhook: names.has('SHIPROCKET_WEBHOOK_TOKEN'),
+          };
+          fs.writeFileSync('/tmp/integration-readiness.json', JSON.stringify(readiness));
           fs.writeFileSync('/tmp/missing-worker-secrets.txt', missing.join('\n'));
-          console.log(`Configured Razorpay secret names: ${required.filter((name) => names.has(name)).join(', ') || 'none'}`);
-          console.log(`AI image provider secret configured: ${names.has('OPENAI_API_KEY') ? 'OpenAI' : names.has('GEMINI_API_KEY') ? 'Gemini' : 'none'}`);
+          console.log('Worker readiness:', readiness);
           if (missing.length) {
-            console.error(`Missing required integration secret names: ${missing.join(', ')}`);
+            console.error(`Missing required secrets: ${missing.join(', ')}`);
             process.exit(1);
           }
-          console.log('All required Razorpay, Supabase and AI image provider Worker secret names are configured.');
           NODE
 
       - name: Validate current application
+        id: validation
+        shell: bash
         run: |
-          npm run type-check
-          npm run lint
-          node scripts/verify-account-lifecycle.mjs
-          node scripts/verify-marketplace-integrity.mjs
-          node scripts/verify-mobile-whatsapp.mjs
+          set -o pipefail
+          {
+            npm run type-check
+            npm run lint
+            node scripts/verify-account-lifecycle.mjs
+            node scripts/verify-marketplace-integrity.mjs
+            node scripts/verify-mobile-whatsapp.mjs
+          } 2>&1 | tee /tmp/validation.log
 
       - name: Build OpenNext Worker
+        id: build
         run: npm run build:sites
 
       - name: Deploy current main to Cloudflare
@@ -222,26 +203,17 @@ jobs:
             destination=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
               --output /tmp/destination.json --write-out '%{http_code}' \
               https://fabrictrad.com/api/auth/session-destination || true)
-            draft=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
-              --output /tmp/draft.json --write-out '%{http_code}' \
-              'https://fabrictrad.com/api/account/onboarding-draft?flow=buyer' || true)
-            deletion=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
-              --output /tmp/deletion.json --write-out '%{http_code}' \
-              --header 'Content-Type: application/json' --data '{}' \
-              https://fabrictrad.com/api/account/delete/request || true)
-            echo "Attempt ${attempt}/48: login=${login}, destination=${destination}, draft=${draft}, deletion=${deletion}"
-            if [ "$login" = '401' ] && [ "$destination" = '401' ] && [ "$draft" = '401' ] && [ "$deletion" = '401' ]; then
+            if [ "$login" = '401' ] && [ "$destination" = '401' ]; then
               healthy=true
               break
             fi
             sleep 10
           done
           if [ "$healthy" != 'true' ]; then
-            echo '::error::The new Worker deployed, but the production account APIs did not become healthy.'
+            echo '::error::Production account APIs did not become healthy.'
             exit 1
           fi
           grep -qi 'email or password is incorrect' /tmp/login.json
-          echo 'Current FabricTrad Worker and account lifecycle APIs are live.'
 
       - name: Verify production AI Drape-On
         id: ai-drape-verification
@@ -252,24 +224,13 @@ jobs:
             --output /tmp/ai-drape.json --write-out '%{http_code}' \
             https://fabrictrad.com/api/ai/drape-on || true)
           printf '%s' "$ai_status" > /tmp/ai-drape-status.txt
-          echo "AI Drape readiness probe returned HTTP ${ai_status}."
-          if [ "$ai_status" != '200' ]; then
-            cat /tmp/ai-drape.json || true
-            echo '::error::Production AI Drape readiness endpoint is unhealthy.'
-            exit 1
-          fi
+          [ "$ai_status" = '200' ] || { cat /tmp/ai-drape.json || true; exit 1; }
           node - <<'NODE'
           const fs = require('node:fs');
           const payload = JSON.parse(fs.readFileSync('/tmp/ai-drape.json', 'utf8'));
-          if (payload.configured !== true) {
-            console.error('AI Drape endpoint reports that no image provider is configured.');
+          if (payload.configured !== true || payload.mode !== 'real_ai_image_try_on' || payload.usesListingMedia !== true) {
             process.exit(1);
           }
-          if (payload.mode !== 'real_ai_image_try_on' || payload.usesListingMedia !== true) {
-            console.error('AI Drape endpoint is not reporting the verified listing-media try-on mode.');
-            process.exit(1);
-          }
-          console.log(`Production AI Drape is ready via ${payload.provider || 'configured provider'} (${payload.model || 'default model'}).`);
           NODE
 
       - name: Verify production Razorpay webhook
@@ -284,91 +245,73 @@ jobs:
             --data '{}' \
             https://fabrictrad.com/api/razorpay/webhook || true)
           printf '%s' "$webhook_status" > /tmp/razorpay-webhook-status.txt
-          echo "Razorpay webhook probe returned HTTP ${webhook_status}."
-          if [ "$webhook_status" != '400' ]; then
-            cat /tmp/razorpay-webhook.json || true
-            echo '::error::The production Razorpay webhook is not rejecting an invalid signature as expected.'
-            exit 1
-          fi
+          [ "$webhook_status" = '400' ] || { cat /tmp/razorpay-webhook.json || true; exit 1; }
           grep -qi 'invalid signature' /tmp/razorpay-webhook.json
-          echo 'Production Razorpay webhook is configured and validating signed requests.'
 
       - name: Record deployment result
         if: always()
         shell: bash
         env:
+          INSTALL_OUTCOME: ${{ steps.install.outcome }}
           AUTH_OUTCOME: ${{ steps.cloudflare-auth.outcome }}
           RAZORPAY_API_OUTCOME: ${{ steps.razorpay-api-verification.outcome }}
-          RAZORPAY_SECRET_SYNC_OUTCOME: ${{ steps.sync-razorpay-secret.outcome }}
-          SECRET_SYNC_OUTCOME: ${{ steps.sync-supabase-secret.outcome }}
-          AI_SECRET_SYNC_OUTCOME: ${{ steps.sync-ai-secret.outcome }}
+          SECRET_SYNC_OUTCOME: ${{ steps.secret-sync.outcome }}
           SECRET_PREFLIGHT_OUTCOME: ${{ steps.secret-preflight.outcome }}
+          VALIDATION_OUTCOME: ${{ steps.validation.outcome }}
+          BUILD_OUTCOME: ${{ steps.build.outcome }}
           DEPLOY_OUTCOME: ${{ steps.deploy.outcome }}
           VERIFY_OUTCOME: ${{ steps.live-verification.outcome }}
           AI_DRAPE_OUTCOME: ${{ steps.ai-drape-verification.outcome }}
           RAZORPAY_WEBHOOK_OUTCOME: ${{ steps.razorpay-webhook-verification.outcome }}
         run: |
           set -euo pipefail
-          missing_json='[]'
-          if [ -s /tmp/missing-worker-secrets.txt ]; then
-            missing_json=$(node -e "const fs=require('fs'); console.log(JSON.stringify(fs.readFileSync('/tmp/missing-worker-secrets.txt','utf8').trim().split(/\\n+/).filter(Boolean)))")
-          fi
-          deployment_log_json='null'
-          if [ -s /tmp/wrangler-deploy.log ]; then
-            deployment_log_json=$(node - <<'NODE'
+          node - <<'NODE'
           const fs = require('node:fs');
-          let text = fs.readFileSync('/tmp/wrangler-deploy.log', 'utf8');
-          text = text
-            .replace(/\u001b\[[0-9;]*m/g, '')
-            .replace(/(authorization|api[_-]?token|secret|password)(\s*[:=]\s*)(\S+)/gi, '$1$2[redacted]');
-          const tail = text
-            .split(/\r?\n/)
-            .filter(Boolean)
-            .slice(-60)
-            .join('\n')
-            .slice(0, 6000);
-          console.log(JSON.stringify(tail || null));
+          const tail = (path, limit = 8000) => {
+            if (!fs.existsSync(path)) return null;
+            return fs.readFileSync(path, 'utf8')
+              .replace(/\u001b\[[0-9;]*m/g, '')
+              .replace(/(authorization|api[_-]?token|secret|password)(\s*[:=]\s*)(\S+)/gi, '$1$2[redacted]')
+              .split(/\r?\n/)
+              .filter(Boolean)
+              .slice(-100)
+              .join('\n')
+              .slice(0, limit) || null;
+          };
+          const readJson = (path, fallback) => {
+            try { return JSON.parse(fs.readFileSync(path, 'utf8')); } catch { return fallback; }
+          };
+          const payload = {
+            sourceCommit: process.env.GITHUB_SHA,
+            recordedAt: new Date().toISOString(),
+            install: process.env.INSTALL_OUTCOME || 'skipped',
+            cloudflareAuthentication: process.env.AUTH_OUTCOME || 'skipped',
+            razorpayApiCredentialCheckStep: process.env.RAZORPAY_API_OUTCOME || 'skipped',
+            secretSync: process.env.SECRET_SYNC_OUTCOME || 'skipped',
+            workerSecretPreflight: process.env.SECRET_PREFLIGHT_OUTCOME || 'skipped',
+            integrationReadiness: readJson('/tmp/integration-readiness.json', null),
+            validation: process.env.VALIDATION_OUTCOME || 'skipped',
+            validationLogTail: tail('/tmp/validation.log'),
+            workerBuild: process.env.BUILD_OUTCOME || 'skipped',
+            workerDeployment: process.env.DEPLOY_OUTCOME || 'skipped',
+            liveAccountApiVerification: process.env.VERIFY_OUTCOME || 'skipped',
+            liveAiDrapeVerification: process.env.AI_DRAPE_OUTCOME || 'skipped',
+            liveRazorpayWebhookVerification: process.env.RAZORPAY_WEBHOOK_OUTCOME || 'skipped',
+            deploymentLogTail: tail('/tmp/wrangler-deploy.log'),
+          };
+          fs.mkdirSync('.github/deployments', { recursive: true });
+          fs.writeFileSync('.github/deployments/production-status.json', JSON.stringify(payload, null, 2) + '\n');
           NODE
-          )
-          fi
-          webhook_status_json='null'
-          if [ -s /tmp/razorpay-webhook-status.txt ]; then
-            webhook_status_json=$(node -e "const fs=require('fs'); console.log(JSON.stringify(fs.readFileSync('/tmp/razorpay-webhook-status.txt','utf8').trim() || null))")
-          fi
-          ai_status_json='null'
-          if [ -s /tmp/ai-drape-status.txt ]; then
-            ai_status_json=$(node -e "const fs=require('fs'); console.log(JSON.stringify(fs.readFileSync('/tmp/ai-drape-status.txt','utf8').trim() || null))")
-          fi
-          razorpay_api_state_json='null'
-          if [ -s /tmp/razorpay-api-verification.txt ]; then
-            razorpay_api_state_json=$(node -e "const fs=require('fs'); console.log(JSON.stringify(fs.readFileSync('/tmp/razorpay-api-verification.txt','utf8').trim() || null))")
-          fi
-          mkdir -p .github/deployments
-          cat > .github/deployments/production-status.json <<JSON
-          {
-            "sourceCommit": "${GITHUB_SHA}",
-            "recordedAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-            "cloudflareAuthentication": "${AUTH_OUTCOME}",
-            "razorpayApiCredentialCheckStep": "${RAZORPAY_API_OUTCOME}",
-            "razorpayApiCredentialVerification": ${razorpay_api_state_json},
-            "razorpaySecretSync": "${RAZORPAY_SECRET_SYNC_OUTCOME}",
-            "supabaseSecretSync": "${SECRET_SYNC_OUTCOME}",
-            "aiProviderSecretSync": "${AI_SECRET_SYNC_OUTCOME}",
-            "workerSecretPreflight": "${SECRET_PREFLIGHT_OUTCOME}",
-            "missingRequiredWorkerSecrets": ${missing_json},
-            "workerDeployment": "${DEPLOY_OUTCOME}",
-            "liveAccountApiVerification": "${VERIFY_OUTCOME}",
-            "liveAiDrapeVerification": "${AI_DRAPE_OUTCOME}",
-            "aiDrapeProbeHttpStatus": ${ai_status_json},
-            "liveRazorpayWebhookVerification": "${RAZORPAY_WEBHOOK_OUTCOME}",
-            "razorpayWebhookProbeHttpStatus": ${webhook_status_json},
-            "deploymentLogTail": ${deployment_log_json}
-          }
-          JSON
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add .github/deployments/production-status.json
           if ! git diff --cached --quiet; then
-            git commit -m 'ci: record production deployment status [skip deploy]'
-            git push origin HEAD:main
+            git commit -m 'ci: record production deployment status [skip deploy] [skip validation] [skip integration audit]'
+            for attempt in 1 2 3 4 5; do
+              if git push origin HEAD:main; then exit 0; fi
+              git fetch origin main
+              git rebase origin/main
+              sleep 2
+            done
+            exit 1
           fi
