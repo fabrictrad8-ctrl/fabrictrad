@@ -1,0 +1,17 @@
+{
+  "sourceCommit": "8b8de7054c23649d8ce2aebef279feb05730fe7f",
+  "recordedAt": "2026-08-22T15:49:28.832Z",
+  "razorpay": {
+    "keyId": true,
+    "keySecret": true,
+    "webhookSecret": true
+  },
+  "supabaseServerSecret": true,
+  "shiprocket": {
+    "email": false,
+    "password": false,
+    "webhookToken": false,
+    "readyForOrderCreation": false,
+    "readyForTrackingWebhook": false
+  }
+}
