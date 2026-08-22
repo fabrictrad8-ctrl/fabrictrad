@@ -1,5 +1,8 @@
-FabricTrad release: auth-gated-public-v1
+FabricTrad release: buyer-seller-audit-2026-08-22
 Expected public behavior:
 - Logged-out visitors see the informational landing page only.
 - Marketplace, AI drape tools, dashboards, products, vendors and operational pages require authentication.
 - Buyers, sellers and admins are routed to their respective workspaces after login.
+- Seller product editing exposes category and buyer-access controls.
+- Personal and business purchase eligibility is enforced consistently in Supabase.
+- Buyer order hub, tracking, seller analytics, fulfillment, earnings and shipping use live commerce records.
