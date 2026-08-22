@@ -1,0 +1,19 @@
+{
+  "sourceCommit": "1ed7edb129e73797f158e5afdf83358d919b1a8d",
+  "readinessOutcome": "success",
+  "generationOutcome": "failure",
+  "readinessHttp": "200",
+  "generationHttp": "500",
+  "readiness": {
+    "configured": true,
+    "mode": "real_ai_image_try_on",
+    "usesListingMedia": true,
+    "provider": "OpenAI GPT Image",
+    "model": "gpt-image-2"
+  },
+  "generation": {
+    "error": "Unable to load this product for AI try-on.",
+    "code": "PRODUCT_LOOKUP_FAILED"
+  },
+  "successSummary": null
+}
