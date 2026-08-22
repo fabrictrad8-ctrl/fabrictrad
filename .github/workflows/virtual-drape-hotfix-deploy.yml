@@ -1,3 +1,4 @@
+# Explicitly retriggered after the server-side product lookup repair.
 name: Virtual drape hotfix deploy
 
 on:
