@@ -12,6 +12,7 @@ import ModernFabricDrapeViewer from '@/app/product-detail/components/ModernFabri
 import BuyerFeedbackWidget from '@/app/product-detail/components/BuyerFeedbackWidget';
 import BuyerOnlyGuard from '@/components/BuyerOnlyGuard';
 import ProductBreadcrumb from '@/app/product-detail/components/ProductBreadcrumb';
+import { CurrentProductShareButton } from '@/components/ProductShareButton';
 import Icon from '@/components/ui/AppIcon';
 
 export default function ProductDetailPage() {
@@ -35,6 +36,7 @@ export default function ProductDetailPage() {
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
+                <CurrentProductShareButton />
                 <span className="ft-orange-chip"><Icon name="ShieldCheckIcon" size={13} /> Protected order flow</span>
                 <span className="ft-orange-chip"><Icon name="ReceiptPercentIcon" size={13} /> Server tax calculation</span>
                 <span className="ft-orange-chip"><Icon name="TruckIcon" size={13} /> Shipment tracking</span>
