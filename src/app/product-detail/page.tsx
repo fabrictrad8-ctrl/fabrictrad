@@ -15,6 +15,7 @@ import BuyerOnlyGuard from '@/components/BuyerOnlyGuard';
 import ProductBreadcrumb from '@/app/product-detail/components/ProductBreadcrumb';
 import { CurrentProductShareButton } from '@/components/ProductShareButton';
 import Icon from '@/components/ui/AppIcon';
+import styles from './virtual-drape-responsive.module.css';
 
 export default function ProductDetailPage() {
   return (
@@ -47,7 +48,7 @@ export default function ProductDetailPage() {
             <div className="ft-product-layout grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1.65fr)_minmax(320px,0.85fr)] lg:gap-7">
               <div className="ft-product-main space-y-5">
                 <ProductGallery />
-                <section id="drape-on" className="scroll-mt-24">
+                <section id="drape-on" className={`${styles.drapeSection} scroll-mt-24`}>
                   <ModernFabricDrapeViewer />
                 </section>
                 <ProductSpecs />
