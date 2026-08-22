@@ -1,0 +1,64 @@
+name: Audit commerce integration readiness
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+concurrency:
+  group: fabrictrad-commerce-readiness
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    if: ${{ !contains(github.event.head_commit.message, '[skip integration audit]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: aa4ff7a482130e543f176e2d73c93f45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund --package-lock=false --legacy-peer-deps
+      - name: Read Worker secret names
+        run: npx wrangler secret list --config wrangler.jsonc --format json > /tmp/worker-secrets.json
+      - name: Record readiness without exposing secret values
+        run: |
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const secrets = JSON.parse(fs.readFileSync('/tmp/worker-secrets.json', 'utf8'));
+          const names = new Set(secrets.map((item) => item.name));
+          const payload = {
+            sourceCommit: process.env.GITHUB_SHA,
+            recordedAt: new Date().toISOString(),
+            razorpay: {
+              keyId: names.has('RAZORPAY_KEY_ID'),
+              keySecret: names.has('RAZORPAY_KEY_SECRET'),
+              webhookSecret: names.has('RAZORPAY_WEBHOOK_SECRET'),
+            },
+            supabaseServerSecret: names.has('SUPABASE_SECRET_KEY') || names.has('SUPABASE_SERVICE_ROLE_KEY'),
+            shiprocket: {
+              email: names.has('SHIPROCKET_EMAIL'),
+              password: names.has('SHIPROCKET_PASSWORD'),
+              webhookToken: names.has('SHIPROCKET_WEBHOOK_TOKEN'),
+              readyForOrderCreation: names.has('SHIPROCKET_EMAIL') && names.has('SHIPROCKET_PASSWORD'),
+              readyForTrackingWebhook: names.has('SHIPROCKET_WEBHOOK_TOKEN'),
+            },
+          };
+          fs.mkdirSync('.github/deployments', { recursive: true });
+          fs.writeFileSync('.github/deployments/commerce-integration-status.json', JSON.stringify(payload, null, 2) + '\n');
+          NODE
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .github/deployments/commerce-integration-status.json
+          if ! git diff --cached --quiet; then
+            git commit -m 'ci: record commerce integration readiness [skip deploy] [skip validation] [skip integration audit]'
+            git push origin HEAD:main
+          fi
