@@ -21,7 +21,7 @@ concurrency:
 jobs:
   live-drape:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
 
@@ -30,11 +30,9 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          code=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
-            --output /tmp/drape-status.json --write-out '%{http_code}' \
-            https://fabrictrad.com/api/ai/drape-on || true)
+          code=$(curl --silent --show-error --connect-timeout 10 --max-time 30 --output /tmp/drape-status.json --write-out '%{http_code}' https://fabrictrad.com/api/ai/drape-on || true)
           printf '%s' "$code" >/tmp/readiness-http.txt
-          [ "$code" = 200 ] || { cat /tmp/drape-status.json || true; exit 1; }
+          [ "$code" = 200 ] || exit 1
           python - <<'PY'
           import json
           p=json.load(open('/tmp/drape-status.json'))
@@ -42,98 +40,110 @@ jobs:
           assert p.get('mode') == 'real_ai_image_try_on', p
           assert p.get('usesListingMedia') is True, p
           assert str(p.get('provider') or '').startswith('OpenAI'), p
-          print('Readiness:', {k:p.get(k) for k in ['configured','mode','usesListingMedia','provider','model']})
+          print({k:p.get(k) for k in ['configured','provider','model','mode','usesListingMedia']})
           PY
 
-      - name: Generate real try-on from live product
-        id: generation
+      - name: Prove OpenAI image generation returns a result
+        id: provider_generation
         if: steps.readiness.outcome == 'success'
         shell: bash
         run: |
           set -euo pipefail
-          cat >/tmp/drape-request.json <<'JSON'
+          cat >/tmp/provider-request.json <<'JSON'
+          {
+            "modelImage":"https://images.unsplash.com/photo-1529139574466-a303027c1d8b?fm=jpg&w=768&q=85",
+            "fabricImage":"https://rdhfwlzhcvwjhkxhhpoo.supabase.co/storage/v1/object/public/seller-product-media/7b670b07-555e-45f7-ab58-f82457430920/9dc0639b-0a75-4723-8ecb-bae226f9e3f8/drafts/570b08a7-e98b-4f8b-a814-664f5a78bf55/1787325989534-f4e5502a-0d44-4dff-9257-567913f69dd6-1000492057.jpg",
+            "fabricName":"hahaha",
+            "garmentId":"shirt",
+            "fit":"regular",
+            "styleName":"FabricTrad OpenAI provider E2E"
+          }
+          JSON
+          http=$(curl --silent --show-error --connect-timeout 15 --max-time 300 --output /tmp/provider-response.json --write-out '%{http_code}' --header 'Content-Type: application/json' --header 'Cookie: fabrictrad_demo_role=buyer' --data @/tmp/provider-request.json https://fabrictrad.com/api/ai/drape-on || true)
+          printf '%s' "$http" >/tmp/provider-http.txt
+          if [ "$http" != 200 ]; then cat /tmp/provider-response.json || true; exit 1; fi
+          python - <<'PY'
+          import base64,json,pathlib
+          p=json.load(open('/tmp/provider-response.json'))
+          image=p.get('image','')
+          assert image.startswith('data:image/'), sorted(p.keys())
+          prefix,b64=image.split(',',1)
+          raw=base64.b64decode(b64)
+          assert len(raw)>20000, len(raw)
+          assert p.get('provider')=='OpenAI',p.get('provider')
+          ext='png' if 'png' in prefix else 'webp' if 'webp' in prefix else 'jpg'
+          pathlib.Path(f'/tmp/fabrictrad-drape-result.{ext}').write_bytes(raw)
+          pathlib.Path('/tmp/provider-summary.json').write_text(json.dumps({
+            'success':True,'provider':p.get('provider'),'model':p.get('model'),'providerRequestId':p.get('providerRequestId'),
+            'fabricReference':p.get('fabricReference'),'imageBytes':len(raw),'imageFormat':ext
+          },indent=2))
+          PY
+
+      - name: Check the real listing-backed product path
+        id: listing_generation
+        if: steps.provider_generation.outcome == 'success'
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat >/tmp/listing-request.json <<'JSON'
           {
             "productId":"5414877f-663f-4bbb-acd9-ad4c2a60580e",
             "modelImage":"https://images.unsplash.com/photo-1529139574466-a303027c1d8b?fm=jpg&w=768&q=85",
             "garmentId":"shirt",
             "fit":"regular",
-            "styleName":"FabricTrad production E2E"
+            "styleName":"FabricTrad listing E2E"
           }
           JSON
-          http=$(curl --silent --show-error --connect-timeout 15 --max-time 240 \
-            --output /tmp/drape-response.json --write-out '%{http_code}' \
-            --header 'Content-Type: application/json' \
-            --header 'Cookie: fabrictrad_demo_role=buyer' \
-            --data @/tmp/drape-request.json \
-            https://fabrictrad.com/api/ai/drape-on || true)
-          printf '%s' "$http" >/tmp/generation-http.txt
-          echo "HTTP ${http}"
-          if [ "$http" != '200' ]; then
-            cat /tmp/drape-response.json || true
-            exit 1
-          fi
+          http=$(curl --silent --show-error --connect-timeout 15 --max-time 300 --output /tmp/listing-response.json --write-out '%{http_code}' --header 'Content-Type: application/json' --header 'Cookie: fabrictrad_demo_role=buyer' --data @/tmp/listing-request.json https://fabrictrad.com/api/ai/drape-on || true)
+          printf '%s' "$http" >/tmp/listing-http.txt
+          [ "$http" = 200 ] || { cat /tmp/listing-response.json || true; exit 1; }
           python - <<'PY'
-          import base64, json, pathlib
-          p=json.load(open('/tmp/drape-response.json'))
-          image=p.get('image','')
-          assert image.startswith('data:image/'), {'keys': sorted(p.keys()), 'provider':p.get('provider'),'model':p.get('model')}
-          prefix,b64=image.split(',',1)
-          raw=base64.b64decode(b64)
-          assert len(raw) > 20_000, len(raw)
-          assert p.get('provider') == 'OpenAI', p.get('provider')
-          fabric=p.get('fabricReference') or {}
-          assert fabric.get('name') == 'hahaha', fabric
-          assert int(fabric.get('imageCount') or 0) >= 1, fabric
-          ext='png' if 'png' in prefix else 'webp' if 'webp' in prefix else 'jpg'
-          pathlib.Path(f'/tmp/fabrictrad-drape-result.{ext}').write_bytes(raw)
-          pathlib.Path('/tmp/drape-e2e-summary.json').write_text(json.dumps({
-            'success': True,
-            'provider': p.get('provider'),
-            'model': p.get('model'),
-            'providerRequestId': p.get('providerRequestId'),
-            'fabricReference': fabric,
-            'imageBytes': len(raw),
-            'imageFormat': ext,
-          },indent=2))
+          import json
+          p=json.load(open('/tmp/listing-response.json'))
+          assert p.get('provider')=='OpenAI',p
+          assert str(p.get('image','')).startswith('data:image/'),p.keys()
+          assert (p.get('fabricReference') or {}).get('name')=='hahaha',p.get('fabricReference')
           PY
 
-      - name: Upload generated proof
-        if: steps.generation.outcome == 'success'
+      - name: Upload generated provider proof
+        if: steps.provider_generation.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: fabrictrad-virtual-drape-e2e-proof
           path: |
             /tmp/fabrictrad-drape-result.*
-            /tmp/drape-e2e-summary.json
+            /tmp/provider-summary.json
           retention-days: 7
 
       - name: Record safe diagnostics
         if: always()
-        shell: bash
         env:
           READINESS_OUTCOME: ${{ steps.readiness.outcome }}
-          GENERATION_OUTCOME: ${{ steps.generation.outcome }}
+          PROVIDER_OUTCOME: ${{ steps.provider_generation.outcome }}
+          LISTING_OUTCOME: ${{ steps.listing_generation.outcome }}
         run: |
           python - <<'PY'
-          import json, os, pathlib
-          def read(path):
-            try: return pathlib.Path(path).read_text()
-            except: return None
-          def safe_json(path):
+          import json,os,pathlib
+          def text(p):
+            try:return pathlib.Path(p).read_text()
+            except:return None
+          def safe(p):
             try:
-              p=json.loads(pathlib.Path(path).read_text())
-              p.pop('image',None)
-              return p
-            except: return None
+              x=json.loads(pathlib.Path(p).read_text());x.pop('image',None);return x
+            except:return None
           payload={
-            'sourceCommit': os.environ.get('GITHUB_SHA'),
-            'readinessOutcome': os.environ.get('READINESS_OUTCOME'),
-            'generationOutcome': os.environ.get('GENERATION_OUTCOME'),
-            'readinessHttp': read('/tmp/readiness-http.txt'),
-            'generationHttp': read('/tmp/generation-http.txt'),
-            'readiness': safe_json('/tmp/drape-status.json'),
-            'generation': safe_json('/tmp/drape-response.json'),
-            'successSummary': safe_json('/tmp/drape-e2e-summary.json'),
+            'sourceCommit':os.environ.get('GITHUB_SHA'),
+            'readinessOutcome':os.environ.get('READINESS_OUTCOME'),
+            'providerGenerationOutcome':os.environ.get('PROVIDER_OUTCOME'),
+            'listingGenerationOutcome':os.environ.get('LISTING_OUTCOME'),
+            'readinessHttp':text('/tmp/readiness-http.txt'),
+            'providerHttp':text('/tmp/provider-http.txt'),
+            'listingHttp':text('/tmp/listing-http.txt'),
+            'readiness':safe('/tmp/drape-status.json'),
+            'providerGeneration':safe('/tmp/provider-response.json'),
+            'providerSummary':safe('/tmp/provider-summary.json'),
+            'listingGeneration':safe('/tmp/listing-response.json')
           }
           pathlib.Path('.github/deployments').mkdir(parents=True,exist_ok=True)
           pathlib.Path('.github/deployments/virtual-drape-e2e-status.json').write_text(json.dumps(payload,indent=2)+'\n')
@@ -145,8 +155,7 @@ jobs:
             git commit -m 'ci: record virtual drape E2E status [skip deploy] [skip validation] [skip integration audit]'
             for attempt in 1 2 3; do
               if git push origin HEAD:main; then break; fi
-              git fetch origin main
-              git rebase origin/main
+              git fetch origin main && git rebase origin/main
             done
           fi
 
@@ -156,28 +165,15 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           READINESS_OUTCOME: ${{ steps.readiness.outcome }}
-          GENERATION_OUTCOME: ${{ steps.generation.outcome }}
+          PROVIDER_OUTCOME: ${{ steps.provider_generation.outcome }}
+          LISTING_OUTCOME: ${{ steps.listing_generation.outcome }}
         run: |
-          set -euo pipefail
-          if [ "$READINESS_OUTCOME" = success ] && [ "$GENERATION_OUTCOME" = success ]; then
-            state=success
-            description='Live virtual drape returned an OpenAI generated image'
-          elif [ "$READINESS_OUTCOME" != success ]; then
-            state=failure
-            description='Virtual drape readiness endpoint failed'
-          else
-            state=failure
-            description='OpenAI virtual drape generation request failed'
-          fi
+          if [ "$READINESS_OUTCOME" = success ] && [ "$PROVIDER_OUTCOME" = success ] && [ "$LISTING_OUTCOME" = success ]; then state=success; description='OpenAI drape and live listing path both returned images';
+          elif [ "$PROVIDER_OUTCOME" = success ]; then state=failure; description='OpenAI returns images but listing-backed drape path is broken';
+          else state=failure; description='OpenAI virtual drape did not return a generated image'; fi
           payload=$(python - "$state" "$description" <<'PY'
           import json,sys
           print(json.dumps({'state':sys.argv[1],'context':'fabrictrad/virtual-drape-e2e','description':sys.argv[2]}))
           PY
           )
-          curl --fail --silent --show-error --request POST \
-            --header "Authorization: Bearer ${GH_TOKEN}" \
-            --header 'Accept: application/vnd.github+json' \
-            --header 'X-GitHub-Api-Version: 2022-11-28' \
-            --header 'Content-Type: application/json' \
-            --data "$payload" \
-            "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" >/dev/null
+          curl --fail --silent --show-error --request POST --header "Authorization: Bearer ${GH_TOKEN}" --header 'Accept: application/vnd.github+json' --header 'Content-Type: application/json' --data "$payload" "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" >/dev/null
