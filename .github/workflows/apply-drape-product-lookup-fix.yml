@@ -1,0 +1,65 @@
+name: Apply drape product lookup fix
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/apply-drape-product-lookup-fix.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Patch server-side listing lookup
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path=Path('src/app/api/ai/drape-on/route.ts')
+          text=path.read_text()
+          old_import="import { createClient } from '@/lib/supabase/server';"
+          new_import=old_import+"\nimport { createAdminClient } from '@/lib/supabase/admin';"
+          if "createAdminClient } from '@/lib/supabase/admin'" not in text:
+              if old_import not in text: raise SystemExit('Expected Supabase server import was not found.')
+              text=text.replace(old_import,new_import,1)
+          old_call='fabricReference = await resolveListingFabric(supabase, body.productId, body.variantId);'
+          new_call='fabricReference = await resolveListingFabric(createAdminClient(), body.productId, body.variantId);'
+          if old_call in text:
+              text=text.replace(old_call,new_call,1)
+          elif new_call not in text:
+              raise SystemExit('Expected listing lookup call was not found.')
+          path.write_text(text)
+          PY
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund --package-lock=false --legacy-peer-deps
+      - name: Validate repair
+        run: |
+          npm run type-check
+          npx eslint src/app/api/ai/drape-on/route.ts src/lib/supabase/admin.ts
+      - name: Commit repair
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/app/api/ai/drape-on/route.ts
+          if git diff --cached --quiet; then
+            echo 'Drape listing lookup already repaired.'
+            exit 0
+          fi
+          git commit -m 'Fix server-side virtual drape product lookup'
+          for attempt in 1 2 3 4 5; do
+            if git push origin HEAD:main; then exit 0; fi
+            git fetch origin main
+            git rebase origin/main
+            sleep 2
+          done
+          exit 1
