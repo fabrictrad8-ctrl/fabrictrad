@@ -8,7 +8,7 @@ export async function GET() {
   const credentials = await getRazorpayCredentials();
   if (!credentials) {
     return NextResponse.json(
-      { configured: false, authenticated: false },
+      { configured: false, authenticated: false, source: null },
       { status: 503, headers: { 'Cache-Control': 'no-store, max-age=0' } }
     );
   }
@@ -27,7 +27,12 @@ export async function GET() {
       {
         configured: true,
         authenticated: response.ok,
-        mode: credentials.keyId.startsWith('rzp_live_') ? 'live' : credentials.keyId.startsWith('rzp_test_') ? 'test' : 'unknown',
+        source: credentials.source,
+        mode: credentials.keyId.startsWith('rzp_live_')
+          ? 'live'
+          : credentials.keyId.startsWith('rzp_test_')
+            ? 'test'
+            : 'unknown',
       },
       {
         status: response.ok ? 200 : response.status === 401 ? 503 : 502,
@@ -36,7 +41,7 @@ export async function GET() {
     );
   } catch {
     return NextResponse.json(
-      { configured: true, authenticated: false },
+      { configured: true, authenticated: false, source: credentials.source },
       { status: 502, headers: { 'Cache-Control': 'no-store, max-age=0' } }
     );
   }
