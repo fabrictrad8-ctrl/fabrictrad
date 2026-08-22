@@ -7,6 +7,7 @@
 /* Mobile-first: keep the studio focused, thumb-friendly and readable. */
 .drapeSection > div {
   border-radius: 1.25rem;
+  overflow: clip;
 }
 
 .drapeSection > div > header {
@@ -71,6 +72,7 @@
 
 .drapeSection section {
   padding: 1rem !important;
+  scroll-margin-top: 7.5rem;
 }
 
 .drapeSection button,
@@ -204,6 +206,7 @@
 
   .drapeSection section {
     padding: 1.25rem !important;
+    scroll-margin-top: 5rem;
   }
 
   .drapeSection aside button[class*='disabled:cursor-not-allowed'] {
