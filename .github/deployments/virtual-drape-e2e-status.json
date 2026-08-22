@@ -1,9 +1,11 @@
 {
-  "sourceCommit": "1ed7edb129e73797f158e5afdf83358d919b1a8d",
+  "sourceCommit": "b373151541299de83888910b71f3267f2dd7871e",
   "readinessOutcome": "success",
-  "generationOutcome": "failure",
+  "providerGenerationOutcome": "success",
+  "listingGenerationOutcome": "failure",
   "readinessHttp": "200",
-  "generationHttp": "500",
+  "providerHttp": "200",
+  "listingHttp": "500",
   "readiness": {
     "configured": true,
     "mode": "real_ai_image_try_on",
@@ -11,9 +13,32 @@
     "provider": "OpenAI GPT Image",
     "model": "gpt-image-2"
   },
-  "generation": {
+  "providerGeneration": {
+    "provider": "OpenAI",
+    "model": "gpt-image-2",
+    "providerRequestId": "req_01e924eb9a584c34828bed3555b916d6",
+    "fabricReference": {
+      "name": "hahaha",
+      "variantName": null,
+      "imageCount": 1
+    },
+    "analysis": "OpenAI generated a regular fit a premium long-sleeve shirt with a structured collar, buttons, cuffs and anatomically correct seams using the live FabricTrad listing \u201chahaha\u201d. This is a visual sourcing preview; confirm the physical textile before production."
+  },
+  "providerSummary": {
+    "success": true,
+    "provider": "OpenAI",
+    "model": "gpt-image-2",
+    "providerRequestId": "req_01e924eb9a584c34828bed3555b916d6",
+    "fabricReference": {
+      "name": "hahaha",
+      "variantName": null,
+      "imageCount": 1
+    },
+    "imageBytes": 185522,
+    "imageFormat": "jpg"
+  },
+  "listingGeneration": {
     "error": "Unable to load this product for AI try-on.",
     "code": "PRODUCT_LOOKUP_FAILED"
-  },
-  "successSummary": null
+  }
 }
