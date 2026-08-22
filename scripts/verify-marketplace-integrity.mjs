@@ -25,9 +25,13 @@ const requiredFiles = [
   'src/lib/razorpayIntegrity.ts',
   'src/lib/sellerTaxInvoice.ts',
   'src/components/commerce/OrderLifecyclePanel.tsx',
+  'src/app/components/CommerceNotificationFeed.tsx',
+  'src/app/product-detail/components/ProductOrderStatusCard.tsx',
   'src/app/api/razorpay/order/route.ts',
   'src/app/api/razorpay/verify/route.ts',
   'src/app/api/razorpay/webhook/route.ts',
+  'src/app/api/shiprocket/create-order/route.ts',
+  'src/app/api/shiprocket/webhook/route.ts',
   'src/app/api/admin/payments/route.ts',
   'src/app/api/admin/disputes/route.ts',
   'src/app/api/seller/invoices/route.ts',
@@ -70,11 +74,33 @@ requireText('supabase/migrations/20260803070000_refund_locking_and_dispute_secur
 requireText('src/app/api/seller/invoices/route.ts', 'issue_catalog_tax_invoice');
 requireText('src/lib/sellerTaxInvoice.ts', 'GST TAX INVOICE');
 requireText('src/components/commerce/OrderLifecyclePanel.tsx', 'seller_tax_invoices');
+requireText('src/components/commerce/OrderLifecyclePanel.tsx', "orderType: 'catalog'");
 requireText('src/app/seller-dashboard/components/SellerCatalogOrders.tsx', "payment_status !== 'paid'");
 requireText('src/app/seller-dashboard/components/SellerOrders.tsx', "order.payment_status !== 'paid'");
-requireText('src/app/api/shiprocket/create-order/route.ts', "order.payment_status !== 'paid'");
-requireText('src/app/api/shiprocket/create-order/route.ts', "onConflict: 'bulk_order_id'");
+
+// Shiprocket must support both real order types, and neither path can ship before capture.
+requireText('src/app/api/shiprocket/create-order/route.ts', "body.orderType === 'catalog'");
+requireText('src/app/api/shiprocket/create-order/route.ts', "from('catalog_order_requests')");
+requireText('src/app/api/shiprocket/create-order/route.ts', "catalogOrder.payment_status !== 'paid'");
+requireText('src/app/api/shiprocket/create-order/route.ts', "bulkOrder.payment_status !== 'paid'");
+requireText('src/app/api/shiprocket/create-order/route.ts', "onConflict: shipmentLookupColumn");
+requireText('src/app/api/shiprocket/create-order/route.ts', "catalog_order_id: orderType === 'catalog'");
+requireText('src/app/api/shiprocket/webhook/route.ts', 'shipment.catalog_order_id');
+requireText('src/app/api/shiprocket/webhook/route.ts', "status === 'delivered'");
 requireText('supabase/migrations/20260803062500_shipment_upsert_constraints.sql', 'seller_shipments_bulk_order_id_key');
+
+// Accepted orders must expose payment without forcing a buyer to rediscover the dashboard route.
+requireText('src/app/product-detail/page.tsx', '<ProductOrderStatusCard />');
+requireText('src/app/product-detail/components/ProductOrderStatusCard.tsx', '<RazorpayCheckout');
+requireText('src/app/product-detail/components/ProductOrderStatusCard.tsx', "order.status === 'accepted'");
+requireText('src/app/buyer-dashboard/components/BuyerCatalogOrders.tsx', '<RazorpayCheckout');
+
+// Actionable notifications are backed by real persisted commerce notifications.
+requireText('src/app/components/CommerceNotificationFeed.tsx', "from('commerce_notifications')");
+requireText('src/app/components/CommerceNotificationFeed.tsx', "rpc('seller_decide_catalog_order'");
+requireText('src/app/components/CommerceNotificationFeed.tsx', '<RazorpayCheckout');
+requireText('src/app/components/NotificationPreferences.tsx', '<CommerceNotificationFeed mode={mode} />');
+requireText('supabase/migrations/20260822154500_commerce_notifications_and_order_actions.sql', 'commerce_notifications');
 
 // Private, real disputes and administrator-only resolution.
 requireText('src/app/buyer-dashboard/components/DisputeMessaging.tsx', "from('disputes')");
