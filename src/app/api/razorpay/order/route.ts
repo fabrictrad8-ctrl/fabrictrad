@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { rupeesToPaise } from '@/lib/razorpayIntegrity';
+import { getRazorpayCredentials } from '@/lib/razorpayCredentials';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -99,8 +100,8 @@ async function createRazorpayOrder(input: {
   };
   if (response.status === 401) {
     throw new RazorpayOrderError(
-      'Razorpay authentication failed. Check the server-side test credentials.',
-      401,
+      'Razorpay authentication failed. The server payment credentials are invalid or were revoked.',
+      503,
       'RAZORPAY_AUTH_FAILED'
     );
   }
@@ -139,14 +140,14 @@ export async function POST(request: NextRequest) {
   const orderType: OrderType = body.orderType === 'catalog' ? 'catalog' : 'bulk';
   if (!orderId) return json({ error: 'Order reference is required.' }, 400);
 
-  const keyId = process.env.RAZORPAY_KEY_ID?.trim();
-  const keySecret = process.env.RAZORPAY_KEY_SECRET?.trim();
-  if (!keyId || !keySecret) {
+  const credentials = await getRazorpayCredentials();
+  if (!credentials) {
     return json(
       { error: 'Payment service is temporarily unavailable.', code: 'PAYMENT_SERVICE_UNAVAILABLE' },
       503
     );
   }
+  const { keyId, keySecret } = credentials;
 
   const admin = createAdminClient();
   const orderTable = orderType === 'catalog' ? 'catalog_order_requests' : 'bulk_orders';
