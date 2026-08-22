@@ -1,0 +1,287 @@
+.drapeSection {
+  container-name: fabrictrad-drape;
+  container-type: inline-size;
+  scroll-margin-top: 6rem;
+}
+
+/* Mobile-first: keep the studio focused, thumb-friendly and readable. */
+.drapeSection > div {
+  border-radius: 1.25rem;
+}
+
+.drapeSection > div > header {
+  padding: 1rem;
+}
+
+.drapeSection > div > header h2 {
+  font-size: clamp(1.25rem, 5.6vw, 1.75rem);
+  line-height: 1.18;
+}
+
+.drapeSection > div > header p {
+  overflow-wrap: anywhere;
+}
+
+.drapeSection > div > header > div > div:last-child {
+  width: 100%;
+}
+
+.drapeSection > div > header > div > div:last-child p + p {
+  display: none;
+}
+
+/* Mode switch stays reachable while working through a long mobile studio. */
+.drapeSection > div > header + div {
+  position: sticky;
+  top: 4rem;
+  z-index: 25;
+  padding: 0.625rem 0.75rem;
+  box-shadow: 0 10px 28px rgb(15 23 42 / 0.12);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+.drapeSection > div > header + div > div {
+  width: 100%;
+  max-width: none;
+}
+
+.drapeSection > div > header + div button {
+  min-height: 3rem;
+  padding-inline: 0.65rem;
+  font-size: 0.75rem;
+  line-height: 1.15;
+  touch-action: manipulation;
+}
+
+/* Override the xl-only component split. Container queries below decide when it is safe. */
+.drapeSection > div > header + div + div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) !important;
+}
+
+.drapeSection aside,
+.drapeSection section {
+  min-width: 0;
+}
+
+.drapeSection aside {
+  padding: 1rem !important;
+}
+
+.drapeSection section {
+  padding: 1rem !important;
+}
+
+.drapeSection button,
+.drapeSection label {
+  touch-action: manipulation;
+}
+
+.drapeSection button {
+  min-height: 2.75rem;
+}
+
+.drapeSection input[type='checkbox'] {
+  width: 1.25rem;
+  height: 1.25rem;
+  flex: 0 0 auto;
+}
+
+/* Upload/camera and capture controls should be comfortable thumb targets. */
+.drapeSection aside button[class*='btn-secondary'],
+.drapeSection aside button[class*='btn-primary'] {
+  min-height: 3rem;
+}
+
+/* Keep the primary AI action reachable above mobile browser chrome / safe area. */
+.drapeSection aside button[class*='disabled:cursor-not-allowed'] {
+  position: sticky;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 0.65rem);
+  z-index: 16;
+  box-shadow: 0 12px 32px rgb(15 23 42 / 0.22);
+}
+
+/* Mobile camera view should not extend underneath browser controls. */
+.drapeSection video[playsinline] {
+  max-height: 64svh;
+}
+
+/* The empty AI state does not need desktop-height whitespace on phones. */
+.drapeSection section [class*='min-h-[560px]']:not([aria-label]) {
+  min-height: 22rem !important;
+}
+
+/* Generated image remains large enough to inspect without forcing horizontal overflow. */
+.drapeSection section [class*='max-h-[900px]'] {
+  width: min(100%, 38rem);
+  max-height: 78svh !important;
+}
+
+.drapeSection section img {
+  max-width: 100%;
+}
+
+/* Compact 3D overlays so they do not cover the garment on small screens. */
+.drapeSection [class*='pointer-events-none'][class*='absolute'][class*='top-4'][class*='left-4'] {
+  left: 0.5rem !important;
+  top: 0.5rem !important;
+  max-width: calc(100% - 1rem);
+  padding: 0.4rem 0.6rem !important;
+  font-size: 0.55rem !important;
+  letter-spacing: 0.06em !important;
+  white-space: normal;
+}
+
+.drapeSection [class*='pointer-events-none'][class*='absolute'][class*='bottom-4'][class*='left-4'][class*='right-4'] {
+  left: 0.5rem !important;
+  right: 0.5rem !important;
+  bottom: 0.5rem !important;
+  padding: 0.55rem 0.65rem !important;
+  font-size: 0.65rem !important;
+  line-height: 1.35 !important;
+}
+
+@media (max-width: 390px) {
+  .drapeSection > div > header + div button {
+    padding-inline: 0.4rem;
+    font-size: 0.7rem;
+  }
+
+  .drapeSection aside > div[class*='grid-cols-2'] {
+    gap: 0.45rem;
+  }
+
+  .drapeSection aside button {
+    padding-inline: 0.55rem;
+  }
+}
+
+/* Tablet / roomy embedded panel: controls and preview can finally sit side by side. */
+@container fabrictrad-drape (min-width: 720px) {
+  .drapeSection > div {
+    border-radius: 1.6rem;
+  }
+
+  .drapeSection > div > header {
+    padding: 1.4rem 1.5rem;
+  }
+
+  .drapeSection > div > header > div > div:last-child {
+    width: auto;
+    min-width: 12rem;
+  }
+
+  .drapeSection > div > header > div > div:last-child p + p {
+    display: block;
+  }
+
+  .drapeSection > div > header + div {
+    position: static;
+    padding: 0.8rem 1.5rem;
+    box-shadow: none;
+  }
+
+  .drapeSection > div > header + div > div {
+    max-width: 38rem;
+  }
+
+  .drapeSection > div > header + div button {
+    padding-inline: 1rem;
+    font-size: 0.8rem;
+  }
+
+  .drapeSection > div > header + div + div {
+    grid-template-columns: minmax(17.5rem, 20rem) minmax(0, 1fr) !important;
+    align-items: stretch;
+  }
+
+  .drapeSection aside {
+    border-right: 1px solid rgb(148 163 184 / 0.22);
+    border-bottom: 0 !important;
+    padding: 1.25rem !important;
+  }
+
+  .drapeSection section {
+    padding: 1.25rem !important;
+  }
+
+  .drapeSection aside button[class*='disabled:cursor-not-allowed'] {
+    position: static;
+    box-shadow: none;
+  }
+
+  .drapeSection section [class*='min-h-[560px]']:not([aria-label]) {
+    min-height: 28rem !important;
+  }
+
+  .drapeSection [class*='pointer-events-none'][class*='absolute'][class*='top-4'][class*='left-4'] {
+    left: 1rem !important;
+    top: 1rem !important;
+    max-width: none;
+    padding: 0.375rem 0.75rem !important;
+    font-size: 0.625rem !important;
+    letter-spacing: 0.08em !important;
+    white-space: nowrap;
+  }
+
+  .drapeSection [class*='pointer-events-none'][class*='absolute'][class*='bottom-4'][class*='left-4'][class*='right-4'] {
+    left: 1rem !important;
+    right: 1rem !important;
+    bottom: 1rem !important;
+    padding: 0.75rem !important;
+    font-size: 0.75rem !important;
+    line-height: 1.25rem !important;
+  }
+}
+
+/* Wide laptop / desktop workspace: preserve more room for the controls and result. */
+@container fabrictrad-drape (min-width: 940px) {
+  .drapeSection > div {
+    border-radius: 2rem;
+  }
+
+  .drapeSection > div > header {
+    padding: 1.5rem 2rem;
+  }
+
+  .drapeSection > div > header > div {
+    flex-direction: row;
+    align-items: flex-start;
+    justify-content: space-between;
+  }
+
+  .drapeSection > div > header + div {
+    padding-inline: 2rem;
+  }
+
+  .drapeSection > div > header + div + div {
+    grid-template-columns: 23rem minmax(0, 1fr) !important;
+  }
+
+  .drapeSection aside {
+    position: sticky;
+    top: 5rem;
+    align-self: start;
+    max-height: calc(100svh - 6rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 1.5rem !important;
+    scrollbar-width: thin;
+  }
+
+  .drapeSection section {
+    padding: 1.75rem !important;
+  }
+}
+
+/* Large desktop: give the generated image/3D canvas breathing room without stretching controls. */
+@container fabrictrad-drape (min-width: 1180px) {
+  .drapeSection > div > header + div + div {
+    grid-template-columns: 24rem minmax(0, 1fr) !important;
+  }
+
+  .drapeSection section {
+    padding: 2rem !important;
+  }
+}
