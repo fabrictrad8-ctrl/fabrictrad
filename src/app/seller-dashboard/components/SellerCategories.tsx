@@ -1,350 +1,182 @@
 'use client';
-import React, { useState } from 'react';
+
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import Icon from '@/components/ui/AppIcon';
+import { useAuth } from '@/contexts/AuthContext';
+import { createClient } from '@/lib/supabase/client';
 
-interface Subcategory {
+type ProductRow = {
   id: string;
   name: string;
-  productCount: number;
-}
+  category: string | null;
+  status: string;
+  approval_status: string | null;
+};
 
-interface Category {
-  id: string;
+type CategorySummary = {
   name: string;
-  icon: string;
-  subcategories: Subcategory[];
-  expanded: boolean;
-}
+  total: number;
+  live: number;
+  drafts: number;
+  archived: number;
+};
 
-const DEFAULT_CATEGORIES: Category[] = [
-  {
-    id: 'cat-1',
-    name: 'Fabric',
-    icon: '🧵',
-    expanded: true,
-    subcategories: [
-      { id: 'sub-1', name: 'Pure Silk', productCount: 12 },
-      { id: 'sub-2', name: 'Cotton & Linen', productCount: 8 },
-      { id: 'sub-3', name: 'Net & Netting', productCount: 15 },
-      { id: 'sub-4', name: 'Georgette', productCount: 6 },
-      { id: 'sub-5', name: 'Embroidered', productCount: 9 },
-    ],
-  },
-  {
-    id: 'cat-2',
-    name: 'Farma',
-    icon: '🌿',
-    expanded: false,
-    subcategories: [
-      { id: 'sub-6', name: 'Natural Dyes', productCount: 4 },
-      { id: 'sub-7', name: 'Organic Cotton', productCount: 3 },
-    ],
-  },
+const COMMON_CATEGORIES = [
+  'Cotton', 'Silk', 'Banarasi Silk', 'Raw Silk', 'Chanderi', 'Georgette', 'Chiffon',
+  'Organza', 'Velvet', 'Linen', 'Denim', 'Wool', 'Satin', 'Crepe', 'Rayon', 'Viscose',
+  'Polyester', 'Nylon', 'Net & Netting', 'Lace', 'Khadi', 'Handloom', 'Muslin', 'Twill',
+  'Jacquard', 'Brocade', 'Modal', 'Lyocell', 'Jersey', 'Fleece', 'Canvas', 'Corduroy',
+  'Poplin', 'Saree', 'Sherwani', 'Jodhpuri', 'Indo-Western', 'Lehenga', 'Kurta',
+  'Shirting', 'Suiting', 'Menswear', 'Womenswear', 'Kidswear', 'Accessory', 'Other',
 ];
 
 export default function SellerCategories() {
-  const [categories, setCategories] = useState<Category[]>(DEFAULT_CATEGORIES);
-  const [showAddCategory, setShowAddCategory] = useState(false);
-  const [newCategoryName, setNewCategoryName] = useState('');
-  const [newCategoryIcon, setNewCategoryIcon] = useState('📦');
-  const [addingSubcatFor, setAddingSubcatFor] = useState<string | null>(null);
-  const [newSubcatName, setNewSubcatName] = useState('');
-  const [editingCatId, setEditingCatId] = useState<string | null>(null);
-  const [editingCatName, setEditingCatName] = useState('');
+  const { user } = useAuth();
+  const [products, setProducts] = useState<ProductRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [query, setQuery] = useState('');
 
-  const ICON_OPTIONS = ['🧵', '🌿', '👗', '🎨', '📦', '💎', '🌸', '🏭', '🧶', '✂️'];
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    if (!user?.id) {
+      setProducts([]);
+      setLoading(false);
+      return;
+    }
 
-  const toggleExpand = (catId: string) => {
-    setCategories((prev) =>
-      prev.map((c) => (c.id === catId ? { ...c, expanded: !c.expanded } : c))
-    );
-  };
+    const supabase = createClient();
+    const { data: seller, error: sellerError } = await supabase
+      .from('seller_profiles')
+      .select('id')
+      .eq('user_id', user.id)
+      .maybeSingle();
+    if (sellerError || !seller?.id) {
+      setError(sellerError?.message || 'Seller profile is not available.');
+      setProducts([]);
+      setLoading(false);
+      return;
+    }
 
-  const handleAddCategory = () => {
-    if (!newCategoryName.trim()) return;
-    const newCat: Category = {
-      id: `cat-${Date.now()}`,
-      name: newCategoryName.trim(),
-      icon: newCategoryIcon,
-      expanded: true,
-      subcategories: [],
-    };
-    setCategories((prev) => [...prev, newCat]);
-    setNewCategoryName('');
-    setNewCategoryIcon('📦');
-    setShowAddCategory(false);
-  };
+    const { data, error: productError } = await supabase
+      .from('seller_products')
+      .select('id,name,category,status,approval_status')
+      .eq('seller_id', seller.id)
+      .order('updated_at', { ascending: false });
+    if (productError) {
+      setError(productError.message);
+      setProducts([]);
+    } else {
+      setProducts((data || []) as ProductRow[]);
+    }
+    setLoading(false);
+  }, [user?.id]);
 
-  const handleDeleteCategory = (catId: string) => {
-    setCategories((prev) => prev.filter((c) => c.id !== catId));
-  };
+  useEffect(() => {
+    void load();
+  }, [load]);
 
-  const handleAddSubcategory = (catId: string) => {
-    if (!newSubcatName.trim()) return;
-    const newSub: Subcategory = {
-      id: `sub-${Date.now()}`,
-      name: newSubcatName.trim(),
-      productCount: 0,
-    };
-    setCategories((prev) =>
-      prev.map((c) => (c.id === catId ? { ...c, subcategories: [...c.subcategories, newSub] } : c))
-    );
-    setNewSubcatName('');
-    setAddingSubcatFor(null);
-  };
-
-  const handleDeleteSubcategory = (catId: string, subId: string) => {
-    setCategories((prev) =>
-      prev.map((c) =>
-        c.id === catId ? { ...c, subcategories: c.subcategories.filter((s) => s.id !== subId) } : c
-      )
-    );
-  };
-
-  const handleSaveEditCategory = (catId: string) => {
-    if (!editingCatName.trim()) return;
-    setCategories((prev) =>
-      prev.map((c) => (c.id === catId ? { ...c, name: editingCatName.trim() } : c))
-    );
-    setEditingCatId(null);
-    setEditingCatName('');
-  };
-
-  const totalProducts = categories.reduce(
-    (sum, c) => sum + c.subcategories.reduce((s, sub) => s + sub.productCount, 0),
-    0
-  );
+  const categories = useMemo(() => {
+    const grouped = new Map<string, CategorySummary>();
+    products.forEach((product) => {
+      const name = String(product.category || 'Other').trim() || 'Other';
+      const current = grouped.get(name) || { name, total: 0, live: 0, drafts: 0, archived: 0 };
+      current.total += 1;
+      if (product.status === 'active' && product.approval_status === 'approved') current.live += 1;
+      else if (product.status === 'draft') current.drafts += 1;
+      else if (product.status === 'archived') current.archived += 1;
+      grouped.set(name, current);
+    });
+    const normalized = query.trim().toLowerCase();
+    return [...grouped.values()]
+      .filter((category) => !normalized || category.name.toLowerCase().includes(normalized))
+      .sort((a, b) => b.total - a.total || a.name.localeCompare(b.name));
+  }, [products, query]);
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-6">
+    <div className="space-y-5">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-xl font-800 text-foreground">Product Categories</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            {categories.length} categories · {totalProducts} products
+          <p className="ft-route-kicker">Categories</p>
+          <h1 className="mt-1 text-2xl font-800 text-foreground">Live product categories</h1>
+          <p className="mt-1 max-w-2xl text-sm leading-6 text-muted-foreground">
+            These counts come directly from your actual seller products. Categories are product labels, so changing a product category immediately updates this page and the marketplace.
           </p>
         </div>
-        <button
-          onClick={() => setShowAddCategory(true)}
-          className="btn-primary px-4 py-2 text-sm rounded-xl flex items-center gap-2"
-        >
-          <Icon name="PlusIcon" size={16} />
-          Add Category
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <Link href="/seller-product-rules" className="ft-secondary-action inline-flex items-center gap-2 px-4 py-2.5 text-xs">
+            <Icon name="AdjustmentsHorizontalIcon" size={15} /> Buyer rules & tax
+          </Link>
+          <Link href="/seller-dashboard?tab=inventory" className="ft-primary-action inline-flex items-center gap-2 px-4 py-2.5 text-xs">
+            <Icon name="PencilSquareIcon" size={15} /> Edit product categories
+          </Link>
+        </div>
       </div>
 
-      {/* Add Category Form */}
-      {showAddCategory && (
-        <div className="bg-card border border-primary/30 rounded-2xl p-4 mb-4">
-          <h3 className="text-sm font-700 text-foreground mb-3">New Category</h3>
-          <div className="flex items-center gap-3 mb-3">
-            <div>
-              <p className="text-xs font-600 text-muted-foreground mb-1.5">Icon</p>
-              <div className="flex flex-wrap gap-1.5">
-                {ICON_OPTIONS.map((icon) => (
-                  <button
-                    key={icon}
-                    onClick={() => setNewCategoryIcon(icon)}
-                    className={`w-8 h-8 rounded-lg text-lg flex items-center justify-center border transition-all ${
-                      newCategoryIcon === icon
-                        ? 'border-primary bg-primary/10'
-                        : 'border-border bg-muted hover:border-primary/50'
-                    }`}
-                  >
-                    {icon}
-                  </button>
-                ))}
+      <section className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
+        <div className="flex items-start gap-3">
+          <Icon name="InformationCircleIcon" size={20} className="mt-0.5 text-primary" />
+          <div>
+            <p className="text-sm font-800 text-foreground">You are not limited to “Other”.</p>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">
+              The product editor now shows a real dropdown with common textile and apparel categories, plus a Custom category option. Existing products can be changed from Products → Edit.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm font-800 text-foreground">Your catalogue structure</p>
+            <p className="mt-1 text-xs text-muted-foreground">{products.length} real product{products.length === 1 ? '' : 's'} across {new Set(products.map((product) => String(product.category || 'Other').trim() || 'Other')).size} categor{new Set(products.map((product) => String(product.category || 'Other').trim() || 'Other')).size === 1 ? 'y' : 'ies'}.</p>
+          </div>
+          <div className="flex min-h-10 min-w-[220px] items-center gap-2 rounded-xl border border-border bg-muted/40 px-3">
+            <Icon name="MagnifyingGlassIcon" size={16} className="text-muted-foreground" />
+            <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search categories" className="min-w-0 flex-1 bg-transparent text-sm outline-none" />
+          </div>
+        </div>
+      </div>
+
+      {error && <div className="rounded-2xl border border-error/20 bg-error/5 p-4 text-sm text-error">{error}</div>}
+
+      {loading ? (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 3 }).map((_, index) => <div key={index} className="h-36 animate-pulse rounded-2xl border border-border bg-muted" />)}
+        </div>
+      ) : categories.length ? (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {categories.map((category) => (
+            <article key={category.name} className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0"><p className="truncate text-base font-800 text-foreground">{category.name}</p><p className="mt-1 text-xs text-muted-foreground">{category.total} product{category.total === 1 ? '' : 's'}</p></div>
+                <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-800 text-primary">{category.live} live</span>
               </div>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <input
-              type="text"
-              value={newCategoryName}
-              onChange={(e) => setNewCategoryName(e.target.value)}
-              placeholder="Category name (e.g. Fabric, Farma, Accessories)"
-              className="input-base flex-1 px-3 py-2.5 text-sm rounded-xl"
-              onKeyDown={(e) => e.key === 'Enter' && handleAddCategory()}
-            />
-            <button
-              onClick={handleAddCategory}
-              className="btn-primary px-4 py-2.5 text-sm rounded-xl"
-            >
-              Add
-            </button>
-            <button
-              onClick={() => setShowAddCategory(false)}
-              className="btn-secondary px-4 py-2.5 text-sm rounded-xl"
-            >
-              Cancel
-            </button>
-          </div>
+              <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+                <div className="rounded-xl bg-success/10 p-2"><p className="text-lg font-800 text-success">{category.live}</p><p className="text-[10px] text-muted-foreground">Live</p></div>
+                <div className="rounded-xl bg-warning/10 p-2"><p className="text-lg font-800 text-warning">{category.drafts}</p><p className="text-[10px] text-muted-foreground">Draft</p></div>
+                <div className="rounded-xl bg-muted p-2"><p className="text-lg font-800 text-foreground">{category.archived}</p><p className="text-[10px] text-muted-foreground">Archived</p></div>
+              </div>
+              <Link href={`/seller-dashboard?tab=inventory`} className="mt-4 inline-flex items-center gap-1 text-xs font-800 text-primary hover:underline">Manage products <Icon name="ArrowRightIcon" size={13} /></Link>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <div className="rounded-2xl border border-dashed border-border bg-card px-5 py-10 text-center">
+          <Icon name="Squares2X2Icon" size={32} className="mx-auto text-muted-foreground" />
+          <p className="mt-3 text-sm font-800 text-foreground">{products.length ? 'No categories match your search' : 'No product categories yet'}</p>
+          <p className="mt-1 text-xs text-muted-foreground">Add or edit a product to create category labels.</p>
         </div>
       )}
 
-      {/* Category List */}
-      <div className="space-y-3">
-        {categories.map((cat) => (
-          <div key={cat.id} className="bg-card rounded-2xl border border-border overflow-hidden">
-            {/* Category Header */}
-            <div className="flex items-center gap-3 p-4">
-              <button
-                onClick={() => toggleExpand(cat.id)}
-                className="flex items-center gap-3 flex-1 text-left"
-              >
-                <span className="text-xl">{cat.icon}</span>
-                {editingCatId === cat.id ? (
-                  <input
-                    type="text"
-                    value={editingCatName}
-                    onChange={(e) => setEditingCatName(e.target.value)}
-                    className="input-base px-2 py-1 text-sm rounded-lg flex-1"
-                    onClick={(e) => e.stopPropagation()}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') handleSaveEditCategory(cat.id);
-                      if (e.key === 'Escape') setEditingCatId(null);
-                    }}
-                    autoFocus
-                  />
-                ) : (
-                  <div className="flex-1">
-                    <p className="font-700 text-foreground">{cat.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {cat.subcategories.length} subcategories ·{' '}
-                      {cat.subcategories.reduce((s, sub) => s + sub.productCount, 0)} products
-                    </p>
-                  </div>
-                )}
-                <Icon
-                  name={cat.expanded ? 'ChevronUpIcon' : 'ChevronDownIcon'}
-                  size={16}
-                  className="text-muted-foreground shrink-0"
-                />
-              </button>
-              <div className="flex items-center gap-1">
-                {editingCatId === cat.id ? (
-                  <>
-                    <button
-                      onClick={() => handleSaveEditCategory(cat.id)}
-                      className="p-1.5 rounded-lg bg-success/10 text-success hover:bg-success/20 transition-colors"
-                    >
-                      <Icon name="CheckIcon" size={14} />
-                    </button>
-                    <button
-                      onClick={() => setEditingCatId(null)}
-                      className="p-1.5 rounded-lg bg-muted text-muted-foreground hover:bg-muted/80 transition-colors"
-                    >
-                      <Icon name="XMarkIcon" size={14} />
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <button
-                      onClick={() => {
-                        setEditingCatId(cat.id);
-                        setEditingCatName(cat.name);
-                      }}
-                      className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground"
-                    >
-                      <Icon name="PencilSquareIcon" size={14} />
-                    </button>
-                    <button
-                      onClick={() => handleDeleteCategory(cat.id)}
-                      className="p-1.5 rounded-lg hover:bg-error/10 transition-colors text-muted-foreground hover:text-error"
-                    >
-                      <Icon name="TrashIcon" size={14} />
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
-
-            {/* Subcategories */}
-            {cat.expanded && (
-              <div className="border-t border-border">
-                {cat.subcategories.map((sub) => (
-                  <div
-                    key={sub.id}
-                    className="flex items-center gap-3 px-4 py-2.5 border-b border-border/50 last:border-b-0 hover:bg-muted/30 transition-colors"
-                  >
-                    <div className="w-1.5 h-1.5 rounded-full bg-muted-foreground/40 ml-6 shrink-0" />
-                    <span className="text-sm text-foreground flex-1">{sub.name}</span>
-                    <span className="text-xs text-muted-foreground">
-                      {sub.productCount} products
-                    </span>
-                    <button
-                      onClick={() => handleDeleteSubcategory(cat.id, sub.id)}
-                      className="p-1 rounded-lg hover:bg-error/10 transition-colors text-muted-foreground hover:text-error"
-                    >
-                      <Icon name="XMarkIcon" size={13} />
-                    </button>
-                  </div>
-                ))}
-
-                {/* Add Subcategory */}
-                {addingSubcatFor === cat.id ? (
-                  <div className="flex items-center gap-2 px-4 py-2.5 bg-muted/30">
-                    <div className="w-1.5 h-1.5 rounded-full bg-primary ml-6 shrink-0" />
-                    <input
-                      type="text"
-                      value={newSubcatName}
-                      onChange={(e) => setNewSubcatName(e.target.value)}
-                      placeholder="Subcategory name..."
-                      className="input-base flex-1 px-3 py-1.5 text-sm rounded-lg"
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') handleAddSubcategory(cat.id);
-                        if (e.key === 'Escape') setAddingSubcatFor(null);
-                      }}
-                      autoFocus
-                    />
-                    <button
-                      onClick={() => handleAddSubcategory(cat.id)}
-                      className="btn-primary px-3 py-1.5 text-xs rounded-lg"
-                    >
-                      Add
-                    </button>
-                    <button
-                      onClick={() => setAddingSubcatFor(null)}
-                      className="btn-secondary px-3 py-1.5 text-xs rounded-lg"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => {
-                      setAddingSubcatFor(cat.id);
-                      setNewSubcatName('');
-                    }}
-                    className="flex items-center gap-2 px-4 py-2.5 w-full text-left hover:bg-muted/30 transition-colors text-xs text-primary font-600"
-                  >
-                    <Icon name="PlusIcon" size={13} />
-                    <span className="ml-6">Add Subcategory</span>
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
-
-      {categories.length === 0 && (
-        <div className="text-center py-12 bg-card rounded-2xl border border-border">
-          <div className="w-12 h-12 rounded-2xl bg-muted flex items-center justify-center mx-auto mb-3">
-            <Icon name="TagIcon" size={24} className="text-muted-foreground" />
-          </div>
-          <p className="text-sm font-700 text-foreground mb-1">No categories yet</p>
-          <p className="text-xs text-muted-foreground mb-4">
-            Create your first product category to organise your inventory
-          </p>
-          <button
-            onClick={() => setShowAddCategory(true)}
-            className="btn-primary px-4 py-2 text-sm rounded-xl"
-          >
-            Add First Category
-          </button>
+      <section className="rounded-2xl border border-border bg-card p-5">
+        <p className="text-sm font-800 text-foreground">Common category choices available in the editor</p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {COMMON_CATEGORIES.map((category) => <span key={category} className="rounded-full border border-border bg-muted/40 px-2.5 py-1 text-xs text-muted-foreground">{category}</span>)}
         </div>
-      )}
+      </section>
     </div>
   );
 }
