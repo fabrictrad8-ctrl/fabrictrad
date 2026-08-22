@@ -30,7 +30,10 @@ const safeEqual = (left: string, right: string) => {
 
 export async function POST(request: NextRequest) {
   const expectedToken = process.env.SHIPROCKET_WEBHOOK_TOKEN;
-  if (!expectedToken || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+  const hasSupabaseServerSecret = Boolean(
+    process.env.SUPABASE_SECRET_KEY?.trim() || process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()
+  );
+  if (!expectedToken || !hasSupabaseServerSecret) {
     return NextResponse.json({ error: 'Webhook is not configured.' }, { status: 503 });
   }
 
