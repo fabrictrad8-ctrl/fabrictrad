@@ -1,45 +1,82 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import Link from 'next/link';
 import BuyerOnlyGuard from '@/components/BuyerOnlyGuard';
 import AppImage from '@/components/ui/AppImage';
 import Icon from '@/components/ui/AppIcon';
+import { createClient } from '@/lib/supabase/client';
 
-const categories = [
-  { id: 'net-embroidered', name: 'Net & Embroidered', description: 'Soft net, sequin, handwork and zari embroidered fabrics', count: 240, icon: '🪡', image: 'https://images.unsplash.com/photo-1514830482894-94795a87f997?w=900&auto=format&fit=crop', href: '/marketplace?category=net-embroidered' },
-  { id: 'cotton', name: 'Cotton & Cambric', description: 'Pure cotton, cambric, khadi and handloom cotton varieties', count: 380, icon: '🌿', image: 'https://img.rocket.new/generatedImages/rocket_gen_img_197569977-1767988369489.png', href: '/marketplace?category=cotton' },
-  { id: 'silk', name: 'Silk & Brocade', description: 'Banarasi silk, brocade, raw silk, dupion and tussar', count: 165, icon: '✨', image: 'https://img.rocket.new/generatedImages/rocket_gen_img_13e79a640-1775554509083.png', href: '/marketplace?category=silk' },
-  { id: 'georgette-chiffon', name: 'Georgette & Chiffon', description: 'Georgette, chiffon, crepe, digital print and plain fabrics', count: 290, icon: '🌸', image: 'https://img.rocket.new/generatedImages/rocket_gen_img_1a15cecc6-1766283014372.png', href: '/marketplace?category=georgette' },
-  { id: 'polyester', name: 'Polyester & Synthetic', description: 'Polyester crepe, satin, lycra and blended fabrics', count: 420, icon: '🔷', image: 'https://img.rocket.new/generatedImages/rocket_gen_img_1dfa765bb-1772211451367.png', href: '/marketplace?category=polyester' },
-  { id: 'linen', name: 'Linen & Jute', description: 'Pure linen, linen slub, jute and natural fibre fabrics', count: 130, icon: '🌾', image: 'https://img.rocket.new/generatedImages/rocket_gen_img_186b88c42-1772146413683.png', href: '/marketplace?category=linen' },
-  { id: 'velvet', name: 'Velvet & Velour', description: 'Crushed velvet, velour, velvet brocade and stretch velvet', count: 95, icon: '◆', image: 'https://images.unsplash.com/photo-1556354148-58e886e0c4ec?w=900&auto=format&fit=crop', href: '/marketplace?category=velvet' },
-  { id: 'denim-suiting', name: 'Denim & Suiting', description: 'Stretch denim, wool suiting, tweed and formal fabrics', count: 175, icon: '👔', image: 'https://img.rocket.new/generatedImages/rocket_gen_img_19faec2de-1775604046124.png', href: '/marketplace?category=denim' },
-  { id: 'organza', name: 'Organza & Sheer', description: 'Organza, tissue, sequin organza and sheer fabrics', count: 110, icon: '◌', image: 'https://img.rocket.new/generatedImages/rocket_gen_img_1807e8cd1-1771579098647.png', href: '/marketplace?category=organza' },
-  { id: 'wool-blends', name: 'Wool & Blends', description: 'Wool, wool-polyester blends, acrylic and winter fabrics', count: 88, icon: '🐑', image: 'https://img.rocket.new/generatedImages/rocket_gen_img_188a3fd77-1767716579419.png', href: '/marketplace?category=wool' },
-  { id: 'digital-print', name: 'Digital Print', description: 'Digitally printed chiffon, georgette, cotton and satin', count: 320, icon: '◫', image: 'https://images.unsplash.com/photo-1642761653048-d8daeea2d97b?w=900&auto=format&fit=crop', href: '/marketplace?category=digital-print' },
-  { id: 'khadi-handloom', name: 'Khadi & Handloom', description: 'Handloom khadi, block-print-ready and artisan woven fabrics', count: 72, icon: '🧵', image: 'https://img.rocket.new/generatedImages/rocket_gen_img_11953b441-1772872649342.png', href: '/marketplace?category=khadi' },
-];
+type LiveCategory = {
+  name: string;
+  count: number;
+  image: string | null;
+};
 
 type SortMode = 'popular' | 'alphabetical' | 'largest';
 
 export default function CategoriesPage() {
+  const [categories, setCategories] = useState<LiveCategory[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<SortMode>('popular');
 
+  const loadCategories = async () => {
+    setLoading(true);
+    setError('');
+    const supabase = createClient();
+    const { data, error: productError } = await supabase
+      .from('seller_products')
+      .select('id,category,image_url,updated_at')
+      .eq('status', 'active')
+      .eq('approval_status', 'approved')
+      .gt('available_quantity', 0)
+      .order('updated_at', { ascending: false });
+
+    if (productError) {
+      setCategories([]);
+      setError('Live categories could not be loaded.');
+      setLoading(false);
+      return;
+    }
+
+    const grouped = new Map<string, LiveCategory>();
+    (data || []).forEach((product) => {
+      const name = String(product.category || 'Other').trim() || 'Other';
+      const current = grouped.get(name);
+      if (current) {
+        current.count += 1;
+        if (!current.image && product.image_url) current.image = product.image_url;
+      } else {
+        grouped.set(name, {
+          name,
+          count: 1,
+          image: product.image_url || null,
+        });
+      }
+    });
+
+    setCategories([...grouped.values()]);
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    void loadCategories();
+  }, []);
+
   const visibleCategories = useMemo(() => {
     const normalized = query.trim().toLowerCase();
-    const filtered = categories.filter((category) =>
-      !normalized || `${category.name} ${category.description}`.toLowerCase().includes(normalized)
+    const filtered = categories.filter(
+      (category) => !normalized || category.name.toLowerCase().includes(normalized)
     );
     return [...filtered].sort((a, b) => {
       if (sort === 'alphabetical') return a.name.localeCompare(b.name);
-      if (sort === 'largest') return b.count - a.count;
-      return categories.findIndex((item) => item.id === a.id) - categories.findIndex((item) => item.id === b.id);
+      return b.count - a.count || a.name.localeCompare(b.name);
     });
-  }, [query, sort]);
+  }, [categories, query, sort]);
 
   const totalProducts = categories.reduce((total, category) => total + category.count, 0);
 
@@ -51,10 +88,12 @@ export default function CategoriesPage() {
           <section className="ft-route-hero px-4 py-12 sm:px-6 lg:px-8 lg:py-16">
             <div className="relative z-10 mx-auto max-w-[1440px]">
               <div className="max-w-3xl">
-                <p className="ft-route-kicker">Fabric catalogue</p>
-                <h1 className="ft-route-title mt-3">Browse every fabric family in one organised marketplace.</h1>
+                <p className="ft-route-kicker">Live fabric catalogue</p>
+                <h1 className="ft-route-title mt-3">Browse categories that sellers actually have live now.</h1>
                 <p className="mt-4 max-w-2xl text-sm leading-7 text-muted-foreground sm:text-base">
-                  Explore {totalProducts.toLocaleString('en-IN')}+ listings across {categories.length} categories, then narrow by colour, work type, state, price, stock and minimum order quantity.
+                  {loading
+                    ? 'Loading approved marketplace inventory…'
+                    : `${totalProducts.toLocaleString('en-IN')} approved live ${totalProducts === 1 ? 'listing' : 'listings'} across ${categories.length} ${categories.length === 1 ? 'category' : 'categories'}.`}
                 </p>
               </div>
               <div className="mt-7 flex flex-wrap gap-3">
@@ -76,7 +115,7 @@ export default function CategoriesPage() {
                   type="search"
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
-                  placeholder="Search categories or fabric types"
+                  placeholder="Search live categories"
                   className="min-w-0 flex-1 bg-transparent px-3 text-sm outline-none"
                 />
                 {query && (
@@ -88,32 +127,52 @@ export default function CategoriesPage() {
               <label className="flex min-w-[190px] items-center gap-2 text-xs font-750 text-muted-foreground">
                 Sort
                 <select value={sort} onChange={(event) => setSort(event.target.value as SortMode)} className="ft-filter-control flex-1 px-3 text-sm">
-                  <option value="popular">Recommended</option>
+                  <option value="popular">Most live products</option>
                   <option value="largest">Most products</option>
                   <option value="alphabetical">A–Z</option>
                 </select>
               </label>
-              <span className="ft-orange-chip">{visibleCategories.length} categories</span>
+              <span className="ft-orange-chip">{visibleCategories.length} live categories</span>
             </div>
 
-            {visibleCategories.length ? (
+            {error && (
+              <div role="alert" className="mb-5 flex items-center justify-between rounded-2xl border border-error/20 bg-error/10 p-4 text-sm text-error">
+                <span>{error}</span>
+                <button type="button" onClick={() => void loadCategories()} className="font-800 underline">Retry</button>
+              </div>
+            )}
+
+            {loading ? (
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {Array.from({ length: 4 }).map((_, index) => (
+                  <div key={index} className="h-64 animate-pulse rounded-2xl border border-border bg-muted" />
+                ))}
+              </div>
+            ) : visibleCategories.length ? (
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {visibleCategories.map((category) => (
-                  <Link key={category.id} href={category.href} className="ft-resource-card group overflow-hidden">
-                    <div className="ft-resource-image relative aspect-[16/10] overflow-hidden">
-                      <AppImage
-                        src={category.image}
-                        alt={`${category.name} fabric category`}
-                        fill
-                        sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
-                        className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
-                      />
+                  <Link
+                    key={category.name}
+                    href={`/marketplace?category=${encodeURIComponent(category.name)}`}
+                    className="ft-resource-card group overflow-hidden"
+                  >
+                    <div className="ft-resource-image relative aspect-[16/10] overflow-hidden bg-muted">
+                      {category.image ? (
+                        <AppImage
+                          src={category.image}
+                          alt={`${category.name} live product`}
+                          fill
+                          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
+                          className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+                        />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center text-4xl font-800 text-muted-foreground/40">
+                          {category.name.slice(0, 1).toUpperCase()}
+                        </div>
+                      )}
                       <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/5 to-transparent" />
-                      <div className="absolute bottom-3 left-3 flex h-10 w-10 items-center justify-center rounded-xl border border-white/25 bg-black/25 text-xl text-white backdrop-blur-md">
-                        {category.icon}
-                      </div>
                       <span className="absolute right-3 top-3 rounded-full border border-white/30 bg-black/30 px-2.5 py-1 text-xs font-750 text-white backdrop-blur-md">
-                        {category.count}+ products
+                        {category.count} live {category.count === 1 ? 'product' : 'products'}
                       </span>
                     </div>
                     <div className="p-4">
@@ -121,7 +180,9 @@ export default function CategoriesPage() {
                         <h2 className="text-base font-800 text-foreground group-hover:text-primary">{category.name}</h2>
                         <Icon name="ArrowUpRightIcon" size={17} className="mt-0.5 shrink-0 text-muted-foreground group-hover:text-primary" />
                       </div>
-                      <p className="mt-2 text-sm leading-6 text-muted-foreground">{category.description}</p>
+                      <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                        Derived directly from approved seller inventory currently available on FabricTrad.
+                      </p>
                     </div>
                   </Link>
                 ))}
@@ -129,24 +190,14 @@ export default function CategoriesPage() {
             ) : (
               <div className="ft-card ft-empty-state">
                 <div>
-                  <Icon name="MagnifyingGlassIcon" size={34} className="mx-auto text-primary" />
-                  <h2 className="mt-4 text-lg font-800">No categories match “{query}”</h2>
-                  <p className="mt-2 text-sm text-muted-foreground">Try a broader fabric name or open the full marketplace.</p>
-                  <button type="button" onClick={() => setQuery('')} className="ft-primary-action mt-5 px-5 py-2.5 text-sm">Clear search</button>
+                  <Icon name="Squares2X2Icon" size={34} className="mx-auto text-primary" />
+                  <h2 className="mt-4 text-lg font-800">{categories.length ? `No categories match “${query}”` : 'No live categories yet'}</h2>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    {categories.length ? 'Try a broader category name.' : 'Categories appear automatically when approved seller products are live and in stock.'}
+                  </p>
                 </div>
               </div>
             )}
-
-            <div className="mt-8 grid gap-4 lg:grid-cols-[1fr_auto] lg:items-center rounded-2xl border border-primary/20 bg-primary/5 p-6 sm:p-8">
-              <div>
-                <p className="ft-route-kicker">Sell on FabricTrad</p>
-                <h2 className="mt-2 text-2xl font-800 tracking-tight text-foreground">Have fabrics buyers should discover?</h2>
-                <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">Activate selling on the same account, upload colour-level stock and pricing, and manage orders from the seller workspace.</p>
-              </div>
-              <Link href="/seller-registration" className="ft-primary-action inline-flex items-center justify-center gap-2 px-5 py-3 text-sm">
-                Activate selling <Icon name="ArrowRightIcon" size={16} />
-              </Link>
-            </div>
           </section>
         </div>
         <Footer />
