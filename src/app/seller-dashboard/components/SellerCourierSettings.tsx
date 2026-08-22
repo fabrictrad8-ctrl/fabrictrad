@@ -1,364 +1,266 @@
 'use client';
-import React, { useState } from 'react';
+
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import toast from 'react-hot-toast';
 import Icon from '@/components/ui/AppIcon';
+import { useAuth } from '@/contexts/AuthContext';
+import { createClient } from '@/lib/supabase/client';
 import { firstOrderItem, formatMoney, useSellerBulkOrders } from '@/lib/hooks/useAccountOrders';
 
+type OrderKind = 'bulk' | 'catalog';
 type CourierType = 'shiprocket' | 'local';
 
-interface LocalCourierEntry {
-  courierName: string;
-  awbNumber: string;
-  trackingUrl: string;
-  estimatedDelivery: string;
-}
-
-interface TrackingEvent {
-  timestamp: string;
+type CatalogOrder = {
+  id: string;
+  buyer_id: string;
   status: string;
-  location: string;
-  description: string;
-}
+  payment_status: string;
+  total_amount: number;
+  seller_products?: { name?: string | null } | null;
+};
+
+type OrderOption = {
+  id: string;
+  kind: OrderKind;
+  buyerId: string;
+  product: string;
+  buyer: string;
+  amount: number;
+  status: string;
+  paymentStatus: string;
+};
+
+type ShipmentRow = {
+  id: string;
+  order_id: string;
+  bulk_order_id: string | null;
+  catalog_order_id: string | null;
+  courier_type: string | null;
+  courier_name: string | null;
+  awb_number: string | null;
+  tracking_url: string | null;
+  estimated_delivery: string | null;
+  status: string | null;
+  updated_at: string;
+};
 
 export default function SellerCourierSettings() {
-  const { orders, loading } = useSellerBulkOrders();
+  const { user } = useAuth();
+  const { orders: bulkOrders, loading: bulkLoading, refresh: refreshBulk } = useSellerBulkOrders();
+  const [sellerId, setSellerId] = useState<string | null>(null);
+  const [catalogOrders, setCatalogOrders] = useState<CatalogOrder[]>([]);
+  const [shipments, setShipments] = useState<ShipmentRow[]>([]);
+  const [shiprocketConfigured, setShiprocketConfigured] = useState<boolean | null>(null);
   const [selectedCourier, setSelectedCourier] = useState<CourierType>('shiprocket');
-  const [localCourier, setLocalCourier] = useState<LocalCourierEntry>({
-    courierName: '',
-    awbNumber: '',
-    trackingUrl: '',
-    estimatedDelivery: '',
-  });
-  const [trackingEvents, setTrackingEvents] = useState<TrackingEvent[]>([]);
-  const [isTracking, setIsTracking] = useState(false);
-  const [trackingError, setTrackingError] = useState('');
-  const [saved, setSaved] = useState(false);
-  const shippableOrders = orders.filter((order) =>
-    ['confirmed', 'paid', 'shipped'].includes(order.status || '')
-  );
-  const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
-  const selectedOrder =
-    shippableOrders.find((order) => order.id === activeOrderId) || shippableOrders[0] || null;
+  const [activeKey, setActiveKey] = useState('');
+  const [form, setForm] = useState({ courierName: '', awbNumber: '', trackingUrl: '', estimatedDelivery: '' });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
 
-  const handleTrackAWB = async () => {
-    if (!localCourier.courierName.trim() || !localCourier.awbNumber.trim()) {
-      setTrackingError('Please enter courier name and AWB number first');
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    if (!user?.id) {
+      setSellerId(null);
+      setCatalogOrders([]);
+      setShipments([]);
+      setLoading(false);
       return;
     }
-    if (!localCourier.trackingUrl.trim()) {
-      setTrackingError('Please add a live tracking URL before notifying the buyer');
-      return;
-    }
-    setIsTracking(true);
-    setTrackingError('');
-    setTrackingEvents([]);
-
-    // Track only the AWB entered for this seller's selected shipment.
-    await new Promise((r) => setTimeout(r, 1800));
-    setTrackingEvents([
-      {
-        timestamp: new Date().toLocaleString('en-IN', {
-          day: '2-digit',
-          month: 'short',
-          year: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit',
-        }),
-        status: 'Tracking requested',
-        location: localCourier.courierName || 'Courier network',
-        description: `AWB ${localCourier.awbNumber} was submitted for live tracking.`,
-      },
+    const supabase = createClient();
+    const [{ data: seller, error: sellerError }, statusResponse] = await Promise.all([
+      supabase.from('seller_profiles').select('id').eq('user_id', user.id).maybeSingle(),
+      fetch('/api/shiprocket/status', { cache: 'no-store' }).catch(() => null),
     ]);
-    setIsTracking(false);
+    if (statusResponse?.ok) {
+      const status = (await statusResponse.json().catch(() => ({}))) as { configured?: boolean };
+      setShiprocketConfigured(status.configured === true);
+    } else {
+      setShiprocketConfigured(false);
+    }
+    if (sellerError || !seller?.id) {
+      setError(sellerError?.message || 'Seller profile is not available.');
+      setLoading(false);
+      return;
+    }
+    setSellerId(seller.id);
+    const [catalogResult, shipmentResult] = await Promise.all([
+      supabase
+        .from('catalog_order_requests')
+        .select('id,buyer_id,status,payment_status,total_amount,seller_products(name)')
+        .eq('seller_id', seller.id)
+        .in('status', ['paid', 'fulfilled'])
+        .eq('payment_status', 'paid')
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('seller_shipments')
+        .select('id,order_id,bulk_order_id,catalog_order_id,courier_type,courier_name,awb_number,tracking_url,estimated_delivery,status,updated_at')
+        .eq('seller_id', seller.id)
+        .order('updated_at', { ascending: false }),
+    ]);
+    const queryError = catalogResult.error || shipmentResult.error;
+    if (queryError) setError(queryError.message);
+    setCatalogOrders((catalogResult.data || []) as unknown as CatalogOrder[]);
+    setShipments((shipmentResult.data || []) as ShipmentRow[]);
+    setLoading(false);
+  }, [user?.id]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const orders = useMemo<OrderOption[]>(() => {
+    const bulk: OrderOption[] = bulkOrders
+      .filter((order) => order.status === 'paid' && order.payment_status === 'paid' && Boolean(order.buyer_id))
+      .map((order) => ({
+        id: order.id,
+        kind: 'bulk',
+        buyerId: String(order.buyer_id),
+        product: firstOrderItem(order)?.product_name || 'Bulk fabric order',
+        buyer: order.buyer_company || order.buyer_name || 'Buyer',
+        amount: Number(order.net_total || 0),
+        status: String(order.status || ''),
+        paymentStatus: String(order.payment_status || ''),
+      }));
+    const catalog: OrderOption[] = catalogOrders.map((order) => ({
+      id: order.id,
+      kind: 'catalog',
+      buyerId: order.buyer_id,
+      product: order.seller_products?.name || 'Catalogue product',
+      buyer: 'Catalogue buyer',
+      amount: Number(order.total_amount || 0),
+      status: order.status,
+      paymentStatus: order.payment_status,
+    }));
+    return [...catalog, ...bulk];
+  }, [bulkOrders, catalogOrders]);
+
+  const selectedOrder = orders.find((order) => `${order.kind}:${order.id}` === activeKey) || orders[0] || null;
+  const selectedShipment = selectedOrder
+    ? shipments.find((shipment) => selectedOrder.kind === 'catalog' ? shipment.catalog_order_id === selectedOrder.id : shipment.bulk_order_id === selectedOrder.id) || null
+    : null;
+
+  useEffect(() => {
+    if (!selectedOrder) return;
+    const key = `${selectedOrder.kind}:${selectedOrder.id}`;
+    if (!activeKey) setActiveKey(key);
+  }, [activeKey, selectedOrder]);
+
+  useEffect(() => {
+    if (selectedShipment) {
+      setSelectedCourier(selectedShipment.courier_type === 'shiprocket' ? 'shiprocket' : 'local');
+      setForm({
+        courierName: selectedShipment.courier_name || '',
+        awbNumber: selectedShipment.awb_number || '',
+        trackingUrl: selectedShipment.tracking_url || '',
+        estimatedDelivery: selectedShipment.estimated_delivery || '',
+      });
+    } else {
+      setForm({ courierName: '', awbNumber: '', trackingUrl: '', estimatedDelivery: '' });
+    }
+  }, [selectedShipment]);
+
+  const createShiprocket = async () => {
+    if (!selectedOrder || selectedOrder.kind !== 'bulk') return toast.error('Shiprocket automatic order creation currently supports paid bulk orders. Use Own Delivery Partner for catalogue orders.');
+    if (!shiprocketConfigured) return toast.error('Shiprocket credentials are not configured on the live server.');
+    setSaving(true);
+    try {
+      const response = await fetch('/api/shiprocket/create-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ orderId: selectedOrder.id }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+      if (!response.ok) throw new Error(payload.error || 'Shiprocket order creation failed.');
+      toast.success('Shiprocket shipment created and saved.');
+      await Promise.all([load(), refreshBulk()]);
+    } catch (caught) {
+      toast.error(caught instanceof Error ? caught.message : 'Shiprocket order creation failed.');
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const handleSave = () => {
-    if (selectedCourier === 'local') {
-      if (!localCourier.courierName.trim() || !localCourier.awbNumber.trim()) {
-        setTrackingError('Courier name and AWB number are required for own delivery partners');
-        return;
-      }
-      if (!localCourier.trackingUrl.trim()) {
-        setTrackingError('A live tracking URL is required for own delivery partners');
-        return;
-      }
+  const saveLocal = async () => {
+    if (!selectedOrder || !sellerId) return;
+    if (!form.courierName.trim() || !form.awbNumber.trim()) return toast.error('Courier name and AWB / tracking number are required.');
+    if (form.trackingUrl && !/^https?:\/\//i.test(form.trackingUrl)) return toast.error('Tracking URL must begin with http:// or https://.');
+    setSaving(true);
+    try {
+      const supabase = createClient();
+      const payload = {
+        order_id: selectedOrder.id,
+        seller_id: sellerId,
+        buyer_id: selectedOrder.buyerId,
+        bulk_order_id: selectedOrder.kind === 'bulk' ? selectedOrder.id : null,
+        catalog_order_id: selectedOrder.kind === 'catalog' ? selectedOrder.id : null,
+        courier_type: 'local',
+        courier_name: form.courierName.trim(),
+        awb_number: form.awbNumber.trim(),
+        tracking_url: form.trackingUrl.trim() || null,
+        estimated_delivery: form.estimatedDelivery || null,
+        status: 'in_transit',
+        updated_at: new Date().toISOString(),
+      };
+      const conflict = selectedOrder.kind === 'bulk' ? 'bulk_order_id' : 'catalog_order_id';
+      const { error: saveError } = await supabase.from('seller_shipments').upsert(payload, { onConflict: conflict });
+      if (saveError) throw saveError;
+      toast.success('Courier details saved. The buyer can now see them in Tracking.');
+      await load();
+    } catch (caught) {
+      toast.error(caught instanceof Error ? caught.message : 'Shipment details could not be saved.');
+    } finally {
+      setSaving(false);
     }
-    setTrackingError('');
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2500);
   };
+
+  const busy = loading || bulkLoading;
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-xl font-800 text-foreground">Courier & Shipping</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            Choose your shipping partner per order
-          </p>
+          <p className="ft-route-kicker">Shipping</p>
+          <h1 className="mt-1 text-2xl font-800 text-foreground">Courier & shipping</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Only fully paid orders are dispatchable. Shipment records are saved to the real seller shipment ledger and shown to buyers.</p>
         </div>
+        <button type="button" onClick={() => void load()} disabled={busy} className="btn-secondary inline-flex items-center gap-2 rounded-xl px-3 py-2 text-xs disabled:opacity-50"><Icon name="ArrowPathIcon" size={14} className={busy ? 'animate-spin' : ''} /> Refresh</button>
       </div>
 
-      {/* Order Selector */}
-      <div className="bg-card rounded-2xl border border-border p-4 mb-4">
-        <p className="text-xs font-700 text-muted-foreground uppercase tracking-wide mb-3">
-          Select Order to Ship
-        </p>
-        <div className="space-y-2">
-          {loading && (
-            <div className="flex items-center gap-2 rounded-xl border border-border bg-muted/40 p-3 text-xs text-muted-foreground">
-              <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-              Loading account orders...
-            </div>
-          )}
-          {!loading && shippableOrders.length === 0 && (
-            <div className="rounded-xl border border-dashed border-border bg-muted/30 p-4 text-center">
-              <Icon name="TruckIcon" size={26} className="mx-auto mb-2 text-muted-foreground" />
-              <p className="text-sm font-700 text-foreground">No orders ready to ship</p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Confirmed, paid, or shipped orders assigned to this seller account will appear here.
-              </p>
-            </div>
-          )}
-          {shippableOrders.map((order) => {
-            const firstItem = firstOrderItem(order);
-            return (
-              <button
-                key={order.id}
-                onClick={() => setActiveOrderId(order.id)}
-                className={`w-full text-left p-3 rounded-xl border transition-all ${
-                  selectedOrder?.id === order.id
-                    ? 'border-primary bg-primary/5'
-                    : 'border-border hover:border-primary/30 hover:bg-muted/30'
-                }`}
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-sm font-700 text-foreground">
-                      FT-ORD-{order.id.slice(0, 8).toUpperCase()}
-                    </p>
-                    <p className="truncate text-xs text-muted-foreground">
-                      {firstItem?.product_name || 'Bulk order'} ·{' '}
-                      {order.buyer_company || order.buyer_name || 'Buyer'}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xs font-600 text-foreground">
-                      {firstItem?.quantity_mtrs || 0} mtr
-                    </p>
-                    <p className="text-xs text-primary font-700">
-                      {formatMoney(Number(order.net_total || 0))}
-                    </p>
-                  </div>
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      </div>
+      {error && <div className="mb-5 rounded-2xl border border-error/20 bg-error/5 p-4 text-sm text-error">{error}</div>}
 
-      {/* Courier Selection */}
-      <div className="bg-card rounded-2xl border border-border p-4 mb-4">
-        <p className="text-xs font-700 text-muted-foreground uppercase tracking-wide mb-3">
-          Shipping Partner
-        </p>
-        <div className="grid grid-cols-2 gap-3 mb-4">
-          <button
-            onClick={() => setSelectedCourier('shiprocket')}
-            className={`p-4 rounded-xl border-2 transition-all text-left ${
-              selectedCourier === 'shiprocket'
-                ? 'border-primary bg-primary/5'
-                : 'border-border hover:border-primary/30'
-            }`}
-          >
-            <div className="flex items-center gap-2 mb-2">
-              <span className="text-xl">🚀</span>
-              <span className="font-700 text-sm text-foreground">Shiprocket</span>
-              {selectedCourier === 'shiprocket' && (
-                <Icon name="CheckCircleIcon" size={16} className="text-primary ml-auto" />
-              )}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Auto-tracking · 25+ courier partners · Real-time updates
-            </p>
-          </button>
+      <section className="mb-5 rounded-2xl border border-border bg-card p-4">
+        <div className="mb-3 flex items-center justify-between gap-2"><div><p className="text-xs font-800 uppercase tracking-wide text-muted-foreground">Paid orders ready to ship</p><p className="mt-1 text-xs text-muted-foreground">Catalogue and bulk orders are listed together.</p></div><span className="ft-orange-chip">{orders.length} ready</span></div>
+        {busy ? <div className="rounded-xl border border-border bg-muted/30 p-4 text-center text-xs text-muted-foreground">Loading paid orders…</div> : orders.length ? <div className="space-y-2">{orders.map((order) => {
+          const key = `${order.kind}:${order.id}`;
+          const shipment = shipments.find((item) => order.kind === 'catalog' ? item.catalog_order_id === order.id : item.bulk_order_id === order.id);
+          return <button key={key} type="button" onClick={() => setActiveKey(key)} className={`w-full rounded-xl border p-3 text-left transition ${selectedOrder && `${selectedOrder.kind}:${selectedOrder.id}` === key ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/30'}`}><div className="flex items-center justify-between gap-3"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="text-sm font-800">{order.kind === 'catalog' ? 'FT-CAT' : 'FT-BULK'}-{order.id.slice(0, 8).toUpperCase()}</p><span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-800 uppercase">{order.kind}</span>{shipment && <span className="rounded-full bg-success/10 px-2 py-0.5 text-[10px] font-800 text-success">shipment saved</span>}</div><p className="mt-1 truncate text-xs text-muted-foreground">{order.product} · {order.buyer}</p></div><p className="shrink-0 text-sm font-800 text-primary">{formatMoney(order.amount)}</p></div></button>;
+        })}</div> : <div className="rounded-xl border border-dashed border-border bg-muted/30 p-8 text-center"><Icon name="TruckIcon" size={28} className="mx-auto text-muted-foreground" /><p className="mt-2 text-sm font-800">No fully paid orders ready to ship</p><p className="mt-1 text-xs text-muted-foreground">An order appears here only after its complete payment has been captured.</p></div>}
+      </section>
 
-          <button
-            onClick={() => setSelectedCourier('local')}
-            className={`p-4 rounded-xl border-2 transition-all text-left ${
-              selectedCourier === 'local'
-                ? 'border-secondary bg-secondary/5'
-                : 'border-border hover:border-secondary/30'
-            }`}
-          >
-            <div className="flex items-center gap-2 mb-2">
-              <span className="text-xl">🚛</span>
-              <span className="font-700 text-sm text-foreground">Own Delivery Partner</span>
-              {selectedCourier === 'local' && (
-                <Icon name="CheckCircleIcon" size={16} className="text-secondary ml-auto" />
-              )}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Seller managed · AWB + live link required · buyer sees updates
-            </p>
-          </button>
-        </div>
+      {selectedOrder && (
+        <section className="rounded-2xl border border-border bg-card p-5">
+          <div className="mb-5 flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs font-800 uppercase tracking-wide text-primary">Selected order</p><h2 className="mt-1 text-lg font-800">{selectedOrder.product}</h2><p className="mt-1 text-xs text-muted-foreground">{selectedOrder.kind === 'catalog' ? 'FT-CAT' : 'FT-BULK'}-{selectedOrder.id.slice(0, 8).toUpperCase()} · fully paid</p></div>{selectedShipment && <div className="text-right"><p className="text-xs font-800 text-success">Existing shipment: {String(selectedShipment.status || 'pending').replaceAll('_', ' ')}</p><p className="mt-1 text-xs text-muted-foreground">AWB {selectedShipment.awb_number || 'pending'}</p></div>}</div>
 
-        {/* Shiprocket Config */}
-        {selectedCourier === 'shiprocket' && (
-          <div className="p-3 bg-primary/5 border border-primary/20 rounded-xl">
-            <div className="flex items-center gap-2 mb-2">
-              <Icon name="CheckCircleIcon" size={14} className="text-primary" />
-              <p className="text-xs font-700 text-primary">Shiprocket Integration Active</p>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Orders will be automatically created on Shiprocket. Tracking updates sent to buyer in
-              real-time. Credentials configured in platform settings.
-            </p>
-            <div className="mt-3 flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-success animate-pulse" />
-              <span className="text-xs font-600 text-success">Connected · Ready to ship</span>
-            </div>
+          <div className="mb-5 grid gap-3 sm:grid-cols-2">
+            <button type="button" onClick={() => setSelectedCourier('shiprocket')} className={`rounded-xl border-2 p-4 text-left ${selectedCourier === 'shiprocket' ? 'border-primary bg-primary/5' : 'border-border'}`}><div className="flex items-center gap-2"><Icon name="TruckIcon" size={18} className="text-primary" /><span className="text-sm font-800">Shiprocket</span>{shiprocketConfigured !== null && <span className={`ml-auto rounded-full px-2 py-0.5 text-[10px] font-800 ${shiprocketConfigured ? 'bg-success/10 text-success' : 'bg-error/10 text-error'}`}>{shiprocketConfigured ? 'configured' : 'not configured'}</span>}</div><p className="mt-2 text-xs leading-5 text-muted-foreground">Automatic Shiprocket creation is available for fully paid bulk orders.</p></button>
+            <button type="button" onClick={() => setSelectedCourier('local')} className={`rounded-xl border-2 p-4 text-left ${selectedCourier === 'local' ? 'border-secondary bg-secondary/5' : 'border-border'}`}><div className="flex items-center gap-2"><Icon name="MapPinIcon" size={18} className="text-secondary" /><span className="text-sm font-800">Own delivery partner</span></div><p className="mt-2 text-xs leading-5 text-muted-foreground">Use any courier and save its AWB, tracking URL and ETA for the buyer.</p></button>
           </div>
-        )}
 
-        {/* Local Courier Config */}
-        {selectedCourier === 'local' && (
-          <div className="space-y-3">
-            <div className="p-3 bg-secondary/5 border border-secondary/20 rounded-xl mb-3">
-              <div className="flex items-center gap-2 mb-1">
-                <Icon name="SparklesIcon" size={14} className="text-secondary" />
-                <p className="text-xs font-700 text-secondary">Seller-Managed Tracking</p>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                You can use DTDC, Blue Dart, Delhivery, local transport, or any delivery partner.
-                You must maintain the AWB, live tracking URL, delivery dates, and buyer-visible
-                status updates until delivery is complete.
-              </p>
-            </div>
+          {selectedCourier === 'shiprocket' ? (
+            <div className="rounded-xl border border-primary/20 bg-primary/5 p-4"><p className="text-sm font-800 text-foreground">Shiprocket dispatch</p><p className="mt-1 text-xs leading-5 text-muted-foreground">{selectedOrder.kind === 'bulk' ? shiprocketConfigured ? 'Ready to create the courier order using the live server credentials.' : 'Shiprocket credentials are missing from the live server.' : 'Catalogue orders currently use the seller-managed shipment form. This prevents pretending an unsupported Shiprocket order was created.'}</p><button type="button" onClick={() => void createShiprocket()} disabled={saving || selectedOrder.kind !== 'bulk' || !shiprocketConfigured} className="btn-primary mt-4 inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs disabled:opacity-50"><Icon name="TruckIcon" size={14} /> {saving ? 'Creating…' : 'Create Shiprocket shipment'}</button></div>
+          ) : (
+            <div className="space-y-4 rounded-xl border border-secondary/20 bg-secondary/5 p-4"><div><p className="text-sm font-800 text-foreground">Seller-managed shipment</p><p className="mt-1 text-xs text-muted-foreground">These details are persisted and become buyer-visible immediately.</p></div><div className="grid gap-4 sm:grid-cols-2"><label className="text-xs font-700">Courier company *<input value={form.courierName} onChange={(event) => setForm({ ...form, courierName: event.target.value })} className="input-base mt-1.5 w-full px-3 py-2.5 text-sm" placeholder="DTDC, Blue Dart, Delhivery…" /></label><label className="text-xs font-700">AWB / tracking number *<input value={form.awbNumber} onChange={(event) => setForm({ ...form, awbNumber: event.target.value })} className="input-base mt-1.5 w-full px-3 py-2.5 text-sm" /></label><label className="text-xs font-700">Live tracking URL<input type="url" value={form.trackingUrl} onChange={(event) => setForm({ ...form, trackingUrl: event.target.value })} className="input-base mt-1.5 w-full px-3 py-2.5 text-sm" placeholder="https://…" /></label><label className="text-xs font-700">Estimated delivery<input type="date" value={form.estimatedDelivery} onChange={(event) => setForm({ ...form, estimatedDelivery: event.target.value })} className="input-base mt-1.5 w-full px-3 py-2.5 text-sm" /></label></div><button type="button" onClick={() => void saveLocal()} disabled={saving} className="btn-secondary inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs disabled:opacity-50"><Icon name="CheckIcon" size={14} /> {saving ? 'Saving…' : 'Save shipment for buyer'}</button></div>
+          )}
+        </section>
+      )}
 
-            <div>
-              <label className="block text-xs font-700 text-foreground mb-1.5">
-                Courier Company Name *
-              </label>
-              <input
-                type="text"
-                value={localCourier.courierName}
-                onChange={(e) => setLocalCourier({ ...localCourier, courierName: e.target.value })}
-                placeholder="e.g. DTDC, Blue Dart, Delhivery, Local Transport"
-                className="input-base w-full px-3 py-2.5 text-sm rounded-xl"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-700 text-foreground mb-1.5">
-                AWB / Tracking Number *
-              </label>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={localCourier.awbNumber}
-                  onChange={(e) => setLocalCourier({ ...localCourier, awbNumber: e.target.value })}
-                  placeholder="e.g. 1234567890"
-                  className="input-base flex-1 px-3 py-2.5 text-sm rounded-xl font-mono"
-                />
-                <button
-                  onClick={handleTrackAWB}
-                  disabled={isTracking || !localCourier.awbNumber}
-                  className="btn-secondary px-4 py-2.5 text-sm rounded-xl flex items-center gap-2 disabled:opacity-50 shrink-0"
-                >
-                  {isTracking ? (
-                    <span className="w-4 h-4 border-2 border-secondary/30 border-t-secondary rounded-full animate-spin" />
-                  ) : (
-                    <Icon name="MagnifyingGlassIcon" size={14} />
-                  )}
-                  {isTracking ? 'Tracking...' : 'Track'}
-                </button>
-              </div>
-              {trackingError && <p className="text-xs text-error mt-1">{trackingError}</p>}
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-700 text-foreground mb-1.5">
-                  Live Tracking URL *
-                </label>
-                <input
-                  type="url"
-                  value={localCourier.trackingUrl}
-                  onChange={(e) =>
-                    setLocalCourier({ ...localCourier, trackingUrl: e.target.value })
-                  }
-                  placeholder="https://track.courier.com/..."
-                  className="input-base w-full px-3 py-2.5 text-sm rounded-xl"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-700 text-foreground mb-1.5">
-                  Est. Delivery Date
-                </label>
-                <input
-                  type="date"
-                  value={localCourier.estimatedDelivery}
-                  onChange={(e) =>
-                    setLocalCourier({ ...localCourier, estimatedDelivery: e.target.value })
-                  }
-                  className="input-base w-full px-3 py-2.5 text-sm rounded-xl"
-                />
-              </div>
-            </div>
-
-            {/* AI Tracking Results */}
-            {trackingEvents.length > 0 && (
-              <div className="p-3 bg-success/5 border border-success/20 rounded-xl">
-                <div className="flex items-center gap-2 mb-3">
-                  <Icon name="SparklesIcon" size={14} className="text-success" />
-                  <p className="text-xs font-700 text-success">AI Tracking Results</p>
-                </div>
-                <div className="space-y-2">
-                  {trackingEvents.map((event, i) => (
-                    <div key={i} className="flex gap-3">
-                      <div className="flex flex-col items-center">
-                        <div
-                          className={`w-2.5 h-2.5 rounded-full shrink-0 mt-0.5 ${i === 0 ? 'bg-success' : 'bg-muted-foreground/40'}`}
-                        />
-                        {i < trackingEvents.length - 1 && (
-                          <div className="w-0.5 h-full bg-border mt-1" />
-                        )}
-                      </div>
-                      <div className="pb-2">
-                        <p className="text-xs font-700 text-foreground">{event.status}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {event.location} · {event.timestamp}
-                        </p>
-                        <p className="text-xs text-muted-foreground">{event.description}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Save Button */}
-      <button
-        onClick={handleSave}
-        disabled={!selectedOrder}
-        className="btn-primary w-full py-3 text-sm rounded-xl flex items-center justify-center gap-2"
-      >
-        {saved ? (
-          <>
-            <Icon name="CheckCircleIcon" size={16} />
-            Shipping Details Saved
-          </>
-        ) : (
-          <>
-            <Icon name="TruckIcon" size={16} />
-            Save & Notify Buyer
-          </>
-        )}
-      </button>
+      <section className="mt-5 rounded-2xl border border-border bg-card p-5">
+        <div className="flex items-center justify-between gap-3"><div><h2 className="text-sm font-800">Saved shipments</h2><p className="mt-1 text-xs text-muted-foreground">Real records currently visible under buyer tracking.</p></div><span className="ft-orange-chip">{shipments.length}</span></div>
+        {shipments.length ? <div className="mt-4 divide-y divide-border">{shipments.slice(0, 30).map((shipment) => <div key={shipment.id} className="flex flex-wrap items-center justify-between gap-3 py-3"><div><p className="mono-id">{shipment.catalog_order_id ? `FT-CAT-${shipment.catalog_order_id.slice(0, 8).toUpperCase()}` : shipment.bulk_order_id ? `FT-BULK-${shipment.bulk_order_id.slice(0, 8).toUpperCase()}` : shipment.order_id}</p><p className="mt-1 text-xs text-muted-foreground">{shipment.courier_name || shipment.courier_type || 'Courier pending'} · AWB {shipment.awb_number || 'pending'}</p></div><div className="text-right"><p className="text-xs font-800 capitalize">{String(shipment.status || 'pending').replaceAll('_', ' ')}</p><p className="mt-1 text-xs text-muted-foreground">Updated {new Date(shipment.updated_at).toLocaleString('en-IN')}</p></div></div>)}</div> : <div className="mt-4 rounded-xl border border-dashed border-border bg-muted/30 p-6 text-center text-xs text-muted-foreground">No shipment records yet.</div>}
+      </section>
     </div>
   );
 }
