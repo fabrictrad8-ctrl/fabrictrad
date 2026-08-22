@@ -3,6 +3,7 @@ import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import ProductGallery from '@/app/product-detail/components/ProductGallery';
 import ProductInfoV2 from '@/app/product-detail/components/ProductInfoV2';
+import ProductOrderStatusCard from '@/app/product-detail/components/ProductOrderStatusCard';
 import ProductSpecs from '@/app/product-detail/components/ProductSpecs';
 import SellerCard from '@/app/product-detail/components/SellerCard';
 import RelatedProducts from '@/app/product-detail/components/RelatedProducts';
@@ -56,6 +57,7 @@ export default function ProductDetailPage() {
               </div>
 
               <aside className="ft-product-aside space-y-4">
+                <ProductOrderStatusCard />
                 <ProductInfoV2 />
                 <SellerCard />
                 <div className="rounded-xl border border-primary/20 bg-primary/5 p-4">
@@ -79,10 +81,10 @@ export default function ProductDetailPage() {
                   <ol className="mt-3 space-y-3 text-xs leading-5 text-muted-foreground">
                     <li className="flex gap-2"><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10 font-800 text-primary">1</span><span>Choose the live variant and quantity shown above.</span></li>
                     <li className="flex gap-2"><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10 font-800 text-primary">2</span><span>The seller confirms stock, final quantity and dispatch readiness.</span></li>
-                    <li className="flex gap-2"><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10 font-800 text-primary">3</span><span>Pay through the secured order page, then track shipment and documents from your buyer dashboard.</span></li>
+                    <li className="flex gap-2"><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10 font-800 text-primary">3</span><span>As soon as the seller accepts, the payment button appears on this product page and in your buyer orders. After payment, shipment tracking is attached to the same order.</span></li>
                   </ol>
-                  <a href="/cart" className="mt-4 inline-flex items-center gap-1 text-xs font-800 text-primary">
-                    Open order hub <Icon name="ArrowRightIcon" size={13} />
+                  <a href="/buyer-dashboard?tab=orders" className="mt-4 inline-flex items-center gap-1 text-xs font-800 text-primary">
+                    Open buyer orders <Icon name="ArrowRightIcon" size={13} />
                   </a>
                 </div>
               </aside>
