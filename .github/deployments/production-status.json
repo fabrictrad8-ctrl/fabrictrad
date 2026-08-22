@@ -1,6 +1,6 @@
 {
-  "sourceCommit": "72e03e531ed73ced28b756d7a678d0226c71174c",
-  "recordedAt": "2026-08-22T13:28:34Z",
+  "sourceCommit": "f01e0972e9362d067e1c8cce58b4b23a4c24860c",
+  "recordedAt": "2026-08-22T13:53:42Z",
   "cloudflareAuthentication": "success",
   "razorpayApiCredentialCheckStep": "success",
   "razorpayApiCredentialVerification": "not_run_existing_worker_credentials",
@@ -9,11 +9,11 @@
   "aiProviderSecretSync": "success",
   "workerSecretPreflight": "success",
   "missingRequiredWorkerSecrets": [],
-  "workerDeployment": "success",
-  "liveAccountApiVerification": "success",
-  "liveAiDrapeVerification": "success",
-  "aiDrapeProbeHttpStatus": "200",
-  "liveRazorpayWebhookVerification": "success",
-  "razorpayWebhookProbeHttpStatus": "400",
-  "deploymentLogTail": " ⛅️ wrangler 4.125.0\n────────────────────\nCloudflare collects anonymous telemetry about your usage of Wrangler. Learn more at https://github.com/cloudflare/workers-sdk/tree/main/packages/wrangler/telemetry.md\n🌀 Building list of assets...\n✨ Read 229 files from the assets directory /home/runner/work/fabrictrad/fabrictrad/.open-next/assets\n🌀 Starting asset upload...\n🌀 Found 1 new or modified static asset to upload. Proceeding with upload...\n+ /BUILD_ID\nUploaded 1 of 1 asset\n✨ Success! Uploaded 1 file (114 already uploaded) (0.76 sec)\nTotal Upload: 13812.72 KiB / gzip: 2273.61 KiB\nWorker Startup Time: 29 ms\nYour Worker has access to the following bindings:\nBinding            Resource      \nenv.ASSETS         Assets        \nUploaded fabrictrad (5.47 sec)\nNo targets deployed for fabrictrad (0.41 sec)\nCurrent Version ID: 245992b9-3b57-450d-a85a-9787e36ed643"
+  "workerDeployment": "skipped",
+  "liveAccountApiVerification": "skipped",
+  "liveAiDrapeVerification": "skipped",
+  "aiDrapeProbeHttpStatus": null,
+  "liveRazorpayWebhookVerification": "skipped",
+  "razorpayWebhookProbeHttpStatus": null,
+  "deploymentLogTail": null
 }
