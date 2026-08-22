@@ -1,5 +1,6 @@
 name: Virtual drape responsive UI deploy
 
+# Dedicated production path for the responsive Virtual Drape workspace.
 on:
   push:
     branches: [main]
