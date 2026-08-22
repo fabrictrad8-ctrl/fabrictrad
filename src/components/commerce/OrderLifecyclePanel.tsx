@@ -27,6 +27,7 @@ type PaymentRecord = {
 
 type ShipmentRecord = {
   id: string;
+  courier_type?: string | null;
   courier_name?: string | null;
   awb_number?: string | null;
   tracking_url?: string | null;
@@ -78,6 +79,8 @@ export default function OrderLifecyclePanel({
   const [shipment, setShipment] = useState<ShipmentRecord | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [shiprocketConfigured, setShiprocketConfigured] = useState<boolean | null>(null);
+  const [showManualShipment, setShowManualShipment] = useState(false);
   const [courierName, setCourierName] = useState('');
   const [awbNumber, setAwbNumber] = useState('');
   const [trackingUrl, setTrackingUrl] = useState('');
@@ -101,7 +104,7 @@ export default function OrderLifecyclePanel({
         .maybeSingle(),
       supabase
         .from('seller_shipments')
-        .select('id,courier_name,awb_number,tracking_url,estimated_delivery,status,updated_at')
+        .select('id,courier_type,courier_name,awb_number,tracking_url,estimated_delivery,status,updated_at')
         .eq(shipmentColumn, orderId)
         .maybeSingle(),
       orderKind === 'catalog'
@@ -133,6 +136,27 @@ export default function OrderLifecyclePanel({
     void load();
   }, [load]);
 
+  useEffect(() => {
+    if (viewerRole !== 'seller' || orderKind !== 'catalog') return;
+    let active = true;
+    const check = async () => {
+      try {
+        const response = await fetch('/api/shiprocket/status', {
+          credentials: 'same-origin',
+          cache: 'no-store',
+        });
+        const result = (await response.json().catch(() => ({}))) as { configured?: boolean };
+        if (active) setShiprocketConfigured(response.ok && result.configured === true);
+      } catch {
+        if (active) setShiprocketConfigured(false);
+      }
+    };
+    void check();
+    return () => {
+      active = false;
+    };
+  }, [orderKind, viewerRole]);
+
   const issueInvoice = async () => {
     setBusy(true);
     try {
@@ -154,6 +178,42 @@ export default function OrderLifecyclePanel({
       await onChanged?.();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'The GST invoice could not be issued.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const bookShiprocket = async () => {
+    setBusy(true);
+    try {
+      const response = await fetch('/api/shiprocket/create-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ orderId, orderType: 'catalog' }),
+      });
+      const result = (await response.json().catch(() => ({}))) as {
+        success?: boolean;
+        existing?: boolean;
+        awb?: string | null;
+        courierName?: string | null;
+        error?: string;
+      };
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Shiprocket could not create the shipment.');
+      }
+      toast.success(
+        result.existing
+          ? 'This order already has a Shiprocket shipment.'
+          : result.awb
+            ? `Shipment booked. AWB ${result.awb}`
+            : 'Shipment booked with Shiprocket. AWB assignment is in progress.'
+      );
+      await load();
+      await onChanged?.();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Shipment could not be booked.');
+      setShowManualShipment(true);
     } finally {
       setBusy(false);
     }
@@ -188,7 +248,7 @@ export default function OrderLifecyclePanel({
         { onConflict: 'catalog_order_id' }
       );
       if (error) throw error;
-      toast.success('Shipment details saved for the buyer.');
+      toast.success('Shipment details saved and the buyer was notified.');
       await load();
       await onChanged?.();
     } catch (error) {
@@ -209,7 +269,8 @@ export default function OrderLifecyclePanel({
   const canAddCatalogShipment =
     viewerRole === 'seller' &&
     orderKind === 'catalog' &&
-    ['paid', 'fulfilled'].includes(String(orderStatus || ''));
+    ['paid', 'fulfilled'].includes(String(orderStatus || '')) &&
+    effectivePaymentStatus === 'paid';
 
   return (
     <div className="mt-4 grid gap-3 lg:grid-cols-3">
@@ -269,7 +330,7 @@ export default function OrderLifecyclePanel({
             onClick={() => void issueInvoice()}
             className="mt-2 rounded-lg bg-secondary px-3 py-2 text-xs font-800 text-white disabled:opacity-50"
           >
-            {busy ? 'Issuing…' : 'Issue GST invoice'}
+            {busy ? 'Working…' : 'Issue GST invoice'}
           </button>
         ) : (
           <p className="mt-2 text-xs leading-5 text-muted-foreground">
@@ -289,7 +350,7 @@ export default function OrderLifecyclePanel({
           <div className="mt-2 space-y-1 text-xs">
             <p className="font-800 text-foreground">{human(shipment.status)}</p>
             <p className="text-muted-foreground">
-              {shipment.courier_name || 'Courier'} · {shipment.awb_number || 'AWB pending'}
+              {shipment.courier_name || (shipment.courier_type === 'shiprocket' ? 'Shiprocket' : 'Courier')} · {shipment.awb_number || 'AWB pending'}
             </p>
             {shipment.estimated_delivery && (
               <p className="text-muted-foreground">ETA: {shipment.estimated_delivery}</p>
@@ -306,43 +367,74 @@ export default function OrderLifecyclePanel({
             )}
           </div>
         ) : canAddCatalogShipment ? (
-          <div className="mt-2 grid gap-2">
-            <input
-              value={courierName}
-              onChange={(event) => setCourierName(event.target.value)}
-              placeholder="Courier name"
-              className="input-base rounded-lg px-2.5 py-2 text-xs"
-            />
-            <input
-              value={awbNumber}
-              onChange={(event) => setAwbNumber(event.target.value)}
-              placeholder="AWB / tracking number"
-              className="input-base rounded-lg px-2.5 py-2 text-xs"
-            />
-            <input
-              type="url"
-              value={trackingUrl}
-              onChange={(event) => setTrackingUrl(event.target.value)}
-              placeholder="Tracking URL (optional)"
-              className="input-base rounded-lg px-2.5 py-2 text-xs"
-            />
-            <input
-              type="date"
-              value={estimatedDelivery}
-              onChange={(event) => setEstimatedDelivery(event.target.value)}
-              className="input-base rounded-lg px-2.5 py-2 text-xs"
-            />
+          <div className="mt-2 space-y-3">
+            {shiprocketConfigured !== false && (
+              <button
+                type="button"
+                disabled={busy || shiprocketConfigured === null}
+                onClick={() => void bookShiprocket()}
+                className="flex w-full items-center justify-center gap-2 rounded-lg bg-success px-3 py-2.5 text-xs font-800 text-white disabled:opacity-50"
+              >
+                <Icon name="TruckIcon" size={14} />
+                {busy ? 'Booking shipment…' : shiprocketConfigured === null ? 'Checking Shiprocket…' : 'Book shipping with Shiprocket'}
+              </button>
+            )}
+            {shiprocketConfigured === false && (
+              <p className="rounded-lg border border-warning/20 bg-warning/10 p-2 text-[11px] leading-4 text-warning">
+                Shiprocket is not configured on this deployment. Add courier details manually below.
+              </p>
+            )}
             <button
               type="button"
-              disabled={busy}
-              onClick={() => void saveCatalogShipment()}
-              className="rounded-lg bg-success px-3 py-2 text-xs font-800 text-white disabled:opacity-50"
+              onClick={() => setShowManualShipment((value) => !value)}
+              className="text-xs font-800 text-primary underline"
             >
-              Save shipment
+              {showManualShipment ? 'Hide manual courier entry' : 'Use another courier / enter AWB manually'}
             </button>
+            {(showManualShipment || shiprocketConfigured === false) && (
+              <div className="grid gap-2 border-t border-border pt-3">
+                <input
+                  value={courierName}
+                  onChange={(event) => setCourierName(event.target.value)}
+                  placeholder="Courier name"
+                  className="input-base rounded-lg px-2.5 py-2 text-xs"
+                />
+                <input
+                  value={awbNumber}
+                  onChange={(event) => setAwbNumber(event.target.value)}
+                  placeholder="AWB / tracking number"
+                  className="input-base rounded-lg px-2.5 py-2 text-xs"
+                />
+                <input
+                  type="url"
+                  value={trackingUrl}
+                  onChange={(event) => setTrackingUrl(event.target.value)}
+                  placeholder="Tracking URL (optional)"
+                  className="input-base rounded-lg px-2.5 py-2 text-xs"
+                />
+                <input
+                  type="date"
+                  value={estimatedDelivery}
+                  onChange={(event) => setEstimatedDelivery(event.target.value)}
+                  className="input-base rounded-lg px-2.5 py-2 text-xs"
+                />
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void saveCatalogShipment()}
+                  className="rounded-lg border border-success/30 bg-success/10 px-3 py-2 text-xs font-800 text-success disabled:opacity-50"
+                >
+                  Save manual shipment
+                </button>
+              </div>
+            )}
           </div>
         ) : (
-          <p className="mt-2 text-xs text-muted-foreground">Tracking appears after dispatch.</p>
+          <p className="mt-2 text-xs text-muted-foreground">
+            {viewerRole === 'seller' && orderKind === 'catalog'
+              ? 'Shipping becomes available automatically after full payment is captured.'
+              : 'Tracking appears after dispatch.'}
+          </p>
         )}
       </section>
     </div>
