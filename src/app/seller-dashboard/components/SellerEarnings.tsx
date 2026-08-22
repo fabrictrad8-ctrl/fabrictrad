@@ -1,325 +1,225 @@
 'use client';
-import React, { useState } from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import Icon from '@/components/ui/AppIcon';
-import { formatMoney, useSellerBulkOrders } from '@/lib/hooks/useAccountOrders';
+import { useAuth } from '@/contexts/AuthContext';
+import { createClient } from '@/lib/supabase/client';
 
-const earningsData: { month: string; earnings: number }[] = [];
-
-const pendingPayouts: {
+type PaymentRow = {
   id: string;
-  buyer: string;
-  net: number;
+  orderId: string;
+  orderType: 'catalog' | 'bulk';
+  amount: number;
+  capturedAmount: number;
+  refundedAmount: number;
+  platformCommission: number;
+  razorpayFee: number;
+  gstOnCommission: number;
+  sellerPayable: number;
   status: string;
-  date: string;
-  eta: string;
-}[] = [];
-
-const payoutHistory: {
-  id: string;
-  period: string;
-  orders: number;
-  net: number;
-  status: string;
-  date: string;
-  utr: string;
-}[] = [];
-
-const formatINR = (v: number) => {
-  if (v >= 100000) return `₹${(v / 100000).toFixed(1)}L`;
-  if (v >= 1000) return `₹${(v / 1000).toFixed(0)}K`;
-  return `₹${v}`;
+  transferStatus: string | null;
+  transferId: string | null;
+  paymentMethod: string | null;
+  capturedAt: string | null;
+  createdAt: string;
 };
 
-const statusColors: Record<string, string> = {
-  Settled: 'bg-success/10 text-success border-success/20',
-  Processing: 'bg-amber-50 text-amber-700 border-amber-200',
-  Pending: 'bg-blue-50 text-blue-700 border-blue-200',
-  Failed: 'bg-error/10 text-error border-error/20',
+type SellerState = {
+  settlementEligible: boolean;
+  linkedAccountId: string | null;
+};
+
+const settledStatuses = new Set(['processed', 'settled', 'transferred', 'completed']);
+const capturedStatuses = new Set(['captured', 'paid', 'authorized']);
+
+const money = (value: number) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 }).format(value || 0);
+
+const monthKey = (value: string) => {
+  const date = new Date(value);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 };
 
 export default function SellerEarnings() {
-  const { orders } = useSellerBulkOrders();
-  const [activeSection, setActiveSection] = useState<'overview' | 'pending' | 'history'>(
-    'overview'
-  );
-  const gross = orders.reduce((sum, order) => sum + Number(order.net_total || 0), 0);
-  const commission = Math.round(gross * 0.1);
-  const razorpayFee = Math.round(gross * 0.02);
-  const gstOnCommission = Math.round(commission * 0.18);
-  const sellerEarnings = Math.max(gross - commission - razorpayFee - gstOnCommission, 0);
-  const pending = Math.round(
-    orders
-      .filter((order) => ['paid', 'confirmed', 'shipped'].includes(order.status || ''))
-      .reduce((sum, order) => sum + Number(order.net_total || 0) * 0.862, 0)
-  );
-  const paidOrderCount = orders.filter((order) =>
-    ['paid', 'confirmed', 'shipped', 'delivered'].includes(order.status || '')
-  ).length;
+  const { user } = useAuth();
+  const [payments, setPayments] = useState<PaymentRow[]>([]);
+  const [seller, setSeller] = useState<SellerState | null>(null);
+  const [activeSection, setActiveSection] = useState<'overview' | 'pending' | 'history'>('overview');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    if (!user?.id) {
+      setPayments([]);
+      setSeller(null);
+      setLoading(false);
+      return;
+    }
+
+    const supabase = createClient();
+    const { data: sellerRow, error: sellerError } = await supabase
+      .from('seller_profiles')
+      .select('id,settlement_eligible,razorpay_linked_account_id')
+      .eq('user_id', user.id)
+      .maybeSingle();
+    if (sellerError || !sellerRow?.id) {
+      setError(sellerError?.message || 'Seller profile is not available.');
+      setLoading(false);
+      return;
+    }
+    setSeller({
+      settlementEligible: sellerRow.settlement_eligible === true,
+      linkedAccountId: sellerRow.razorpay_linked_account_id || null,
+    });
+
+    const [{ data: catalogOrders }, { data: bulkOrders }] = await Promise.all([
+      supabase.from('catalog_order_requests').select('id').eq('seller_id', sellerRow.id).limit(5000),
+      supabase.from('bulk_orders').select('id').eq('seller_id', sellerRow.id).limit(5000),
+    ]);
+    const catalogIds = (catalogOrders || []).map((row) => row.id);
+    const bulkIds = (bulkOrders || []).map((row) => row.id);
+
+    const catalogPromise = catalogIds.length
+      ? supabase.from('catalog_order_payments').select('id,catalog_order_id,amount,captured_amount,refunded_amount,platform_commission,razorpay_fee,razorpay_fee_actual,gst_on_commission,seller_payable,status,transfer_status,razorpay_transfer_id,payment_method,captured_at,created_at').in('catalog_order_id', catalogIds).order('created_at', { ascending: false })
+      : Promise.resolve({ data: [], error: null } as any);
+    const bulkPromise = bulkIds.length
+      ? supabase.from('bulk_order_payments').select('id,bulk_order_id,amount,captured_amount,refunded_amount,platform_commission,razorpay_fee,razorpay_fee_actual,gst_on_commission,seller_payable,status,transfer_status,razorpay_transfer_id,payment_method,captured_at,created_at').in('bulk_order_id', bulkIds).order('created_at', { ascending: false })
+      : Promise.resolve({ data: [], error: null } as any);
+
+    const [catalogResult, bulkResult] = await Promise.all([catalogPromise, bulkPromise]);
+    const paymentError = catalogResult.error || bulkResult.error;
+    if (paymentError) setError(paymentError.message);
+
+    const mapPayment = (row: any, orderType: 'catalog' | 'bulk'): PaymentRow => ({
+      id: String(row.id),
+      orderId: String(orderType === 'catalog' ? row.catalog_order_id : row.bulk_order_id),
+      orderType,
+      amount: Number(row.amount || 0),
+      capturedAmount: Number(row.captured_amount ?? row.amount ?? 0),
+      refundedAmount: Number(row.refunded_amount || 0),
+      platformCommission: Number(row.platform_commission || 0),
+      razorpayFee: Number(row.razorpay_fee_actual ?? row.razorpay_fee ?? 0),
+      gstOnCommission: Number(row.gst_on_commission || 0),
+      sellerPayable: Number(row.seller_payable || 0),
+      status: String(row.status || ''),
+      transferStatus: row.transfer_status || null,
+      transferId: row.razorpay_transfer_id || null,
+      paymentMethod: row.payment_method || null,
+      capturedAt: row.captured_at || null,
+      createdAt: String(row.created_at),
+    });
+
+    setPayments([
+      ...(catalogResult.data || []).map((row: any) => mapPayment(row, 'catalog')),
+      ...(bulkResult.data || []).map((row: any) => mapPayment(row, 'bulk')),
+    ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+    setLoading(false);
+  }, [user?.id]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const captured = payments.filter((payment) => capturedStatuses.has(payment.status.toLowerCase()) || payment.capturedAmount > 0);
+  const grossCaptured = captured.reduce((sum, payment) => sum + Math.max(payment.capturedAmount, payment.amount), 0);
+  const refunds = captured.reduce((sum, payment) => sum + payment.refundedAmount, 0);
+  const fees = captured.reduce((sum, payment) => sum + payment.platformCommission + payment.razorpayFee + payment.gstOnCommission, 0);
+  const sellerEarned = captured.reduce((sum, payment) => sum + payment.sellerPayable, 0);
+  const settled = captured.filter((payment) => Boolean(payment.transferId) || settledStatuses.has(String(payment.transferStatus || '').toLowerCase()));
+  const settledAmount = settled.reduce((sum, payment) => sum + payment.sellerPayable, 0);
+  const pending = captured.filter((payment) => !settled.includes(payment));
+  const pendingAmount = pending.reduce((sum, payment) => sum + payment.sellerPayable, 0);
+
+  const monthRows = useMemo(() => {
+    const rows = new Map<string, { month: string; earnings: number }>();
+    const now = new Date();
+    for (let offset = 5; offset >= 0; offset -= 1) {
+      const date = new Date(now.getFullYear(), now.getMonth() - offset, 1);
+      const key = monthKey(date.toISOString());
+      rows.set(key, { month: date.toLocaleDateString('en-IN', { month: 'short' }), earnings: 0 });
+    }
+    captured.forEach((payment) => {
+      const key = monthKey(payment.capturedAt || payment.createdAt);
+      const row = rows.get(key);
+      if (row) row.earnings += payment.sellerPayable;
+    });
+    return [...rows.values()];
+  }, [captured]);
 
   const tabs = [
-    { key: 'overview', label: 'Earnings Overview', icon: 'ChartBarIcon' },
-    { key: 'pending', label: 'Pending Payouts', icon: 'ClockIcon' },
-    { key: 'history', label: 'Payout History', icon: 'DocumentTextIcon' },
+    { key: 'overview', label: 'Earnings overview', icon: 'ChartBarIcon' },
+    { key: 'pending', label: 'Pending settlement', icon: 'ClockIcon' },
+    { key: 'history', label: 'Transfer history', icon: 'DocumentTextIcon' },
   ] as const;
 
   return (
     <div>
-      <div className="mb-6">
-        <h1 className="text-xl font-800 text-foreground">Seller Earnings</h1>
-        <p className="text-sm text-muted-foreground">Settlement Account: HDFC ****4521</p>
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="ft-route-kicker">Payments</p>
+          <h1 className="mt-1 text-2xl font-800 text-foreground">Seller earnings</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {seller?.linkedAccountId ? 'Razorpay linked settlement account connected.' : 'No Razorpay linked settlement account is connected yet.'}
+          </p>
+        </div>
+        <button type="button" onClick={() => void load()} disabled={loading} className="btn-secondary inline-flex items-center gap-2 rounded-xl px-3 py-2 text-xs disabled:opacity-50"><Icon name="ArrowPathIcon" size={14} className={loading ? 'animate-spin' : ''} /> Refresh</button>
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+      {seller && !seller.settlementEligible && (
+        <div className="mb-5 rounded-2xl border border-warning/20 bg-warning/10 p-4 text-sm text-warning">
+          Settlement is not enabled for this seller yet. Captured payments can still appear below, but automated transfer requires an eligible linked account.
+        </div>
+      )}
+      {error && <div className="mb-5 rounded-2xl border border-error/20 bg-error/5 p-4 text-sm text-error">{error}</div>}
+
+      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
         {[
-          {
-            label: 'This Month Earnings',
-            value: formatMoney(sellerEarnings),
-            sub: 'Seller amount earned',
-            icon: 'CurrencyRupeeIcon',
-            color: 'text-success',
-            bg: 'bg-success/10 border-success/20',
-          },
-          {
-            label: 'Available to Settle',
-            value: formatMoney(pending),
-            sub: `${paidOrderCount} paid account orders`,
-            icon: 'BanknotesIcon',
-            color: 'text-success',
-            bg: 'bg-success/10 border-success/20',
-          },
-          {
-            label: 'Settled Payout',
-            value: formatMoney(0),
-            sub: 'No completed payouts yet',
-            icon: 'CheckCircleIcon',
-            color: 'text-primary',
-            bg: 'bg-primary/10 border-primary/20',
-          },
-          {
-            label: 'Orders Earning',
-            value: paidOrderCount.toString(),
-            sub: `${orders.length} total account orders`,
-            icon: 'ClockIcon',
-            color: 'text-amber-600',
-            bg: 'bg-amber-50 border-amber-200',
-          },
-        ].map((card) => (
-          <div key={card.label} className={`stat-card border ${card.bg}`}>
-            <Icon
-              name={card.icon as 'CurrencyRupeeIcon'}
-              size={20}
-              className={`${card.color} mb-2`}
-            />
-            <p className={`text-2xl font-800 ${card.color}`}>{card.value}</p>
-            <p className="text-xs text-muted-foreground font-500 leading-tight mt-0.5">
-              {card.label}
-            </p>
-            <p className="text-xs text-muted-foreground mt-0.5">{card.sub}</p>
-          </div>
-        ))}
+          ['Gross captured', loading ? '—' : money(grossCaptured), 'CurrencyRupeeIcon', 'text-primary'],
+          ['Seller payable', loading ? '—' : money(sellerEarned), 'BanknotesIcon', 'text-success'],
+          ['Pending settlement', loading ? '—' : money(pendingAmount), 'ClockIcon', 'text-warning'],
+          ['Transferred', loading ? '—' : money(settledAmount), 'CheckCircleIcon', 'text-success'],
+        ].map(([label, value, icon, color]) => <div key={String(label)} className="rounded-2xl border border-border bg-card p-4"><Icon name={String(icon)} size={20} className={String(color)} /><p className={`mt-3 text-xl font-800 ${color}`}>{value}</p><p className="mt-1 text-xs font-700 text-muted-foreground">{label}</p></div>)}
       </div>
 
-      {/* Tab Navigation */}
-      <div className="flex gap-1 overflow-x-auto scrollbar-thin mb-6 bg-muted p-1 rounded-xl">
-        {tabs.map((tab) => (
-          <button
-            key={tab.key}
-            onClick={() => setActiveSection(tab.key)}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-600 whitespace-nowrap transition-all ${
-              activeSection === tab.key
-                ? 'bg-card text-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            <Icon name={tab.icon as 'ChartBarIcon'} size={14} />
-            {tab.label}
-          </button>
-        ))}
+      <div className="mb-6 flex gap-1 overflow-x-auto rounded-xl bg-muted p-1">
+        {tabs.map((tab) => <button key={tab.key} type="button" onClick={() => setActiveSection(tab.key)} className={`flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-2 text-xs font-700 ${activeSection === tab.key ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'}`}><Icon name={tab.icon} size={14} /> {tab.label}</button>)}
       </div>
 
-      {/* Earnings Overview */}
       {activeSection === 'overview' && (
         <div className="space-y-5">
-          <div className="bg-card rounded-2xl border border-border p-5">
-            <h2 className="font-800 text-foreground text-sm mb-4">Monthly Earnings Breakdown</h2>
-            <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={earningsData} barGap={4}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                <XAxis
-                  dataKey="month"
-                  tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }}
-                  tickLine={false}
-                  axisLine={false}
-                />
-                <YAxis
-                  tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }}
-                  tickLine={false}
-                  axisLine={false}
-                  tickFormatter={formatINR}
-                />
-                <Tooltip
-                  formatter={(val: number, name: string) => [formatINR(val), 'Seller Earnings']}
-                  contentStyle={{
-                    background: 'var(--card)',
-                    border: '1px solid var(--border)',
-                    borderRadius: '12px',
-                    fontSize: '12px',
-                  }}
-                />
-                <Bar
-                  dataKey="earnings"
-                  fill="var(--success)"
-                  radius={[4, 4, 0, 0]}
-                  barSize={12}
-                  name="earnings"
-                />
-              </BarChart>
+          <section className="rounded-2xl border border-border bg-card p-5">
+            <h2 className="mb-4 text-sm font-800 text-foreground">Seller payable by month</h2>
+            <ResponsiveContainer width="100%" height={230}>
+              <BarChart data={monthRows} barSize={18}><CartesianGrid strokeDasharray="3 3" stroke="var(--border)" /><XAxis dataKey="month" tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} tickLine={false} axisLine={false} /><YAxis tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} tickLine={false} axisLine={false} tickFormatter={(value) => `₹${Math.round(Number(value) / 1000)}K`} /><Tooltip formatter={(value: number) => [money(value), 'Seller payable']} contentStyle={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 12, fontSize: 12 }} /><Bar dataKey="earnings" fill="var(--success)" radius={[4, 4, 0, 0]} /></BarChart>
             </ResponsiveContainer>
-            {earningsData.length === 0 && (
-              <div className="mt-3 rounded-xl border border-dashed border-border bg-muted/30 p-4 text-center">
-                <p className="text-sm font-700 text-foreground">No earnings trend yet</p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Monthly charts will populate from paid orders for this seller account.
-                </p>
-              </div>
-            )}
-            <div className="flex items-center gap-4 mt-3 justify-center">
-              {[{ color: 'bg-success', label: 'Seller Earnings' }].map((l) => (
-                <div key={l.label} className="flex items-center gap-1.5">
-                  <div className={`w-3 h-3 rounded-sm ${l.color}`} />
-                  <span className="text-xs text-muted-foreground">{l.label}</span>
-                </div>
-              ))}
-            </div>
-          </div>
+            {!captured.length && <div className="mt-3 rounded-xl border border-dashed border-border bg-muted/30 p-4 text-center"><p className="text-sm font-800">No captured payments yet</p><p className="mt-1 text-xs text-muted-foreground">The chart will populate after real Razorpay captures are recorded.</p></div>}
+          </section>
 
-          <div className="bg-card rounded-2xl border border-border p-5">
-            <h2 className="font-800 text-foreground text-sm mb-4">What You Made This Month</h2>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              {[
-                { label: 'Current Earnings', amount: sellerEarnings },
-                { label: 'Pending Settlement', amount: pending },
-                { label: 'Paid Out', amount: 0 },
-              ].map((row) => (
-                <div
-                  key={row.label}
-                  className="rounded-xl border border-success/20 bg-success/10 p-4"
-                >
-                  <p className="text-xs text-muted-foreground">{row.label}</p>
-                  <p className="mt-1 text-xl font-800 text-success">
-                    ₹{Math.round(row.amount).toLocaleString('en-IN')}
-                  </p>
-                </div>
-              ))}
+          <section className="rounded-2xl border border-border bg-card p-5">
+            <h2 className="text-sm font-800 text-foreground">Payment deductions recorded</h2>
+            <div className="mt-4 grid gap-3 sm:grid-cols-3">
+              <div className="rounded-xl bg-muted/40 p-4"><p className="text-xs text-muted-foreground">Platform + processing + commission GST</p><p className="mt-1 text-xl font-800 text-foreground">{money(fees)}</p></div>
+              <div className="rounded-xl bg-error/5 p-4"><p className="text-xs text-muted-foreground">Refunded</p><p className="mt-1 text-xl font-800 text-error">{money(refunds)}</p></div>
+              <div className="rounded-xl bg-success/5 p-4"><p className="text-xs text-muted-foreground">Net seller payable</p><p className="mt-1 text-xl font-800 text-success">{money(sellerEarned)}</p></div>
             </div>
-          </div>
+          </section>
         </div>
       )}
 
-      {/* Pending Payouts */}
       {activeSection === 'pending' && (
-        <div className="bg-card rounded-2xl border border-border">
-          <div className="px-5 py-4 border-b border-border flex items-center justify-between">
-            <h2 className="font-800 text-foreground text-sm">Pending Payouts</h2>
-            <span className="text-xs text-muted-foreground">
-              {orders.length} orders · {formatMoney(pending)} pending
-            </span>
-          </div>
-          <div className="divide-y divide-border">
-            {pendingPayouts.map((payout) => (
-              <div key={payout.id} className="px-5 py-4">
-                <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="mono-id">{payout.id}</span>
-                      <span
-                        className={`text-xs font-600 border rounded-full px-2 py-0.5 ${statusColors[payout.status]}`}
-                      >
-                        {payout.status}
-                      </span>
-                    </div>
-                    <p className="text-sm font-700 text-foreground">{payout.buyer}</p>
-                    <p className="text-xs text-muted-foreground">
-                      Order Date: {payout.date} · ETA: {payout.eta}
-                    </p>
-                  </div>
-                  <div className="text-right shrink-0">
-                    <p className="text-base font-800 text-success">
-                      ₹{payout.net.toLocaleString('en-IN')}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            ))}
-            {pendingPayouts.length === 0 && (
-              <div className="px-5 py-10 text-center">
-                <Icon name="ClockIcon" size={30} className="mx-auto mb-2 text-muted-foreground" />
-                <p className="text-sm font-700 text-foreground">No pending payout records</p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Settlement records will appear after real payments are captured.
-                </p>
-              </div>
-            )}
-          </div>
-        </div>
+        <section className="overflow-hidden rounded-2xl border border-border bg-card">
+          <div className="border-b border-border px-5 py-4"><h2 className="text-sm font-800">Pending settlement</h2><p className="mt-1 text-xs text-muted-foreground">{pending.length} captured payment{pending.length === 1 ? '' : 's'} without a completed transfer.</p></div>
+          {pending.length ? <div className="divide-y divide-border">{pending.map((payment) => <div key={payment.id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-4"><div><p className="mono-id">{payment.orderType === 'catalog' ? 'FT-CAT' : 'FT-BULK'}-{payment.orderId.slice(0, 8).toUpperCase()}</p><p className="mt-1 text-xs text-muted-foreground">{payment.paymentMethod || 'Payment method not recorded'} · {new Date(payment.capturedAt || payment.createdAt).toLocaleString('en-IN')}</p></div><div className="text-right"><p className="text-sm font-800 text-success">{money(payment.sellerPayable)}</p><p className="mt-1 text-xs capitalize text-muted-foreground">{String(payment.transferStatus || 'pending').replaceAll('_', ' ')}</p></div></div>)}</div> : <div className="px-5 py-10 text-center"><Icon name="ClockIcon" size={30} className="mx-auto text-muted-foreground" /><p className="mt-2 text-sm font-800">No pending settlements</p></div>}
+        </section>
       )}
 
-      {/* Payout History */}
       {activeSection === 'history' && (
-        <div className="bg-card rounded-2xl border border-border">
-          <div className="px-5 py-4 border-b border-border flex items-center justify-between">
-            <h2 className="font-800 text-foreground text-sm">Payout History</h2>
-            <button className="flex items-center gap-1.5 text-xs font-600 text-primary hover:underline">
-              <Icon name="ArrowDownTrayIcon" size={14} />
-              Export CSV
-            </button>
-          </div>
-          <div className="divide-y divide-border">
-            {payoutHistory.map((payout) => (
-              <div key={payout.id} className="px-5 py-4">
-                <div className="flex flex-col sm:flex-row sm:items-start gap-3">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1 flex-wrap">
-                      <span className="mono-id">{payout.id}</span>
-                      <span
-                        className={`text-xs font-600 border rounded-full px-2 py-0.5 ${statusColors[payout.status]}`}
-                      >
-                        {payout.status}
-                      </span>
-                    </div>
-                    <p className="text-sm font-700 text-foreground">{payout.period}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {payout.orders} orders · Settled: {payout.date}
-                    </p>
-                    <p className="text-xs text-muted-foreground font-mono mt-0.5">
-                      UTR: {payout.utr}
-                    </p>
-                  </div>
-                  <div className="text-right shrink-0 space-y-0.5">
-                    <p className="text-base font-800 text-success">
-                      ₹{payout.net.toLocaleString('en-IN')}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            ))}
-            {payoutHistory.length === 0 && (
-              <div className="px-5 py-10 text-center">
-                <Icon
-                  name="DocumentTextIcon"
-                  size={30}
-                  className="mx-auto mb-2 text-muted-foreground"
-                />
-                <p className="text-sm font-700 text-foreground">No payout history yet</p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Completed seller settlements will be listed here.
-                </p>
-              </div>
-            )}
-          </div>
-        </div>
+        <section className="overflow-hidden rounded-2xl border border-border bg-card">
+          <div className="border-b border-border px-5 py-4"><h2 className="text-sm font-800">Completed transfers</h2><p className="mt-1 text-xs text-muted-foreground">Only records with a saved Razorpay transfer or settled status are shown.</p></div>
+          {settled.length ? <div className="divide-y divide-border">{settled.map((payment) => <div key={payment.id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-4"><div><p className="mono-id">{payment.transferId || payment.id}</p><p className="mt-1 text-xs text-muted-foreground">Order {payment.orderId.slice(0, 8).toUpperCase()} · {new Date(payment.capturedAt || payment.createdAt).toLocaleString('en-IN')}</p></div><div className="text-right"><p className="text-sm font-800 text-success">{money(payment.sellerPayable)}</p><p className="mt-1 text-xs text-success">Transferred</p></div></div>)}</div> : <div className="px-5 py-10 text-center"><Icon name="CheckCircleIcon" size={30} className="mx-auto text-muted-foreground" /><p className="mt-2 text-sm font-800">No completed transfers yet</p></div>}
+        </section>
       )}
     </div>
   );
