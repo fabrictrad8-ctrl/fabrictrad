@@ -5,7 +5,6 @@ import {
   useCallback,
   useContext,
   useEffect,
-  useRef,
   useState,
 } from 'react';
 import { createClient } from '../lib/supabase/client';
@@ -42,6 +41,7 @@ interface AuthContextType {
   profile: UserProfile | null;
   loading: boolean;
   profileLoading: boolean;
+  /** Compatibility flag for older components. FabricTrad no longer supports synthetic demo sessions. */
   isDemoAccount: boolean;
   googleAuthEnabled: boolean;
   signUp: (email: string, password: string, metadata?: any) => Promise<any>;
@@ -69,80 +69,6 @@ type IdentityConflict = {
   phone_role?: string | null;
 };
 
-type DemoRole = 'buyer' | 'seller';
-
-type DemoSessionResponse = {
-  role?: DemoRole | null;
-  error?: string;
-};
-
-const DEMO_IDENTITIES: Record<DemoRole, { user: any; profile: UserProfile }> = {
-  buyer: {
-    user: {
-      id: 'fabrictrad-demo-buyer',
-      email: 'demo.buyer@fabrictrad.com',
-      email_confirmed_at: '2026-01-01T00:00:00.000Z',
-      app_metadata: { role: 'buyer', demo: true },
-      user_metadata: { full_name: 'FabricTrad Demo Buyer', role: 'buyer', demo: true },
-    },
-    profile: {
-      id: 'fabrictrad-demo-buyer',
-      email: 'demo.buyer@fabrictrad.com',
-      full_name: 'FabricTrad Demo Buyer',
-      phone: '9000000101',
-      phone_verified: true,
-      role: 'buyer',
-      is_active: true,
-      can_buy: true,
-      can_sell: false,
-      account_kind: 'individual',
-      verification_method: 'pan',
-      verification_status: 'verified',
-      avatar_url: null,
-      business_name: 'Demo Buyer Textiles',
-      gstin: '24ABCDE1234F1Z5',
-      city: 'Mumbai',
-      state: 'Maharashtra',
-      address_line1: 'Demo Sourcing Office',
-      pincode: '400001',
-      preferred_language: 'en',
-      preferred_theme: 'system',
-    },
-  },
-  seller: {
-    user: {
-      id: 'fabrictrad-demo-seller',
-      email: 'demo.seller@fabrictrad.com',
-      email_confirmed_at: '2026-01-01T00:00:00.000Z',
-      app_metadata: { role: 'seller', demo: true },
-      user_metadata: { full_name: 'FabricTrad Demo Seller', role: 'seller', demo: true },
-    },
-    profile: {
-      id: 'fabrictrad-demo-seller',
-      email: 'demo.seller@fabrictrad.com',
-      full_name: 'FabricTrad Demo Seller',
-      phone: '9000000202',
-      phone_verified: true,
-      role: 'seller',
-      is_active: true,
-      can_buy: true,
-      can_sell: true,
-      account_kind: 'business',
-      verification_method: 'gstin',
-      verification_status: 'verified',
-      avatar_url: null,
-      business_name: 'FabricTrad Demo Textiles',
-      gstin: '27ABCDE1234F1Z5',
-      city: 'Surat',
-      state: 'Gujarat',
-      address_line1: 'Demo Textile Market, Ring Road',
-      pincode: '395002',
-      preferred_language: 'en',
-      preferred_theme: 'system',
-    },
-  },
-};
-
 const getAuthRedirectBase = () => {
   if (process.env.NEXT_PUBLIC_SITE_URL) {
     return process.env.NEXT_PUBLIC_SITE_URL.replace(/\/$/, '');
@@ -159,44 +85,6 @@ const setOAuthRoleCookie = (role: 'buyer' | 'seller') => {
   document.cookie = `fabrictrad_oauth_role=${role}; Path=/; Max-Age=600; SameSite=Lax${secure}`;
 };
 
-const readDemoSession = async (): Promise<DemoRole | null> => {
-  try {
-    const response = await fetch('/api/auth/demo-session', {
-      method: 'GET',
-      cache: 'no-store',
-      credentials: 'same-origin',
-    });
-    if (!response.ok) return null;
-    const payload = (await response.json()) as DemoSessionResponse;
-    return payload.role === 'buyer' || payload.role === 'seller' ? payload.role : null;
-  } catch {
-    return null;
-  }
-};
-
-const createDemoSession = async (email: string, password: string): Promise<DemoRole> => {
-  const response = await fetch('/api/auth/demo-session', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'same-origin',
-    cache: 'no-store',
-    body: JSON.stringify({ email, password }),
-  });
-  const payload = (await response.json().catch(() => ({}))) as DemoSessionResponse;
-  if (!response.ok || (payload.role !== 'buyer' && payload.role !== 'seller')) {
-    throw new Error(payload.error || 'Invalid login credentials.');
-  }
-  return payload.role;
-};
-
-const clearDemoSession = async () => {
-  await fetch('/api/auth/demo-session', {
-    method: 'DELETE',
-    credentials: 'same-origin',
-    cache: 'no-store',
-  }).catch(() => undefined);
-};
-
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) throw new Error('useAuth must be used within AuthProvider');
@@ -209,20 +97,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [profileLoading, setProfileLoading] = useState(false);
-  const [isDemoAccount, setIsDemoAccount] = useState(false);
   const [supabase] = useState(() => createClient());
-  const demoActiveRef = useRef(false);
-
-  const applyDemoSession = useCallback((role: DemoRole) => {
-    const identity = DEMO_IDENTITIES[role];
-    demoActiveRef.current = true;
-    setSession(null);
-    setUser(identity.user);
-    setProfile(identity.profile);
-    setIsDemoAccount(true);
-    setLoading(false);
-    return identity;
-  }, []);
+  const isDemoAccount = false;
 
   const loadProfile = useCallback(
     async (userId: string) => {
@@ -250,14 +126,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, nextSession) => {
-      if (cancelled || demoActiveRef.current) return;
+      if (cancelled) return;
       setSession(nextSession);
       setUser(nextSession?.user ?? null);
-      setIsDemoAccount(false);
 
-      // Supabase may refresh an access token when a background browser tab becomes active.
-      // Updating the token must not re-fetch the whole profile or make the current page look
-      // as if it has reloaded. Explicit profile refreshes and real auth transitions still load it.
+      // Token refreshes should not make the current screen appear to reload.
       if (event === 'TOKEN_REFRESHED') {
         setLoading(false);
         return;
@@ -272,17 +145,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     });
 
     const initialize = async () => {
-      const demoRole = await readDemoSession();
-      if (cancelled) return;
-
-      if (demoRole) {
-        demoActiveRef.current = true;
-        await supabase.auth.signOut().catch(() => undefined);
-        if (!cancelled) applyDemoSession(demoRole);
-        return;
-      }
-
-      demoActiveRef.current = false;
       const {
         data: { session: initialSession },
       } = await supabase.auth.getSession();
@@ -290,7 +152,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
       setSession(initialSession);
       setUser(initialSession?.user ?? null);
-      setIsDemoAccount(false);
       if (initialSession?.user) {
         await loadProfile(initialSession.user.id).catch(() => setProfile(null));
       } else {
@@ -305,21 +166,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       cancelled = true;
       subscription.unsubscribe();
     };
-  }, [applyDemoSession, loadProfile, supabase]);
+  }, [loadProfile, supabase]);
 
   const signUp = async (email: string, password: string, metadata: any = {}) => {
     const normalizedEmail = normalizeEmail(email);
-    if (
-      normalizedEmail === 'demo.buyer@fabrictrad.com' ||
-      normalizedEmail === 'demo.seller@fabrictrad.com'
-    ) {
-      throw new Error('This reserved account can only be used for sign in.');
-    }
-
-    await clearDemoSession();
-    demoActiveRef.current = false;
-    setIsDemoAccount(false);
-
     const registrationNonce = crypto.randomUUID();
     const { data, error } = await supabase.auth.signUp({
       email: normalizedEmail,
@@ -343,7 +193,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           pan: metadata?.pan || '',
           categories: Array.isArray(metadata?.categories) ? metadata.categories : [],
           monthly_capacity: metadata?.monthlyCapacity || '',
-          verification_method: metadata?.verificationMethod || (metadata?.role === 'seller' ? 'gstin' : 'none'),
+          verification_method:
+            metadata?.verificationMethod || (metadata?.role === 'seller' ? 'gstin' : 'none'),
           identity_reference_last4: metadata?.identityReferenceLast4 || '',
           registration_nonce: registrationNonce,
         },
@@ -368,7 +219,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       }).catch(() => null);
       if (!response?.ok) {
         const payload = await response?.json().catch(() => ({}));
-        provisioningWarning = payload?.error || 'Account profile setup will finish when you verify and sign in.';
+        provisioningWarning =
+          payload?.error || 'Account profile setup will finish when you verify and sign in.';
       }
     }
 
@@ -376,30 +228,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const signIn = async (email: string, password: string) => {
-    const normalizedEmail = normalizeEmail(email);
-    const isDemoEmail =
-      normalizedEmail === 'demo.buyer@fabrictrad.com' ||
-      normalizedEmail === 'demo.seller@fabrictrad.com';
-
-    if (isDemoEmail) {
-      const role = await createDemoSession(normalizedEmail, password);
-      demoActiveRef.current = true;
-      await supabase.auth.signOut().catch(() => undefined);
-      const identity = applyDemoSession(role);
-      return {
-        user: identity.user,
-        session: null,
-        role,
-        isDemo: true,
-      };
-    }
-
-    await clearDemoSession();
-    demoActiveRef.current = false;
-    setIsDemoAccount(false);
-
     const { data, error } = await supabase.auth.signInWithPassword({
-      email: normalizedEmail,
+      email: normalizeEmail(email),
       password,
     });
     if (error) throw error;
@@ -424,7 +254,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       });
       const provisionPayload = await provisionResponse.json().catch(() => ({}));
       if (!provisionResponse.ok) {
-        throw new Error(provisionPayload?.error || 'Your account profile could not be prepared. Please try again.');
+        throw new Error(
+          provisionPayload?.error ||
+            'Your account profile could not be prepared. Please try again.'
+        );
       }
 
       const loadedProfile = await loadProfile(data.user.id).catch(() => null);
@@ -438,10 +271,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     if (!googleAuthEnabled) {
       throw new Error('Google sign-in is not configured. Please use your email and password.');
     }
-
-    await clearDemoSession();
-    demoActiveRef.current = false;
-    setIsDemoAccount(false);
 
     const statusResponse = await fetch('/api/auth/google/status', { cache: 'no-store' });
     if (!statusResponse.ok) {
@@ -461,10 +290,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const sendEmailOtp = async (email: string) => {
-    await clearDemoSession();
-    demoActiveRef.current = false;
-    setIsDemoAccount(false);
-
     const { data, error } = await supabase.auth.signInWithOtp({
       email: normalizeEmail(email),
       options: {
@@ -477,7 +302,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const verifyEmailOtp = async (email: string, token: string) => {
-    demoActiveRef.current = false;
     const { data, error } = await supabase.auth.verifyOtp({
       email: normalizeEmail(email),
       token,
@@ -503,24 +327,19 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const updatePassword = async (password: string) => {
-    if (isDemoAccount) throw new Error('The shared demo password cannot be changed.');
     const { error } = await supabase.auth.updateUser({ password });
     if (error) throw error;
   };
 
   const signOut = async () => {
-    await clearDemoSession();
-    demoActiveRef.current = false;
     const { error } = await supabase.auth.signOut();
-    if (error && !isDemoAccount) throw error;
+    if (error) throw error;
     setProfile(null);
     setUser(null);
     setSession(null);
-    setIsDemoAccount(false);
   };
 
   const getCurrentUser = async () => {
-    if (isDemoAccount) return user;
     const {
       data: { user: currentUser },
       error,
@@ -529,39 +348,31 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     return currentUser;
   };
 
-  const isEmailVerified = () => isDemoAccount || Boolean(user?.email_confirmed_at);
+  const isEmailVerified = () => Boolean(user?.email_confirmed_at);
 
   const getUserProfile = async (): Promise<UserProfile | null> => {
     if (!user) return null;
-    if (isDemoAccount) return profile;
     return loadProfile(user.id);
   };
 
   const refreshProfile = async () => {
-    if (user && !isDemoAccount) {
-      await fetch('/api/auth/provision-account', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
-        },
-        credentials: 'same-origin',
-        cache: 'no-store',
-        body: '{}',
-      }).catch(() => undefined);
-      await loadProfile(user.id);
-    }
+    if (!user) return;
+    await fetch('/api/auth/provision-account', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+      },
+      credentials: 'same-origin',
+      cache: 'no-store',
+      body: '{}',
+    }).catch(() => undefined);
+    await loadProfile(user.id);
   };
 
   const updatePhone = async (phone: string) => {
     if (!user) throw new Error('Not authenticated');
     const normalizedPhone = normalizeIndianPhone(phone);
-    if (isDemoAccount) {
-      setProfile((current) =>
-        current ? { ...current, phone: normalizedPhone, phone_verified: true } : current
-      );
-      return;
-    }
     const { error } = await supabase
       .from('user_profiles')
       .update({ phone: normalizedPhone, updated_at: new Date().toISOString() })
@@ -570,13 +381,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     await loadProfile(user.id);
   };
 
-  const checkPhoneUnique = async (phone: string): Promise<{ unique: boolean; usedAs?: string }> => {
+  const checkPhoneUnique = async (
+    phone: string
+  ): Promise<{ unique: boolean; usedAs?: string }> => {
     const normalizedPhone = normalizeIndianPhone(phone);
     const { data: conflictData } = await supabase
       .rpc('check_identity_conflict', { input_email: null, input_phone: normalizedPhone })
       .maybeSingle();
     const conflict = conflictData as IdentityConflict | null;
-    if (conflict?.phone_used) return { unique: false, usedAs: conflict.phone_role || undefined };
+    if (conflict?.phone_used) {
+      return { unique: false, usedAs: conflict.phone_role || undefined };
+    }
     const { data, error } = await supabase
       .from('user_profiles')
       .select('id, role')
@@ -586,13 +401,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     return { unique: false, usedAs: data.role };
   };
 
-  const checkEmailUnique = async (email: string): Promise<{ unique: boolean; usedAs?: string }> => {
+  const checkEmailUnique = async (
+    email: string
+  ): Promise<{ unique: boolean; usedAs?: string }> => {
     const normalizedEmail = normalizeEmail(email);
     const { data: conflictData } = await supabase
       .rpc('check_identity_conflict', { input_email: normalizedEmail, input_phone: null })
       .maybeSingle();
     const conflict = conflictData as IdentityConflict | null;
-    if (conflict?.email_used) return { unique: false, usedAs: conflict.email_role || undefined };
+    if (conflict?.email_used) {
+      return { unique: false, usedAs: conflict.email_role || undefined };
+    }
     const { data, error } = await supabase
       .from('user_profiles')
       .select('id, role')
