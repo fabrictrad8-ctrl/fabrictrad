@@ -31,16 +31,14 @@ const status = 'src/app/api/whatsapp/status/route.ts';
 const inboxApi = 'src/app/api/whatsapp/catalog-inbox/route.ts';
 const inboxUi = 'src/app/seller-dashboard/components/WhatsAppCatalogPanel.tsx';
 const migration = 'supabase/migrations/20260817143000_whatsapp_catalog_ingestion.sql';
-const trialMigration = 'supabase/migrations/20260817150000_trial_room_asset_pipeline.sql';
-const trialStatus = 'src/app/api/ai/trial-room/status/route.ts';
 const drapeApi = 'src/app/api/ai/drape-on/route.ts';
-const drapeUi = 'src/app/product-detail/components/HybridVirtualDrapeStudio.tsx';
+const drapeUi = 'src/app/product-detail/components/FlagshipVirtualDrapeStudio.tsx';
 const drapeRoute = 'src/app/product-detail/components/ModernFabricDrapeViewer.tsx';
-const drape3d = 'src/app/product-detail/components/InteractiveFabricMannequin3D.tsx';
+const legacyDrape = 'src/app/product-detail/components/FabricDrapeViewer.tsx';
+const trialStatus = 'src/app/api/ai/trial-room/status/route.ts';
 const drapeStyle = 'src/lib/drapeProductStyle.ts';
 const pageContinuity = 'src/components/PageContinuity.tsx';
 const authContext = 'src/contexts/AuthContext.tsx';
-const legacyDrape = 'src/app/product-detail/components/FabricDrapeViewer.tsx';
 const manifest = 'src/app/manifest.ts';
 const readiness = '.github/workflows/integration-readiness.yml';
 
@@ -58,20 +56,19 @@ const readiness = '.github/workflows/integration-readiness.yml';
   inboxApi,
   inboxUi,
   migration,
-  trialMigration,
-  trialStatus,
   drapeApi,
   drapeUi,
   drapeRoute,
-  drape3d,
+  legacyDrape,
+  trialStatus,
   drapeStyle,
   pageContinuity,
   authContext,
-  legacyDrape,
   manifest,
   readiness,
 ].forEach(read);
 
+// Onboarding persistence and authenticated server restore.
 requireText(onboarding, "document.addEventListener('visibilitychange'");
 requireText(onboarding, "window.addEventListener('pagehide'");
 requireText(onboarding, 'keepalive');
@@ -87,6 +84,7 @@ requireText(onboardingApi, ".eq('user_id', user.id)");
 requireText(sellerVerification, 'bearerToken');
 requireText(sellerVerification, 'Authorization: `Bearer ${token}`');
 
+// Seller catalogue draft persistence and flexible product fields.
 requireText(composer, 'ownerKey');
 requireText(composer, 'window.localStorage.setItem');
 requireText(composer, "document.visibilityState === 'hidden'");
@@ -102,7 +100,6 @@ requireText(catalogUi, 'Draft saved to FabricTrad');
 requireText(productDraftMigration, 'create table if not exists public.seller_product_drafts');
 requireText(productDraftMigration, 'enable row level security');
 requireText(productDraftMigration, 'seller_product_drafts_owner_update');
-
 requireText(catalogUi, 'Fabric name');
 requireText(catalogUi, 'Type any fabric name');
 requireText(catalogUi, 'Product type / format');
@@ -121,6 +118,7 @@ requireText(flexibleProductMigration, 'add column if not exists unit_label text'
 requireText(flexibleProductMigration, "'yard'::text,'farma'::text,'custom'::text");
 requireText(flexibleProductMigration, 'check (char_length(trim(package_format)) between 1 and 160)');
 
+// WhatsApp catalogue ingestion remains signed, asynchronous and seller-scoped.
 requireText(webhook, "request.headers.get('x-hub-signature-256')");
 requireText(webhook, "createHmac('sha256'");
 requireText(webhook, 'timingSafeEqual');
@@ -140,64 +138,68 @@ requireText(inboxApi, ".eq('user_id', user.id)");
 requireText(inboxApi, 'createSignedUrl');
 requireText(inboxUi, 'WhatsApp → FabricTrad dashboard');
 
-requireText(drapeRoute, "export { default } from './HybridVirtualDrapeStudio';");
-requireText(drapeUi, 'inferDrapeProductStyle');
-requireText(drapeUi, 'Detected from this seller listing');
-requireText(drapeUi, 'InteractiveFabricMannequin3D');
-requireText(drapeUi, 'Interactive 3D');
-requireText(drapeUi, 'Try on my photo');
-requireText(drapeUi, "setAvatarGender('woman')");
-requireText(drapeUi, "setAvatarGender('man')");
-requireText(drapeUi, 'Upload photo');
-requireText(drapeUi, 'Use camera');
-requireText(drapeUi, 'Generate AI try-on');
-requireText(drapeUi, 'indexedDB.open');
+// Flagship Virtual Drape must expose exactly two fully AI experiences.
+requireText(drapeRoute, "export { default } from './FlagshipVirtualDrapeStudio';");
+requireText(legacyDrape, "export { default } from './FlagshipVirtualDrapeStudio';");
+requireText(drapeUi, "type SubjectMode = 'own_photo' | 'ai_model';");
+requireText(drapeUi, "type ModelGender = 'woman' | 'man';");
+requireText(drapeUi, 'Use my own photo');
+requireText(drapeUi, 'AI-generated model');
+requireText(drapeUi, "chooseMode('own_photo')");
+requireText(drapeUi, "chooseMode('ai_model')");
+requireText(drapeUi, 'Generate on my photo');
+requireText(drapeUi, 'Generate on AI ${modelGender} model');
+requireText(drapeUi, 'navigator.mediaDevices.getUserMedia');
 requireText(drapeUi, 'productId: product.rawProductId');
 requireText(drapeUi, 'variantId: product.selectedVariantId');
-requireText(drapeUi, 'navigator.mediaDevices.getUserMedia');
+requireText(drapeUi, 'subjectMode,');
+requireText(drapeUi, "modelGender: subjectMode === 'ai_model' ? modelGender : undefined");
+requireText(drapeUi, "modelImage: subjectMode === 'own_photo' ? personImage : undefined");
 requireText(drapeUi, 'drapeProductStyleApiId(productStyle)');
 requireText(drapeUi, 'drapeProductStylePrompt(productStyle)');
-forbidText(drapeUi, 'DEFAULT_MODEL_IMAGE');
-forbidText(drapeUi, 'Studio model');
-forbidText(drapeUi, 'Choose the garment');
+requireText(drapeUi, 'OpenAI API connected');
+requireText(drapeUi, 'Server key: connected securely');
+requireText(drapeUi, 'API: {apiUsed');
+forbidText(drapeUi, 'InteractiveFabricMannequin3D');
+forbidText(drapeUi, 'Experimental 3D fabric preview');
+forbidText(drapeUi, 'OPENAI_API_KEY');
+forbidText(drapeUi, 'GEMINI_API_KEY');
 
-requireText(drape3d, "export type DrapeAvatarGender = 'woman' | 'man'");
-requireText(drape3d, "avatarGender === 'woman'");
-requireText(drape3d, 'Human head + visible facial cues');
-requireText(drape3d, "await import('three')");
-requireText(drape3d, 'createClothShell');
-requireText(drape3d, 'new THREE.CapsuleGeometry');
-requireText(drape3d, 'pointerdown');
-requireText(drape3d, 'wheel');
-requireText(drape3d, '3D {avatarLabel} · drag 360°');
-requireText(drape3d, 'Live seller textile mapped onto the selected human avatar');
-forbidText(drape3d, 'around the mannequin');
-requireText(drapeStyle, 'inferDrapeProductStyle');
-requireText(drapeStyle, "return 'fabric'");
-
+// Server route must use live seller media and server-only AI credentials for both modes.
+requireText(drapeApi, "type SubjectMode = 'own_photo' | 'ai_model';");
+requireText(drapeApi, "type ModelGender = 'woman' | 'man';");
 requireText(drapeApi, 'resolveListingFabric');
 requireText(drapeApi, ".from('seller_products')");
 requireText(drapeApi, ".from('seller_product_variants')");
 requireText(drapeApi, ".from('seller_product_media')");
 requireText(drapeApi, "p_feature: 'ai_drape'");
 requireText(drapeApi, "fetch('https://api.openai.com/v1/images/edits'");
-requireText(drapeApi, "form.append('image[]', person.blob");
-requireText(drapeApi, "form.append('image[]', fabric.blob");
+requireText(drapeApi, "headers: { Authorization: `Bearer ${apiKey}` }");
+requireText(drapeApi, "subjectMode === 'own_photo'");
+requireText(drapeApi, "subjectMode === 'ai_model'");
+requireText(drapeApi, 'modelGender');
+requireText(drapeApi, "subjectModes: ['own_photo', 'ai_model']");
+requireText(drapeApi, "modelGenders: ['woman', 'man']");
+requireText(drapeApi, "apiUsed: openAiConfigured ? 'OpenAI Images API'");
+requireText(drapeApi, "credentialLocation: 'server_only'");
 requireText(drapeApi, "mode: 'real_ai_image_try_on'");
-forbidText(drapeUi, 'OPENAI_API_KEY');
-forbidText(drapeUi, 'GEMINI_API_KEY');
-requireText(legacyDrape, "export { default } from './HybridVirtualDrapeStudio';");
-forbidText(legacyDrape, "blend: 'multiply'");
+requireText(drapeApi, 'usesListingMedia: true');
+requireText(drapeApi, 'form.append(\'image[]\', person.blob');
+requireText(drapeApi, 'form.append(\'image[]\', fabric.blob');
+requireText(drapeApi, 'Create a new photorealistic adult ${modelGender} fashion model from scratch.');
+requireText(drapeApi, 'Do not make a flat texture overlay, pasted photograph');
+requireText(drapeStyle, 'inferDrapeProductStyle');
+requireText(drapeStyle, "return 'fabric'");
 
-requireText(trialMigration, 'garment_glb');
-requireText(trialMigration, 'garment_usdz');
-requireText(trialMigration, 'fabric_texture');
-requireText(trialStatus, "currentExperience: 'interactive_3d_human_avatar_plus_ai_personal_photo_try_on'");
-requireText(trialStatus, 'interactiveThreeDHumanAvatar: true');
-requireText(trialStatus, "avatarChoices: ['woman', 'man']");
-requireText(trialStatus, "personalPhotoInput: ['upload', 'camera']");
-requireText(trialStatus, "'procedural_webgl_human_avatar_live'");
+// Trial-room status must describe the current AI experience accurately rather than the retired procedural 3D flagship.
+requireText(trialStatus, "currentExperience: 'dual_ai_virtual_drape'");
+requireText(trialStatus, "id: 'own_photo'");
+requireText(trialStatus, "id: 'ai_model'");
+requireText(trialStatus, "modelGenders: ['woman', 'man']");
+requireText(trialStatus, "proceduralThreeDFlagship: false");
+requireText(trialStatus, "credentialLocation: 'server_only'");
 
+// Page continuity, token refresh and PWA behavior.
 requireText(pageContinuity, "document.addEventListener('visibilitychange'");
 requireText(pageContinuity, "window.addEventListener('pagehide'");
 requireText(pageContinuity, 'sessionStorage.setItem');
@@ -205,7 +207,6 @@ forbidText(pageContinuity, 'window.location.reload');
 forbidText(pageContinuity, 'router.refresh');
 requireText(authContext, "event === 'TOKEN_REFRESHED'");
 requireText(authContext, 'must not re-fetch the whole profile');
-
 requireText(manifest, "display: 'standalone'");
 requireText(manifest, "start_url: '/'");
 requireText(manifest, "categories: ['business', 'shopping', 'productivity']");
@@ -215,8 +216,8 @@ requireText(readiness, 'WhatsApp forged-signature probe');
 requireText(readiness, '/api/integrations/whatsapp/webhook');
 
 if (failures.length) {
-  console.error(`Mobile/WhatsApp verification failed (${failures.length}):`);
+  console.error(`Mobile/WhatsApp/AI verification failed (${failures.length}):`);
   failures.forEach((failure) => console.error(`- ${failure}`));
   process.exit(1);
 }
-console.info('Mobile persistence, flexible seller catalogue, human 3D and personal-photo AI try-on verification passed.');
+console.info('Mobile persistence, flexible seller catalogue, WhatsApp ingestion and dual fully-AI Virtual Drape verification passed.');
