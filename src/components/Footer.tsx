@@ -23,10 +23,12 @@ const footerGroups = [
     ],
   },
   {
-    label: 'Support',
+    label: 'Support & legal',
     links: [
       { label: 'Help centre', href: '/help' },
-      { label: 'Account settings', href: '/profile' },
+      { label: 'Returns & exchanges', href: '/returns-exchanges' },
+      { label: 'Buyer Agreement', href: '/buyer-agreement' },
+      { label: 'Seller Agreement', href: '/seller-agreement' },
       { label: 'Privacy policy', href: '/privacy' },
       { label: 'Terms of use', href: '/terms' },
     ],
@@ -53,7 +55,7 @@ export default function Footer() {
         </div>
 
         <p className="mt-3 text-xs leading-5 text-muted-foreground sm:hidden">
-          Verified textile sourcing, catalogues, orders, payments and fulfilment.
+          Verified textile sourcing, catalogues, prepaid orders, payments and fulfilment.
         </p>
 
         <div className="mt-5 divide-y divide-border border-y border-border sm:hidden">
@@ -81,7 +83,7 @@ export default function Footer() {
               <span className="text-lg font-800 tracking-tight text-foreground">FabricTrad</span>
             </Link>
             <p className="mt-4 text-sm leading-6 text-muted-foreground">
-              An orange-first textile commerce platform for verified sourcing, colour-level catalogues, orders, payments and fulfilment.
+              An orange-first textile commerce platform for verified sourcing, colour-level catalogues, prepaid orders, payments and fulfilment.
             </p>
             <div className="mt-5 flex items-center gap-2">
               <a href="mailto:fabrictrad8@gmail.com" className="ft-icon-button" aria-label="Email FabricTrad support">
@@ -119,14 +121,14 @@ export default function Footer() {
           </div>
           <div className="hidden max-w-xl text-left sm:block sm:text-right">
             <p className="leading-5">
-              FabricTrad provides marketplace technology. Sellers remain responsible for product accuracy, GST, packing, fulfilment and applicable legal obligations.
+              FabricTrad provides marketplace technology. Sellers remain responsible for product accuracy, seller taxes, packing and seller fulfilment except where FabricTrad expressly undertakes a service itself, subject always to applicable law.
             </p>
             <p className="mt-1 font-700 text-warning">
-              Payment, cancellation, return and exchange eligibility is shown in the applicable order and product flow.
+              Marketplace orders are prepaid. Return, exchange and dispute terms are shown in the applicable product/order flow and do not remove non-waivable legal rights.
             </p>
           </div>
           <p className="leading-5 sm:hidden">
-            Order-specific payment, cancellation, return and exchange terms appear before purchase.
+            Marketplace orders are prepaid. See the order and Returns & Exchanges Policy for claim eligibility.
           </p>
         </div>
       </div>
