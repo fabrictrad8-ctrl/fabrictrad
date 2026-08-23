@@ -1,0 +1,73 @@
+name: Flagship drape build diagnostic
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/flagship-drape-build-diagnostic.yml'
+      - 'src/app/api/ai/drape-on/**'
+      - 'src/app/product-detail/components/FlagshipVirtualDrapeStudio.tsx'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: fabrictrad-flagship-drape-build-diagnostic
+  cancel-in-progress: true
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund --package-lock=false --legacy-peer-deps
+      - name: Run targeted checks
+        id: checks
+        shell: bash
+        run: |
+          set +e
+          npm run type-check >/tmp/typecheck.log 2>&1
+          type_status=$?
+          npx eslint src/app/api/ai/drape-on/route.ts src/app/product-detail/components/FlagshipVirtualDrapeStudio.tsx >/tmp/lint.log 2>&1
+          lint_status=$?
+          set -e
+          echo "type_status=$type_status" >> "$GITHUB_OUTPUT"
+          echo "lint_status=$lint_status" >> "$GITHUB_OUTPUT"
+      - name: Record diagnostic
+        if: always()
+        shell: bash
+        env:
+          TYPE_STATUS: ${{ steps.checks.outputs.type_status }}
+          LINT_STATUS: ${{ steps.checks.outputs.lint_status }}
+        run: |
+          python - <<'PY'
+          import json,os,pathlib,datetime
+          def tail(path,n=120):
+              p=pathlib.Path(path)
+              if not p.exists(): return ''
+              lines=p.read_text(errors='replace').splitlines()
+              return '\n'.join(lines[-n:])
+          payload={
+            'sourceCommit':os.environ.get('GITHUB_SHA'),
+            'recordedAt':datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            'typeCheck':'success' if os.environ.get('TYPE_STATUS')=='0' else 'failure',
+            'lint':'success' if os.environ.get('LINT_STATUS')=='0' else 'failure',
+            'typeCheckTail':tail('/tmp/typecheck.log'),
+            'lintTail':tail('/tmp/lint.log'),
+          }
+          pathlib.Path('.github/deployments/flagship-drape-build-status.json').write_text(json.dumps(payload,indent=2))
+          PY
+          git config user.name github-actions
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add .github/deployments/flagship-drape-build-status.json
+          git diff --cached --quiet || git commit -m 'ci: record flagship drape build diagnostic [skip deploy] [skip validation]'
+          git push
+      - name: Fail when checks fail
+        if: steps.checks.outputs.type_status != '0' || steps.checks.outputs.lint_status != '0'
+        run: exit 1
