@@ -1,3 +1,4 @@
+# Explicit trigger after workflow creation.
 name: Flagship drape build diagnostic
 
 on:
