@@ -4,9 +4,14 @@ import { imageEdit } from '@rocketnew/llm-sdk';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 
+type SubjectMode = 'own_photo' | 'ai_model';
+type ModelGender = 'woman' | 'man';
+
 type DrapeRequest = {
   productId?: string;
   variantId?: string | null;
+  subjectMode?: SubjectMode;
+  modelGender?: ModelGender;
   modelImage?: string;
   garmentId?: string;
   fit?: string;
@@ -32,6 +37,7 @@ type GeneratedDrape = {
   image: string;
   provider: string;
   model: string;
+  apiUsed: string;
   requestId?: string | null;
 };
 
@@ -175,7 +181,7 @@ async function fetchAllowedRemoteImage(initialUrl: URL, label: string) {
         signal: AbortSignal.timeout(20_000),
         headers: {
           Accept: 'image/jpeg,image/png,image/webp;q=0.9,*/*;q=0.1',
-          'User-Agent': 'FabricTrad-AI-Drape/1.0',
+          'User-Agent': 'FabricTrad-AI-Drape/2.0',
         },
       });
     } catch (error) {
@@ -204,9 +210,6 @@ async function fetchAllowedRemoteImage(initialUrl: URL, label: string) {
     }
 
     if (!response.ok) {
-      console.error(`AI drape ${label} image returned ${response.status}`, {
-        host: current.hostname,
-      });
       throw new DrapeClientError(
         `Unable to load the ${label} image for AI processing.`,
         502,
@@ -227,7 +230,9 @@ async function fetchAllowedRemoteImage(initialUrl: URL, label: string) {
 async function inputToBlob(input: string, label = 'reference'): Promise<ImageInput> {
   if (input.startsWith('data:')) {
     const match = input.match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/);
-    if (!match) throw new DrapeClientError('Unsupported image data.', 400, 'UNSUPPORTED_IMAGE_DATA');
+    if (!match) {
+      throw new DrapeClientError('Unsupported image data.', 400, 'UNSUPPORTED_IMAGE_DATA');
+    }
     const mime = normalizeMime(match[1]);
     const buffer = Buffer.from(match[2], 'base64');
     if (buffer.byteLength < 1 || buffer.byteLength > MAX_IMAGE_BYTES) {
@@ -249,16 +254,10 @@ async function inputToBlob(input: string, label = 'reference'): Promise<ImageInp
 
   validateRemoteUrl(url);
   const response = await fetchAllowedRemoteImage(url, label);
-
   const mime = normalizeMime(
     (response.headers.get('content-type') || '').split(';')[0].trim().toLowerCase()
   );
   if (!ALLOWED_MIME.has(mime)) {
-    console.error('AI drape unsupported remote image type', {
-      label,
-      mime,
-      host: new URL(response.url || url.toString()).hostname,
-    });
     throw new DrapeClientError(
       `The ${label} image format cannot be processed. Use JPG, PNG or WebP.`,
       400,
@@ -323,7 +322,11 @@ async function resolveListingFabric(
 
   if (productError) {
     console.error('AI drape product lookup failed', productError.message);
-    throw new DrapeClientError('Unable to load this product for AI try-on.', 500, 'PRODUCT_LOOKUP_FAILED');
+    throw new DrapeClientError(
+      'Unable to load this product for AI try-on.',
+      500,
+      'PRODUCT_LOOKUP_FAILED'
+    );
   }
   if (!product) {
     throw new DrapeClientError(
@@ -346,7 +349,11 @@ async function resolveListingFabric(
 
     if (error) {
       console.error('AI drape variant lookup failed', error.message);
-      throw new DrapeClientError('Unable to load this colour for AI try-on.', 500, 'VARIANT_LOOKUP_FAILED');
+      throw new DrapeClientError(
+        'Unable to load this colour for AI try-on.',
+        500,
+        'VARIANT_LOOKUP_FAILED'
+      );
     }
     if (!data) {
       throw new DrapeClientError(
@@ -432,7 +439,6 @@ async function signUsage(payload: string, secret: string) {
 async function readUsageCookie(request: NextRequest, secret: string) {
   const value = request.cookies.get(USAGE_COOKIE_NAME)?.value;
   if (!value) return 0;
-
   const [encodedPayload, suppliedSignature] = value.split('.');
   if (!encodedPayload || !suppliedSignature) return 0;
 
@@ -445,7 +451,6 @@ async function readUsageCookie(request: NextRequest, secret: string) {
 
   const expectedSignature = await signUsage(payload, secret);
   if (expectedSignature !== suppliedSignature) return 0;
-
   const [day, rawCount] = payload.split(':');
   if (day !== todayUtc()) return 0;
   return safeInteger(rawCount, 0, 0, 100);
@@ -474,26 +479,50 @@ function resolveGarment(body: DrapeRequest) {
   return legacy || `regular fit ${GARMENTS.fabric}`;
 }
 
-function buildPrompt(fabric: FabricReference, styleName: string, referenceCount: number) {
+function buildPrompt(
+  fabric: FabricReference,
+  styleName: string,
+  referenceCount: number,
+  subjectMode: SubjectMode,
+  modelGender: ModelGender
+) {
+  const textileIndexText =
+    subjectMode === 'own_photo'
+      ? referenceCount > 1
+        ? `IMAGES 2-${referenceCount + 1} are reference views of the SAME seller textile.`
+        : 'IMAGE 2 is the seller textile reference.'
+      : referenceCount > 1
+        ? `IMAGES 1-${referenceCount} are reference views of the SAME seller textile.`
+        : 'IMAGE 1 is the seller textile reference.';
+
+  const subjectInstructions =
+    subjectMode === 'own_photo'
+      ? [
+          'IMAGE 1 is the buyer/person reference. Preserve this exact adult person’s facial identity, skin tone, hair, expression, body proportions, pose, hands, camera angle, lighting, framing and background as closely as possible.',
+          `Dress this person in ${styleName}.`,
+          'Replace visible clothing only where appropriate for the requested garment. Keep the person recognisably the same person.',
+        ]
+      : [
+          `Create a new photorealistic adult ${modelGender} fashion model from scratch. The model must not copy or resemble any person who may appear in the seller textile reference photos.`,
+          'Use a tasteful premium ecommerce studio setting, natural standing fashion pose, full body in frame, realistic anatomy, hands and face, clean neutral background and balanced studio lighting.',
+          `Dress the generated ${modelGender} model in ${styleName}.`,
+        ];
+
   return [
-    'Create one photorealistic virtual try-on photograph for a premium textile marketplace.',
-    'IMAGE 1 is the person reference. Preserve this exact adult person’s facial identity, skin tone, hair, expression, body proportions, pose, hands, camera angle, lighting, framing and background as closely as possible.',
-    referenceCount > 1
-      ? `IMAGES 2-${referenceCount + 1} are reference views of the SAME textile. Use them only to understand the textile itself.`
-      : 'IMAGE 2 is the fabric reference. Use it only to understand the textile itself.',
+    'Create one photorealistic virtual drape / fashion try-on image for a premium textile marketplace.',
+    ...subjectInstructions,
+    `${textileIndexText} Use those textile images only to understand the textile itself.`,
     `The textile listing is “${fabric.name}”${fabric.variantName ? `, selected variant “${fabric.variantName}”` : ''}${fabric.details ? ` (${fabric.details})` : ''}.`,
-    'Reproduce the textile colour, print, weave, embroidery, texture, sheen and pattern scale faithfully. Do not copy any person, mannequin, hand, hanger, room or background that may appear in a fabric-reference image.',
-    `Dress the person in ${styleName}.`,
-    'Replace the person’s visible clothing only where appropriate for the requested garment. Construct a genuinely wearable garment with correct neckline, sleeves, seams, hems, pleats, folds, fabric thickness, gravity, shadows and body occlusion.',
-    'The garment must conform naturally to the body and pose. Keep hands and limbs anatomically correct and visible when they were visible in the person reference.',
-    'Do not make a flat texture overlay, pasted colour region, floating cloth, polygon, bib, cape or generic shawl unless the requested garment is specifically a dupatta.',
-    'Do not change the person’s face, hair, age, body shape or skin tone. Do not add another person, jewellery, text, logos, labels, borders, watermarks or a comparison collage.',
-    'Output one finished ecommerce-style try-on photograph only.',
+    'Reproduce the seller textile colour, print, weave, embroidery, texture, sheen and pattern scale faithfully. Do not copy any person, mannequin, hand, hanger, room or background from a textile-reference image.',
+    'Construct a genuinely wearable garment with correct neckline, sleeves, seams, hems, pleats, folds, fabric thickness, gravity, shadows and body occlusion.',
+    'Do not make a flat texture overlay, pasted photograph, floating cloth, polygon, bib, rectangular wrap, cape or generic shawl unless the requested garment specifically requires it.',
+    'Do not add text, logos, labels, borders, watermarks or a comparison collage.',
+    'Output one finished high-quality ecommerce-style fashion photograph only.',
   ].join(' ');
 }
 
 async function generateWithOpenAI(
-  person: ImageInput,
+  person: ImageInput | null,
   fabrics: ImageInput[],
   prompt: string,
   apiKey: string
@@ -504,7 +533,9 @@ async function generateWithOpenAI(
 
   const form = new FormData();
   form.append('model', model);
-  form.append('image[]', person.blob, `person.${person.extension}`);
+  if (person) {
+    form.append('image[]', person.blob, `person.${person.extension}`);
+  }
   fabrics.forEach((fabric, index) => {
     form.append('image[]', fabric.blob, `fabric-${index + 1}.${fabric.extension}`);
   });
@@ -517,6 +548,7 @@ async function generateWithOpenAI(
 
   console.info('AI drape sending request to OpenAI GPT Image', {
     model,
+    subjectMode: person ? 'own_photo' : 'ai_model',
     fabricReferenceCount: fabrics.length,
     size,
     quality,
@@ -549,7 +581,9 @@ async function generateWithOpenAI(
     });
     if (payload.error?.code === 'moderation_blocked') {
       throw new DrapeClientError(
-        'The selected photo could not be processed. Try a clear, fully clothed adult photo.',
+        person
+          ? 'The selected photo could not be processed. Try a clear, fully clothed adult photo.'
+          : 'The AI model request could not be processed. Please retry.',
         400,
         'OPENAI_MODERATION_BLOCKED'
       );
@@ -561,25 +595,28 @@ async function generateWithOpenAI(
   if (!base64Image) throw new Error('OpenAI returned no generated image.');
 
   console.info('AI drape OpenAI GPT Image generation completed', { model, requestId });
-
   return {
     image: `data:image/jpeg;base64,${base64Image}`,
     provider: 'OpenAI',
     model,
+    apiUsed: 'OpenAI Images API',
     requestId,
   };
 }
 
 async function generateWithGemini(
-  person: ImageInput,
+  person: ImageInput | null,
   fabrics: ImageInput[],
   prompt: string,
   apiKey: string
 ): Promise<GeneratedDrape> {
   const model = process.env.GEMINI_DRAPE_IMAGE_MODEL || 'gemini/gemini-2.5-flash-image';
+  const images = person
+    ? [person.blob, ...fabrics.map((item) => item.blob)]
+    : fabrics.map((item) => item.blob);
   const output = await imageEdit({
     model,
-    image: [person.blob, ...fabrics.map((item) => item.blob)],
+    image: images,
     prompt,
     size: process.env.GEMINI_DRAPE_IMAGE_SIZE || '1024x1536',
     api_key: apiKey,
@@ -592,8 +629,7 @@ async function generateWithGemini(
     ? `data:image/png;base64,${firstImage.b64_json}`
     : firstImage?.url;
   if (!image) throw new Error('Gemini returned no generated image.');
-
-  return { image, provider: 'Gemini', model };
+  return { image, provider: 'Gemini', model, apiUsed: 'Gemini Image API' };
 }
 
 export async function GET() {
@@ -604,7 +640,12 @@ export async function GET() {
       configured: openAiConfigured || geminiConfigured,
       mode: 'real_ai_image_try_on',
       usesListingMedia: true,
+      subjectModes: ['own_photo', 'ai_model'],
+      modelGenders: ['woman', 'man'],
       provider: openAiConfigured ? 'OpenAI GPT Image' : geminiConfigured ? 'Gemini Image' : null,
+      apiUsed: openAiConfigured ? 'OpenAI Images API' : geminiConfigured ? 'Gemini Image API' : null,
+      credentialConfigured: openAiConfigured || geminiConfigured,
+      credentialLocation: 'server_only',
       model: openAiConfigured
         ? process.env.OPENAI_DRAPE_IMAGE_MODEL || 'gpt-image-2'
         : geminiConfigured
@@ -618,7 +659,10 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   const contentLength = Number(request.headers.get('content-length') || 0);
   if (contentLength > MAX_REQUEST_BYTES) {
-    return NextResponse.json({ error: 'Request is too large.', code: 'REQUEST_TOO_LARGE' }, { status: 413 });
+    return NextResponse.json(
+      { error: 'Request is too large.', code: 'REQUEST_TOO_LARGE' },
+      { status: 413 }
+    );
   }
 
   const openAiKey = process.env.OPENAI_API_KEY;
@@ -660,13 +704,24 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = (await request.json()) as DrapeRequest;
-    if (!body.modelImage) {
-      throw new DrapeClientError('Choose or upload a person photo first.', 400, 'PERSON_IMAGE_REQUIRED');
+    const subjectMode: SubjectMode = body.subjectMode === 'ai_model' ? 'ai_model' : 'own_photo';
+    const modelGender: ModelGender = body.modelGender === 'man' ? 'man' : 'woman';
+
+    if (subjectMode === 'own_photo' && !body.modelImage) {
+      throw new DrapeClientError(
+        'Choose or upload a person photo first.',
+        400,
+        'PERSON_IMAGE_REQUIRED'
+      );
     }
 
     let fabricReference: FabricReference;
     if (body.productId) {
-      fabricReference = await resolveListingFabric(createAdminClient(), body.productId, body.variantId);
+      fabricReference = await resolveListingFabric(
+        createAdminClient(),
+        body.productId,
+        body.variantId
+      );
     } else if (body.fabricImage) {
       fabricReference = {
         name: String(body.fabricName || 'Selected textile').slice(0, 160),
@@ -685,16 +740,21 @@ export async function POST(request: NextRequest) {
     console.info('AI drape preparing references', {
       productId: body.productId || null,
       variantId: body.variantId || null,
+      subjectMode,
+      modelGender: subjectMode === 'ai_model' ? modelGender : null,
       fabricReferenceCount: fabricReference.imageUrls.length,
       provider: openAiKey ? 'OpenAI' : 'Gemini',
     });
 
-    const [person, ...fabricInputs] = await Promise.all([
-      inputToBlob(body.modelImage, 'person reference'),
-      ...fabricReference.imageUrls.map((url, index) =>
+    const person =
+      subjectMode === 'own_photo' && body.modelImage
+        ? await inputToBlob(body.modelImage, 'person reference')
+        : null;
+    const fabricInputs = await Promise.all(
+      fabricReference.imageUrls.map((url, index) =>
         inputToBlob(url, `seller textile reference ${index + 1}`)
-      ),
-    ]);
+      )
+    );
 
     if (!fabricInputs.length) {
       throw new DrapeClientError(
@@ -714,7 +774,10 @@ export async function POST(request: NextRequest) {
         p_daily_limit: safeInteger(process.env.AI_DRAPE_DAILY_LIMIT, 10, 1, 100),
       });
       if (quotaError) {
-        console.warn('AI drape database quota unavailable; using signed browser quota.', quotaError.message);
+        console.warn(
+          'AI drape database quota unavailable; using signed browser quota.',
+          quotaError.message
+        );
         cookieQuotaUsed = true;
       } else if (!quotaAllowed) {
         return NextResponse.json(
@@ -743,7 +806,13 @@ export async function POST(request: NextRequest) {
     }
 
     const styleName = resolveGarment(body);
-    const prompt = buildPrompt(fabricReference, styleName, fabricInputs.length);
+    const prompt = buildPrompt(
+      fabricReference,
+      styleName,
+      fabricInputs.length,
+      subjectMode,
+      modelGender
+    );
     const providerErrors: Array<{ provider: string; message: string }> = [];
     let generated: GeneratedDrape | null = null;
 
@@ -787,13 +856,19 @@ export async function POST(request: NextRequest) {
         image: generated.image,
         provider: generated.provider,
         model: generated.model,
+        apiUsed: generated.apiUsed,
         providerRequestId: generated.requestId || null,
+        subjectMode,
+        modelGender: subjectMode === 'ai_model' ? modelGender : null,
         fabricReference: {
           name: fabricReference.name,
           variantName: fabricReference.variantName,
           imageCount: fabricInputs.length,
         },
-        analysis: `${generated.provider} generated a ${styleName} using the live FabricTrad listing “${fabricReference.name}”${fabricReference.variantName ? ` (${fabricReference.variantName})` : ''}. This is a visual sourcing preview; confirm the physical textile before production.`,
+        analysis:
+          subjectMode === 'own_photo'
+            ? `${generated.provider} generated a ${styleName} on the buyer photo using the live FabricTrad listing “${fabricReference.name}”${fabricReference.variantName ? ` (${fabricReference.variantName})` : ''}.`
+            : `${generated.provider} generated a photorealistic AI ${modelGender} model wearing a ${styleName} made from the live FabricTrad listing “${fabricReference.name}”${fabricReference.variantName ? ` (${fabricReference.variantName})` : ''}.`,
       },
       { headers: { 'Cache-Control': 'no-store, max-age=0' } }
     );
