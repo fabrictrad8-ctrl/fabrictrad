@@ -1,11 +1,11 @@
 {
-  "sourceCommit": "b373151541299de83888910b71f3267f2dd7871e",
+  "sourceCommit": "eda14723f85ef1231096cb645673d8106032ecc1",
   "readinessOutcome": "success",
   "providerGenerationOutcome": "success",
-  "listingGenerationOutcome": "failure",
+  "listingGenerationOutcome": "success",
   "readinessHttp": "200",
   "providerHttp": "200",
-  "listingHttp": "500",
+  "listingHttp": "200",
   "readiness": {
     "configured": true,
     "mode": "real_ai_image_try_on",
@@ -16,7 +16,7 @@
   "providerGeneration": {
     "provider": "OpenAI",
     "model": "gpt-image-2",
-    "providerRequestId": "req_01e924eb9a584c34828bed3555b916d6",
+    "providerRequestId": "req_fb1d1349394c48db9707101c041e170e",
     "fabricReference": {
       "name": "hahaha",
       "variantName": null,
@@ -28,17 +28,24 @@
     "success": true,
     "provider": "OpenAI",
     "model": "gpt-image-2",
-    "providerRequestId": "req_01e924eb9a584c34828bed3555b916d6",
+    "providerRequestId": "req_fb1d1349394c48db9707101c041e170e",
     "fabricReference": {
       "name": "hahaha",
       "variantName": null,
       "imageCount": 1
     },
-    "imageBytes": 185522,
+    "imageBytes": 206720,
     "imageFormat": "jpg"
   },
   "listingGeneration": {
-    "error": "Unable to load this product for AI try-on.",
-    "code": "PRODUCT_LOOKUP_FAILED"
+    "provider": "OpenAI",
+    "model": "gpt-image-2",
+    "providerRequestId": "req_9f5ffadb5ec643d291442b43239669f8",
+    "fabricReference": {
+      "name": "hahaha",
+      "variantName": null,
+      "imageCount": 2
+    },
+    "analysis": "OpenAI generated a regular fit a premium long-sleeve shirt with a structured collar, buttons, cuffs and anatomically correct seams using the live FabricTrad listing \u201chahaha\u201d. This is a visual sourcing preview; confirm the physical textile before production."
   }
 }
