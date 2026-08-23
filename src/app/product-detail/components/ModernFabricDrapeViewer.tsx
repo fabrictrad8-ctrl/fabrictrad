@@ -1,2 +1,2 @@
-// Flagship Virtual Drape: both user-photo and generated-model modes use the server AI route.
+// Flagship Virtual Drape: user-photo and AI woman/man modes both call the server-side OpenAI image route.
 export { default } from './FlagshipVirtualDrapeStudio';
