@@ -1,0 +1,119 @@
+name: Flagship Virtual Drape live E2E
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/flagship-virtual-drape-live.yml'
+      - 'src/app/api/ai/drape-on/**'
+      - 'src/app/product-detail/components/HybridVirtualDrapeStudio.tsx'
+      - 'src/app/product-detail/components/InteractiveFabricMannequin3D.tsx'
+      - 'src/lib/drapeProductStyle.ts'
+  schedule:
+    - cron: '17 2 * * *'
+
+permissions:
+  contents: read
+  statuses: write
+
+concurrency:
+  group: fabrictrad-flagship-virtual-drape-live
+  cancel-in-progress: true
+
+jobs:
+  verify-live-drape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Verify live OpenAI readiness
+        shell: bash
+        run: |
+          set -euo pipefail
+          http=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+            --output /tmp/status.json --write-out '%{http_code}' \
+            https://fabrictrad.com/api/ai/drape-on)
+          echo "Readiness HTTP ${http}"
+          cat /tmp/status.json
+          [ "$http" = 200 ]
+          python - <<'PY'
+          import json
+          p=json.load(open('/tmp/status.json'))
+          assert p.get('configured') is True, p
+          assert p.get('mode') == 'real_ai_image_try_on', p
+          assert p.get('usesListingMedia') is True, p
+          assert p.get('provider') == 'OpenAI GPT Image', p
+          assert p.get('model') == 'gpt-image-2', p
+          PY
+
+      - name: Generate live listing-backed virtual try-on
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat >/tmp/request.json <<'JSON'
+          {
+            "productId":"5414877f-663f-4bbb-acd9-ad4c2a60580e",
+            "modelImage":"https://images.unsplash.com/photo-1529139574466-a303027c1d8b?fm=jpg&w=768&q=85",
+            "garmentId":"shirt",
+            "fit":"regular",
+            "styleName":"FabricTrad flagship live OpenAI virtual drape verification"
+          }
+          JSON
+
+          http=$(curl --silent --show-error --connect-timeout 15 --max-time 300 \
+            --output /tmp/result.json --write-out '%{http_code}' \
+            --header 'Content-Type: application/json' \
+            --header 'Cookie: fabrictrad_demo_role=buyer' \
+            --data @/tmp/request.json \
+            https://fabrictrad.com/api/ai/drape-on || true)
+          echo "Generation HTTP ${http}"
+          [ "$http" = 200 ] || { cat /tmp/result.json || true; exit 1; }
+
+          python - <<'PY'
+          import base64,json
+          p=json.load(open('/tmp/result.json'))
+          assert p.get('provider') == 'OpenAI', p
+          assert p.get('model') == 'gpt-image-2', p
+          req=str(p.get('providerRequestId') or '')
+          assert req.startswith('req_'), req
+          fabric=p.get('fabricReference') or {}
+          assert fabric.get('name') == 'hahaha', fabric
+          assert int(fabric.get('imageCount') or 0) >= 1, fabric
+          image=str(p.get('image') or '')
+          assert image.startswith('data:image/jpeg;base64,'), image[:40]
+          raw=base64.b64decode(image.split(',',1)[1])
+          assert len(raw) > 50000, len(raw)
+          print(json.dumps({
+            'provider':p.get('provider'),
+            'model':p.get('model'),
+            'providerRequestId':req,
+            'fabricReference':fabric,
+            'imageBytes':len(raw)
+          }, indent=2))
+          PY
+
+      - name: Publish flagship status
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          JOB_STATUS: ${{ job.status }}
+        shell: bash
+        run: |
+          if [ "$JOB_STATUS" = success ]; then
+            state=success
+            description='Live seller textile + person photo -> OpenAI GPT Image -> generated drape verified'
+          else
+            state=failure
+            description='Flagship live Virtual Drape E2E failed'
+          fi
+          payload=$(python - "$state" "$description" <<'PY'
+          import json,sys
+          print(json.dumps({'state':sys.argv[1],'context':'fabrictrad/flagship-drape-live','description':sys.argv[2]}))
+          PY
+          )
+          curl --fail --silent --show-error --request POST \
+            --header "Authorization: Bearer ${GH_TOKEN}" \
+            --header 'Accept: application/vnd.github+json' \
+            --header 'Content-Type: application/json' \
+            --data "$payload" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" >/dev/null
