@@ -9,6 +9,8 @@ on:
       - 'src/lib/supabase/admin.ts'
       - 'src/app/product-detail/page.tsx'
       - 'src/app/product-detail/virtual-drape-responsive.module.css'
+      - 'src/app/product-detail/components/ModernFabricDrapeViewer.tsx'
+      - 'src/app/product-detail/components/FlagshipVirtualDrapeStudio.tsx'
       - 'src/app/product-detail/components/HybridVirtualDrapeStudio.tsx'
       - 'src/app/product-detail/components/InteractiveFabricMannequin3D.tsx'
       - '.github/workflows/virtual-drape-hotfix-deploy.yml'
@@ -60,6 +62,8 @@ jobs:
             src/app/api/ai/drape-on/route.ts \
             src/lib/supabase/admin.ts \
             src/app/product-detail/page.tsx \
+            src/app/product-detail/components/ModernFabricDrapeViewer.tsx \
+            src/app/product-detail/components/FlagshipVirtualDrapeStudio.tsx \
             src/app/product-detail/components/HybridVirtualDrapeStudio.tsx \
             src/app/product-detail/components/InteractiveFabricMannequin3D.tsx
 
@@ -89,7 +93,7 @@ jobs:
             "modelImage":"https://images.unsplash.com/photo-1529139574466-a303027c1d8b?fm=jpg&w=768&q=85",
             "garmentId":"shirt",
             "fit":"regular",
-            "styleName":"FabricTrad deployed responsive listing E2E"
+            "styleName":"FabricTrad deployed AI-first listing E2E"
           }
           JSON
           http=$(curl --silent --show-error --connect-timeout 15 --max-time 300 --output /tmp/result.json --write-out '%{http_code}' --header 'Content-Type: application/json' --header 'Cookie: fabrictrad_demo_role=buyer' --data @/tmp/request.json https://fabrictrad.com/api/ai/drape-on || true)
@@ -117,7 +121,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           JOB_STATUS: ${{ job.status }}
         run: |
-          if [ "$JOB_STATUS" = success ]; then state=success; description='Responsive Virtual Drape deployed and live OpenAI generation verified'; else state=failure; description='Virtual Drape responsive deploy or live verification failed'; fi
+          if [ "$JOB_STATUS" = success ]; then state=success; description='AI-first Virtual Drape deployed and live OpenAI generation verified'; else state=failure; description='Virtual Drape AI-first deploy or live verification failed'; fi
           payload=$(python - "$state" "$description" <<'PY'
           import json,sys
           print(json.dumps({'state':sys.argv[1],'context':'fabrictrad/virtual-drape-hotfix','description':sys.argv[2]}))
