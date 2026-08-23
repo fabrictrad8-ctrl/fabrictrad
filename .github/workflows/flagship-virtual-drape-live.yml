@@ -1,4 +1,4 @@
-# Production flagship monitor: person photo + live seller textile -> OpenAI GPT Image -> returned drape.
+# Production flagship monitor: own photo OR AI model + live seller textile -> OpenAI GPT Image -> returned drape.
 name: Flagship Virtual Drape live E2E
 
 on:
@@ -8,8 +8,7 @@ on:
     paths:
       - '.github/workflows/flagship-virtual-drape-live.yml'
       - 'src/app/api/ai/drape-on/**'
-      - 'src/app/product-detail/components/HybridVirtualDrapeStudio.tsx'
-      - 'src/app/product-detail/components/InteractiveFabricMannequin3D.tsx'
+      - 'src/app/product-detail/components/FlagshipVirtualDrapeStudio.tsx'
       - 'src/lib/drapeProductStyle.ts'
   schedule:
     - cron: '17 2 * * *'
@@ -25,7 +24,7 @@ concurrency:
 jobs:
   verify-live-drape:
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 18
     steps:
       - name: Verify live OpenAI readiness
         shell: bash
@@ -44,37 +43,45 @@ jobs:
           assert p.get('mode') == 'real_ai_image_try_on', p
           assert p.get('usesListingMedia') is True, p
           assert p.get('provider') == 'OpenAI GPT Image', p
+          assert p.get('apiUsed') == 'OpenAI Images API', p
+          assert p.get('credentialConfigured') is True, p
+          assert p.get('credentialLocation') == 'server_only', p
           assert p.get('model') == 'gpt-image-2', p
+          modes=set(p.get('subjectModes') or [])
+          assert {'own_photo','ai_model'}.issubset(modes), modes
           PY
 
-      - name: Generate live listing-backed virtual try-on
+      - name: Generate live own-photo virtual try-on
         shell: bash
         run: |
           set -euo pipefail
-          cat >/tmp/request.json <<'JSON'
+          cat >/tmp/request-own.json <<'JSON'
           {
             "productId":"5414877f-663f-4bbb-acd9-ad4c2a60580e",
+            "subjectMode":"own_photo",
             "modelImage":"https://images.unsplash.com/photo-1529139574466-a303027c1d8b?fm=jpg&w=768&q=85",
             "garmentId":"shirt",
             "fit":"regular",
-            "styleName":"FabricTrad flagship live OpenAI virtual drape verification"
+            "styleName":"FabricTrad flagship own-photo OpenAI virtual drape verification"
           }
           JSON
 
           http=$(curl --silent --show-error --connect-timeout 15 --max-time 300 \
-            --output /tmp/result.json --write-out '%{http_code}' \
+            --output /tmp/result-own.json --write-out '%{http_code}' \
             --header 'Content-Type: application/json' \
             --header 'Cookie: fabrictrad_demo_role=buyer' \
-            --data @/tmp/request.json \
+            --data @/tmp/request-own.json \
             https://fabrictrad.com/api/ai/drape-on || true)
-          echo "Generation HTTP ${http}"
-          [ "$http" = 200 ] || { cat /tmp/result.json || true; exit 1; }
+          echo "Own-photo generation HTTP ${http}"
+          [ "$http" = 200 ] || { cat /tmp/result-own.json || true; exit 1; }
 
           python - <<'PY'
           import base64,json
-          p=json.load(open('/tmp/result.json'))
+          p=json.load(open('/tmp/result-own.json'))
           assert p.get('provider') == 'OpenAI', p
+          assert p.get('apiUsed') == 'OpenAI Images API', p
           assert p.get('model') == 'gpt-image-2', p
+          assert p.get('subjectMode') == 'own_photo', p
           req=str(p.get('providerRequestId') or '')
           assert req.startswith('req_'), req
           fabric=p.get('fabricReference') or {}
@@ -84,13 +91,51 @@ jobs:
           assert image.startswith('data:image/jpeg;base64,'), image[:40]
           raw=base64.b64decode(image.split(',',1)[1])
           assert len(raw) > 50000, len(raw)
-          print(json.dumps({
-            'provider':p.get('provider'),
-            'model':p.get('model'),
-            'providerRequestId':req,
-            'fabricReference':fabric,
-            'imageBytes':len(raw)
-          }, indent=2))
+          print(json.dumps({'mode':'own_photo','requestId':req,'imageBytes':len(raw)}, indent=2))
+          PY
+
+      - name: Generate live AI woman model drape
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat >/tmp/request-model.json <<'JSON'
+          {
+            "productId":"5414877f-663f-4bbb-acd9-ad4c2a60580e",
+            "subjectMode":"ai_model",
+            "modelGender":"woman",
+            "garmentId":"shirt",
+            "fit":"regular",
+            "styleName":"FabricTrad flagship AI model OpenAI virtual drape verification"
+          }
+          JSON
+
+          http=$(curl --silent --show-error --connect-timeout 15 --max-time 300 \
+            --output /tmp/result-model.json --write-out '%{http_code}' \
+            --header 'Content-Type: application/json' \
+            --header 'Cookie: fabrictrad_demo_role=buyer' \
+            --data @/tmp/request-model.json \
+            https://fabrictrad.com/api/ai/drape-on || true)
+          echo "AI-model generation HTTP ${http}"
+          [ "$http" = 200 ] || { cat /tmp/result-model.json || true; exit 1; }
+
+          python - <<'PY'
+          import base64,json
+          p=json.load(open('/tmp/result-model.json'))
+          assert p.get('provider') == 'OpenAI', p
+          assert p.get('apiUsed') == 'OpenAI Images API', p
+          assert p.get('model') == 'gpt-image-2', p
+          assert p.get('subjectMode') == 'ai_model', p
+          assert p.get('modelGender') == 'woman', p
+          req=str(p.get('providerRequestId') or '')
+          assert req.startswith('req_'), req
+          fabric=p.get('fabricReference') or {}
+          assert fabric.get('name') == 'hahaha', fabric
+          assert int(fabric.get('imageCount') or 0) >= 1, fabric
+          image=str(p.get('image') or '')
+          assert image.startswith('data:image/jpeg;base64,'), image[:40]
+          raw=base64.b64decode(image.split(',',1)[1])
+          assert len(raw) > 50000, len(raw)
+          print(json.dumps({'mode':'ai_model','gender':'woman','requestId':req,'imageBytes':len(raw)}, indent=2))
           PY
 
       - name: Publish flagship status
@@ -102,7 +147,7 @@ jobs:
         run: |
           if [ "$JOB_STATUS" = success ]; then
             state=success
-            description='Live seller textile + person photo -> OpenAI GPT Image -> generated drape verified'
+            description='Own-photo + AI-model seller-textile OpenAI drape flows verified live'
           else
             state=failure
             description='Flagship live Virtual Drape E2E failed'
