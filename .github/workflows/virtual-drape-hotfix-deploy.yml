@@ -1,4 +1,4 @@
-# Dedicated deployment path for the flagship AI Virtual Drape.
+# Dedicated deployment path for FabricTrad's two-option AI Virtual Drape.
 name: Virtual drape hotfix deploy
 
 on:
@@ -94,7 +94,7 @@ jobs:
           for attempt in $(seq 1 30); do
             ai_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 --output /tmp/drape-status.json --write-out '%{http_code}' https://fabrictrad.com/api/ai/drape-on || true)
             if [ "$ai_status" = 200 ]; then
-              if python - <<'PY'
+              python - <<'PY' && ready=true && break || true
           import json
           p=json.load(open('/tmp/drape-status.json'))
           ok=(
@@ -108,7 +108,6 @@ jobs:
           )
           raise SystemExit(0 if ok else 1)
           PY
-              then ready=true; break; fi
             fi
             sleep 8
           done
@@ -120,16 +119,9 @@ jobs:
         run: |
           set -euo pipefail
           cat >/tmp/own.json <<'JSON'
-          {
-            "productId":"5414877f-663f-4bbb-acd9-ad4c2a60580e",
-            "subjectMode":"own_photo",
-            "modelImage":"https://images.unsplash.com/photo-1529139574466-a303027c1d8b?fm=jpg&w=768&q=85",
-            "garmentId":"shirt",
-            "fit":"regular"
-          }
+          {"productId":"5414877f-663f-4bbb-acd9-ad4c2a60580e","subjectMode":"own_photo","modelImage":"https://images.unsplash.com/photo-1529139574466-a303027c1d8b?fm=jpg&w=768&q=85","garmentId":"shirt","fit":"regular"}
           JSON
           http=$(curl --silent --show-error --connect-timeout 15 --max-time 300 --output /tmp/own-result.json --write-out '%{http_code}' --header 'Content-Type: application/json' --header 'Cookie: fabrictrad_demo_role=buyer' --data @/tmp/own.json https://fabrictrad.com/api/ai/drape-on || true)
-          echo "Own-photo HTTP ${http}"
           [ "$http" = 200 ] || { cat /tmp/own-result.json || true; exit 1; }
           python - <<'PY'
           import base64,json
@@ -150,16 +142,9 @@ jobs:
         run: |
           set -euo pipefail
           cat >/tmp/model.json <<'JSON'
-          {
-            "productId":"5414877f-663f-4bbb-acd9-ad4c2a60580e",
-            "subjectMode":"ai_model",
-            "modelGender":"woman",
-            "garmentId":"shirt",
-            "fit":"regular"
-          }
+          {"productId":"5414877f-663f-4bbb-acd9-ad4c2a60580e","subjectMode":"ai_model","modelGender":"woman","garmentId":"shirt","fit":"regular"}
           JSON
           http=$(curl --silent --show-error --connect-timeout 15 --max-time 300 --output /tmp/model-result.json --write-out '%{http_code}' --header 'Content-Type: application/json' --header 'Cookie: fabrictrad_demo_role=buyer' --data @/tmp/model.json https://fabrictrad.com/api/ai/drape-on || true)
-          echo "AI-model HTTP ${http}"
           [ "$http" = 200 ] || { cat /tmp/model-result.json || true; exit 1; }
           python - <<'PY'
           import base64,json
