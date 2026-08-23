@@ -4,29 +4,37 @@ export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 export async function GET() {
-  const ai2dConfigured = Boolean(process.env.OPENAI_API_KEY || process.env.GEMINI_API_KEY);
-  const threeDProviderConfigured = Boolean(process.env.TRIAL_ROOM_3D_PROVIDER_URL);
+  const openAiConfigured = Boolean(process.env.OPENAI_API_KEY);
+  const geminiConfigured = Boolean(process.env.GEMINI_API_KEY);
 
   return NextResponse.json(
     {
-      currentExperience: 'interactive_3d_human_avatar_plus_ai_personal_photo_try_on',
-      ai2dConfigured,
-      interactiveThreeDHumanAvatar: true,
-      avatarChoices: ['woman', 'man'],
-      personalPhotoExperience: 'ai_2d_image_try_on',
-      personalPhotoInput: ['upload', 'camera'],
-      threeDAssetPipeline: true,
-      threeDProviderConfigured,
-      threeDStatus: threeDProviderConfigured
-        ? 'external_asset_provider_configured'
-        : 'procedural_webgl_human_avatar_live',
-      supportedFutureAssets: [
-        'fabric_texture',
-        'normal_map',
-        'roughness_map',
-        'garment_glb',
-        'garment_usdz',
+      currentExperience: 'dual_ai_virtual_drape',
+      configured: openAiConfigured || geminiConfigured,
+      provider: openAiConfigured ? 'OpenAI GPT Image' : geminiConfigured ? 'Gemini Image' : null,
+      apiUsed: openAiConfigured ? 'OpenAI Images API' : geminiConfigured ? 'Gemini Image API' : null,
+      model: openAiConfigured
+        ? process.env.OPENAI_DRAPE_IMAGE_MODEL || 'gpt-image-2'
+        : geminiConfigured
+          ? process.env.GEMINI_DRAPE_IMAGE_MODEL || 'gemini/gemini-2.5-flash-image'
+          : null,
+      credentialLocation: 'server_only',
+      usesLiveSellerTextileReferences: true,
+      subjectModes: [
+        {
+          id: 'own_photo',
+          label: 'Use my own photo',
+          inputs: ['upload', 'camera'],
+          description: 'AI dresses the buyer photo using the approved seller textile references.',
+        },
+        {
+          id: 'ai_model',
+          label: 'AI-generated model',
+          modelGenders: ['woman', 'man'],
+          description: 'AI creates a photorealistic model wearing the approved seller textile.',
+        },
       ],
+      proceduralThreeDFlagship: false,
     },
     { headers: { 'Cache-Control': 'no-store, max-age=0' } }
   );
