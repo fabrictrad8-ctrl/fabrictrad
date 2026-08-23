@@ -1,3 +1,4 @@
+# Production flagship monitor: person photo + live seller textile -> OpenAI GPT Image -> returned drape.
 name: Flagship Virtual Drape live E2E
 
 on:
