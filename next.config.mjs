@@ -13,6 +13,7 @@ const nextConfig = {
   compress: true,
   productionBrowserSourceMaps: false,
   distDir: process.env.DIST_DIR || '.next',
+
   env: {
     NEXT_PUBLIC_SUPABASE_URL: publicSupabaseUrl,
     NEXT_PUBLIC_SUPABASE_ANON_KEY: publicSupabaseAnonKey,
@@ -20,6 +21,7 @@ const nextConfig = {
     NEXT_PUBLIC_ENABLE_GOOGLE_AUTH:
       process.env.NEXT_PUBLIC_ENABLE_GOOGLE_AUTH || 'true',
   },
+
   outputFileTracingExcludes: {
     '*': [
       './node_modules/@esbuild/**/*',
@@ -30,6 +32,7 @@ const nextConfig = {
       './node_modules/@webassemblyjs/**/*',
     ],
   },
+
   images: {
     remotePatterns: imageHosts,
     formats: ['image/avif', 'image/webp'],
@@ -38,6 +41,20 @@ const nextConfig = {
     imageSizes: [24, 32, 48, 64, 96, 128, 256, 384],
     qualities: [70, 75, 85, 100],
   },
+
+  webpack(config, { dev }) {
+if (dev) {
+    config.module.rules.push({
+      test: /\.(jsx|tsx)$/,
+      exclude: [/node_modules/],
+      use: [{
+        loader: '@dhiwise/component-tagger/nextLoader',
+      }],
+    });
+  }
+
+    return config;
+  }
 };
 
 export default nextConfig;

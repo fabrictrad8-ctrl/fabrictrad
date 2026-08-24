@@ -65,6 +65,14 @@ export default function AdminDashboard() {
   const [overview, setOverview] = useState<Overview | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [greeting, setGreeting] = useState('');
+
+  useEffect(() => {
+    const hour = new Date().getHours();
+    if (hour < 12) setGreeting('Good morning');
+    else if (hour < 17) setGreeting('Good afternoon');
+    else setGreeting('Good evening');
+  }, []);
 
   const load = async (selectedRange = range) => {
     setLoading(true);
@@ -106,7 +114,7 @@ export default function AdminDashboard() {
       { label: 'Review seller applications', count: overview?.tasks.pendingSellers || 0, href: '/admin-portal?tab=sellers', icon: 'ShieldCheckIcon', urgent: true },
       { label: 'Review product listings', count: overview?.tasks.pendingProducts || 0, href: '/admin-portal?tab=listings', icon: 'TagIcon', urgent: true },
       { label: 'Investigate failed payments', count: overview?.tasks.failedPayments || 0, href: '/admin-portal?tab=payments', icon: 'CreditCardIcon', urgent: true },
-      { label: 'Resolve disputes', count: overview?.tasks.openDisputes || 0, href: '/admin-portal?tab=activity', icon: 'FlagIcon', urgent: true },
+      { label: 'Resolve disputes', count: overview?.tasks.openDisputes || 0, href: '/admin-portal?tab=disputes', icon: 'FlagIcon', urgent: true },
       { label: 'Shipment exceptions', count: overview?.tasks.shipmentExceptions || 0, href: '/admin-portal?tab=fulfillment', icon: 'TruckIcon', urgent: true },
       { label: 'Unresolved platform errors', count: overview?.tasks.unresolvedErrors || 0, href: '/admin-portal?tab=errors', icon: 'ExclamationTriangleIcon', urgent: true },
     ],
@@ -127,7 +135,7 @@ export default function AdminDashboard() {
                 <span className="text-xs text-muted-foreground">Updated {new Date(overview.generatedAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</span>
               )}
             </div>
-            <h1 className="mt-3 text-3xl font-800 tracking-tight text-foreground">Good evening. Here is what needs attention.</h1>
+            <h1 className="mt-3 text-3xl font-800 tracking-tight text-foreground">{greeting || 'Welcome back'}. Here is what needs attention.</h1>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
               Live sales, verification, inventory, payments and fulfillment data from FabricTrad. No demonstration metrics are shown here.
             </p>
