@@ -23,70 +23,71 @@ export default function ProductDetailPage() {
       <main className="ft-storefront min-h-screen">
         <Header />
         <div className="pt-16">
-          <div className="border-b border-border bg-card/75 backdrop-blur-xl">
-            <div className="ft-storefront-content py-3">
-              <ProductBreadcrumb />
-            </div>
+          <div className="border-b border-border bg-white/90 backdrop-blur-xl dark:bg-card/90">
+            <div className="ft-storefront-content py-3"><ProductBreadcrumb /></div>
           </div>
 
-          <section className="ft-storefront-content py-5 sm:py-7 lg:py-9">
-            <div className="mb-5 flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
-              <div>
-                <p className="ft-route-kicker">Product workspace</p>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Review live media, colour-level stock, verified identifiers, seller-specific buyer limits and server-calculated tax together.
-                </p>
+          <section className="ft-storefront-content py-4 sm:py-6 lg:py-7">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                <span className="inline-flex items-center gap-1.5"><Icon name="ShieldCheckIcon" size={13} className="text-success" /> Verified seller listing</span>
+                <span>·</span>
+                <span>Live inventory</span>
+                <span>·</span>
+                <span>Server-calculated order total</span>
               </div>
-              <div className="flex flex-wrap gap-2">
-                <CurrentProductShareButton />
-                <span className="ft-orange-chip"><Icon name="ShieldCheckIcon" size={13} /> Protected order flow</span>
-                <span className="ft-orange-chip"><Icon name="ReceiptPercentIcon" size={13} /> Server tax calculation</span>
-                <span className="ft-orange-chip"><Icon name="TruckIcon" size={13} /> Shipment tracking</span>
-              </div>
+              <CurrentProductShareButton />
             </div>
 
-            <div className="ft-product-layout grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1.65fr)_minmax(320px,0.85fr)] lg:gap-7">
-              <div className="ft-product-main space-y-5">
-                <ProductGallery />
-                <section id="drape-on" className={`${styles.drapeSection} scroll-mt-24`}>
-                  <ModernFabricDrapeViewer />
-                </section>
-                <ProductSpecs />
-                <SellerRatings />
-                <BuyerFeedbackWidget />
-                <ComparisonWidget />
-              </div>
+            <div className="ft-product-top-grid">
+              <div className="min-w-0"><ProductGallery /></div>
 
-              <aside className="ft-product-aside space-y-4">
-                <ProductOrderStatusCard />
+              <div className="min-w-0 space-y-4">
                 <ProductInfoV2 />
-                <SellerCard />
-                <div className="rounded-xl border border-primary/20 bg-primary/5 p-4">
-                  <div className="flex items-start gap-3">
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                      <Icon name="ChatBubbleLeftRightIcon" size={17} />
-                    </div>
-                    <div>
-                      <p className="text-sm font-800 text-foreground">Need a custom quantity or colour?</p>
-                      <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                        Post a buyer requirement so verified sellers can respond with stock, pricing and dispatch details.
-                      </p>
-                      <a href="/buyer-requirements" className="mt-3 inline-flex items-center gap-1 text-xs font-800 text-primary">
-                        Post requirement <Icon name="ArrowRightIcon" size={13} />
-                      </a>
-                    </div>
+                <div className="ft-product-content-card p-4">
+                  <h2 className="text-sm font-850 text-foreground">Buying with confidence</h2>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+                    {[
+                      ['ShieldCheckIcon', 'Seller verification', 'Business identity and marketplace eligibility are checked before listings go live.'],
+                      ['ReceiptPercentIcon', 'Automatic billing', 'After a captured payment, the order record drives invoice generation and buyer billing.'],
+                      ['TruckIcon', 'Trackable fulfilment', 'Shipment status stays attached to the same FabricTrad order.'],
+                      ['ChatBubbleLeftRightIcon', 'Account-scoped support', 'Requirements, seller conversations and disputes remain tied to your account.'],
+                    ].map(([icon, title, copy]) => (
+                      <div key={title} className="flex gap-2.5"><span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"><Icon name={icon as 'ShieldCheckIcon'} size={15} /></span><div><p className="text-xs font-850 text-foreground">{title}</p><p className="mt-0.5 text-[11px] leading-5 text-muted-foreground">{copy}</p></div></div>
+                    ))}
                   </div>
                 </div>
-                <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
-                  <p className="text-xs font-800 uppercase tracking-wider text-muted-foreground">How checkout works</p>
+              </div>
+
+              <aside className="ft-product-buy-rail space-y-4">
+                <ProductOrderStatusCard />
+                <SellerCard />
+                <div className="ft-product-content-card p-4">
+                  <p className="text-xs font-850 uppercase tracking-wider text-muted-foreground">Need something different?</p>
+                  <p className="mt-2 text-sm font-800 text-foreground">Post a custom sourcing requirement</p>
+                  <p className="mt-1 text-xs leading-5 text-muted-foreground">Specify quantity, colour, GSM, width, budget and deadline so verified sellers can respond.</p>
+                  <a href="/buyer-requirements" className="mt-3 inline-flex items-center gap-1 text-xs font-850 text-primary">Post requirement <Icon name="ArrowRightIcon" size={13} /></a>
+                </div>
+              </aside>
+            </div>
+
+            <div className="mt-6 grid gap-5 lg:grid-cols-[minmax(0,1.45fr)_minmax(320px,.55fr)]">
+              <div className="min-w-0 space-y-5">
+                <ProductSpecs />
+                <section id="drape-on" className={`${styles.drapeSection} scroll-mt-24`}><ModernFabricDrapeViewer /></section>
+                <SellerRatings />
+                <BuyerFeedbackWidget />
+              </div>
+              <aside className="min-w-0 space-y-5">
+                <ComparisonWidget />
+                <div className="ft-product-content-card p-4">
+                  <p className="text-xs font-850 uppercase tracking-wider text-muted-foreground">How checkout works</p>
                   <ol className="mt-3 space-y-3 text-xs leading-5 text-muted-foreground">
-                    <li className="flex gap-2"><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10 font-800 text-primary">1</span><span>Choose the live variant and quantity shown above.</span></li>
-                    <li className="flex gap-2"><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10 font-800 text-primary">2</span><span>The seller confirms stock, final quantity and dispatch readiness.</span></li>
-                    <li className="flex gap-2"><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10 font-800 text-primary">3</span><span>As soon as the seller accepts, the payment button appears on this product page and in your buyer orders. After payment, shipment tracking is attached to the same order.</span></li>
+                    <li className="flex gap-2"><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10 font-850 text-primary">1</span><span>Choose a live variant and quantity.</span></li>
+                    <li className="flex gap-2"><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10 font-850 text-primary">2</span><span>The seller confirms stock and accepts the order request.</span></li>
+                    <li className="flex gap-2"><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10 font-850 text-primary">3</span><span>Pay through Razorpay after acceptance. Captured payment updates the order and billing records.</span></li>
                   </ol>
-                  <a href="/buyer-dashboard?tab=orders" className="mt-4 inline-flex items-center gap-1 text-xs font-800 text-primary">
-                    Open buyer orders <Icon name="ArrowRightIcon" size={13} />
-                  </a>
+                  <a href="/buyer-dashboard?tab=orders" className="mt-4 inline-flex items-center gap-1 text-xs font-850 text-primary">Open your orders <Icon name="ArrowRightIcon" size={13} /></a>
                 </div>
               </aside>
             </div>
