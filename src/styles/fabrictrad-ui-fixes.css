@@ -1,0 +1,76 @@
+/* Final targeted UI corrections after the future interface layer. */
+
+@media (min-width: 1101px) {
+  .ft-auth-visual {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) 310px;
+    grid-template-rows: auto auto auto auto auto;
+    align-content: center;
+    column-gap: 26px;
+  }
+  .ft-auth-brandline { grid-column: 1 / -1; grid-row: 1; }
+  .ft-auth-eyebrow { grid-column: 1; grid-row: 2; }
+  .ft-auth-title { grid-column: 1; grid-row: 3; max-width: 590px !important; }
+  .ft-auth-subtitle { grid-column: 1; grid-row: 4; max-width: 570px !important; }
+  .ft-auth-graphic {
+    position: relative !important;
+    grid-column: 2;
+    grid-row: 2 / 5;
+    align-self: center;
+    justify-self: center;
+    right: auto !important;
+    top: auto !important;
+    width: 300px !important;
+    height: 270px !important;
+  }
+  .ft-auth-flow { grid-column: 1 / -1; grid-row: 5; }
+}
+
+/* Prevent decorative/auth visuals from swallowing form content on shorter laptop screens. */
+@media (min-width: 1101px) and (max-height: 760px) {
+  .ft-auth-stage { padding-top: 42px !important; padding-bottom: 30px !important; }
+  .ft-auth-visual { min-height: 560px !important; }
+  .ft-auth-title { font-size: clamp(42px, 4.5vw, 62px) !important; }
+  .ft-auth-subtitle { margin-top: 16px !important; font-size: 14px !important; }
+  .ft-auth-flow { margin-top: 20px !important; }
+  .ft-auth-flow-card { min-height: 92px !important; padding: 13px !important; }
+  .ft-auth-card { padding: 26px !important; }
+}
+
+/* Marketing CTA width safety — do not depend on invalid arbitrary calc classes. */
+.ft-future-landing > section.relative.z-\[2\] {
+  width: min(1420px, calc(100% - 32px));
+}
+
+/* Product list density and touch behavior. */
+.ft-marketplace-product-card a,
+.ft-marketplace-product-card button { -webkit-tap-highlight-color: transparent; }
+.ft-marketplace-product-card:focus-within { border-color: rgba(231,96,43,.45) !important; box-shadow: 0 0 0 4px rgba(231,96,43,.08), 0 18px 42px rgba(15,23,42,.10) !important; }
+.ft-marketplace-filters-card { scrollbar-gutter: stable; }
+
+/* Merchant resource pages benefit from full width like modern commerce admin index pages. */
+.ft-admin-main { min-width: 0; }
+.ft-admin-main :where(table) { width: 100%; }
+.ft-admin-main :where(th, td) { vertical-align: middle; }
+.ft-admin-main :where(button, a) { text-underline-offset: 3px; }
+
+/* Mobile page rhythm and safe-area handling. */
+@media (max-width: 760px) {
+  .ft-root { overflow-x: hidden; }
+  .ft-auth-page { min-height: 100dvh !important; }
+  .ft-auth-stage { min-height: 100dvh !important; }
+  .ft-auth-visual { display: block !important; min-height: auto !important; }
+  .ft-auth-title { margin-top: 10px !important; }
+  .ft-auth-subtitle { margin-top: 14px !important; }
+  .ft-auth-card-wrap { padding-bottom: max(12px, env(safe-area-inset-bottom)); }
+  .ft-marketplace-hero-inner { width: calc(100% - 22px) !important; }
+  .ft-marketplace-category { min-height: 42px; display: inline-flex; align-items: center; }
+  .ft-marketplace-quick-filter { min-height: 38px; }
+  .ft-future-footer { padding-bottom: max(38px, calc(env(safe-area-inset-bottom) + 24px)); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ft-root *, .ft-root *::before, .ft-root *::after {
+    scroll-behavior: auto !important;
+  }
+}
