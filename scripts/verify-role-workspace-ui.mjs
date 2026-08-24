@@ -5,6 +5,14 @@ const read = (path) => fs.readFileSync(path, 'utf8');
 const profileMenu = read('src/components/ProfileMenu.tsx');
 const buyerLayout = read('src/app/buyer-dashboard/components/ModernBuyerDashboardLayout.tsx');
 const sellerLayout = read('src/app/seller-dashboard/components/SellerDashboardLayout.tsx');
+const buyerGuard = read('src/components/BuyerOnlyGuard.tsx');
+const accountLayout = read('src/app/account/layout.tsx');
+const buyerRouteLayout = read('src/app/buyer-dashboard/layout.tsx');
+const sessionDestination = read('src/app/api/auth/session-destination/route.ts');
+const passwordLogin = read('src/app/api/auth/password-login/route.ts');
+const loginGuard = read('src/app/login/LoginRedirectGuard.tsx');
+const workspaceStatus = read('src/app/api/account/workspace-status/route.ts');
+const oauthCallback = read('src/app/auth/callback/route.ts');
 
 const failures = [];
 const requireText = (source, text, message) => {
@@ -39,10 +47,26 @@ forbidText(sellerLayout, 'Buyer workspace', 'Seller navigation must not switch t
 forbidText(sellerLayout, '> Buy fabrics', 'Seller navigation must not offer a buyer-mode switch.');
 forbidText(sellerLayout, 'href="/buyer-dashboard"', 'Seller shell must not link to buyer dashboard.');
 
+// Seller-primary accounts never enter buyer/account chooser routes.
+requireText(accountLayout, "profile?.role === 'seller') redirect('/seller-dashboard')", 'Account route must redirect primary sellers to seller dashboard.');
+requireText(buyerRouteLayout, "profile?.role === 'seller') redirect('/seller-dashboard')", 'Buyer dashboard route must reject primary sellers server-side.');
+requireText(buyerGuard, "const primarySeller = profile?.role === 'seller';", 'Buyer-only guard must detect primary sellers.');
+requireText(buyerGuard, "primarySeller ? '/seller-dashboard' : '/profile'", 'Buyer-only guard must return sellers to seller workspace.');
+requireText(sessionDestination, "if (role === 'seller') return '/seller-dashboard';", 'Persisted seller sessions must land directly in seller dashboard.');
+requireText(passwordLogin, "if (role === 'seller') return '/seller-dashboard';", 'Password seller login must land directly in seller dashboard.');
+requireText(loginGuard, "if (role === 'seller') return '/seller-dashboard';", 'Client login fail-safe must land sellers directly in seller dashboard.');
+requireText(oauthCallback, "if (sellerSession) return `${origin}/seller-dashboard`;", 'OAuth seller login must land directly in seller dashboard.');
+requireText(workspaceStatus, "const primarySeller = profile.role === 'seller';", 'Workspace status must distinguish the primary seller role.');
+requireText(workspaceStatus, 'const canBuy = Boolean(!primarySeller', 'Workspace status must not expose buyer capability to primary sellers.');
+
+forbidText(sessionDestination, "role === 'seller' ? '/account'", 'Session routing must not send sellers to account chooser.');
+forbidText(passwordLogin, "role === 'seller' ? '/account'", 'Password login must not send sellers to account chooser.');
+forbidText(loginGuard, "role === 'seller' ? '/account'", 'Login fail-safe must not send sellers to account chooser.');
+
 if (failures.length) {
   console.error('Role workspace UI verification failed:');
-  for (const failure of failures) console.error(`- ${failure}`);
+  for (const failure of failures) console.error(`- ${failure}`));
   process.exit(1);
 }
 
-console.log('Buyer, seller and administrator menus are role-specific with no in-session workspace switch.');
+console.info('Buyer, seller and administrator workspaces are isolated and primary seller login routes directly to Seller Dashboard.');
