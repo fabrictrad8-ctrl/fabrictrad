@@ -14,6 +14,7 @@ import '../styles/accessibility-target-fixes.css';
 import '../styles/commerce-2026-redesign.css';
 import '../styles/fabrictrad-future.css';
 import '../styles/fabrictrad-ui-fixes.css';
+import '../styles/fabrictrad-light-commerce.css';
 import { AuthProvider } from '@/contexts/AuthContext';
 import AppClientEnhancements from '@/components/AppClientEnhancements';
 import RouteExperienceEnhancer from '@/components/RouteExperienceEnhancer';
@@ -25,7 +26,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   viewportFit: 'cover',
   themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#f4f4f5' },
+    { media: '(prefers-color-scheme: light)', color: '#f6f7f9' },
     { media: '(prefers-color-scheme: dark)', color: '#111827' },
   ],
 };
@@ -62,7 +63,7 @@ export default function RootLayout({
       <head>
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var t=localStorage.getItem('fabrictrad:theme')||'system';var d=t==='dark'||(t==='system'&&window.matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.classList.toggle('dark',d);document.documentElement.dataset.theme=d?'dark':'light';document.documentElement.style.colorScheme=d?'dark':'light';}catch(e){}})();`,
+            __html: `(function(){try{var t=localStorage.getItem('fabrictrad:theme')||'light';if(t==='system'){t='light';localStorage.setItem('fabrictrad:theme','light');}var d=t==='dark';document.documentElement.classList.toggle('dark',d);document.documentElement.dataset.theme=d?'dark':'light';document.documentElement.style.colorScheme=d?'dark':'light';}catch(e){document.documentElement.classList.remove('dark');document.documentElement.dataset.theme='light';document.documentElement.style.colorScheme='light';}})();`,
           }}
         />
       </head>
