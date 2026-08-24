@@ -50,7 +50,8 @@ requiredFiles.forEach(read);
 // waiting for a client-side auth callback or requiring a manual page reload.
 requireText('src/app/api/auth/password-login/route.ts', 'signInWithPassword');
 requireText('src/app/api/auth/password-login/route.ts', 'provisionAuthenticatedAccountWithRecovery');
-requireText('src/app/api/auth/password-login/route.ts', "role === 'seller' ? '/account' : '/marketplace'");
+requireText('src/app/api/auth/password-login/route.ts', "if (role === 'seller') return '/seller-dashboard'");
+requireText('src/app/api/auth/password-login/route.ts', "return '/marketplace'");
 requireText('src/app/api/auth/session-destination/route.ts', 'provisionAuthenticatedAccountWithRecovery');
 requireText('src/app/api/auth/provision-account/route.ts', 'provisionAuthenticatedAccountWithRecovery');
 requireText(provisioningRecovery, 'ensureAuthenticatedAccountProvisioned');
@@ -59,14 +60,14 @@ requireText(provisioningRecovery, "metadata.phone = conflict?.id ? '' : phone");
 requireText('src/app/login/EmailOtpLoginClient.tsx', "fetch('/api/auth/password-login'");
 requireText('src/app/login/EmailOtpLoginClient.tsx', 'window.location.replace');
 requireText('src/app/login/LoginRedirectGuard.tsx', "fetch(`/api/auth/session-destination");
-forbidText('src/app/login/EmailOtpLoginClient.tsx', "router.refresh();");
+forbidText('src/app/login/EmailOtpLoginClient.tsx', 'router.refresh();');
 
 // Buyer and seller registration must resume an existing account rather than
 // attempting a duplicate sign-up or stopping at “already registered”.
 requireText('src/app/buyer-registration/components/BuyerRegistrationFlowV2.tsx', 'useOnboardingDraft');
 requireText('src/app/buyer-registration/components/BuyerRegistrationFlowV2.tsx', "saveOnboardingDraftLocally('buyer'");
 requireText('src/app/buyer-registration/components/BuyerRegistrationFlowV2.tsx', "next: '/buyer-registration?resume=1'");
-requireText('src/app/buyer-registration/components/BuyerRegistrationFlowV2.tsx', "const signup = user ?");
+requireText('src/app/buyer-registration/components/BuyerRegistrationFlowV2.tsx', 'const signup = user ?');
 requireText('src/app/buyer-registration/components/BuyerRegistrationFlowV2.tsx', "password: '', confirmPassword: ''");
 requireText('src/app/buyer-registration/components/BuyerRegistrationEntry.tsx', 'AuthenticatedBuyerRegistrationResume');
 requireText('src/app/buyer-registration/components/BuyerRegistrationEntry.tsx', 'isAuthenticatedAccount');
