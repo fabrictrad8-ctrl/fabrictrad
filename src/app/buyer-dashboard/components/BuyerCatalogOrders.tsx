@@ -33,6 +33,14 @@ type CatalogOrder = {
   seller_product_variants?: { color_name?: string | null; design_name?: string | null } | null;
 };
 
+type InvoiceSummary = {
+  id: string;
+  catalog_order_id: string;
+  invoice_number: string;
+  email_status: string;
+  email_sent_at: string | null;
+};
+
 const statusLabel: Record<CatalogOrder['status'], string> = {
   pending: 'Waiting for seller',
   accepted: 'Accepted',
@@ -68,12 +76,14 @@ const money = (value: unknown) =>
 export default function BuyerCatalogOrders() {
   const { user, isDemoAccount } = useAuth();
   const [orders, setOrders] = useState<CatalogOrder[]>([]);
+  const [invoicesByOrder, setInvoicesByOrder] = useState<Record<string, InvoiceSummary>>({});
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const loadOrders = useCallback(async () => {
     if (!user?.id || isDemoAccount) {
       setOrders([]);
+      setInvoicesByOrder({});
       setLoading(false);
       return;
     }
@@ -88,7 +98,27 @@ export default function BuyerCatalogOrders() {
       .order('created_at', { ascending: false })
       .limit(100);
     if (error) toast.error(error.message);
-    setOrders((data || []) as unknown as CatalogOrder[]);
+    const loadedOrders = (data || []) as unknown as CatalogOrder[];
+    setOrders(loadedOrders);
+
+    if (loadedOrders.length) {
+      const { data: invoiceRows, error: invoiceError } = await supabase
+        .from('seller_tax_invoices')
+        .select('id,catalog_order_id,invoice_number,email_status,email_sent_at')
+        .in('catalog_order_id', loadedOrders.map((order) => order.id))
+        .eq('status', 'issued');
+      if (invoiceError) {
+        console.error('Buyer invoice list could not be loaded', invoiceError);
+      } else {
+        const next: Record<string, InvoiceSummary> = {};
+        for (const row of invoiceRows || []) {
+          if (row.catalog_order_id) next[row.catalog_order_id] = row as InvoiceSummary;
+        }
+        setInvoicesByOrder(next);
+      }
+    } else {
+      setInvoicesByOrder({});
+    }
     setLoading(false);
   }, [isDemoAccount, user?.id]);
 
@@ -137,14 +167,10 @@ export default function BuyerCatalogOrders() {
           <p className="text-xs font-800 uppercase tracking-[0.14em] text-primary">Marketplace purchases</p>
           <h2 className="mt-1 text-lg font-800 text-foreground">Direct product orders</h2>
           <p className="mt-1 text-xs text-muted-foreground">
-            Seller acceptance, deposits/balances, GST invoices and shipment tracking are stored here.
+            Seller acceptance, Razorpay capture, automatic GST invoices and shipment tracking are stored here.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => void loadOrders()}
-          className="btn-secondary inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs"
-        >
+        <button type="button" onClick={() => void loadOrders()} className="btn-secondary inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs">
           <Icon name="ArrowPathIcon" size={14} /> Refresh
         </button>
       </div>
@@ -153,80 +179,47 @@ export default function BuyerCatalogOrders() {
         <div className="mt-5 rounded-xl border border-dashed border-border py-9 text-center">
           <Icon name="ShoppingBagIcon" size={28} className="mx-auto text-muted-foreground" />
           <p className="mt-2 text-sm font-800 text-foreground">No marketplace orders yet</p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Submit an order from a live product page and it will appear here.
-          </p>
+          <p className="mt-1 text-xs text-muted-foreground">Submit an order from a live product page and it will appear here.</p>
         </div>
       ) : (
         <div className="mt-5 space-y-4">
           {orders.map((order) => {
             const product = order.seller_products;
             const variant = order.seller_product_variants;
-            const netPaid = Math.max(
-              0,
-              Number(order.amount_paid || 0) - Number(order.amount_refunded || 0)
-            );
+            const invoice = invoicesByOrder[order.id];
+            const netPaid = Math.max(0, Number(order.amount_paid || 0) - Number(order.amount_refunded || 0));
             const remaining = Math.max(0, Number(order.total_amount || 0) - netPaid);
-            const canCancel =
-              Number(order.amount_paid || 0) === 0 &&
-              (order.status === 'pending' || order.status === 'accepted');
-            const canPay =
-              order.status === 'accepted' &&
-              remaining > 0.009 &&
-              !['paid', 'refunded'].includes(order.payment_status);
+            const canCancel = Number(order.amount_paid || 0) === 0 && (order.status === 'pending' || order.status === 'accepted');
+            const canPay = order.status === 'accepted' && remaining > 0.009 && !['paid', 'refunded'].includes(order.payment_status);
             return (
               <article key={order.id} className="rounded-xl border border-border p-4">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <p className="truncate text-sm font-800 text-foreground">
-                        {product?.name || 'Marketplace product'}
-                      </p>
-                      <span
-                        className={`rounded-full px-2 py-0.5 text-[10px] font-800 uppercase ${
-                          order.status === 'paid' || order.status === 'fulfilled'
-                            ? 'bg-success/10 text-success'
-                            : order.status === 'rejected' || order.status === 'cancelled'
-                              ? 'bg-error/10 text-error'
-                              : 'bg-warning/10 text-warning'
-                        }`}
-                      >
-                        {statusLabel[order.status]}
-                      </span>
-                      <span className="rounded-full border border-border bg-muted px-2 py-0.5 text-[10px] font-800 text-muted-foreground">
-                        {paymentLabel[order.payment_status]}
-                      </span>
+                      <p className="truncate text-sm font-800 text-foreground">{product?.name || 'Marketplace product'}</p>
+                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-800 uppercase ${order.status === 'paid' || order.status === 'fulfilled' ? 'bg-success/10 text-success' : order.status === 'rejected' || order.status === 'cancelled' ? 'bg-error/10 text-error' : 'bg-warning/10 text-warning'}`}>{statusLabel[order.status]}</span>
+                      <span className="rounded-full border border-border bg-muted px-2 py-0.5 text-[10px] font-800 text-muted-foreground">{paymentLabel[order.payment_status]}</span>
+                      {invoice && <span className="rounded-full bg-success/10 px-2 py-0.5 text-[10px] font-800 text-success">Invoice issued</span>}
                     </div>
                     <p className="mt-1 text-xs text-muted-foreground">
                       {product?.sku || `FT-CAT-${order.id.slice(0, 8).toUpperCase()}`}
                       {variant?.color_name ? ` · ${variant.color_name}` : ''}
                       {variant?.design_name ? ` · ${variant.design_name}` : ''}
                     </p>
-                    <p className="mt-2 text-xs text-muted-foreground">
-                      {Number(order.quantity).toLocaleString('en-IN')} {order.unit} × {money(order.price_per_unit)}
-                    </p>
+                    <p className="mt-2 text-xs text-muted-foreground">{Number(order.quantity).toLocaleString('en-IN')} {order.unit} × {money(order.price_per_unit)}</p>
                     <p className="mt-1 text-[11px] text-muted-foreground">
-                      {new Date(order.created_at).toLocaleString('en-IN')} ·{' '}
-                      {termsLabel[order.payment_terms] || order.payment_terms}
-                      {Number(order.deposit_percent || 0) > 0 && Number(order.deposit_percent) < 100
-                        ? ` · ${Number(order.deposit_percent)}% opening deposit`
-                        : ''}
+                      {new Date(order.created_at).toLocaleString('en-IN')} · {termsLabel[order.payment_terms] || order.payment_terms}
+                      {Number(order.deposit_percent || 0) > 0 && Number(order.deposit_percent) < 100 ? ` · ${Number(order.deposit_percent)}% opening deposit` : ''}
                     </p>
                   </div>
                   <div className="sm:text-right">
                     <p className="text-lg font-800 text-primary">{money(order.total_amount)}</p>
                     <p className="text-[11px] text-muted-foreground">including GST</p>
-                    {remaining > 0 && netPaid > 0 && (
-                      <p className="mt-1 text-xs font-800 text-warning">Balance {money(remaining)}</p>
-                    )}
+                    {remaining > 0 && netPaid > 0 && <p className="mt-1 text-xs font-800 text-warning">Balance {money(remaining)}</p>}
                   </div>
                 </div>
 
-                {order.notes && (
-                  <p className="mt-3 whitespace-pre-line rounded-lg bg-muted p-2 text-xs text-muted-foreground">
-                    {order.notes}
-                  </p>
-                )}
+                {order.notes && <p className="mt-3 whitespace-pre-line rounded-lg bg-muted p-2 text-xs text-muted-foreground">{order.notes}</p>}
 
                 <div className="mt-4 flex flex-wrap items-end gap-3 border-t border-border pt-3">
                   {canPay && (
@@ -237,31 +230,28 @@ export default function BuyerCatalogOrders() {
                         orderType="catalog"
                         buttonText={netPaid > 0 ? 'Pay remaining balance' : 'Pay amount due'}
                         onSuccess={({ status }) => {
-                          toast.success(
-                            status === 'captured'
-                              ? 'Payment captured and order updated.'
-                              : 'Payment authorised. Waiting for capture confirmation.'
-                          );
+                          toast.success(status === 'captured' ? 'Payment captured. Your invoice is being generated automatically.' : 'Payment authorised. Waiting for capture confirmation.');
                           window.setTimeout(() => void loadOrders(), 1200);
                         }}
                         onError={(error) => toast.error(error.message)}
                       />
                     </div>
                   )}
+                  {invoice && (
+                    <button type="button" onClick={() => window.open(`/api/invoices/${invoice.id}`, '_blank', 'noopener,noreferrer')} className="btn-secondary inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs">
+                      <Icon name="DocumentTextIcon" size={15} /> {invoice.invoice_number}
+                    </button>
+                  )}
+                  {invoice?.email_status === 'sent' && (
+                    <span className="inline-flex items-center gap-2 rounded-xl bg-success/10 px-4 py-2 text-xs font-800 text-success"><Icon name="EnvelopeIcon" size={15} /> Invoice emailed</span>
+                  )}
                   {canCancel && (
-                    <button
-                      type="button"
-                      disabled={busyId === order.id}
-                      onClick={() => void cancelOrder(order)}
-                      className="rounded-xl border border-error/20 bg-error/5 px-4 py-2 text-xs font-800 text-error disabled:opacity-50"
-                    >
+                    <button type="button" disabled={busyId === order.id} onClick={() => void cancelOrder(order)} className="rounded-xl border border-error/20 bg-error/5 px-4 py-2 text-xs font-800 text-error disabled:opacity-50">
                       {busyId === order.id ? 'Cancelling…' : 'Cancel request'}
                     </button>
                   )}
                   {order.payment_status === 'paid' && order.status === 'accepted' && (
-                    <span className="inline-flex items-center gap-2 rounded-xl bg-success/10 px-4 py-2 text-xs font-800 text-success">
-                      <Icon name="CheckCircleIcon" size={15} /> Fully paid — reconciling fulfilment
-                    </span>
+                    <span className="inline-flex items-center gap-2 rounded-xl bg-success/10 px-4 py-2 text-xs font-800 text-success"><Icon name="CheckCircleIcon" size={15} /> Fully paid — reconciling fulfilment</span>
                   )}
                 </div>
 
