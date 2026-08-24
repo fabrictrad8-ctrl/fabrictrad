@@ -16,12 +16,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 8
     steps:
-      - name: Verify live domains, release marker and critical services
+      - name: Verify live Worker release and critical services
         shell: bash
         run: |
           set -euo pipefail
           base='https://fabrictrad.com'
-          marker='fabrictrad-commerce-ux-2026-08-25'
+          expected_release='fabrictrad-commerce-ux-2026-08-25-r2'
 
           get() {
             local url="$1"
@@ -30,6 +30,13 @@ jobs:
               --output "$output" --write-out '%{http_code}' "$url"
           }
 
+          release=$(get "$base/api/release" /tmp/release.json)
+          echo "Release endpoint: HTTP $release $(cat /tmp/release.json)"
+          test "$release" = '200'
+          grep -q '"ok":true' /tmp/release.json
+          grep -q "\"release\":\"${expected_release}\"" /tmp/release.json
+          grep -q '"runtime":"cloudflare-worker"' /tmp/release.json
+
           home=$(get "$base/" /tmp/home.html)
           login=$(get "$base/login" /tmp/login.html)
           www=$(get 'https://www.fabrictrad.com/' /tmp/www.html)
@@ -37,11 +44,6 @@ jobs:
           test "$home" = '200'
           test "$login" = '200'
           test "$www" = '200'
-          grep -q "$marker" /tmp/home.html
-          grep -q "$marker" /tmp/login.html
-          grep -q "$marker" /tmp/www.html
-          grep -q 'Textile trade' /tmp/home.html
-          echo 'Release marker is live on root, login and www.'
 
           marketplace=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
             --dump-header /tmp/marketplace.headers --output /dev/null --write-out '%{http_code}' \
@@ -83,4 +85,4 @@ jobs:
           test "$webhook" = '400'
           grep -qi 'invalid signature' /tmp/webhook.json
 
-          echo 'Production release marker, public domains, auth boundary, Google OAuth, AI Drape and Razorpay webhook checks passed. Shiprocket readiness is reported separately.'
+          echo "FabricTrad ${expected_release} is live on the production custom domain."
