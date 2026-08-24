@@ -39,16 +39,15 @@ export async function GET() {
 
   if (!profile) return json({ error: 'Account profile is not ready.' }, 404);
 
-  const canBuy = Boolean(
-    profile.can_buy ?? (profile.role === 'buyer' || profile.role === 'seller')
-  );
-  const canSell = Boolean(profile.can_sell || profile.role === 'seller');
+  const primarySeller = profile.role === 'seller';
+  const canBuy = Boolean(!primarySeller && (profile.can_buy ?? profile.role === 'buyer'));
+  const canSell = Boolean(profile.can_sell || primarySeller);
 
   const personalBuyer = buyer?.buyer_type === 'end_user';
   const buyerKycApproved = ['approved', 'verified', 'not_required'].includes(
     String(buyer?.business_kyc_status || '')
   );
-  const buyerActive = Boolean(canBuy && profile.is_active && buyer?.is_active !== false);
+  const buyerActive = Boolean(canBuy && profile.is_active && buyer?.is_active === true);
   const buyerVerified = Boolean(
     buyerActive && (personalBuyer || buyerKycApproved || buyer?.gstin_verified === true)
   );
@@ -61,7 +60,9 @@ export async function GET() {
   );
 
   const buyerLabel = !canBuy
-    ? 'Not enabled'
+    ? primarySeller
+      ? 'Seller account · buyer workspace unavailable'
+      : 'Not enabled'
     : !buyerActive
       ? 'Buyer access inactive'
       : personalBuyer || buyer?.business_kyc_status === 'not_required'
@@ -80,19 +81,22 @@ export async function GET() {
         ? 'Seller verification under review'
         : 'Complete seller verification';
 
-  const verificationSummary = canBuy && canSell
-    ? `Buyer ${buyerVerified ? 'active' : 'setup pending'} · Seller ${sellerVerified ? 'verified' : 'review pending'}`
-    : canSell
-      ? sellerLabel
-      : buyerLabel;
+  const verificationSummary = primarySeller
+    ? sellerLabel
+    : canBuy && canSell
+      ? `Buyer ${buyerVerified ? 'active' : 'setup pending'} · Seller ${sellerVerified ? 'verified' : 'review pending'}`
+      : canSell
+        ? sellerLabel
+        : buyerLabel;
 
   return json({
+    primaryRole: profile.role,
     canBuy,
     canSell,
     buyer: {
       active: buyerActive,
       verified: buyerVerified,
-      type: buyer?.buyer_type || null,
+      type: canBuy ? buyer?.buyer_type || null : null,
       label: buyerLabel,
       needsAction: canBuy && !buyerVerified,
     },
