@@ -37,8 +37,11 @@ const safeNextPath = (value: string | null) => {
 
 const destinationFor = (role: AccountRole, requestedNext: string | null) => {
   if (role === 'admin_staff' || role === 'super_admin') return '/admin-portal';
+  // A primary seller session always opens the seller workspace. A stale `next`
+  // parameter must never pull a seller into buyer/account routes after login.
+  if (role === 'seller') return '/seller-dashboard';
   if (requestedNext) return requestedNext;
-  return role === 'seller' ? '/account' : '/marketplace';
+  return '/marketplace';
 };
 
 const metadataRole = (user: {
@@ -87,11 +90,11 @@ export async function GET(request: NextRequest) {
       return { profile, role, complete: true, error: null };
     }
 
-    const canBuy = profile.can_buy ?? true;
+    const canBuy = role === 'seller' ? false : (profile.can_buy ?? role === 'buyer');
     const canSell = profile.can_sell ?? role === 'seller';
     const [buyerResult, sellerResult] = await Promise.all([
       canBuy
-        ? supabase.from('buyer_profiles').select('id').eq('user_id', user.id).maybeSingle()
+        ? supabase.from('buyer_profiles').select('id').eq('user_id', user.id).eq('is_active', true).maybeSingle()
         : Promise.resolve({ data: { id: 'not-required' }, error: null }),
       canSell
         ? supabase.from('seller_profiles').select('id').eq('user_id', user.id).maybeSingle()
@@ -113,10 +116,7 @@ export async function GET(request: NextRequest) {
   let workspace = await loadWorkspace();
   let recovered = false;
   if (!workspace.complete) {
-    const repairRole =
-      workspace.profile?.can_sell === true || workspace.role === 'seller'
-        ? 'seller'
-        : metadataRequestedRole;
+    const repairRole = workspace.role === 'seller' ? 'seller' : metadataRequestedRole;
     try {
       const recovery = await provisionAuthenticatedAccountWithRecovery(supabase, user, repairRole);
       recovered = recovery.recovered;
@@ -126,10 +126,7 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  const setupRole =
-    workspace.profile?.can_sell === true || workspace.role === 'seller'
-      ? 'seller'
-      : metadataRequestedRole;
+  const setupRole = workspace.role === 'seller' ? 'seller' : metadataRequestedRole;
 
   if (!workspace.profile || !workspace.complete) {
     return json({
@@ -153,12 +150,16 @@ export async function GET(request: NextRequest) {
   }
 
   const requestedNext = safeNextPath(request.nextUrl.searchParams.get('next'));
+  const canBuy =
+    workspace.role === 'seller'
+      ? false
+      : (workspace.profile.can_buy ?? workspace.role === 'buyer');
   return json({
     authenticated: true,
     ready: true,
     recovered,
     role: workspace.role,
-    canBuy: workspace.profile.can_buy ?? (workspace.role !== 'admin_staff' && workspace.role !== 'super_admin'),
+    canBuy,
     canSell: workspace.profile.can_sell ?? workspace.role === 'seller',
     destination: destinationFor(workspace.role, requestedNext),
   });
