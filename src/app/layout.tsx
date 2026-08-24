@@ -15,6 +15,7 @@ import '../styles/commerce-2026-redesign.css';
 import '../styles/fabrictrad-future.css';
 import '../styles/fabrictrad-ui-fixes.css';
 import '../styles/fabrictrad-light-commerce.css';
+import '../styles/commerce-ux-final.css';
 import { AuthProvider } from '@/contexts/AuthContext';
 import AppClientEnhancements from '@/components/AppClientEnhancements';
 import RouteExperienceEnhancer from '@/components/RouteExperienceEnhancer';
