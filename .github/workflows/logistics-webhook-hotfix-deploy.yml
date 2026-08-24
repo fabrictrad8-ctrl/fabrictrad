@@ -1,0 +1,110 @@
+name: Logistics webhook hotfix deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/app/api/logistics/tracking-webhook/**'
+      - 'src/app/api/shiprocket/webhook/**'
+      - '.github/workflows/logistics-webhook-hotfix-deploy.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  statuses: write
+
+concurrency:
+  group: fabrictrad-logistics-webhook-hotfix
+  cancel-in-progress: true
+
+jobs:
+  deploy-and-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: aa4ff7a482130e543f176e2d73c93f45
+      NEXT_PUBLIC_SUPABASE_URL: https://rdhfwlzhcvwjhkxhhpoo.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: sb_publishable_Un2-RQfjGbIiXF3Mb2oGIA_p-Z1kMls
+      NEXT_PUBLIC_SITE_URL: https://fabrictrad.com
+      NEXT_PUBLIC_ENABLE_GOOGLE_AUTH: 'true'
+      ADMIN_EMAIL: fabrictrad8@gmail.com
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund --package-lock=false --legacy-peer-deps
+
+      - name: Verify Cloudflare authentication
+        run: npx wrangler whoami
+
+      - name: Validate logistics webhook routes
+        run: |
+          npx eslint \
+            src/app/api/logistics/tracking-webhook/route.ts \
+            src/app/api/shiprocket/webhook/route.ts
+
+      - name: Build OpenNext Worker
+        run: npm run build:sites
+
+      - name: Deploy logistics webhook update
+        run: npx wrangler deploy --config wrangler.jsonc --keep-vars
+
+      - name: Verify provider-safe callback URL
+        shell: bash
+        run: |
+          set -euo pipefail
+          callback='https://fabrictrad.com/api/logistics/tracking-webhook'
+          python - "$callback" <<'PY'
+          import sys
+          url=sys.argv[1].lower()
+          blocked=('shiprocket','kartrocket')
+          assert not any(word in url for word in blocked), url
+          path=url.split('://',1)[-1].split('/',1)[1]
+          segments=[segment for segment in path.split('/') if segment]
+          assert all(segment not in {'sr','kr'} for segment in segments), segments
+          PY
+
+          ready=false
+          for attempt in $(seq 1 30); do
+            http=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+              --output /tmp/logistics-webhook.json --write-out '%{http_code}' "$callback" || true)
+            if [ "$http" = '200' ]; then
+              if python - <<'PY'
+          import json
+          p=json.load(open('/tmp/logistics-webhook.json'))
+          ok=(p.get('ok') is True and p.get('method')=='POST' and p.get('authentication')=='x-api-key')
+          raise SystemExit(0 if ok else 1)
+          PY
+              then ready=true; break; fi
+            fi
+            sleep 8
+          done
+          [ "$ready" = true ] || { cat /tmp/logistics-webhook.json || true; exit 1; }
+
+      - name: Record logistics callback deployment
+        if: always()
+        continue-on-error: true
+        shell: bash
+        run: |
+          mkdir -p .github/deployments
+          python - <<'PY'
+          import datetime,json,os,pathlib
+          payload={
+            'sourceCommit':os.environ.get('GITHUB_SHA'),
+            'recordedAt':datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            'callbackUrl':'https://fabrictrad.com/api/logistics/tracking-webhook',
+            'note':'Provider-safe callback path; POST is protected by x-api-key.',
+          }
+          p=pathlib.Path('.github/deployments/logistics-webhook-status.json')
+          p.write_text(json.dumps(payload,indent=2))
+          PY
+          git config user.name github-actions
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add .github/deployments/logistics-webhook-status.json
+          git diff --cached --quiet || git commit -m 'ci: record logistics webhook deployment [skip deploy] [skip validation] [skip integration audit]'
+          git push
