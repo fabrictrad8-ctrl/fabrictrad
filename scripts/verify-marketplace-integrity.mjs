@@ -16,6 +16,11 @@ const requireText = (relative, needle) => {
   const content = read(relative);
   if (!content.includes(needle)) failures.push(`${relative} must contain: ${needle}`);
 };
+const requireCount = (relative, needle, minimum) => {
+  const content = read(relative);
+  const count = content.split(needle).length - 1;
+  if (count < minimum) failures.push(`${relative} must contain ${needle} at least ${minimum} times (found ${count})`);
+};
 const forbidText = (relative, needle) => {
   const content = read(relative);
   if (content.includes(needle)) failures.push(`${relative} must not contain: ${needle}`);
@@ -78,13 +83,20 @@ requireText('src/components/commerce/OrderLifecyclePanel.tsx', "orderType: 'cata
 requireText('src/app/seller-dashboard/components/SellerCatalogOrders.tsx', "payment_status !== 'paid'");
 requireText('src/app/seller-dashboard/components/SellerOrders.tsx', "order.payment_status !== 'paid'");
 
-// Shiprocket must support both real order types, and neither path can ship before capture.
-requireText('src/app/api/shiprocket/create-order/route.ts', "body.orderType === 'catalog'");
-requireText('src/app/api/shiprocket/create-order/route.ts', "from('catalog_order_requests')");
-requireText('src/app/api/shiprocket/create-order/route.ts', "catalogOrder.payment_status !== 'paid'");
-requireText('src/app/api/shiprocket/create-order/route.ts', "bulkOrder.payment_status !== 'paid'");
-requireText('src/app/api/shiprocket/create-order/route.ts', "onConflict: shipmentLookupColumn");
-requireText('src/app/api/shiprocket/create-order/route.ts', "catalog_order_id: orderType === 'catalog'");
+// Shiprocket must support both real order types, and neither branch can ship before capture.
+const shiprocketRoute = 'src/app/api/shiprocket/create-order/route.ts';
+requireText(shiprocketRoute, "type OrderType = 'bulk' | 'catalog'");
+requireText(shiprocketRoute, "const orderType: OrderType = input.orderType === 'catalog' ? 'catalog' : 'bulk'");
+requireText(shiprocketRoute, "from('catalog_order_requests')");
+requireText(shiprocketRoute, "from('bulk_orders')");
+requireCount(shiprocketRoute, "order.status !== 'paid' || order.payment_status !== 'paid'", 2);
+requireText(shiprocketRoute, 'Only fully captured paid orders can be shipped.');
+requireText(shiprocketRoute, "catalog_order_id: orderType === 'catalog'");
+requireText(shiprocketRoute, "bulk_order_id: orderType === 'bulk'");
+requireText(shiprocketRoute, ".upsert(shipment, { onConflict: shipmentKey })");
+requireText(shiprocketRoute, "url.searchParams.set('cod', '0')");
+requireText(shiprocketRoute, "request_pickup: true");
+requireText(shiprocketRoute, "vendor_details");
 requireText('src/app/api/shiprocket/webhook/route.ts', 'shipment.catalog_order_id');
 requireText('src/app/api/shiprocket/webhook/route.ts', "status === 'delivered'");
 requireText('supabase/migrations/20260803062500_shipment_upsert_constraints.sql', 'seller_shipments_bulk_order_id_key');
