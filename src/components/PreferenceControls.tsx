@@ -6,12 +6,8 @@ import { SUPPORTED_LANGUAGES, type SupportedLanguageCode } from '@/lib/india';
 import { useAppPreferences } from '@/contexts/AppPreferencesContext';
 
 export default function PreferenceControls({ compact = false }: { compact?: boolean }) {
-  const { language, setLanguage, theme, setTheme, resolvedTheme, t } = useAppPreferences();
+  const { language, setLanguage, t } = useAppPreferences();
   const [languageOpen, setLanguageOpen] = useState(false);
-
-  const toggleTheme = () => {
-    setTheme(resolvedTheme === 'dark' ? 'light' : 'dark');
-  };
 
   return (
     <div className={`flex items-center ${compact ? 'gap-2' : 'gap-1.5'}`}>
@@ -64,16 +60,6 @@ export default function PreferenceControls({ compact = false }: { compact?: bool
           </>
         )}
       </div>
-
-      <button
-        type="button"
-        onClick={toggleTheme}
-        className="flex h-10 w-10 items-center justify-center rounded-full border border-border bg-card text-foreground shadow-sm transition hover:border-primary/40 hover:text-primary"
-        title={`${t('preferences.theme')}: ${theme === 'dark' ? 'Dark' : 'Light'}`}
-        aria-label={`Switch to ${resolvedTheme === 'dark' ? 'light' : 'dark'} theme`}
-      >
-        <Icon name={resolvedTheme === 'dark' ? 'SunIcon' : 'MoonIcon'} size={18} />
-      </button>
     </div>
   );
 }
