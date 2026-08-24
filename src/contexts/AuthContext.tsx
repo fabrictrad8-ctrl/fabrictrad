@@ -130,7 +130,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setSession(nextSession);
       setUser(nextSession?.user ?? null);
 
-      // Token refreshes should not make the current screen appear to reload.
+      // Token refreshes must not re-fetch the whole profile or make the current screen appear to reload.
       if (event === 'TOKEN_REFRESHED') {
         setLoading(false);
         return;
