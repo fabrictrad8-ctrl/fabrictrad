@@ -3,6 +3,7 @@ import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import ProductGallery from '@/app/product-detail/components/ProductGallery';
 import ProductInfoV2 from '@/app/product-detail/components/ProductInfoV2';
+import ProductCartAction from '@/app/product-detail/components/ProductCartAction';
 import ProductOrderStatusCard from '@/app/product-detail/components/ProductOrderStatusCard';
 import ProductSpecs from '@/app/product-detail/components/ProductSpecs';
 import SellerCard from '@/app/product-detail/components/SellerCard';
@@ -44,6 +45,7 @@ export default function ProductDetailPage() {
 
               <div className="min-w-0 space-y-4">
                 <ProductInfoV2 />
+                <ProductCartAction />
                 <div className="ft-product-content-card p-4">
                   <h2 className="text-sm font-850 text-foreground">Buying with confidence</h2>
                   <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
