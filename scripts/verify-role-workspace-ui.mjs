@@ -65,7 +65,7 @@ forbidText(loginGuard, "role === 'seller' ? '/account'", 'Login fail-safe must n
 
 if (failures.length) {
   console.error('Role workspace UI verification failed:');
-  for (const failure of failures) console.error(`- ${failure}`));
+  for (const failure of failures) console.error(`- ${failure}`);
   process.exit(1);
 }
 
