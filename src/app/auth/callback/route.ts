@@ -51,13 +51,17 @@ const destinationForAccount = (
   account: AuthenticatedProvisionedAccount
 ) => {
   if (account.role === 'admin_staff' || account.role === 'super_admin') return `${origin}/admin-portal`;
-  if (requestedRole === 'seller' && !account.phonePresent) {
+
+  const sellerSession = account.role === 'seller' || requestedRole === 'seller';
+  if (sellerSession && !account.phonePresent) {
     const phoneUrl = new URL('/auth/phone', origin);
     phoneUrl.searchParams.set('role', 'seller');
     phoneUrl.searchParams.set('returnTo', '/seller-registration?resume=1');
     return phoneUrl.toString();
   }
-  if (requestedRole === 'seller' && !account.canSell) return `${origin}/seller-registration?resume=1`;
+  if (sellerSession && !account.canSell) return `${origin}/seller-registration?resume=1`;
+  if (sellerSession) return `${origin}/seller-dashboard`;
+
   return `${origin}/marketplace`;
 };
 
@@ -84,8 +88,6 @@ export async function GET(request: NextRequest) {
   } = await supabase.auth.getUser();
   if (userError || !user) return redirectAfterAuth(loginErrorUrl(origin, 'auth_failed'));
 
-  // Primary recovery still starts with ensureAuthenticatedAccountProvisioned;
-  // the shared helper adds an exact-user server fallback only when that path fails.
   const normalizedEmail = user.email?.trim().toLowerCase() || '';
   if (normalizedEmail === ADMIN_EMAIL && user.email_confirmed_at) {
     try {
@@ -117,7 +119,9 @@ export async function GET(request: NextRequest) {
     return redirectAfterAuth(setupRecoveryUrl(origin, requestedRole));
   }
 
-  if (buyerType) {
+  // Buyer-type setup is only meaningful for buyer-primary accounts. A stale
+  // buyer cookie must never push a seller-primary Google login into buyer onboarding.
+  if (buyerType && account.role !== 'seller') {
     const { error: buyerTypeError } = await supabase
       .from('buyer_profiles')
       .update({ buyer_type: buyerType, updated_at: new Date().toISOString() })
@@ -147,7 +151,7 @@ export async function GET(request: NextRequest) {
 
   const { data: profile, error: profileError } = await supabase
     .from('user_profiles')
-    .select('is_active')
+    .select('is_active,role')
     .eq('id', user.id)
     .maybeSingle();
 
@@ -160,9 +164,10 @@ export async function GET(request: NextRequest) {
     return redirectAfterAuth(loginErrorUrl(origin, 'account_inactive'));
   }
 
-  // A Google sign-up launched from the buyer-registration flow must return to
-  // that flow. Otherwise a retail-store user could bypass the required KYC
-  // screens and an end user could lose the address/contact step.
+  if (profile.role === 'seller') {
+    return redirectAfterAuth(destinationForAccount(origin, 'seller', account));
+  }
+
   if (buyerType) {
     return redirectAfterAuth(`${origin}/buyer-registration?resume=1&oauth=1`);
   }
