@@ -9,6 +9,8 @@ on:
 permissions:
   contents: write
 
+# Dedicated UI release path. It intentionally has no shared concurrency group,
+# so audit/status commits cannot cancel a real Cloudflare deployment.
 jobs:
   release-ui:
     if: ${{ github.event_name == 'workflow_dispatch' || (!contains(github.event.head_commit.message, '[skip deploy]') && !contains(github.event.head_commit.message, '[skip ui deploy]')) }}
