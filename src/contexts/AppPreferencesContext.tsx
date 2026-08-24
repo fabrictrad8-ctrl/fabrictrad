@@ -25,27 +25,20 @@ function isLanguage(value: unknown): value is SupportedLanguageCode {
   return SUPPORTED_LANGUAGES.some((language) => language.code === value);
 }
 
-function isTheme(value: unknown): value is ThemePreference {
-  return value === 'light' || value === 'dark' || value === 'system';
-}
-
-const normalizeTheme = (value: ThemePreference): ThemePreference => (value === 'system' ? 'light' : value);
-
 export function AppPreferencesProvider({ children }: { children: React.ReactNode }) {
   const { user, profile, isDemoAccount, refreshProfile } = useAuth();
-  const [theme, setThemeState] = useState<ThemePreference>('light');
-  const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark'>('light');
   const [language, setLanguageState] = useState<SupportedLanguageCode>('en');
 
   useEffect(() => {
-    const storedTheme = window.localStorage.getItem(THEME_KEY);
     const storedLanguage = window.localStorage.getItem(LANGUAGE_KEY);
-    if (isTheme(storedTheme)) {
-      const normalized = normalizeTheme(storedTheme);
-      setThemeState(normalized);
-      if (storedTheme === 'system') window.localStorage.setItem(THEME_KEY, normalized);
-    }
     if (isLanguage(storedLanguage)) setLanguageState(storedLanguage);
+
+    // The current commerce release is intentionally light-only. This clears old
+    // device/account dark preferences that produced low-contrast mixed surfaces.
+    window.localStorage.setItem(THEME_KEY, 'light');
+    document.documentElement.classList.remove('dark');
+    document.documentElement.dataset.theme = 'light';
+    document.documentElement.style.colorScheme = 'light';
   }, []);
 
   useEffect(() => {
@@ -53,20 +46,13 @@ export function AppPreferencesProvider({ children }: { children: React.ReactNode
       setLanguageState(profile.preferred_language);
       window.localStorage.setItem(LANGUAGE_KEY, profile.preferred_language);
     }
-    if (isTheme(profile?.preferred_theme)) {
-      const normalized = normalizeTheme(profile.preferred_theme);
-      setThemeState(normalized);
-      window.localStorage.setItem(THEME_KEY, normalized);
-    }
-  }, [profile?.preferred_language, profile?.preferred_theme]);
 
-  useEffect(() => {
-    const next = theme === 'dark' ? 'dark' : 'light';
-    setResolvedTheme(next);
-    document.documentElement.classList.toggle('dark', next === 'dark');
-    document.documentElement.dataset.theme = next;
-    document.documentElement.style.colorScheme = next;
-  }, [theme]);
+    // Do not let a stale preferred_theme value reactivate the unaudited dark UI.
+    window.localStorage.setItem(THEME_KEY, 'light');
+    document.documentElement.classList.remove('dark');
+    document.documentElement.dataset.theme = 'light';
+    document.documentElement.style.colorScheme = 'light';
+  }, [profile?.preferred_language, profile?.preferred_theme]);
 
   useEffect(() => {
     document.documentElement.lang = language;
@@ -86,11 +72,12 @@ export function AppPreferencesProvider({ children }: { children: React.ReactNode
   );
 
   const setTheme = useCallback(
-    (next: ThemePreference) => {
-      const normalized = normalizeTheme(next);
-      setThemeState(normalized);
-      window.localStorage.setItem(THEME_KEY, normalized);
-      void persistProfilePreference({ preferred_theme: normalized });
+    (_next: ThemePreference) => {
+      window.localStorage.setItem(THEME_KEY, 'light');
+      document.documentElement.classList.remove('dark');
+      document.documentElement.dataset.theme = 'light';
+      document.documentElement.style.colorScheme = 'light';
+      void persistProfilePreference({ preferred_theme: 'light' });
     },
     [persistProfilePreference]
   );
@@ -106,14 +93,14 @@ export function AppPreferencesProvider({ children }: { children: React.ReactNode
 
   const value = useMemo<PreferencesContextValue>(
     () => ({
-      theme,
-      resolvedTheme,
+      theme: 'light',
+      resolvedTheme: 'light',
       language,
       setTheme,
       setLanguage,
       t: (key) => translate(language, key),
     }),
-    [language, resolvedTheme, setLanguage, setTheme, theme]
+    [language, setLanguage, setTheme]
   );
 
   return <PreferencesContext.Provider value={value}>{children}</PreferencesContext.Provider>;
