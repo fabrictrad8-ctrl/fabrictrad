@@ -1,6 +1,6 @@
 {
-  "sourceCommit": "7c07f52f41268171cfa4fd74bc7d1fc998fe71fb",
-  "recordedAt": "2026-08-24T22:14:16.881Z",
+  "sourceCommit": "39807c740b0bf04aff62ac7f95dcf07fe98ea8b2",
+  "recordedAt": "2026-08-24T22:28:04.939Z",
   "install": "success",
   "cloudflareAuthentication": "success",
   "razorpayApiCredentialCheckStep": "success",
@@ -11,14 +11,16 @@
     "supabase": true,
     "ai": true,
     "shiprocketOrderCreation": false,
-    "shiprocketWebhook": false
+    "shiprocketWebhook": false,
+    "resend": false
   },
   "validation": "success",
-  "validationLogTail": "=== Type check ===\n> fabrictrad@0.1.0 type-check\n> tsc --noEmit\n=== Lint (errors only) ===\n> fabrictrad@0.1.0 lint\n> eslint . --quiet\n=== Account lifecycle ===\nAccount lifecycle verification passed (19 required files checked).\n=== Marketplace integrity ===\nMarketplace integrity verification passed (22 required files checked).\n=== Mobile, WhatsApp and AI ===\nMobile persistence, flexible seller catalogue, WhatsApp ingestion and dual fully-AI Virtual Drape verification passed.",
-  "workerBuild": "cancelled",
-  "workerDeployment": "skipped",
+  "validationLogTail": "=== Type check ===\n> fabrictrad@0.1.0 type-check\n> tsc --noEmit\n=== Lint (errors only) ===\n> fabrictrad@0.1.0 lint\n> eslint . --quiet",
+  "workerBuild": "success",
+  "workerDeployment": "success",
+  "livePublicUiVerification": "failure",
   "liveAccountApiVerification": "skipped",
   "liveAiDrapeVerification": "skipped",
   "liveRazorpayWebhookVerification": "skipped",
-  "deploymentLogTail": null
+  "deploymentLogTail": " ⛅️ wrangler 4.125.0\n────────────────────\nCloudflare collects anonymous telemetry about your usage of Wrangler. Learn more at https://github.com/cloudflare/workers-sdk/tree/main/packages/wrangler/telemetry.md\n🌀 Building list of assets...\n✨ Read 244 files from the assets directory /home/runner/work/fabrictrad/fabrictrad/.open-next/assets\n🌀 Starting asset upload...\n🌀 Found 1 new or modified static asset to upload. Proceeding with upload...\n+ /BUILD_ID\nUploaded 1 of 1 asset\n✨ Success! Uploaded 1 file (122 already uploaded) (0.61 sec)\nTotal Upload: 13283.41 KiB / gzip: 2136.98 KiB\nWorker Startup Time: 34 ms\nYour Worker has access to the following bindings:\nBinding            Resource      \nenv.ASSETS         Assets        \nUploaded fabrictrad (5.47 sec)\nNo targets deployed for fabrictrad (0.36 sec)\nCurrent Version ID: 41567eb5-a361-4a9e-a242-c04455b16851"
 }
