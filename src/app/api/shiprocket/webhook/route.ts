@@ -73,13 +73,27 @@ export async function POST(request: NextRequest) {
     .select('id')
     .eq('idempotency_key', idempotencyKey)
     .maybeSingle();
-  if (previous) return NextResponse.json({ received: true, duplicate: true });
+  if (previous) return NextResponse.json({ received: true, duplicate: true }, { status: 200 });
 
   try {
     let query = admin.from('seller_shipments').select('*');
     query = awb ? query.eq('awb_number', awb) : query.eq('shiprocket_shipment_id', shipmentId);
     const { data: shipment, error: shipmentError } = await query.maybeSingle();
-    if (shipmentError || !shipment) throw new Error('Shipment record not found.');
+    if (shipmentError) throw shipmentError;
+
+    // Shiprocket's panel sends a synthetic payload from “Test Webhook”. That AWB/shipment
+    // will not exist in FabricTrad, but the endpoint must still acknowledge it with 200.
+    if (!shipment) {
+      return NextResponse.json(
+        {
+          received: true,
+          matched: false,
+          testOrUnknownShipment: true,
+          status: normalizeStatus(rawStatus),
+        },
+        { status: 200 }
+      );
+    }
 
     const status = normalizeStatus(rawStatus);
     const oldEvents = Array.isArray(shipment.tracking_events) ? shipment.tracking_events : [];
@@ -144,12 +158,16 @@ export async function POST(request: NextRequest) {
     });
     if (eventError && eventError.code !== '23505') throw eventError;
 
-    return NextResponse.json({
-      received: true,
-      status,
-      orderType: shipment.catalog_order_id ? 'catalog' : 'bulk',
-      orderId: shipment.catalog_order_id || shipment.bulk_order_id || shipment.order_id,
-    });
+    return NextResponse.json(
+      {
+        received: true,
+        matched: true,
+        status,
+        orderType: shipment.catalog_order_id ? 'catalog' : 'bulk',
+        orderId: shipment.catalog_order_id || shipment.bulk_order_id || shipment.order_id,
+      },
+      { status: 200 }
+    );
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Webhook processing failed.';
     console.error('Shiprocket webhook failed:', message);
@@ -162,6 +180,12 @@ export async function POST(request: NextRequest) {
       retry_count: 0,
       next_retry_at: new Date(Date.now() + 60_000).toISOString(),
     });
-    return NextResponse.json({ error: 'Webhook processing failed.' }, { status: 500 });
+
+    // Tracking providers expect a 200 acknowledgement. We preserve the failure in the
+    // dead-letter queue and acknowledge receipt so the provider does not hammer the endpoint.
+    return NextResponse.json(
+      { received: true, queuedForRetry: true },
+      { status: 200 }
+    );
   }
 }
