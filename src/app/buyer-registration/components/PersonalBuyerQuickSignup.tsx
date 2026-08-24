@@ -5,6 +5,7 @@ import Link from 'next/link';
 import Icon from '@/components/ui/AppIcon';
 import { useAuth } from '@/contexts/AuthContext';
 import { normalizeEmail, normalizeIndianPhone, validateIndianPhone } from '@/lib/authValidation';
+import { INDIAN_STATES_AND_UTS } from '@/lib/india';
 
 type PreflightResponse = {
   emailUsed?: boolean;
@@ -14,7 +15,17 @@ type PreflightResponse = {
 
 export default function PersonalBuyerQuickSignup() {
   const { signUp, signInWithGoogle, googleAuthEnabled } = useAuth();
-  const [form, setForm] = useState({ fullName: '', phone: '', email: '', password: '' });
+  const [form, setForm] = useState({
+    fullName: '',
+    phone: '',
+    email: '',
+    password: '',
+    addressLine1: '',
+    addressLine2: '',
+    city: '',
+    state: '',
+    pincode: '',
+  });
   const [submitting, setSubmitting] = useState(false);
   const [googleSubmitting, setGoogleSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -27,11 +38,19 @@ export default function PersonalBuyerQuickSignup() {
     const fullName = form.fullName.trim();
     const email = normalizeEmail(form.email);
     const phone = normalizeIndianPhone(form.phone);
+    const addressLine1 = form.addressLine1.trim();
+    const city = form.city.trim();
+    const state = form.state.trim();
+    const pincode = form.pincode.trim();
     if (!fullName) return setError('Enter your name.');
     if (!email || !email.includes('@')) return setError('Enter a valid email address.');
     const phoneResult = validateIndianPhone(phone);
     if (!phoneResult.valid) return setError(phoneResult.message);
     if (form.password.length < 8) return setError('Use a password with at least 8 characters.');
+    if (addressLine1.length < 3 || !city || !state) {
+      return setError('Enter your complete delivery address, city and state.');
+    }
+    if (!/^\d{6}$/.test(pincode)) return setError('Enter a valid 6-digit delivery PIN code.');
 
     setSubmitting(true);
     try {
@@ -96,11 +115,11 @@ export default function PersonalBuyerQuickSignup() {
           gstin: '',
           pan: '',
           identityMethod: 'pan',
-          addressLine1: '',
-          addressLine2: '',
-          city: '',
-          state: '',
-          pincode: '',
+          addressLine1,
+          addressLine2: form.addressLine2.trim(),
+          city,
+          state,
+          pincode,
         })
       );
 
@@ -142,16 +161,16 @@ export default function PersonalBuyerQuickSignup() {
 
   return (
     <section className="min-h-[calc(100vh-4rem)] bg-muted/30 px-4 py-10 sm:py-14">
-      <div className="mx-auto max-w-xl">
+      <div className="mx-auto max-w-2xl">
         <div className="text-center">
           <span className="inline-flex rounded-full bg-success/10 px-3 py-1 text-xs font-800 text-success">
             Personal buyer · no KYC documents
           </span>
           <h1 className="mt-4 text-3xl font-800 tracking-tight text-foreground sm:text-4xl">
-            Create your account and start shopping
+            Create your account and save delivery once
           </h1>
-          <p className="mx-auto mt-3 max-w-lg text-sm leading-6 text-muted-foreground">
-            Just your basic account details. Add a delivery address when you actually place an order.
+          <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-muted-foreground">
+            Your contact and delivery details are saved to FabricTrad so paid orders can flow to the courier automatically. No PAN, Aadhaar or GST certificate is required for personal buying.
           </p>
         </div>
 
@@ -165,14 +184,12 @@ export default function PersonalBuyerQuickSignup() {
 
           {googleAuthEnabled && (
             <>
-              <button
-                type="button"
-                onClick={continueWithGoogle}
-                disabled={submitting || googleSubmitting}
-                className="btn-secondary w-full py-3 text-sm disabled:opacity-50"
-              >
+              <button type="button" onClick={continueWithGoogle} disabled={submitting || googleSubmitting} className="btn-secondary w-full py-3 text-sm disabled:opacity-50">
                 {googleSubmitting ? 'Connecting…' : 'Continue with Google'}
               </button>
+              <p className="mt-2 text-center text-xs text-muted-foreground">
+                After Google sign-in, FabricTrad will ask for your mobile and delivery address before completing buyer setup.
+              </p>
               <div className="my-5 flex items-center gap-3 text-xs text-muted-foreground">
                 <span className="h-px flex-1 bg-border" />
                 <span>or use email</span>
@@ -181,89 +198,58 @@ export default function PersonalBuyerQuickSignup() {
             </>
           )}
 
-          <form onSubmit={submit} className="space-y-4">
-            <label className="block text-sm font-700 text-foreground">
-              Name
-              <input
-                value={form.fullName}
-                onChange={(event) => setForm((current) => ({ ...current, fullName: event.target.value }))}
-                className="input-base mt-1.5 w-full px-4 py-3 font-400"
-                autoComplete="name"
-                placeholder="Your name"
-                required
-              />
-            </label>
-
+          <form onSubmit={submit} className="space-y-5">
             <div className="grid gap-4 sm:grid-cols-2">
-              <label className="text-sm font-700 text-foreground">
-                Email
-                <input
-                  type="email"
-                  value={form.email}
-                  onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))}
-                  className="input-base mt-1.5 w-full px-4 py-3 font-400"
-                  autoComplete="email"
-                  placeholder="you@example.com"
-                  required
-                />
+              <label className="text-sm font-700 text-foreground sm:col-span-2">
+                Name *
+                <input value={form.fullName} onChange={(event) => setForm((current) => ({ ...current, fullName: event.target.value }))} className="input-base mt-1.5 w-full px-4 py-3 font-400" autoComplete="name" placeholder="Your name" required />
               </label>
               <label className="text-sm font-700 text-foreground">
-                Mobile number
-                <input
-                  value={form.phone}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      phone: normalizeIndianPhone(event.target.value),
-                    }))
-                  }
-                  className="input-base mt-1.5 w-full px-4 py-3 font-400"
-                  inputMode="numeric"
-                  maxLength={10}
-                  autoComplete="tel"
-                  placeholder="9876543210"
-                  required
-                />
+                Email *
+                <input type="email" value={form.email} onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))} className="input-base mt-1.5 w-full px-4 py-3 font-400" autoComplete="email" placeholder="you@example.com" required />
+              </label>
+              <label className="text-sm font-700 text-foreground">
+                Mobile number *
+                <input value={form.phone} onChange={(event) => setForm((current) => ({ ...current, phone: normalizeIndianPhone(event.target.value) }))} className="input-base mt-1.5 w-full px-4 py-3 font-400" inputMode="numeric" maxLength={10} autoComplete="tel" placeholder="9876543210" required />
               </label>
             </div>
 
             <label className="block text-sm font-700 text-foreground">
-              Password
+              Password *
               <span className="relative mt-1.5 block">
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  value={form.password}
-                  onChange={(event) => setForm((current) => ({ ...current, password: event.target.value }))}
-                  className="input-base w-full px-4 py-3 pr-16 font-400"
-                  autoComplete="new-password"
-                  minLength={8}
-                  placeholder="At least 8 characters"
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((current) => !current)}
-                  className="absolute inset-y-0 right-0 px-4 text-xs font-700 text-muted-foreground hover:text-foreground"
-                >
+                <input type={showPassword ? 'text' : 'password'} value={form.password} onChange={(event) => setForm((current) => ({ ...current, password: event.target.value }))} className="input-base w-full px-4 py-3 pr-16 font-400" autoComplete="new-password" minLength={8} placeholder="At least 8 characters" required />
+                <button type="button" onClick={() => setShowPassword((current) => !current)} className="absolute inset-y-0 right-0 px-4 text-xs font-700 text-muted-foreground hover:text-foreground">
                   {showPassword ? 'Hide' : 'Show'}
                 </button>
               </span>
             </label>
 
-            <button
-              type="submit"
-              disabled={submitting || googleSubmitting}
-              className="btn-primary w-full py-3 text-sm disabled:opacity-50"
-            >
-              {submitting ? 'Creating your account…' : 'Create account & start shopping'}
+            <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4 sm:p-5">
+              <div className="mb-4 flex items-start gap-3">
+                <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary"><Icon name="MapPinIcon" size={18} /></div>
+                <div>
+                  <p className="text-sm font-800 text-foreground">Delivery address</p>
+                  <p className="mt-1 text-xs leading-5 text-muted-foreground">Saved once and reused for eligible prepaid courier bookings. You can change it later from Profile & settings.</p>
+                </div>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className="text-sm font-700 text-foreground sm:col-span-2">Address line 1 *<input value={form.addressLine1} onChange={(event) => setForm((current) => ({ ...current, addressLine1: event.target.value }))} className="input-base mt-1.5 w-full px-4 py-3 font-400" autoComplete="address-line1" placeholder="House / building / street" required /></label>
+                <label className="text-sm font-700 text-foreground sm:col-span-2">Address line 2 <span className="font-500 text-muted-foreground">(optional)</span><input value={form.addressLine2} onChange={(event) => setForm((current) => ({ ...current, addressLine2: event.target.value }))} className="input-base mt-1.5 w-full px-4 py-3 font-400" autoComplete="address-line2" placeholder="Area / landmark" /></label>
+                <label className="text-sm font-700 text-foreground">City *<input value={form.city} onChange={(event) => setForm((current) => ({ ...current, city: event.target.value }))} className="input-base mt-1.5 w-full px-4 py-3 font-400" autoComplete="address-level2" required /></label>
+                <label className="text-sm font-700 text-foreground">State / UT *<select value={form.state} onChange={(event) => setForm((current) => ({ ...current, state: event.target.value }))} className="input-base mt-1.5 w-full px-4 py-3 font-400" autoComplete="address-level1" required><option value="">Select state</option>{INDIAN_STATES_AND_UTS.map((state) => <option key={state} value={state}>{state}</option>)}</select></label>
+                <label className="text-sm font-700 text-foreground">PIN code *<input value={form.pincode} onChange={(event) => setForm((current) => ({ ...current, pincode: event.target.value.replace(/\D/g, '').slice(0, 6) }))} className="input-base mt-1.5 w-full px-4 py-3 font-400" inputMode="numeric" maxLength={6} autoComplete="postal-code" placeholder="400001" required /></label>
+                <div className="flex items-end rounded-xl border border-success/20 bg-success/5 p-3 text-xs leading-5 text-muted-foreground"><Icon name="TruckIcon" size={16} className="mr-2 mt-0.5 shrink-0 text-success" />Used only for fulfilment, tracking and order documents.</div>
+              </div>
+            </div>
+
+            <button type="submit" disabled={submitting || googleSubmitting} className="btn-primary w-full py-3 text-sm disabled:opacity-50">
+              {submitting ? 'Creating your account…' : 'Create account & save delivery details'}
             </button>
           </form>
 
           <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4 text-xs text-muted-foreground">
             <span>No PAN · No Aadhaar · No GST certificate</span>
-            <Link href="/login" className="font-800 text-primary hover:underline">
-              Already have an account? Sign in
-            </Link>
+            <Link href="/login" className="font-800 text-primary hover:underline">Already have an account? Sign in</Link>
           </div>
         </div>
       </div>
