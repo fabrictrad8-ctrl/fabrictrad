@@ -19,6 +19,7 @@ export function trackFunnelStep(
     | 'homepage_view'
     | 'marketplace_view'
     | 'product_view'
+    | 'add_to_cart'
     | 'checkout_start'
     | 'checkout_complete',
   params?: Record<string, string | number>
