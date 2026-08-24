@@ -30,8 +30,9 @@ const safeNextPath = (value: string | null) => {
 
 const destinationFor = (role: AccountRole, requestedNext: string | null) => {
   if (role === 'admin_staff' || role === 'super_admin') return '/admin-portal';
+  if (role === 'seller') return '/seller-dashboard';
   if (requestedNext) return requestedNext;
-  return role === 'seller' ? '/account' : '/marketplace';
+  return '/marketplace';
 };
 
 /**
