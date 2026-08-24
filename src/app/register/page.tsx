@@ -58,7 +58,7 @@ export default function RegisterPage() {
         </div>
       </header>
 
-      <section className="relative z-[2] mx-auto w-[min(1320px,calc(100%-32px))] px-4 pb-20 pt-32 sm:px-6 lg:px-8 lg:pt-40">
+      <section className="relative z-[2] mx-auto w-full max-w-[1320px] px-4 pb-20 pt-32 sm:px-6 lg:px-8 lg:pt-40">
         <div className="mx-auto max-w-3xl text-center">
           <div className="ft-future-kicker mx-auto">Choose your starting workspace</div>
           <h1 className="mt-6 text-balance text-5xl font-850 leading-[.98] tracking-[-0.055em] text-white sm:text-6xl lg:text-7xl">One account. Start with what you need today.</h1>
