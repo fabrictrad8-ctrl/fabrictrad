@@ -23,7 +23,7 @@ import RouteExperienceEnhancer from '@/components/RouteExperienceEnhancer';
 import PageContinuity from '@/components/PageContinuity';
 import { AppPreferencesProvider } from '@/contexts/AppPreferencesContext';
 
-const PRODUCTION_UI_RELEASE = 'fabrictrad-commerce-ux-2026-08-25';
+const PRODUCTION_UI_RELEASE = 'fabrictrad-commerce-ux-2026-08-25-r2';
 
 export const viewport: Viewport = {
   width: 'device-width',
