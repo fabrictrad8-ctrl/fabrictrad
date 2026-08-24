@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { paiseToRupees, rupeesToPaise } from '@/lib/razorpayIntegrity';
+import { ensureAutomaticInvoice } from '@/lib/server/automaticInvoice';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -292,6 +293,18 @@ export async function POST(request: NextRequest) {
           { onConflict: 'transaction_id' }
         );
         if (splitError) throw splitError;
+
+        if (reconciliation.paymentStatus === 'paid') {
+          // Invoice/email failures must not roll back a successfully captured payment.
+          // The helper is idempotent and records its own delivery state for retry/audit.
+          await ensureAutomaticInvoice({
+            admin,
+            kind: payment.kind,
+            orderId: payment.fabrictradOrderId,
+            paymentId: razorpayPaymentId,
+            capturedAt: timestamp,
+          });
+        }
       }
     } else if (eventType === 'payment.failed') {
       const entity = entityFrom(event, 'payment');
