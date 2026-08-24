@@ -4,190 +4,181 @@ import Link from 'next/link';
 import AppLogo from '@/components/ui/AppLogo';
 import Icon from '@/components/ui/AppIcon';
 
-const accountPaths = [
-  {
-    icon: 'ShoppingBagIcon',
-    title: 'Buy fabrics',
-    copy: 'Create an account to browse verified sellers, compare fabric options and manage your purchases.',
-    href: '/buyer-registration',
-    action: 'Create buyer account',
-  },
-  {
-    icon: 'BuildingStorefrontIcon',
-    title: 'Sell fabrics',
-    copy: 'Register your business, complete verification and manage catalogues, orders and fulfilment securely.',
-    href: '/seller-registration',
-    action: 'Create seller account',
-  },
-];
-
 const trustItems = [
   {
     icon: 'ShieldCheckIcon',
-    title: 'Account-protected marketplace',
-    copy: 'Products, seller details, prices, orders and business dashboards are only available after sign-in.',
+    title: 'Verified commerce network',
+    copy: 'Buyer, seller and administrator workspaces stay account-scoped and role-aware.',
   },
   {
-    icon: 'IdentificationIcon',
-    title: 'Role-aware onboarding',
-    copy: 'Individual buyers and verified businesses follow the right onboarding path for their needs.',
+    icon: 'BoltIcon',
+    title: 'One account, faster movement',
+    copy: 'Buy, sell, pay, fulfil and track without creating duplicate identities for every workflow.',
   },
   {
     icon: 'LockClosedIcon',
-    title: 'Private business activity',
-    copy: 'Account data, payment status, invoices and fulfilment records remain inside authenticated workspaces.',
+    title: 'Private marketplace by default',
+    copy: 'Products, prices, seller details and transaction data remain behind authenticated access.',
   },
 ];
 
 export default function PublicAccessLanding() {
   return (
-    <main id="main-content" className="ft-marketing min-h-screen overflow-hidden text-foreground">
-      <header className="ft-topbar fixed inset-x-0 top-0 z-50">
-        <div className="mx-auto flex h-16 max-w-[1440px] items-center gap-3 px-4 sm:px-6 lg:px-8">
-          <Link href="/" className="flex min-w-0 items-center gap-2.5" aria-label="FabricTrad home">
-            <AppLogo size={36} />
-            <span className="truncate text-lg font-800 tracking-tight text-foreground">FabricTrad</span>
+    <main id="main-content" className="ft-future-landing">
+      <header className="ft-future-topbar">
+        <div className="ft-future-nav">
+          <Link href="/" className="ft-future-brand" aria-label="FabricTrad home">
+            <AppLogo size={34} />
+            <span>FabricTrad</span>
           </Link>
 
-          <nav className="ml-8 hidden items-center gap-1 lg:flex" aria-label="Public navigation">
-            <a href="#about" className="rounded-lg px-3 py-2 text-sm font-650 text-muted-foreground transition hover:bg-muted hover:text-foreground">
-              About
-            </a>
-            <a href="#join" className="rounded-lg px-3 py-2 text-sm font-650 text-muted-foreground transition hover:bg-muted hover:text-foreground">
-              Join FabricTrad
-            </a>
-            <a href="#trust" className="rounded-lg px-3 py-2 text-sm font-650 text-muted-foreground transition hover:bg-muted hover:text-foreground">
-              Trust & safety
-            </a>
+          <nav className="ft-future-navlinks" aria-label="Public navigation">
+            <a href="#platform">Platform</a>
+            <a href="#how-it-works">How it works</a>
+            <a href="#trust">Trust & safety</a>
           </nav>
 
           <div className="ml-auto flex items-center gap-2">
-            <Link href="/login" className="ft-secondary-action inline-flex items-center justify-center px-4 py-2 text-sm">
+            <Link href="/login" className="ft-secondary-action inline-flex min-h-10 items-center justify-center px-4 text-sm font-800">
               Sign in
             </Link>
-            <Link href="/register" className="ft-primary-action inline-flex items-center justify-center gap-2 px-4 py-2 text-sm">
-              Create account <Icon name="ArrowRightIcon" size={16} />
+            <Link href="/register" className="ft-primary-action inline-flex min-h-10 items-center justify-center gap-2 px-4 text-sm font-800">
+              Join FabricTrad <Icon name="ArrowRightIcon" size={15} />
             </Link>
           </div>
         </div>
       </header>
 
-      <section id="about" className="relative flex min-h-[78vh] items-center px-4 pb-20 pt-28 sm:px-6 sm:pt-32 lg:px-8 lg:pb-28">
-        <div className="ft-marketing-grid pointer-events-none absolute inset-0" aria-hidden="true" />
-        <div className="landing-orb pointer-events-none absolute -left-48 top-0 h-[34rem] w-[34rem] rounded-full bg-primary/15" aria-hidden="true" />
-        <div className="landing-orb pointer-events-none absolute -right-48 top-10 h-[36rem] w-[36rem] rounded-full bg-secondary/12" aria-hidden="true" />
-
-        <div className="relative mx-auto w-full max-w-5xl text-center">
-          <div className="ft-badge ft-badge--success mx-auto w-fit">
-            <span className="h-1.5 w-1.5 rounded-full bg-current" />
-            India&apos;s textile trade platform
+      <section id="platform" className="ft-future-hero">
+        <div>
+          <div className="ft-future-kicker">
+            <span className="h-1.5 w-1.5 rounded-full bg-current shadow-[0_0_12px_currentColor]" />
+            India&apos;s textile commerce operating layer
           </div>
 
-          <h1 className="mx-auto mt-6 max-w-4xl text-balance text-[clamp(2.65rem,7vw,5.65rem)] font-800 leading-[0.98] tracking-[-0.055em] text-foreground">
-            Buy and sell fabrics through one secure account.
+          <h1>
+            Textile trade,<br />
+            <em>rebuilt for now.</em>
           </h1>
-          <p className="mx-auto mt-7 max-w-2xl text-base leading-7 text-muted-foreground sm:text-lg sm:leading-8">
-            FabricTrad connects textile buyers and verified sellers. Sign in to enter the marketplace, view products, access pricing and manage your business activity.
+
+          <p className="ft-future-hero-copy">
+            FabricTrad brings sourcing, selling, approvals, payments, order tracking and business operations into one secure account. Buyers get a fast search-first marketplace. Sellers get a modern operating workspace built around real inventory and real orders.
           </p>
 
-          <div className="mt-9 flex flex-col justify-center gap-3 sm:flex-row sm:flex-wrap">
-            <Link href="/login" className="ft-primary-action inline-flex items-center justify-center gap-2 px-7 py-3.5 text-sm">
-              Sign in to marketplace <Icon name="ArrowRightIcon" size={17} />
+          <div className="ft-future-hero-actions">
+            <Link href="/login" className="ft-primary-action">
+              Enter FabricTrad <Icon name="ArrowRightIcon" size={17} />
             </Link>
-            <Link href="/register" className="ft-secondary-action inline-flex items-center justify-center gap-2 px-7 py-3.5 text-sm">
-              Create a free account
+            <Link href="/register" className="ft-secondary-action">
+              Create an account
             </Link>
           </div>
 
-          <div className="mx-auto mt-8 flex max-w-2xl flex-wrap justify-center gap-x-6 gap-y-3 text-sm text-muted-foreground">
-            <span className="inline-flex items-center gap-2">
-              <Icon name="LockClosedIcon" size={16} className="text-success" /> Marketplace hidden before sign-in
-            </span>
-            <span className="inline-flex items-center gap-2">
-              <Icon name="CheckBadgeIcon" size={16} className="text-success" /> One account can buy and sell
-            </span>
-            <span className="inline-flex items-center gap-2">
-              <Icon name="DevicePhoneMobileIcon" size={16} className="text-success" /> Works across devices
-            </span>
+          <div className="ft-future-trustline">
+            <span><Icon name="ShieldCheckIcon" size={15} className="text-emerald-400" /> Verified seller access</span>
+            <span><Icon name="CreditCardIcon" size={15} className="text-orange-300" /> Secure payment workflow</span>
+            <span><Icon name="DevicePhoneMobileIcon" size={15} className="text-cyan-300" /> Desktop + mobile</span>
+          </div>
+        </div>
+
+        <div className="ft-future-orbit" aria-hidden="true">
+          <div className="ft-future-core">
+            <div className="ft-future-core-inner" />
+          </div>
+
+          <div className="ft-future-float-card c1">
+            <strong><span className="dot" />Buyer workspace</strong>
+            <p>Search, compare, order, pay and track from one place.</p>
+          </div>
+          <div className="ft-future-float-card c2">
+            <strong><span className="dot" />Seller command centre</strong>
+            <p>Products, orders, inventory, payouts and fulfilment.</p>
+          </div>
+          <div className="ft-future-float-card c3">
+            <strong><span className="dot" />Role-aware access</strong>
+            <p>One identity can unlock the workspaces it is approved to use.</p>
           </div>
         </div>
       </section>
 
-      <section id="join" className="border-y border-border bg-card/75 px-4 py-20 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-5xl">
-          <div className="text-center">
-            <p className="text-xs font-800 uppercase tracking-[0.16em] text-primary">Choose how to begin</p>
-            <h2 className="mt-3 text-balance text-3xl font-800 tracking-[-0.035em] sm:text-4xl">Your marketplace opens after account creation.</h2>
-            <p className="mx-auto mt-4 max-w-2xl text-sm leading-7 text-muted-foreground sm:text-base">
-              No products, seller information, prices, dashboards or transaction data are shown publicly.
-            </p>
+      <section id="how-it-works" className="ft-future-bento">
+        <article className="ft-future-panel large">
+          <div>
+            <div className="ft-future-panel-icon"><Icon name="SparklesIcon" size={22} /></div>
+            <p className="mt-6 text-xs font-850 uppercase tracking-[0.16em] text-orange-300">A simpler commerce flow</p>
+            <h2 className="mt-3 max-w-xl text-4xl leading-tight">From sourcing intent to fulfilled order without fragmented tools.</h2>
+            <p className="mt-4 max-w-xl text-sm">FabricTrad keeps the buyer and seller sides connected around the same live commerce records instead of forcing users through disconnected pages or duplicate accounts.</p>
           </div>
+          <div className="ft-future-steps">
+            <div className="ft-future-step"><b>01</b><span>Create one account and complete only the verification relevant to your role.</span></div>
+            <div className="ft-future-step"><b>02</b><span>Enter the buyer marketplace or seller workspace you are approved to use.</span></div>
+            <div className="ft-future-step"><b>03</b><span>Keep orders, payments, invoices, fulfilment and history tied to the same account.</span></div>
+          </div>
+        </article>
 
-          <div className="mt-10 grid gap-5 md:grid-cols-2">
-            {accountPaths.map((item) => (
-              <article key={item.title} className="ft-feature-card flex flex-col p-6 sm:p-8">
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                  <Icon name={item.icon as 'ShoppingBagIcon'} size={23} />
-                </div>
-                <h3 className="mt-6 text-xl font-800">{item.title}</h3>
-                <p className="mt-3 flex-1 text-sm leading-7 text-muted-foreground">{item.copy}</p>
-                <Link href={item.href} className="ft-secondary-action mt-7 inline-flex min-h-11 items-center justify-center gap-2 px-5 text-sm">
-                  {item.action} <Icon name="ArrowRightIcon" size={16} />
-                </Link>
-              </article>
-            ))}
-          </div>
-        </div>
+        <article className="ft-future-panel">
+          <div className="ft-future-panel-icon"><Icon name="MagnifyingGlassIcon" size={21} /></div>
+          <h3 className="mt-5 text-xl">Search-first buying</h3>
+          <p className="mt-3 text-sm">Find fabrics by seller, colour, GSM, work type, SKU, price, MOQ and dispatch details after sign-in.</p>
+          <Link href="/buyer-registration" className="mt-6 inline-flex items-center gap-2 text-sm font-800 text-orange-300 hover:text-orange-200">
+            Create buyer access <Icon name="ArrowRightIcon" size={14} />
+          </Link>
+        </article>
+
+        <article className="ft-future-panel">
+          <div className="ft-future-panel-icon"><Icon name="BuildingStorefrontIcon" size={21} /></div>
+          <h3 className="mt-5 text-xl">Merchant control centre</h3>
+          <p className="mt-3 text-sm">Manage catalogue, inventory, buyer orders, pricing, payouts, shipping and analytics from a merchant-style workspace.</p>
+          <Link href="/seller-registration" className="mt-6 inline-flex items-center gap-2 text-sm font-800 text-cyan-300 hover:text-cyan-200">
+            Activate selling <Icon name="ArrowRightIcon" size={14} />
+          </Link>
+        </article>
+
+        <article id="trust" className="ft-future-panel">
+          <div className="ft-future-panel-icon"><Icon name="LockClosedIcon" size={21} /></div>
+          <h3 className="mt-5 text-xl">Nothing sensitive on the public page</h3>
+          <p className="mt-3 text-sm">Public visitors do not see marketplace inventory, seller information, prices, account dashboards or transaction records.</p>
+        </article>
+
+        <article className="ft-future-panel">
+          <div className="ft-future-panel-icon"><Icon name="ArrowsRightLeftIcon" size={21} /></div>
+          <h3 className="mt-5 text-xl">Buy and sell with one identity</h3>
+          <p className="mt-3 text-sm">Approved accounts can switch workspaces instead of maintaining separate phone numbers and duplicate profiles.</p>
+        </article>
       </section>
 
-      <section id="trust" className="px-4 py-20 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-6xl">
-          <div className="grid gap-4 md:grid-cols-3">
-            {trustItems.map((item) => (
-              <article key={item.title} className="ft-section p-6">
-                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-secondary/10 text-secondary">
-                  <Icon name={item.icon as 'ShieldCheckIcon'} size={21} />
+      <section className="relative z-[2] mx-auto w-[min(1420px,calc(100%-32px))] px-4 pb-24 sm:px-0">
+        <div className="rounded-[28px] border border-white/10 bg-white/[0.055] p-6 backdrop-blur-xl sm:p-9">
+          <div className="grid gap-7 lg:grid-cols-[1fr_auto] lg:items-end">
+            <div>
+              <p className="text-xs font-850 uppercase tracking-[0.16em] text-orange-300">Built for trust at scale</p>
+              <h2 className="mt-3 max-w-3xl text-3xl font-850 tracking-[-0.035em] text-white sm:text-4xl">A serious commerce product should feel clear before it feels clever.</h2>
+              <p className="mt-4 max-w-3xl text-sm leading-7 text-slate-400">The interface prioritises clear navigation, visible next actions, strong contrast, responsive layouts and role-specific workflows while keeping advanced features available when they are actually useful.</p>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-3 lg:min-w-[520px]">
+              {trustItems.map((item) => (
+                <div key={item.title} className="rounded-2xl border border-white/10 bg-black/10 p-4">
+                  <Icon name={item.icon as 'ShieldCheckIcon'} size={19} className="text-orange-300" />
+                  <p className="mt-3 text-sm font-800 text-white">{item.title}</p>
+                  <p className="mt-2 text-xs leading-5 text-slate-400">{item.copy}</p>
                 </div>
-                <h3 className="mt-5 text-base font-800">{item.title}</h3>
-                <p className="mt-2 text-sm leading-6 text-muted-foreground">{item.copy}</p>
-              </article>
-            ))}
-          </div>
-
-          <div className="mt-10 rounded-[24px] border border-border bg-secondary p-6 text-white shadow-2xl sm:p-10">
-            <div className="grid gap-6 lg:grid-cols-[1fr_auto] lg:items-center">
-              <div>
-                <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-750 text-white/85">
-                  <Icon name="ShieldCheckIcon" size={15} /> Private by default
-                </div>
-                <h2 className="mt-5 text-3xl font-800 tracking-[-0.035em]">Ready to enter FabricTrad?</h2>
-                <p className="mt-3 max-w-2xl text-sm leading-6 text-white/70 sm:text-base">
-                  Sign in to access the marketplace, or create an account to begin buying or selling.
-                </p>
-              </div>
-              <div className="flex flex-col gap-3 sm:flex-row">
-                <Link href="/login" className="inline-flex min-h-11 items-center justify-center rounded-xl bg-white px-5 text-sm font-800 text-secondary transition hover:bg-white/90">
-                  Sign in
-                </Link>
-                <Link href="/register" className="inline-flex min-h-11 items-center justify-center rounded-xl border border-white/25 bg-white/10 px-5 text-sm font-800 text-white transition hover:bg-white/15">
-                  Create account
-                </Link>
-              </div>
+              ))}
             </div>
           </div>
         </div>
       </section>
 
-      <footer className="border-t border-border bg-card px-4 py-8 sm:px-6 lg:px-8">
-        <div className="mx-auto flex max-w-[1440px] flex-col gap-4 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-2">
+      <footer className="ft-future-footer">
+        <div className="mx-auto flex max-w-[1420px] flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2.5">
             <AppLogo size={28} />
-            <span className="font-800 text-foreground">FabricTrad</span>
+            <span className="font-850 text-white">FabricTrad</span>
           </div>
-          <nav className="flex flex-wrap gap-x-5 gap-y-2" aria-label="Footer navigation">
-            <Link href="/help" className="hover:text-foreground">Help</Link>
-            <Link href="/privacy" className="hover:text-foreground">Privacy</Link>
-            <Link href="/terms" className="hover:text-foreground">Terms</Link>
+          <nav className="flex flex-wrap gap-x-5 gap-y-2 text-sm" aria-label="Footer navigation">
+            <Link href="/help" className="hover:text-white">Help</Link>
+            <Link href="/privacy" className="hover:text-white">Privacy</Link>
+            <Link href="/terms" className="hover:text-white">Terms</Link>
+            <Link href="/login" className="font-800 text-orange-300 hover:text-orange-200">Sign in</Link>
           </nav>
         </div>
       </footer>
