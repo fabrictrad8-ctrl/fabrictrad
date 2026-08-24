@@ -8,7 +8,7 @@ declare global {
   }
 }
 
-export function trackEvent(eventName: string, params?: Record<string, string | number | boolean>) {
+export function trackEvent(eventName: string, params?: Record<string, string | number | boolean | null>) {
   if (typeof window !== 'undefined' && window.gtag) {
     window.gtag('event', eventName, params);
   }
@@ -22,7 +22,7 @@ export function trackFunnelStep(
     | 'add_to_cart'
     | 'checkout_start'
     | 'checkout_complete',
-  params?: Record<string, string | number>
+  params?: Record<string, string | number | null>
 ) {
   trackEvent(step, { funnel_step: step, ...params });
 }
