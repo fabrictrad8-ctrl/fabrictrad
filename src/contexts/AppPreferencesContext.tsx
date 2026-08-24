@@ -29,16 +29,22 @@ function isTheme(value: unknown): value is ThemePreference {
   return value === 'light' || value === 'dark' || value === 'system';
 }
 
+const normalizeTheme = (value: ThemePreference): ThemePreference => (value === 'system' ? 'light' : value);
+
 export function AppPreferencesProvider({ children }: { children: React.ReactNode }) {
   const { user, profile, isDemoAccount, refreshProfile } = useAuth();
-  const [theme, setThemeState] = useState<ThemePreference>('system');
+  const [theme, setThemeState] = useState<ThemePreference>('light');
   const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark'>('light');
   const [language, setLanguageState] = useState<SupportedLanguageCode>('en');
 
   useEffect(() => {
     const storedTheme = window.localStorage.getItem(THEME_KEY);
     const storedLanguage = window.localStorage.getItem(LANGUAGE_KEY);
-    if (isTheme(storedTheme)) setThemeState(storedTheme);
+    if (isTheme(storedTheme)) {
+      const normalized = normalizeTheme(storedTheme);
+      setThemeState(normalized);
+      if (storedTheme === 'system') window.localStorage.setItem(THEME_KEY, normalized);
+    }
     if (isLanguage(storedLanguage)) setLanguageState(storedLanguage);
   }, []);
 
@@ -48,23 +54,18 @@ export function AppPreferencesProvider({ children }: { children: React.ReactNode
       window.localStorage.setItem(LANGUAGE_KEY, profile.preferred_language);
     }
     if (isTheme(profile?.preferred_theme)) {
-      setThemeState(profile.preferred_theme);
-      window.localStorage.setItem(THEME_KEY, profile.preferred_theme);
+      const normalized = normalizeTheme(profile.preferred_theme);
+      setThemeState(normalized);
+      window.localStorage.setItem(THEME_KEY, normalized);
     }
   }, [profile?.preferred_language, profile?.preferred_theme]);
 
   useEffect(() => {
-    const media = window.matchMedia('(prefers-color-scheme: dark)');
-    const apply = () => {
-      const next = theme === 'system' ? (media.matches ? 'dark' : 'light') : theme;
-      setResolvedTheme(next);
-      document.documentElement.classList.toggle('dark', next === 'dark');
-      document.documentElement.dataset.theme = next;
-      document.documentElement.style.colorScheme = next;
-    };
-    apply();
-    media.addEventListener('change', apply);
-    return () => media.removeEventListener('change', apply);
+    const next = theme === 'dark' ? 'dark' : 'light';
+    setResolvedTheme(next);
+    document.documentElement.classList.toggle('dark', next === 'dark');
+    document.documentElement.dataset.theme = next;
+    document.documentElement.style.colorScheme = next;
   }, [theme]);
 
   useEffect(() => {
@@ -86,9 +87,10 @@ export function AppPreferencesProvider({ children }: { children: React.ReactNode
 
   const setTheme = useCallback(
     (next: ThemePreference) => {
-      setThemeState(next);
-      window.localStorage.setItem(THEME_KEY, next);
-      void persistProfilePreference({ preferred_theme: next });
+      const normalized = normalizeTheme(next);
+      setThemeState(normalized);
+      window.localStorage.setItem(THEME_KEY, normalized);
+      void persistProfilePreference({ preferred_theme: normalized });
     },
     [persistProfilePreference]
   );
