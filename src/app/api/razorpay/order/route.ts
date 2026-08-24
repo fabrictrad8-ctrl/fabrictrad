@@ -129,6 +129,39 @@ export async function POST(request: NextRequest) {
   } = await supabase.auth.getUser();
   if (!user) return json({ error: 'Authentication required.' }, 401);
 
+  const [buyerAccessResult, buyerProfileResult] = await Promise.all([
+    supabase
+      .from('user_profiles')
+      .select('role,is_active,can_buy')
+      .eq('id', user.id)
+      .maybeSingle(),
+    supabase
+      .from('buyer_profiles')
+      .select('id,is_active')
+      .eq('user_id', user.id)
+      .eq('is_active', true)
+      .maybeSingle(),
+  ]);
+  if (buyerAccessResult.error || buyerProfileResult.error) {
+    return json({ error: 'Buyer payment access could not be checked.' }, 503);
+  }
+  const buyerAccess = buyerAccessResult.data;
+  if (
+    !buyerAccess ||
+    buyerAccess.is_active !== true ||
+    buyerAccess.role !== 'buyer' ||
+    buyerAccess.can_buy === false ||
+    !buyerProfileResult.data?.id
+  ) {
+    return json(
+      {
+        error: 'Buyer workspace access is required for payment.',
+        code: 'BUYER_ACCESS_REQUIRED',
+      },
+      403
+    );
+  }
+
   let body: RequestBody;
   try {
     body = (await request.json()) as RequestBody;
@@ -150,7 +183,6 @@ export async function POST(request: NextRequest) {
   const { keyId, keySecret } = credentials;
 
   const admin = createAdminClient();
-  const orderTable = orderType === 'catalog' ? 'catalog_order_requests' : 'bulk_orders';
   const paymentTable = orderType === 'catalog' ? 'catalog_order_payments' : 'bulk_order_payments';
   const orderForeignKey = orderType === 'catalog' ? 'catalog_order_id' : 'bulk_order_id';
 
