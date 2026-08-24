@@ -1,12 +1,15 @@
-# Dedicated deployment for FabricTrad's provider-neutral shipment tracking callback.
-name: Logistics webhook hotfix deploy
+# Dedicated deployment for FabricTrad logistics, Shiprocket auth and provider-neutral tracking.
+name: Logistics and Shiprocket deploy
 
 on:
   push:
     branches: [main]
     paths:
       - 'src/app/api/logistics/tracking-webhook/**'
-      - 'src/app/api/shiprocket/webhook/**'
+      - 'src/app/api/shiprocket/**'
+      - 'src/lib/shiprocketCredentials.ts'
+      - 'src/app/seller-dashboard/components/SellerCourierSettings.tsx'
+      - 'supabase/migrations/*shiprocket*'
       - '.github/workflows/logistics-webhook-hotfix-deploy.yml'
   workflow_dispatch:
 
@@ -15,13 +18,13 @@ permissions:
   statuses: write
 
 concurrency:
-  group: fabrictrad-logistics-webhook-hotfix
+  group: fabrictrad-logistics-shiprocket
   cancel-in-progress: true
 
 jobs:
   deploy-and-verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 40
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: aa4ff7a482130e543f176e2d73c93f45
@@ -43,16 +46,21 @@ jobs:
       - name: Verify Cloudflare authentication
         run: npx wrangler whoami
 
-      - name: Validate logistics webhook routes
+      - name: Validate logistics and Shiprocket code
         run: |
           npx eslint \
             src/app/api/logistics/tracking-webhook/route.ts \
-            src/app/api/shiprocket/webhook/route.ts
+            src/app/api/shiprocket/webhook/route.ts \
+            src/app/api/shiprocket/status/route.ts \
+            src/app/api/shiprocket/create-order/route.ts \
+            src/lib/shiprocketCredentials.ts \
+            src/app/seller-dashboard/components/SellerCourierSettings.tsx
+          npm run type-check
 
       - name: Build OpenNext Worker
         run: npm run build:sites
 
-      - name: Deploy logistics webhook update
+      - name: Deploy logistics and Shiprocket update
         run: npx wrangler deploy --config wrangler.jsonc --keep-vars
 
       - name: Verify provider-safe callback URL
@@ -87,7 +95,29 @@ jobs:
           done
           [ "$ready" = true ] || { cat /tmp/logistics-webhook.json || true; exit 1; }
 
-      - name: Record logistics callback deployment
+      - name: Verify live Shiprocket API authentication
+        shell: bash
+        run: |
+          set -euo pipefail
+          ready=false
+          for attempt in $(seq 1 24); do
+            http=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+              --output /tmp/shiprocket-status.json --write-out '%{http_code}' \
+              'https://fabrictrad.com/api/shiprocket/status?verify=1' || true)
+            if [ "$http" = '200' ]; then
+              if python - <<'PY'
+          import json
+          p=json.load(open('/tmp/shiprocket-status.json'))
+          ok=(p.get('configured') is True and p.get('authenticated') is True and p.get('webhookConfigured') is True)
+          raise SystemExit(0 if ok else 1)
+          PY
+              then ready=true; break; fi
+            fi
+            sleep 8
+          done
+          [ "$ready" = true ] || { cat /tmp/shiprocket-status.json || true; exit 1; }
+
+      - name: Record logistics deployment
         if: always()
         continue-on-error: true
         shell: bash
@@ -95,11 +125,20 @@ jobs:
           mkdir -p .github/deployments
           python - <<'PY'
           import datetime,json,os,pathlib
+          status={}
+          try:
+            status=json.load(open('/tmp/shiprocket-status.json'))
+          except Exception:
+            pass
           payload={
             'sourceCommit':os.environ.get('GITHUB_SHA'),
             'recordedAt':datetime.datetime.now(datetime.timezone.utc).isoformat(),
             'callbackUrl':'https://fabrictrad.com/api/logistics/tracking-webhook',
-            'note':'Provider-safe callback path; POST is protected by x-api-key.',
+            'shiprocketConfigured':status.get('configured'),
+            'shiprocketAuthenticated':status.get('authenticated'),
+            'shiprocketWebhookConfigured':status.get('webhookConfigured'),
+            'credentialSource':status.get('source'),
+            'note':'Multi-vendor pickup and buyer delivery data are resolved server-side from FabricTrad accounts.',
           }
           p=pathlib.Path('.github/deployments/logistics-webhook-status.json')
           p.write_text(json.dumps(payload,indent=2))
@@ -107,5 +146,5 @@ jobs:
           git config user.name github-actions
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add .github/deployments/logistics-webhook-status.json
-          git diff --cached --quiet || git commit -m 'ci: record logistics webhook deployment [skip deploy] [skip validation] [skip integration audit]'
+          git diff --cached --quiet || git commit -m 'ci: record logistics deployment [skip deploy] [skip validation] [skip integration audit]'
           git push
