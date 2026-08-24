@@ -9,12 +9,14 @@ import { createClient } from '@/lib/supabase/client';
 
 type Frequency = 'instant' | 'daily' | 'off';
 type Category = 'orders' | 'disputes' | 'payouts' | 'marketing' | 'security';
+type Channel = 'sms' | 'email' | 'inApp';
 type Setting = {
   id: string;
   topic: string;
   description: string;
   category: Category;
   critical: boolean;
+  requiredChannels: Channel[];
   sms: boolean;
   email: boolean;
   inApp: boolean;
@@ -22,21 +24,182 @@ type Setting = {
 };
 
 const buyerDefaults: Setting[] = [
-  { id: 'order-confirmed', topic: 'Order confirmations', description: 'Seller acceptance, payment and order status changes', category: 'orders', critical: true, sms: true, email: true, inApp: true, frequency: 'instant' },
-  { id: 'order-shipped', topic: 'Shipment tracking', description: 'Dispatch, tracking and delivery updates', category: 'orders', critical: false, sms: true, email: true, inApp: true, frequency: 'instant' },
-  { id: 'dispute-update', topic: 'Disputes and exchanges', description: 'Replies and decisions on support requests', category: 'disputes', critical: true, sms: false, email: true, inApp: true, frequency: 'instant' },
-  { id: 'promotions', topic: 'Offers and new arrivals', description: 'Relevant marketplace promotions', category: 'marketing', critical: false, sms: false, email: false, inApp: true, frequency: 'daily' },
-  { id: 'account-security', topic: 'Security alerts', description: 'Sign-ins and important account changes', category: 'security', critical: true, sms: true, email: true, inApp: true, frequency: 'instant' },
+  {
+    id: 'order-confirmed',
+    topic: 'Order updates',
+    description: 'Confirmation, seller acceptance, payment, cancellation and order-status changes',
+    category: 'orders',
+    critical: true,
+    requiredChannels: ['inApp'],
+    sms: false,
+    email: true,
+    inApp: true,
+    frequency: 'instant',
+  },
+  {
+    id: 'order-shipped',
+    topic: 'Delivery and tracking',
+    description: 'Dispatch, tracking, delivery attempts and delivered status',
+    category: 'orders',
+    critical: false,
+    requiredChannels: [],
+    sms: true,
+    email: true,
+    inApp: true,
+    frequency: 'instant',
+  },
+  {
+    id: 'dispute-update',
+    topic: 'Returns, exchanges and disputes',
+    description: 'Support replies, return decisions, exchange updates and dispute resolutions',
+    category: 'disputes',
+    critical: true,
+    requiredChannels: ['inApp'],
+    sms: false,
+    email: true,
+    inApp: true,
+    frequency: 'instant',
+  },
+  {
+    id: 'promotions',
+    topic: 'Offers and new arrivals',
+    description: 'Optional marketplace promotions and product recommendations',
+    category: 'marketing',
+    critical: false,
+    requiredChannels: [],
+    sms: false,
+    email: false,
+    inApp: false,
+    frequency: 'off',
+  },
+  {
+    id: 'account-security',
+    topic: 'Security alerts',
+    description: 'New sign-ins and important account or authentication changes',
+    category: 'security',
+    critical: true,
+    requiredChannels: ['email', 'inApp'],
+    sms: false,
+    email: true,
+    inApp: true,
+    frequency: 'instant',
+  },
 ];
 
 const sellerDefaults: Setting[] = [
-  { id: 'new-order', topic: 'New buyer orders', description: 'Immediate notification for order requests', category: 'orders', critical: true, sms: true, email: true, inApp: true, frequency: 'instant' },
-  { id: 'payment-received', topic: 'Payments received', description: 'Buyer payment confirmations', category: 'orders', critical: true, sms: true, email: true, inApp: true, frequency: 'instant' },
-  { id: 'low-stock', topic: 'Low stock alerts', description: 'Listings at or below the configured threshold', category: 'orders', critical: false, sms: false, email: true, inApp: true, frequency: 'daily' },
-  { id: 'payout-processed', topic: 'Payout updates', description: 'Scheduled and completed settlement notifications', category: 'payouts', critical: true, sms: true, email: true, inApp: true, frequency: 'instant' },
-  { id: 'dispute-raised', topic: 'Buyer disputes', description: 'New disputes, exchanges and support replies', category: 'disputes', critical: true, sms: true, email: true, inApp: true, frequency: 'instant' },
-  { id: 'account-security', topic: 'Security alerts', description: 'Sign-ins and important account changes', category: 'security', critical: true, sms: true, email: true, inApp: true, frequency: 'instant' },
+  {
+    id: 'new-order',
+    topic: 'New orders',
+    description: 'New buyer order requests that need seller action',
+    category: 'orders',
+    critical: true,
+    requiredChannels: ['email', 'inApp'],
+    sms: true,
+    email: true,
+    inApp: true,
+    frequency: 'instant',
+  },
+  {
+    id: 'order-changed',
+    topic: 'Order changes and cancellations',
+    description: 'Buyer changes, cancellations and time-sensitive order status updates',
+    category: 'orders',
+    critical: true,
+    requiredChannels: ['inApp'],
+    sms: false,
+    email: true,
+    inApp: true,
+    frequency: 'instant',
+  },
+  {
+    id: 'payment-received',
+    topic: 'Payments received',
+    description: 'Verified buyer payment confirmations for accepted orders',
+    category: 'payouts',
+    critical: true,
+    requiredChannels: ['email', 'inApp'],
+    sms: false,
+    email: true,
+    inApp: true,
+    frequency: 'instant',
+  },
+  {
+    id: 'low-stock',
+    topic: 'Low stock',
+    description: 'Products or variants at or below the configured stock threshold',
+    category: 'orders',
+    critical: false,
+    requiredChannels: [],
+    sms: false,
+    email: true,
+    inApp: true,
+    frequency: 'daily',
+  },
+  {
+    id: 'shipping-exception',
+    topic: 'Shipping exceptions',
+    description: 'Pickup failures, courier exceptions and delivery problems requiring attention',
+    category: 'orders',
+    critical: true,
+    requiredChannels: ['inApp'],
+    sms: true,
+    email: true,
+    inApp: true,
+    frequency: 'instant',
+  },
+  {
+    id: 'payout-processed',
+    topic: 'Payout and settlement updates',
+    description: 'Settlement scheduled, processed, failed or placed on hold',
+    category: 'payouts',
+    critical: true,
+    requiredChannels: ['email', 'inApp'],
+    sms: false,
+    email: true,
+    inApp: true,
+    frequency: 'instant',
+  },
+  {
+    id: 'dispute-raised',
+    topic: 'Returns and disputes',
+    description: 'New buyer disputes, return requests and resolution replies',
+    category: 'disputes',
+    critical: true,
+    requiredChannels: ['email', 'inApp'],
+    sms: false,
+    email: true,
+    inApp: true,
+    frequency: 'instant',
+  },
+  {
+    id: 'account-security',
+    topic: 'Security alerts',
+    description: 'New sign-ins and important account, bank or authentication changes',
+    category: 'security',
+    critical: true,
+    requiredChannels: ['email', 'inApp'],
+    sms: false,
+    email: true,
+    inApp: true,
+    frequency: 'instant',
+  },
 ];
+
+const enforceRequiredChannels = (setting: Setting): Setting => {
+  const next = { ...setting };
+  setting.requiredChannels.forEach((channel) => {
+    next[channel] = true;
+  });
+  if (setting.critical) next.frequency = 'instant';
+  return next;
+};
+
+const requiredLabel = (channels: Channel[]) => {
+  if (!channels.length) return '';
+  return channels
+    .map((channel) => (channel === 'inApp' ? 'in-app' : channel.toUpperCase()))
+    .join(' + ');
+};
 
 export default function NotificationPreferences({ mode }: { mode: 'buyer' | 'seller' }) {
   const defaults = useMemo(() => (mode === 'buyer' ? buyerDefaults : sellerDefaults), [mode]);
@@ -59,9 +222,19 @@ export default function NotificationPreferences({ mode }: { mode: 'buyer' | 'sel
         if (stored) {
           try {
             const parsed = JSON.parse(stored);
-            if (active && Array.isArray(parsed.settings)) setSettings(parsed.settings);
+            if (active && Array.isArray(parsed.settings)) {
+              const byId = new Map(parsed.settings.map((entry: Setting) => [entry.id, entry]));
+              setSettings(
+                defaults.map((item) =>
+                  enforceRequiredChannels({ ...item, ...(byId.get(item.id) || {}) })
+                )
+              );
+            }
             if (active && parsed.digestTime) setDigestTime(parsed.digestTime);
+            if (active && parsed.timezone) setTimezone(parsed.timezone);
           } catch {}
+        } else if (active) {
+          setSettings(defaults.map(enforceRequiredChannels));
         }
         if (active) setLoading(false);
         return;
@@ -82,7 +255,7 @@ export default function NotificationPreferences({ mode }: { mode: 'buyer' | 'sel
       setSettings(
         defaults.map((item) => {
           const saved = byId.get(item.id);
-          return saved
+          const merged = saved
             ? {
                 ...item,
                 sms: !!saved.sms_enabled,
@@ -91,6 +264,7 @@ export default function NotificationPreferences({ mode }: { mode: 'buyer' | 'sel
                 frequency: saved.frequency as Frequency,
               }
             : item;
+          return enforceRequiredChannels(merged);
         })
       );
       setDigestTime(String(userProfile?.notification_digest_time || '08:00').slice(0, 5));
@@ -104,9 +278,25 @@ export default function NotificationPreferences({ mode }: { mode: 'buyer' | 'sel
     };
   }, [defaults, isDemoAccount, mode, user?.id]);
 
-  const toggle = (id: string, channel: 'sms' | 'email' | 'inApp') => {
+  const toggle = (id: string, channel: Channel) => {
     setSettings((current) =>
-      current.map((item) => (item.id === id ? { ...item, [channel]: !item[channel] } : item))
+      current.map((item) => {
+        if (item.id !== id || item.requiredChannels.includes(channel)) return item;
+        return { ...item, [channel]: !item[channel] };
+      })
+    );
+  };
+
+  const updateFrequency = (id: string, frequency: Frequency) => {
+    setSettings((current) =>
+      current.map((item) => {
+        if (item.id !== id || item.critical) return item;
+        return {
+          ...item,
+          frequency,
+          ...(frequency === 'off' ? { sms: false, email: false, inApp: false } : {}),
+        };
+      })
     );
   };
 
@@ -114,17 +304,19 @@ export default function NotificationPreferences({ mode }: { mode: 'buyer' | 'sel
     if (!user?.id) return toast.error('Sign in to save notification preferences.');
     setSaving(true);
     try {
+      const safeSettings = settings.map(enforceRequiredChannels);
+      setSettings(safeSettings);
       if (isDemoAccount) {
         window.localStorage.setItem(
           `fabrictrad:notifications:${mode}:${user.id}`,
-          JSON.stringify({ settings, digestTime, timezone })
+          JSON.stringify({ settings: safeSettings, digestTime, timezone })
         );
       } else {
         const supabase = createClient();
         const { error: preferenceError } = await supabase
           .from('notification_preferences')
           .upsert(
-            settings.map((item) => ({
+            safeSettings.map((item) => ({
               user_id: user.id,
               topic_id: item.id,
               topic_label: item.topic,
@@ -161,7 +353,8 @@ export default function NotificationPreferences({ mode }: { mode: 'buyer' | 'sel
   };
 
   const visible = category === 'all' ? settings : settings.filter((item) => item.category === category);
-  const categories = ['all', ...new Set(settings.map((item) => item.category))] as const;
+  const categories = ['all', ...new Set(settings.map((item) => item.category))] as Array<'all' | Category>;
+  const hasDailyDigest = settings.some((item) => item.frequency === 'daily');
 
   return (
     <div className="max-w-5xl">
@@ -169,9 +362,16 @@ export default function NotificationPreferences({ mode }: { mode: 'buyer' | 'sel
 
       <div className="mb-6">
         <p className="ft-route-kicker">Delivery preferences</p>
-        <h1 className="mt-1 text-xl font-800 text-foreground">Notification preferences</h1>
-        <p className="mt-1 text-xs text-muted-foreground">
-          The action centre above contains real order events. These settings control the channels FabricTrad may use for additional alerts.
+        <h1 className="mt-1 text-xl font-800 text-foreground">
+          {mode === 'seller' ? 'Seller notifications' : 'Buyer notifications'}
+        </h1>
+        <p className="mt-1 max-w-3xl text-xs leading-5 text-muted-foreground">
+          {mode === 'seller'
+            ? 'Keep time-sensitive order, payment, payout, shipping and dispute alerts visible while choosing where optional alerts are delivered.'
+            : 'Keep essential order, dispute and security updates visible while choosing how optional delivery and marketing alerts reach you.'}
+        </p>
+        <p className="mt-2 text-[11px] leading-5 text-muted-foreground">
+          Essential channels are locked on so an account cannot accidentally miss a transaction or security event. SMS is optional unless explicitly enabled.
         </p>
       </div>
 
@@ -211,44 +411,45 @@ export default function NotificationPreferences({ mode }: { mode: 'buyer' | 'sel
               className="grid gap-3 border-b border-border px-4 py-4 last:border-0 sm:grid-cols-[1fr_90px_90px_90px_130px] sm:items-center"
             >
               <div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <p className="text-sm font-800 text-foreground">{item.topic}</p>
                   {item.critical && (
                     <span className="rounded-full bg-error/10 px-2 py-0.5 text-[10px] font-800 text-error">
-                      Required
+                      Essential
                     </span>
                   )}
                 </div>
                 <p className="mt-1 text-xs text-muted-foreground">{item.description}</p>
+                {!!item.requiredChannels.length && (
+                  <p className="mt-1 text-[10px] font-750 text-muted-foreground">
+                    Always on: {requiredLabel(item.requiredChannels)}
+                  </p>
+                )}
               </div>
-              {(['sms', 'email', 'inApp'] as const).map((channel) => (
-                <button
-                  key={channel}
-                  type="button"
-                  onClick={() => toggle(item.id, channel)}
-                  disabled={item.critical && channel === 'inApp'}
-                  className={`mx-auto flex h-6 w-11 rounded-full p-0.5 transition-colors disabled:opacity-60 ${
-                    item[channel] ? 'justify-end bg-primary' : 'justify-start bg-muted-foreground/30'
-                  }`}
-                  aria-pressed={item[channel]}
-                  aria-label={`${channel} for ${item.topic}`}
-                >
-                  <span className="h-5 w-5 rounded-full bg-white shadow" />
-                </button>
-              ))}
+              {(['sms', 'email', 'inApp'] as const).map((channel) => {
+                const locked = item.requiredChannels.includes(channel);
+                return (
+                  <button
+                    key={channel}
+                    type="button"
+                    onClick={() => toggle(item.id, channel)}
+                    disabled={locked}
+                    title={locked ? 'Required for essential account or transaction updates' : undefined}
+                    className={`mx-auto flex h-6 w-11 rounded-full p-0.5 transition-colors disabled:cursor-not-allowed ${
+                      item[channel] ? 'justify-end bg-primary' : 'justify-start bg-muted-foreground/30'
+                    } ${locked ? 'ring-2 ring-primary/15' : ''}`}
+                    aria-pressed={item[channel]}
+                    aria-label={`${channel} for ${item.topic}${locked ? ' (required)' : ''}`}
+                  >
+                    <span className="h-5 w-5 rounded-full bg-white shadow" />
+                  </button>
+                );
+              })}
               <select
                 value={item.frequency}
                 disabled={item.critical}
-                onChange={(event) =>
-                  setSettings((current) =>
-                    current.map((entry) =>
-                      entry.id === item.id
-                        ? { ...entry, frequency: event.target.value as Frequency }
-                        : entry
-                    )
-                  )
-                }
-                className="input-base rounded-xl px-2 py-2 text-xs"
+                onChange={(event) => updateFrequency(item.id, event.target.value as Frequency)}
+                className="input-base rounded-xl px-2 py-2 text-xs disabled:cursor-not-allowed disabled:opacity-70"
               >
                 <option value="instant">Instant</option>
                 <option value="daily">Daily digest</option>
@@ -259,32 +460,34 @@ export default function NotificationPreferences({ mode }: { mode: 'buyer' | 'sel
         </div>
       )}
 
-      <div className="mt-5 rounded-2xl border border-border bg-card p-5">
-        <h2 className="mb-4 flex items-center gap-2 text-sm font-800">
-          <Icon name="ClockIcon" size={16} className="text-secondary" /> Daily digest schedule
-        </h2>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <label className="text-xs font-700">
-            Digest time
-            <input
-              type="time"
-              value={digestTime}
-              onChange={(event) => setDigestTime(event.target.value)}
-              className="input-base mt-1.5 w-full rounded-xl px-3 py-2.5 text-sm"
-            />
-          </label>
-          <label className="text-xs font-700">
-            Timezone
-            <select
-              value={timezone}
-              onChange={(event) => setTimezone(event.target.value)}
-              className="input-base mt-1.5 w-full rounded-xl px-3 py-2.5 text-sm"
-            >
-              <option value="Asia/Kolkata">India Standard Time (UTC+5:30)</option>
-            </select>
-          </label>
+      {hasDailyDigest && (
+        <div className="mt-5 rounded-2xl border border-border bg-card p-5">
+          <h2 className="mb-4 flex items-center gap-2 text-sm font-800">
+            <Icon name="ClockIcon" size={16} className="text-secondary" /> Daily digest schedule
+          </h2>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="text-xs font-700">
+              Digest time
+              <input
+                type="time"
+                value={digestTime}
+                onChange={(event) => setDigestTime(event.target.value)}
+                className="input-base mt-1.5 w-full rounded-xl px-3 py-2.5 text-sm"
+              />
+            </label>
+            <label className="text-xs font-700">
+              Timezone
+              <select
+                value={timezone}
+                onChange={(event) => setTimezone(event.target.value)}
+                className="input-base mt-1.5 w-full rounded-xl px-3 py-2.5 text-sm"
+              >
+                <option value="Asia/Kolkata">India Standard Time (UTC+5:30)</option>
+              </select>
+            </label>
+          </div>
         </div>
-      </div>
+      )}
 
       <button
         type="button"

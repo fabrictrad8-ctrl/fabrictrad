@@ -1,160 +1,149 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
+import AppImage from '@/components/ui/AppImage';
 import Icon from '@/components/ui/AppIcon';
-import { useAuth } from '@/contexts/AuthContext';
-import { createClient } from '@/lib/supabase/client';
-import { formatMoney, useBuyerBulkOrders } from '@/lib/hooks/useAccountOrders';
+import { cartItemHref, useCart } from '@/lib/hooks/useCart';
 
-type CatalogOrder = {
-  id: string;
-  status: string;
-  payment_status: string;
-  total_amount: number;
-  created_at: string;
-  seller_products?: { name?: string | null } | null;
-};
+const money = (value: number) =>
+  new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: 'INR',
+    maximumFractionDigits: 2,
+  }).format(value);
 
-const statusLabel = (status: string) => status.replace(/_/g, ' ').replace(/\b\w/g, (character) => character.toUpperCase());
-
-export default function OrderHubPage() {
-  const router = useRouter();
-  const { user, profile, loading: authLoading } = useAuth();
-  const { orders: bulkOrders, loading: bulkLoading, error: bulkError, refresh: refreshBulk } = useBuyerBulkOrders();
-  const [catalogOrders, setCatalogOrders] = useState<CatalogOrder[]>([]);
-  const [catalogLoading, setCatalogLoading] = useState(true);
-  const [catalogError, setCatalogError] = useState('');
-
-  useEffect(() => {
-    if (!authLoading && !user) router.replace('/login?next=%2Fcart');
-  }, [authLoading, router, user]);
-
-  const loadCatalog = useCallback(async () => {
-    if (!user?.id) {
-      setCatalogOrders([]);
-      setCatalogLoading(false);
-      return;
-    }
-    setCatalogLoading(true);
-    setCatalogError('');
-    const supabase = createClient();
-    const { data, error } = await supabase
-      .from('catalog_order_requests')
-      .select('id,status,payment_status,total_amount,created_at,seller_products(name)')
-      .eq('buyer_id', user.id)
-      .order('created_at', { ascending: false })
-      .limit(100);
-    if (error) {
-      setCatalogError(error.message);
-      setCatalogOrders([]);
-    } else {
-      setCatalogOrders((data || []) as unknown as CatalogOrder[]);
-    }
-    setCatalogLoading(false);
-  }, [user?.id]);
-
-  useEffect(() => { void loadCatalog(); }, [loadCatalog]);
-
-  const orders = useMemo(() => {
-    const catalog = catalogOrders.map((order) => ({
-      id: order.id,
-      ref: `FT-CAT-${order.id.slice(0, 8).toUpperCase()}`,
-      kind: 'Catalogue',
-      product: order.seller_products?.name || 'Catalogue product',
-      status: order.status || 'pending',
-      paymentStatus: order.payment_status || 'unpaid',
-      total: Number(order.total_amount || 0),
-      createdAt: order.created_at,
-    }));
-    const bulk = bulkOrders.map((order) => ({
-      id: order.id,
-      ref: `FT-BULK-${order.id.slice(0, 8).toUpperCase()}`,
-      kind: 'Bulk',
-      product: order.bulk_order_items?.[0]?.product_name || 'Bulk fabric order',
-      status: String(order.status || 'draft'),
-      paymentStatus: String(order.payment_status || 'unpaid'),
-      total: Number(order.net_total || 0),
-      createdAt: String(order.created_at || ''),
-    }));
-    return [...catalog, ...bulk]
-      .filter((order) => order.createdAt)
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  }, [bulkOrders, catalogOrders]);
-
-  const waitingForSeller = orders.filter((order) => ['pending', 'draft', 'quote_sent'].includes(order.status)).length;
-  const paymentDue = orders.filter((order) => ['accepted', 'confirmed'].includes(order.status) && order.paymentStatus !== 'paid').length;
-  const inProgress = orders.filter((order) => ['paid', 'fulfilled', 'shipped'].includes(order.status)).length;
-  const loading = catalogLoading || bulkLoading;
-  const error = catalogError || bulkError || '';
-
-  const refresh = async () => {
-    await Promise.all([loadCatalog(), refreshBulk()]);
-  };
-
-  if (authLoading || !user || !profile) {
-    return <main className="flex min-h-screen items-center justify-center bg-[#f1f1f1] dark:bg-background"><div className="h-9 w-9 animate-spin rounded-full border-2 border-primary border-t-transparent" /></main>;
-  }
+export default function CartPage() {
+  const { items, lineCount, estimatedTotal, remove, updateQuantity, clear } = useCart();
 
   return (
     <main className="ft-storefront min-h-screen">
       <Header />
       <div className="pt-16">
-        <section className="border-b border-border bg-card/80 backdrop-blur-xl">
-          <div className="ft-storefront-content py-7 sm:py-9">
-            <p className="ft-route-kicker">Order hub</p>
-            <div className="mt-2 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-              <div>
-                <h1 className="text-3xl font-800 tracking-tight text-foreground sm:text-4xl">Purchase and payment workflow</h1>
-                <p className="mt-3 max-w-3xl text-sm leading-6 text-muted-foreground">Choose an approved live product, submit the permitted quantity, wait for seller confirmation where required, pay the server-calculated amount through Razorpay, then follow fulfilment and tracking from your account.</p>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Link href="/marketplace" className="ft-primary-action inline-flex items-center gap-2 px-4 py-2.5 text-sm">Browse approved products <Icon name="ArrowRightIcon" size={15} /></Link>
-                <Link href="/buyer-dashboard?tab=orders" className="ft-secondary-action inline-flex items-center gap-2 px-4 py-2.5 text-sm"><Icon name="ShoppingBagIcon" size={16} /> Manage all orders</Link>
-              </div>
+        <section className="ft-cart-page ft-storefront-content py-5 sm:py-7">
+          <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <p className="ft-route-kicker">Buyer cart</p>
+              <h1 className="mt-1 text-2xl font-850 tracking-tight text-foreground sm:text-3xl">
+                Shopping Cart
+              </h1>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {lineCount === 0
+                  ? 'Your cart is empty.'
+                  : `${lineCount} product${lineCount === 1 ? '' : 's'} ready to review.`}
+              </p>
             </div>
-          </div>
-        </section>
-
-        <section className="ft-storefront-content py-6 sm:py-8">
-          <div className="grid gap-3 sm:grid-cols-3">
-            {[
-              ['Awaiting seller', waitingForSeller, 'Submitted orders still awaiting seller action', 'ClockIcon', 'text-warning bg-warning/10'],
-              ['Payment due', paymentDue, 'Accepted/confirmed orders ready for Razorpay', 'CreditCardIcon', 'text-primary bg-primary/10'],
-              ['In progress', inProgress, 'Paid, fulfilled or shipped orders', 'TruckIcon', 'text-success bg-success/10'],
-            ].map(([label, value, detail, icon, tone]) => <article key={String(label)} className="rounded-2xl border border-border bg-card p-5 shadow-sm"><span className={`flex h-10 w-10 items-center justify-center rounded-xl ${tone}`}><Icon name={icon as 'ClockIcon'} size={19} /></span><p className="mt-4 text-2xl font-800 text-foreground">{loading ? '—' : value}</p><p className="mt-1 text-sm font-800 text-foreground">{label}</p><p className="mt-1 text-xs leading-5 text-muted-foreground">{detail}</p></article>)}
+            {lineCount > 0 && (
+              <button type="button" onClick={clear} className="text-xs font-800 text-primary hover:underline">
+                Clear cart
+              </button>
+            )}
           </div>
 
-          {error && <div role="alert" className="mt-5 flex items-center justify-between gap-4 rounded-2xl border border-error/20 bg-error/10 p-4 text-sm text-error"><span>{error}</span><button type="button" onClick={() => void refresh()} className="font-800 underline">Retry</button></div>}
+          {lineCount === 0 ? (
+            <div className="rounded-xl border border-border bg-card px-5 py-16 text-center shadow-sm">
+              <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                <Icon name="ShoppingCartIcon" size={27} />
+              </span>
+              <h2 className="mt-4 text-xl font-850 text-foreground">Your cart is waiting</h2>
+              <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-muted-foreground">
+                Browse verified textile listings and use Add to cart to keep products together before placing order requests.
+              </p>
+              <Link href="/marketplace" className="ft-amazon-primary mt-5 inline-flex min-h-10 items-center justify-center gap-2 px-5 text-sm font-800">
+                Continue shopping <Icon name="ArrowRightIcon" size={15} />
+              </Link>
+            </div>
+          ) : (
+            <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
+              <section className="overflow-hidden rounded-xl border border-border bg-card shadow-sm" aria-label="Cart items">
+                <div className="hidden border-b border-border px-5 py-3 text-right text-xs text-muted-foreground sm:block">
+                  Price / quantity
+                </div>
+                <div className="divide-y divide-border">
+                  {items.map((item) => {
+                    const subtotal = item.price * item.quantity;
+                    return (
+                      <article key={item.key} className="grid gap-4 p-4 sm:grid-cols-[132px_minmax(0,1fr)_170px] sm:p-5">
+                        <Link href={cartItemHref(item)} className="relative block aspect-square overflow-hidden rounded-lg border border-border bg-muted">
+                          <AppImage src={item.image} alt={item.name} fill sizes="132px" className="object-cover" />
+                        </Link>
 
-          <div className="mt-6 grid gap-5 lg:grid-cols-[1.08fr_0.92fr]">
-            <article className="rounded-3xl border border-border bg-card p-5 shadow-sm sm:p-6">
-              <div className="flex items-center justify-between gap-3"><div><p className="text-xs font-800 uppercase tracking-wider text-primary">Current orders</p><h2 className="mt-1 text-xl font-800 text-foreground">Catalogue + bulk activity</h2></div><button type="button" onClick={() => void refresh()} disabled={loading} className="ft-icon-button" aria-label="Refresh order hub"><Icon name="ArrowPathIcon" size={17} className={loading ? 'animate-spin' : ''} /></button></div>
-              <div className="mt-5 divide-y divide-border">
-                {!loading && orders.length === 0 && <div className="py-10 text-center"><Icon name="ShoppingBagIcon" size={32} className="mx-auto text-muted-foreground" /><p className="mt-3 text-sm font-800 text-foreground">No orders yet</p><p className="mt-1 text-xs text-muted-foreground">Submit a real order from an approved product page.</p></div>}
-                {orders.slice(0, 8).map((order) => <Link key={`${order.kind}:${order.id}`} href="/buyer-dashboard?tab=orders" className="flex items-center gap-3 py-3 first:pt-0 last:pb-0 hover:text-primary"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-muted text-muted-foreground"><Icon name="ShoppingBagIcon" size={17} /></span><span className="min-w-0 flex-1"><span className="flex flex-wrap items-center gap-2"><span className="block truncate text-sm font-800 text-foreground">{order.ref}</span><span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-800 uppercase text-muted-foreground">{order.kind}</span></span><span className="mt-0.5 block truncate text-xs text-muted-foreground">{order.product} · {statusLabel(order.status)} · {statusLabel(order.paymentStatus)}</span></span><span className="text-sm font-800 text-foreground">{formatMoney(order.total)}</span></Link>)}
-              </div>
-              {orders.length > 0 && <Link href="/buyer-dashboard?tab=orders" className="ft-secondary-action mt-5 inline-flex w-full items-center justify-center gap-2 px-4 py-2.5 text-sm">Open full order workspace <Icon name="ArrowRightIcon" size={15} /></Link>}
-            </article>
+                        <div className="min-w-0">
+                          <Link href={cartItemHref(item)} className="line-clamp-2 text-base font-800 leading-6 text-foreground hover:text-[#b12704]">
+                            {item.name}
+                          </Link>
+                          <p className="mt-1 text-xs text-muted-foreground">Sold by {item.seller}</p>
+                          {item.variantLabel && (
+                            <p className="mt-2 text-xs text-foreground">
+                              <span className="font-800">Variant:</span> {item.variantLabel}
+                            </p>
+                          )}
+                          <p className="mt-1 text-xs font-750 text-success">
+                            {item.available > 0 ? `${item.available.toLocaleString('en-IN')} ${item.unit} available` : 'Availability will be rechecked'}
+                          </p>
+                          <p className="mt-1 text-[11px] text-muted-foreground">
+                            Minimum {item.minimum} {item.unit}. Final buyer-specific price, MOQ and GST are revalidated before the order request is submitted.
+                          </p>
 
-            <article className="rounded-3xl border border-border bg-card p-5 shadow-sm sm:p-6">
-              <p className="text-xs font-800 uppercase tracking-wider text-secondary">What happens next</p>
-              <h2 className="mt-1 text-xl font-800 text-foreground">From product to delivery</h2>
-              <ol className="mt-5 space-y-4">
-                {[
-                  ['Choose live inventory', 'Open an approved seller product and choose a permitted quantity/variant for your buyer type.'],
-                  ['Order is created', 'FabricTrad stores the order in Supabase and recalculates stock, buyer limits, price and GST on the server.'],
-                  ['Seller confirms', 'Orders that require seller confirmation stay unpaid until the seller accepts them.'],
-                  ['Pay securely', 'Razorpay checkout uses the amount reloaded from the saved order; the backend verifies the payment signature/capture.'],
-                  ['Track delivery', 'Seller shipment records, AWB, courier tracking and disputes remain attached to your account.'],
-                ].map(([title, detail], index) => <li key={title} className="flex gap-3"><span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-800 text-primary">{index + 1}</span><span><span className="block text-sm font-800 text-foreground">{title}</span><span className="mt-1 block text-xs leading-5 text-muted-foreground">{detail}</span></span></li>)}
-              </ol>
-              <div className="mt-6 rounded-xl border border-success/20 bg-success/10 p-4 text-xs leading-5 text-muted-foreground"><strong className="text-foreground">Live data only:</strong> this page now combines actual catalogue and bulk orders for the signed-in buyer rather than presenting a fake shopping cart.</div>
-            </article>
-          </div>
+                          <div className="mt-3 flex flex-wrap items-center gap-3">
+                            <label className="flex items-center gap-2 text-xs font-700 text-foreground">
+                              Qty
+                              <input
+                                type="number"
+                                min={item.minimum}
+                                max={item.available || undefined}
+                                step={item.unit === 'mtr' || item.unit === 'kg' ? 0.5 : 1}
+                                value={item.quantity}
+                                onChange={(event) => updateQuantity(item.key, Number(event.target.value))}
+                                className="w-24 rounded-lg border border-border bg-white px-2 py-1.5 text-center text-xs font-800 outline-none focus:border-primary"
+                              />
+                            </label>
+                            <button type="button" onClick={() => remove(item.key)} className="text-xs font-800 text-primary hover:underline">
+                              Remove
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-col items-start sm:items-end">
+                          <p className="text-base font-850 text-foreground">{money(subtotal)}</p>
+                          <p className="mt-1 text-xs text-muted-foreground">{money(item.price)}/{item.unit}</p>
+                          <Link href={cartItemHref(item)} className="ft-amazon-secondary mt-auto inline-flex min-h-9 items-center justify-center gap-1.5 px-3 text-xs font-800">
+                            Review & order <Icon name="ChevronRightIcon" size={13} />
+                          </Link>
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+              </section>
+
+              <aside className="sticky top-20 rounded-xl border border-border bg-card p-5 shadow-sm">
+                <div className="flex items-start gap-2 rounded-lg bg-success/10 p-3 text-xs leading-5 text-success">
+                  <Icon name="ShieldCheckIcon" size={17} className="mt-0.5 shrink-0" />
+                  <span>Stock and account-specific purchasing rules are checked again before any order is created.</span>
+                </div>
+                <div className="mt-5 flex items-baseline justify-between gap-3">
+                  <span className="text-sm text-foreground">Estimated subtotal ({lineCount} item{lineCount === 1 ? '' : 's'}):</span>
+                  <strong className="text-xl font-850 text-foreground">{money(estimatedTotal)}</strong>
+                </div>
+                <p className="mt-2 text-[11px] leading-5 text-muted-foreground">
+                  This is a shopping estimate. Contract pricing, GST, quantity limits and seller acceptance are confirmed on each product before payment.
+                </p>
+                <Link href={cartItemHref(items[0])} className="ft-amazon-primary mt-4 flex min-h-11 w-full items-center justify-center text-sm font-850">
+                  Start order review
+                </Link>
+                <Link href="/marketplace" className="mt-3 flex min-h-10 w-full items-center justify-center text-xs font-800 text-primary hover:underline">
+                  Continue shopping
+                </Link>
+                {lineCount > 1 && (
+                  <div className="mt-4 border-t border-border pt-4 text-[11px] leading-5 text-muted-foreground">
+                    FabricTrad orders can have different sellers, buyer rules and approval steps. Review each cart line before submission rather than silently combining incompatible seller orders.
+                  </div>
+                )}
+              </aside>
+            </div>
+          )}
         </section>
       </div>
       <Footer />

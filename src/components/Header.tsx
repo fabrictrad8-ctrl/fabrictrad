@@ -8,7 +8,7 @@ import AppImage from '@/components/ui/AppImage';
 import Icon from '@/components/ui/AppIcon';
 import { useAuth } from '@/contexts/AuthContext';
 import ProfileMenu from '@/components/ProfileMenu';
-import WishlistMenu from '@/components/WishlistMenu';
+import CartButton from '@/components/CartButton';
 import PreferenceControls from '@/components/PreferenceControls';
 import { useAppPreferences } from '@/contexts/AppPreferencesContext';
 
@@ -150,9 +150,7 @@ export default function Header() {
     ? { label: 'Review sellers', href: '/admin-portal?tab=sellers', icon: 'ShieldCheckIcon' }
     : sellerContext && canSell
       ? { label: 'Add product', href: '/seller-dashboard?tab=upload', icon: 'PlusIcon' }
-      : buyerContext && canBuy
-        ? { label: 'Post requirement', href: '/buyer-requirements', icon: 'PlusIcon' }
-        : null;
+      : null;
 
   const brandHref = isAdmin
     ? '/admin-portal'
@@ -190,7 +188,7 @@ export default function Header() {
   const handleSearch = (event: React.FormEvent) => {
     event.preventDefault();
     const query = searchQuery.trim();
-    router.push(query ? `/marketplace?search=${encodeURIComponent(query)}` : '/marketplace#marketplace-search');
+    router.push(query ? `/marketplace?search=${encodeURIComponent(query)}` : '/marketplace');
     closeMenus();
   };
 
@@ -204,13 +202,12 @@ export default function Header() {
   };
 
   const avatarInitial = (profile?.full_name || user?.email || 'F').charAt(0).toUpperCase();
-  const marketplaceSearchHref = pathname === '/marketplace' ? '#marketplace-search' : '/marketplace#marketplace-search';
   const showBuyerUtilities = isLoggedIn && canBuy && buyerContext;
 
   return (
     <>
       <header
-        className={`ft-commerce-header fixed inset-x-0 top-0 z-50 transition-all duration-200 ${
+        className={`ft-commerce-header ${buyerContext ? 'ft-buyer-header' : ''} fixed inset-x-0 top-0 z-50 transition-all duration-200 ${
           scrolled ? 'is-scrolled' : ''
         }`}
       >
@@ -220,7 +217,23 @@ export default function Header() {
             <span className="hidden text-lg font-800 tracking-tight text-foreground sm:block">FabricTrad</span>
           </Link>
 
-          <nav className="ft-header-primary-nav hidden items-center gap-1" aria-label="Primary navigation">
+          {showBuyerUtilities && (
+            <form onSubmit={handleSearch} className="ft-buyer-search hidden min-w-0 flex-1 items-stretch md:flex" role="search">
+              <input
+                type="search"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="Search fabrics, colours, GSM, vendors or SKU"
+                aria-label="Search FabricTrad marketplace"
+                className="min-w-0 flex-1 bg-white px-4 text-sm text-slate-900 outline-none placeholder:text-slate-500"
+              />
+              <button type="submit" className="ft-buyer-search-submit" aria-label="Search marketplace">
+                <Icon name="MagnifyingGlassIcon" size={20} />
+              </button>
+            </form>
+          )}
+
+          <nav className={`ft-header-primary-nav hidden items-center gap-1 ${buyerContext ? 'ft-buyer-secondary-nav' : ''}`} aria-label="Primary navigation">
             {navLinks.slice(0, 5).map((link) => (
               <Link
                 key={`${link.label}-${link.href}`}
@@ -233,33 +246,23 @@ export default function Header() {
           </nav>
 
           <div className="ft-header-actions ml-auto hidden items-center gap-2 md:flex">
-            {showBuyerUtilities && (
-              <Link
-                href={marketplaceSearchHref}
-                onClick={closeMenus}
-                className="ft-header-search-trigger"
-                aria-label="Search FabricTrad marketplace"
-              >
-                <Icon name="MagnifyingGlassIcon" size={17} />
-                <span>Search</span>
-              </Link>
+            {!buyerContext && (
+              <div className="ft-header-preferences">
+                <PreferenceControls compact />
+              </div>
             )}
-
-            {buyerContext && navLinks.length > 0 && (
-              <Link href="/categories" className="ft-header-browse hidden items-center gap-2 md:inline-flex">
-                <Icon name="Squares2X2Icon" size={16} />
-                <span>Browse</span>
-              </Link>
-            )}
-
-            <div className="ft-header-preferences">
-              <PreferenceControls compact />
-            </div>
 
             {loading ? (
               <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
             ) : isLoggedIn ? (
               <>
+                {showBuyerUtilities && (
+                  <Link href="/buyer-dashboard?tab=orders" className="ft-header-orders-link">
+                    <span className="hidden text-[10px] leading-none lg:block">Your</span>
+                    <span className="text-xs font-850 leading-none">Orders</span>
+                  </Link>
+                )}
+
                 <div className="relative">
                   <button
                     type="button"
@@ -303,13 +306,13 @@ export default function Header() {
                 </div>
 
                 {quickAction && (
-                  <Link href={quickAction.href} className="ft-header-quick-action ft-primary-action hidden items-center gap-2 px-3 py-2 text-xs">
+                  <Link href={quickAction.href} className="ft-header-quick-action ft-primary-action hidden items-center gap-2 px-3 py-2 text-xs lg:inline-flex">
                     <Icon name={quickAction.icon as 'PlusIcon'} size={15} />
                     {quickAction.label}
                   </Link>
                 )}
 
-                {showBuyerUtilities && <WishlistMenu />}
+                {showBuyerUtilities && <CartButton />}
                 {(isAdmin || buyerContext || sellerContext) && (
                   <Link href={notificationsHref} className="ft-icon-button" aria-label="Open notifications">
                     <Icon name="BellIcon" size={18} />
@@ -389,11 +392,21 @@ export default function Header() {
                     type="search"
                     value={searchQuery}
                     onChange={(event) => setSearchQuery(event.target.value)}
-                    placeholder="Search fabrics or vendors"
+                    placeholder="Search fabrics, colours or vendors"
                     className="min-w-0 flex-1 bg-transparent px-3 text-sm outline-none"
                   />
                   <button type="submit" className="ft-search-submit px-4 text-sm font-750">Go</button>
                 </form>
+              )}
+
+              {showBuyerUtilities && (
+                <div className="space-y-1">
+                  <CartButton mobile />
+                  <Link href="/buyer-dashboard?tab=orders" onClick={closeMenus} className="ft-mobile-menu-link">
+                    <Icon name="ShoppingBagIcon" size={18} />
+                    <span>Your orders</span>
+                  </Link>
+                </div>
               )}
 
               {navLinks.length > 0 && (
