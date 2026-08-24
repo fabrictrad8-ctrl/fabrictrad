@@ -71,13 +71,23 @@ jobs:
             local route="$2"
             local output="/tmp/page-$(echo "$route" | tr '/?=&' '----').html"
             local status
+            echo "Checking route: $route"
             if [ -n "$cookie_file" ]; then
               status=$(curl --silent --location --cookie "$cookie_file" --output "$output" --write-out '%{http_code}' "http://127.0.0.1:3000$route")
             else
               status=$(curl --silent --location --output "$output" --write-out '%{http_code}' "http://127.0.0.1:3000$route")
             fi
-            test "$status" = '200'
-            ! grep -Eqi 'Application error|Internal Server Error|This page could not be found|NEXT_NOT_FOUND' "$output"
+            if [ "$status" != '200' ]; then
+              echo "Route $route returned HTTP $status"
+              cat /tmp/fabrictrad-route-audit.log
+              return 1
+            fi
+            if grep -Eqi 'Application error|Internal Server Error|This page could not be found|NEXT_NOT_FOUND' "$output"; then
+              echo "Route $route rendered an application error marker"
+              grep -Ein 'Application error|Internal Server Error|This page could not be found|NEXT_NOT_FOUND' "$output" | head -10 || true
+              cat /tmp/fabrictrad-route-audit.log
+              return 1
+            fi
           }
 
           public_routes=(
@@ -105,6 +115,7 @@ jobs:
             /buyer-requirements
             /profile
             /company-purchasing
+            /cart
             '/marketplace?category=cotton'
             '/marketplace?seller=v1'
           )
@@ -120,6 +131,7 @@ jobs:
             /seller-dashboard
             '/seller-dashboard?tab=inventory'
             '/seller-dashboard?tab=orders'
+            '/seller-dashboard?tab=notifications'
             /catalogs-pricing
             /marketplace
             /categories
@@ -132,7 +144,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          grep -Fq 'ft-header-search-trigger' src/components/Header.tsx
-          grep -Fq '.ft-commerce-header .ft-header-search' src/styles/header-reflow.css
+          grep -Fq 'ft-buyer-search' src/components/Header.tsx
+          grep -Fq '.ft-buyer-header.ft-commerce-header' src/styles/commerce-ux-final.css
           grep -Fq 'MarketplaceQueryBridge' src/app/marketplace/page.tsx
           grep -Fq "v1: 'Surat Textile Mills Pvt Ltd'" src/app/marketplace/components/MarketplaceQueryBridge.tsx
