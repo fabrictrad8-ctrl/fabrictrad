@@ -35,11 +35,24 @@ type ShipmentRow = {
   catalog_order_id: string | null;
   courier_type: string | null;
   courier_name: string | null;
+  shiprocket_courier_id: string | null;
   awb_number: string | null;
   tracking_url: string | null;
   estimated_delivery: string | null;
+  pickup_location_name: string | null;
+  shipping_cost: number | null;
+  label_url: string | null;
+  manifest_url: string | null;
+  pickup_scheduled: boolean | null;
   status: string | null;
   updated_at: string;
+};
+
+type ShiprocketStatus = {
+  configured?: boolean;
+  authenticated?: boolean | null;
+  webhookConfigured?: boolean;
+  source?: 'vault' | 'environment';
 };
 
 export default function SellerCourierSettings() {
@@ -48,7 +61,7 @@ export default function SellerCourierSettings() {
   const [sellerId, setSellerId] = useState<string | null>(null);
   const [catalogOrders, setCatalogOrders] = useState<CatalogOrder[]>([]);
   const [shipments, setShipments] = useState<ShipmentRow[]>([]);
-  const [shiprocketConfigured, setShiprocketConfigured] = useState<boolean | null>(null);
+  const [shiprocket, setShiprocket] = useState<ShiprocketStatus>({});
   const [selectedCourier, setSelectedCourier] = useState<CourierType>('shiprocket');
   const [activeKey, setActiveKey] = useState('');
   const [form, setForm] = useState({
@@ -81,10 +94,9 @@ export default function SellerCourierSettings() {
     ]);
 
     if (statusResponse?.ok) {
-      const status = (await statusResponse.json().catch(() => ({}))) as { configured?: boolean };
-      setShiprocketConfigured(status.configured === true);
+      setShiprocket((await statusResponse.json().catch(() => ({}))) as ShiprocketStatus);
     } else {
-      setShiprocketConfigured(false);
+      setShiprocket({ configured: false, authenticated: false, webhookConfigured: false });
     }
 
     if (sellerError || !seller?.id) {
@@ -105,7 +117,7 @@ export default function SellerCourierSettings() {
       supabase
         .from('seller_shipments')
         .select(
-          'id,order_id,bulk_order_id,catalog_order_id,courier_type,courier_name,awb_number,tracking_url,estimated_delivery,status,updated_at'
+          'id,order_id,bulk_order_id,catalog_order_id,courier_type,courier_name,shiprocket_courier_id,awb_number,tracking_url,estimated_delivery,pickup_location_name,shipping_cost,label_url,manifest_url,pickup_scheduled,status,updated_at'
         )
         .eq('seller_id', seller.id)
         .order('updated_at', { ascending: false }),
@@ -180,8 +192,8 @@ export default function SellerCourierSettings() {
 
   const createShiprocket = async () => {
     if (!selectedOrder) return;
-    if (!shiprocketConfigured) {
-      return toast.error('Shiprocket credentials are not configured on the live server.');
+    if (!shiprocket.configured) {
+      return toast.error('Automatic shipping is not configured on the live server yet.');
     }
 
     setSaving(true);
@@ -196,21 +208,23 @@ export default function SellerCourierSettings() {
         success?: boolean;
         existing?: boolean;
         awb?: string | null;
+        courierName?: string | null;
+        shippingCost?: number | null;
         error?: string;
       };
       if (!response.ok || !payload.success) {
-        throw new Error(payload.error || 'Shiprocket order creation failed.');
+        throw new Error(payload.error || 'Automatic courier booking failed.');
       }
       toast.success(
         payload.existing
-          ? 'This order already has a Shiprocket shipment.'
+          ? 'This order already has a shipment.'
           : payload.awb
-            ? `Shipment created. AWB ${payload.awb}`
-            : 'Shipment created. AWB assignment is in progress.'
+            ? `${payload.courierName || 'Courier'} booked · AWB ${payload.awb}`
+            : `${payload.courierName || 'Courier'} booked. AWB assignment is in progress.`
       );
       await Promise.all([load(), refreshBulk()]);
     } catch (caught) {
-      toast.error(caught instanceof Error ? caught.message : 'Shiprocket order creation failed.');
+      toast.error(caught instanceof Error ? caught.message : 'Automatic courier booking failed.');
     } finally {
       setSaving(false);
     }
@@ -262,21 +276,54 @@ export default function SellerCourierSettings() {
     <div>
       <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="ft-route-kicker">Shipping</p>
-          <h1 className="mt-1 text-2xl font-800 text-foreground">Courier & shipping</h1>
+          <p className="ft-route-kicker">Fulfilment</p>
+          <h1 className="mt-1 text-2xl font-800 text-foreground">Shipping automation</h1>
           <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
-            Only fully paid orders can be dispatched. Catalogue and bulk orders use the same real shipment ledger, buyer tracking and Shiprocket flow.
+            FabricTrad reuses the seller pickup profile and buyer delivery profile automatically. No address, phone, email, GSTIN or product details need to be re-entered in the courier panel.
           </p>
         </div>
         <button
           type="button"
           onClick={() => void load()}
           disabled={busy}
-          className="btn-secondary inline-flex items-center gap-2 rounded-xl px-3 py-2 text-xs disabled:opacity-50"
+          className="btn-secondary inline-flex min-h-11 items-center gap-2 rounded-xl px-3 py-2 text-xs disabled:opacity-50"
         >
           <Icon name="ArrowPathIcon" size={14} className={busy ? 'animate-spin' : ''} /> Refresh
         </button>
       </div>
+
+      <section className="mb-5 grid gap-3 md:grid-cols-3">
+        <div className="rounded-2xl border border-success/20 bg-success/5 p-4">
+          <p className="text-[11px] font-800 uppercase tracking-wide text-success">Seller pickup</p>
+          <p className="mt-2 text-sm font-800 text-foreground">From Business settings</p>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">
+            Business name, pickup address, email, mobile and verified seller GST status are loaded automatically.
+          </p>
+        </div>
+        <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
+          <p className="text-[11px] font-800 uppercase tracking-wide text-primary">Buyer delivery</p>
+          <p className="mt-2 text-sm font-800 text-foreground">From the paid order</p>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">
+            Delivery/billing address, email, mobile, company and verified buyer GSTIN are resolved from the buyer account.
+          </p>
+        </div>
+        <div className="rounded-2xl border border-border bg-card p-4">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-[11px] font-800 uppercase tracking-wide text-muted-foreground">Courier gateway</p>
+            <span
+              className={`rounded-full px-2 py-0.5 text-[10px] font-800 ${
+                shiprocket.configured ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning'
+              }`}
+            >
+              {shiprocket.configured ? 'connected' : 'setup required'}
+            </span>
+          </div>
+          <p className="mt-2 text-sm font-800 text-foreground">Shiprocket API</p>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">
+            Credentials remain server-only. Tracking webhook: {shiprocket.webhookConfigured ? 'ready' : 'not confirmed'}.
+          </p>
+        </div>
+      </section>
 
       {error && (
         <div className="mb-5 rounded-2xl border border-error/20 bg-error/5 p-4 text-sm text-error">
@@ -288,10 +335,10 @@ export default function SellerCourierSettings() {
         <div className="mb-3 flex items-center justify-between gap-2">
           <div>
             <p className="text-xs font-800 uppercase tracking-wide text-muted-foreground">
-              Paid orders ready to ship
+              Paid orders ready to pack & ship
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
-              Payment must be captured before any dispatch action is enabled.
+              Payment must be captured before shipping unlocks. Pack the order, then one click handles the courier workflow.
             </p>
           </div>
           <span className="ft-orange-chip">{orders.length} ready</span>
@@ -331,7 +378,7 @@ export default function SellerCourierSettings() {
                         </span>
                         {shipment && (
                           <span className="rounded-full bg-success/10 px-2 py-0.5 text-[10px] font-800 text-success">
-                            shipment saved
+                            shipment created
                           </span>
                         )}
                       </div>
@@ -348,7 +395,7 @@ export default function SellerCourierSettings() {
         ) : (
           <div className="rounded-xl border border-dashed border-border bg-muted/30 p-8 text-center">
             <Icon name="TruckIcon" size={28} className="mx-auto text-muted-foreground" />
-            <p className="mt-2 text-sm font-800">No fully paid orders ready to ship</p>
+            <p className="mt-2 text-sm font-800">No paid orders ready to ship</p>
             <p className="mt-1 text-xs text-muted-foreground">
               Accepted orders appear here automatically after Razorpay confirms full payment.
             </p>
@@ -360,10 +407,10 @@ export default function SellerCourierSettings() {
         <section className="rounded-2xl border border-border bg-card p-5">
           <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
             <div>
-              <p className="text-xs font-800 uppercase tracking-wide text-primary">Selected order</p>
+              <p className="text-xs font-800 uppercase tracking-wide text-primary">Selected paid order</p>
               <h2 className="mt-1 text-lg font-800">{selectedOrder.product}</h2>
               <p className="mt-1 text-xs text-muted-foreground">
-                {selectedOrder.kind === 'catalog' ? 'FT-CAT' : 'FT-BULK'}-{selectedOrder.id.slice(0, 8).toUpperCase()} · fully paid
+                {selectedOrder.kind === 'catalog' ? 'FT-CAT' : 'FT-BULK'}-{selectedOrder.id.slice(0, 8).toUpperCase()}
               </p>
             </div>
             {selectedShipment && (
@@ -379,137 +426,92 @@ export default function SellerCourierSettings() {
           </div>
 
           {selectedShipment ? (
-            <div className="rounded-2xl border border-success/20 bg-success/5 p-4">
+            <div className="space-y-4 rounded-2xl border border-success/20 bg-success/5 p-4">
               <div className="flex items-start gap-3">
                 <Icon name="CheckCircleIcon" size={20} className="mt-0.5 text-success" />
                 <div>
-                  <p className="text-sm font-800 text-foreground">Shipment already created</p>
+                  <p className="text-sm font-800 text-foreground">Shipment created</p>
                   <p className="mt-1 text-xs text-muted-foreground">
                     {selectedShipment.courier_name || 'Courier'} · {selectedShipment.awb_number || 'AWB pending'}
                   </p>
-                  {selectedShipment.tracking_url && (
-                    <a
-                      href={selectedShipment.tracking_url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="mt-2 inline-flex items-center gap-1 text-xs font-800 text-primary underline"
-                    >
-                      Track shipment <Icon name="ArrowTopRightOnSquareIcon" size={12} />
-                    </a>
+                  {selectedShipment.pickup_location_name && (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Pickup: {selectedShipment.pickup_location_name}
+                    </p>
+                  )}
+                  {Number(selectedShipment.shipping_cost || 0) > 0 && (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Courier charge: {formatMoney(Number(selectedShipment.shipping_cost))}
+                    </p>
                   )}
                 </div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {selectedShipment.tracking_url && (
+                  <a href={selectedShipment.tracking_url} target="_blank" rel="noreferrer" className="btn-secondary inline-flex min-h-10 items-center gap-1 rounded-xl px-3 py-2 text-xs font-800">
+                    Track shipment <Icon name="ArrowTopRightOnSquareIcon" size={12} />
+                  </a>
+                )}
+                {selectedShipment.label_url && (
+                  <a href={selectedShipment.label_url} target="_blank" rel="noreferrer" className="btn-secondary inline-flex min-h-10 items-center gap-1 rounded-xl px-3 py-2 text-xs font-800">
+                    Shipping label
+                  </a>
+                )}
+                {selectedShipment.manifest_url && (
+                  <a href={selectedShipment.manifest_url} target="_blank" rel="noreferrer" className="btn-secondary inline-flex min-h-10 items-center gap-1 rounded-xl px-3 py-2 text-xs font-800">
+                    Manifest
+                  </a>
+                )}
               </div>
             </div>
           ) : (
             <>
               <div className="mb-5 grid gap-3 sm:grid-cols-2">
-                <button
-                  type="button"
-                  onClick={() => setSelectedCourier('shiprocket')}
-                  className={`rounded-xl border-2 p-4 text-left ${
-                    selectedCourier === 'shiprocket' ? 'border-primary bg-primary/5' : 'border-border'
-                  }`}
-                >
+                <button type="button" onClick={() => setSelectedCourier('shiprocket')} className={`rounded-xl border-2 p-4 text-left ${selectedCourier === 'shiprocket' ? 'border-primary bg-primary/5' : 'border-border'}`}>
                   <div className="flex items-center gap-2">
-                    <Icon name="TruckIcon" size={18} className="text-primary" />
-                    <span className="text-sm font-800">Shiprocket</span>
-                    {shiprocketConfigured !== null && (
-                      <span
-                        className={`ml-auto rounded-full px-2 py-0.5 text-[10px] font-800 ${
-                          shiprocketConfigured ? 'bg-success/10 text-success' : 'bg-error/10 text-error'
-                        }`}
-                      >
-                        {shiprocketConfigured ? 'configured' : 'not configured'}
-                      </span>
-                    )}
+                    <Icon name="BoltIcon" size={18} className="text-primary" />
+                    <span className="text-sm font-800">Automatic courier</span>
+                    <span className={`ml-auto rounded-full px-2 py-0.5 text-[10px] font-800 ${shiprocket.configured ? 'bg-success/10 text-success' : 'bg-error/10 text-error'}`}>
+                      {shiprocket.configured ? 'connected' : 'not connected'}
+                    </span>
                   </div>
                   <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                    Automatically create the shipment using the buyer delivery address saved on FabricTrad.
+                    FabricTrad finds a prepaid serviceable courier and sends the saved seller + buyer details automatically.
                   </p>
                 </button>
 
-                <button
-                  type="button"
-                  onClick={() => setSelectedCourier('local')}
-                  className={`rounded-xl border-2 p-4 text-left ${
-                    selectedCourier === 'local' ? 'border-secondary bg-secondary/5' : 'border-border'
-                  }`}
-                >
+                <button type="button" onClick={() => setSelectedCourier('local')} className={`rounded-xl border-2 p-4 text-left ${selectedCourier === 'local' ? 'border-secondary bg-secondary/5' : 'border-border'}`}>
                   <div className="flex items-center gap-2">
                     <Icon name="MapPinIcon" size={18} className="text-secondary" />
-                    <span className="text-sm font-800">Another courier</span>
+                    <span className="text-sm font-800">Manual / local transporter</span>
                   </div>
                   <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                    Save any courier, AWB, tracking URL and ETA. The buyer sees it immediately.
+                    Keep this fallback for transporters or local couriers not connected through Shiprocket.
                   </p>
                 </button>
               </div>
 
               {selectedCourier === 'shiprocket' ? (
                 <div className="rounded-xl border border-primary/20 bg-primary/5 p-4">
-                  <p className="text-sm font-800 text-foreground">One-click Shiprocket dispatch</p>
+                  <p className="text-sm font-800 text-foreground">Pack first, then auto-book</p>
                   <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                    Works for both catalogue and bulk orders. FabricTrad sends only fully paid orders to Shiprocket and stores the returned shipment/AWB against this order.
+                    One click checks seller-to-buyer serviceability, selects a courier, creates/registers this seller pickup location, sends buyer details/GSTIN/HSN, requests pickup and stores AWB, tracking, label and manifest when returned.
                   </p>
-                  <button
-                    type="button"
-                    onClick={() => void createShiprocket()}
-                    disabled={saving || !shiprocketConfigured}
-                    className="btn-primary mt-4 inline-flex items-center gap-2 rounded-xl px-5 py-3 text-sm disabled:opacity-50"
-                  >
+                  <div className="mt-3 rounded-xl border border-border bg-card/70 p-3 text-xs leading-5 text-muted-foreground">
+                    <strong className="text-foreground">You do not enter addresses here.</strong> FabricTrad uses Business settings for pickup and the paid buyer order/profile for delivery. If something is missing, booking stops safely and tells you exactly what profile needs updating.
+                  </div>
+                  <button type="button" onClick={() => void createShiprocket()} disabled={saving || !shiprocket.configured} className="btn-primary mt-4 inline-flex min-h-12 items-center gap-2 rounded-xl px-5 py-3 text-sm disabled:opacity-50">
                     <Icon name="TruckIcon" size={16} />
-                    {saving ? 'Creating shipment…' : 'Book shipment with Shiprocket'}
+                    {saving ? 'Finding courier & booking…' : 'Ready to ship · auto-book courier'}
                   </button>
-                  {shiprocketConfigured === false && (
-                    <p className="mt-3 text-xs font-700 text-warning">
-                      Shiprocket credentials are not configured on this deployment. Choose Another courier as a fallback.
-                    </p>
-                  )}
                 </div>
               ) : (
                 <div className="grid gap-3 rounded-xl border border-border p-4 sm:grid-cols-2">
-                  <label className="text-xs font-700">
-                    Courier name *
-                    <input
-                      value={form.courierName}
-                      onChange={(event) => setForm({ ...form, courierName: event.target.value })}
-                      className="input-base mt-1.5 w-full rounded-xl px-3 py-2.5 text-sm"
-                      placeholder="Blue Dart, Delhivery, local courier…"
-                    />
-                  </label>
-                  <label className="text-xs font-700">
-                    AWB / tracking number *
-                    <input
-                      value={form.awbNumber}
-                      onChange={(event) => setForm({ ...form, awbNumber: event.target.value })}
-                      className="input-base mt-1.5 w-full rounded-xl px-3 py-2.5 text-sm"
-                    />
-                  </label>
-                  <label className="text-xs font-700">
-                    Tracking URL
-                    <input
-                      type="url"
-                      value={form.trackingUrl}
-                      onChange={(event) => setForm({ ...form, trackingUrl: event.target.value })}
-                      className="input-base mt-1.5 w-full rounded-xl px-3 py-2.5 text-sm"
-                      placeholder="https://…"
-                    />
-                  </label>
-                  <label className="text-xs font-700">
-                    Estimated delivery
-                    <input
-                      type="date"
-                      value={form.estimatedDelivery}
-                      onChange={(event) => setForm({ ...form, estimatedDelivery: event.target.value })}
-                      className="input-base mt-1.5 w-full rounded-xl px-3 py-2.5 text-sm"
-                    />
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => void saveLocal()}
-                    disabled={saving}
-                    className="btn-primary sm:col-span-2 flex items-center justify-center gap-2 rounded-xl py-3 text-sm disabled:opacity-50"
-                  >
+                  <label className="text-xs font-700">Courier / transporter *<input value={form.courierName} onChange={(event) => setForm({ ...form, courierName: event.target.value })} className="input-base mt-1.5 w-full rounded-xl px-3 py-2.5 text-sm" placeholder="Local transporter, Blue Dart…" /></label>
+                  <label className="text-xs font-700">AWB / tracking number *<input value={form.awbNumber} onChange={(event) => setForm({ ...form, awbNumber: event.target.value })} className="input-base mt-1.5 w-full rounded-xl px-3 py-2.5 text-sm" /></label>
+                  <label className="text-xs font-700">Tracking URL<input type="url" value={form.trackingUrl} onChange={(event) => setForm({ ...form, trackingUrl: event.target.value })} className="input-base mt-1.5 w-full rounded-xl px-3 py-2.5 text-sm" placeholder="https://…" /></label>
+                  <label className="text-xs font-700">Estimated delivery<input type="date" value={form.estimatedDelivery} onChange={(event) => setForm({ ...form, estimatedDelivery: event.target.value })} className="input-base mt-1.5 w-full rounded-xl px-3 py-2.5 text-sm" /></label>
+                  <button type="button" onClick={() => void saveLocal()} disabled={saving} className="btn-primary sm:col-span-2 flex min-h-12 items-center justify-center gap-2 rounded-xl py-3 text-sm disabled:opacity-50">
                     <Icon name="CloudArrowUpIcon" size={16} />
                     {saving ? 'Saving…' : 'Save shipment & notify buyer'}
                   </button>
