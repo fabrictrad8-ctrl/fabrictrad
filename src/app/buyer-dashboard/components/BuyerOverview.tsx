@@ -6,7 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { createClient } from '@/lib/supabase/client';
 import { firstOrderItem, formatMoney, formatOrderDate, useBuyerBulkOrders } from '@/lib/hooks/useAccountOrders';
 
-type DashTab = 'overview' | 'orders' | 'tracking' | 'cart' | 'requirements' | 'disputes' | 'notifications' | 'account';
+type DashTab = 'orders' | 'tracking';
 
 type Props = { onNavigate: (tab: DashTab) => void };
 
