@@ -9,12 +9,20 @@ export const runtime = 'nodejs';
 export const POST = handleTrackingUpdate;
 
 export async function GET() {
+  const webhookTokenConfigured = Boolean(process.env.SHIPROCKET_WEBHOOK_TOKEN?.trim());
+  const databaseConfigured = Boolean(
+    process.env.SUPABASE_SECRET_KEY?.trim() || process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()
+  );
+
   return NextResponse.json(
     {
       ok: true,
+      configured: webhookTokenConfigured && databaseConfigured,
       service: 'FabricTrad logistics tracking callback',
       method: 'POST',
       authentication: 'x-api-key',
+      webhookTokenConfigured,
+      databaseConfigured,
     },
     {
       status: 200,
