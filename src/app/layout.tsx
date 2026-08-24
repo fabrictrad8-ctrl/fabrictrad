@@ -25,10 +25,7 @@ export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   viewportFit: 'cover',
-  themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#f6f7f9' },
-    { media: '(prefers-color-scheme: dark)', color: '#111827' },
-  ],
+  themeColor: '#f6f7f9',
 };
 
 export const metadata: Metadata = {
@@ -63,7 +60,7 @@ export default function RootLayout({
       <head>
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var t=localStorage.getItem('fabrictrad:theme')||'light';if(t==='system'){t='light';localStorage.setItem('fabrictrad:theme','light');}var d=t==='dark';document.documentElement.classList.toggle('dark',d);document.documentElement.dataset.theme=d?'dark':'light';document.documentElement.style.colorScheme=d?'dark':'light';}catch(e){document.documentElement.classList.remove('dark');document.documentElement.dataset.theme='light';document.documentElement.style.colorScheme='light';}})();`,
+            __html: `(function(){try{localStorage.setItem('fabrictrad:theme','light');document.documentElement.classList.remove('dark');document.documentElement.dataset.theme='light';document.documentElement.style.colorScheme='light';}catch(e){document.documentElement.classList.remove('dark');document.documentElement.dataset.theme='light';document.documentElement.style.colorScheme='light';}})();`,
           }}
         />
       </head>
