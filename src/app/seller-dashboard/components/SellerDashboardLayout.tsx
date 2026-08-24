@@ -46,51 +46,51 @@ type SellerTab =
   | 'notifications'
   | 'profile';
 
-type NavItem = {
-  key: SellerTab;
-  label: string;
-  icon: string;
-  description: string;
-};
+type NavItem = { key: SellerTab; label: string; icon: string; description: string };
 
 const navGroups: Array<{ label: string; items: NavItem[] }> = [
   {
-    label: 'Home',
+    label: 'Store',
     items: [
       { key: 'overview', label: 'Home', icon: 'HomeIcon', description: 'Store health and next actions' },
-      { key: 'orders', label: 'Orders', icon: 'ShoppingBagIcon', description: 'Accept, reject, invoice and fulfill' },
+      { key: 'orders', label: 'Orders', icon: 'ShoppingBagIcon', description: 'Accept, payment and fulfilment' },
     ],
   },
   {
     label: 'Products',
     items: [
+      { key: 'inventory', label: 'Products', icon: 'ArchiveBoxIcon', description: 'Listings and inventory' },
       { key: 'upload', label: 'Add product', icon: 'PlusCircleIcon', description: 'AI-assisted catalogue creation' },
-      { key: 'inventory', label: 'Products', icon: 'ArchiveBoxIcon', description: 'Parent fabrics and stock' },
       { key: 'variants', label: 'Variants', icon: 'SwatchIcon', description: 'Colours, designs and GTIN' },
       { key: 'catalogs', label: 'Catalogues & pricing', icon: 'TagIcon', description: 'MOQ and buyer pricing' },
       { key: 'categories', label: 'Categories', icon: 'Squares2X2Icon', description: 'Product organization' },
     ],
   },
   {
-    label: 'Sales',
+    label: 'Customers',
     items: [
       { key: 'requests', label: 'Buyer requests', icon: 'MegaphoneIcon', description: 'Open sourcing requirements' },
       { key: 'inbox', label: 'Inbox', icon: 'ChatBubbleLeftRightIcon', description: 'Buyer conversations' },
-      { key: 'earnings', label: 'Earnings & payouts', icon: 'BanknotesIcon', description: 'Payments and settlements' },
-      { key: 'analytics', label: 'Analytics', icon: 'ChartBarIcon', description: 'Sales and product performance' },
-    ],
-  },
-  {
-    label: 'Fulfillment',
-    items: [
-      { key: 'fulfillment', label: 'Shipments', icon: 'TruckIcon', description: 'Dispatch and tracking' },
-      { key: 'courier', label: 'Shipping settings', icon: 'MapPinIcon', description: 'Pickup and courier configuration' },
-      { key: 'billing', label: 'Invoices & documents', icon: 'DocumentTextIcon', description: 'Tax invoices and billing uploads' },
       { key: 'disputes', label: 'Returns & disputes', icon: 'FlagIcon', description: 'Claims and resolutions' },
     ],
   },
   {
-    label: 'Account',
+    label: 'Finances',
+    items: [
+      { key: 'earnings', label: 'Earnings & payouts', icon: 'BanknotesIcon', description: 'Captured payments and settlements' },
+      { key: 'billing', label: 'Invoices & documents', icon: 'DocumentTextIcon', description: 'Automatic invoices and manual documents' },
+      { key: 'analytics', label: 'Analytics', icon: 'ChartBarIcon', description: 'Sales and product performance' },
+    ],
+  },
+  {
+    label: 'Fulfilment',
+    items: [
+      { key: 'fulfillment', label: 'Shipments', icon: 'TruckIcon', description: 'Dispatch and tracking' },
+      { key: 'courier', label: 'Shipping settings', icon: 'MapPinIcon', description: 'Pickup and courier configuration' },
+    ],
+  },
+  {
+    label: 'Settings',
     items: [
       { key: 'notifications', label: 'Notifications', icon: 'BellIcon', description: 'Email and in-app alerts' },
       { key: 'profile', label: 'Business settings', icon: 'BuildingOfficeIcon', description: 'GST, bank and store profile' },
@@ -100,34 +100,27 @@ const navGroups: Array<{ label: string; items: NavItem[] }> = [
 
 const allItems = navGroups.flatMap((group) => group.items);
 const validTabs = allItems.map((item) => item.key);
-const normaliseTab = (value: string | null): SellerTab =>
-  validTabs.includes(value as SellerTab) ? (value as SellerTab) : 'overview';
+const normaliseTab = (value: string | null): SellerTab => validTabs.includes(value as SellerTab) ? value as SellerTab : 'overview';
 
 export default function SellerDashboardLayout() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user, profile, isDemoAccount, signOut } = useAuth();
+  const { user, profile, signOut } = useAuth();
   const [activeTab, setActiveTab] = useState<SellerTab>(() => normaliseTab(searchParams.get('tab')));
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [signingOut, setSigningOut] = useState(false);
 
-  useEffect(() => {
-    setActiveTab(normaliseTab(searchParams.get('tab')));
-  }, [searchParams]);
+  useEffect(() => setActiveTab(normaliseTab(searchParams.get('tab'))), [searchParams]);
 
-  const activeItem = useMemo(
-    () => allItems.find((item) => item.key === activeTab) || allItems[0],
-    [activeTab]
-  );
+  const activeItem = useMemo(() => allItems.find((item) => item.key === activeTab) || allItems[0], [activeTab]);
   const sellerName = profile?.business_name || profile?.full_name || user?.email?.split('@')[0] || 'Seller';
+  const storefrontHref = `/marketplace?search=${encodeURIComponent(sellerName)}`;
 
   const navigateTo = (tab: SellerTab) => {
     setActiveTab(tab);
     setSidebarOpen(false);
-    router.replace(tab === 'overview' ? '/seller-dashboard' : `/seller-dashboard?tab=${tab}`, {
-      scroll: false,
-    });
+    router.replace(tab === 'overview' ? '/seller-dashboard' : `/seller-dashboard?tab=${tab}`, { scroll: false });
   };
 
   const searchMarketplace = (event: FormEvent<HTMLFormElement>) => {
@@ -139,126 +132,105 @@ export default function SellerDashboardLayout() {
   const logout = async () => {
     if (signingOut) return;
     setSigningOut(true);
-    try {
-      await signOut();
-    } finally {
-      window.location.replace('/login');
-    }
+    try { await signOut(); } finally { window.location.replace('/login'); }
   };
 
   const sidebar = (
-    <div className="flex h-full flex-col bg-[#f6f6f7] dark:bg-card">
-      <div className="border-b border-border p-3">
-        <Link href="/seller-dashboard" onClick={() => setSidebarOpen(false)} className="flex min-h-11 items-center gap-3 rounded-xl px-2 hover:bg-card">
-          <AppLogo size={32} />
+    <div className="flex h-full flex-col">
+      <div className="border-b border-[#dde1e5] p-3 dark:border-border">
+        <Link href="/seller-dashboard" onClick={() => setSidebarOpen(false)} className="flex min-h-11 items-center gap-3 rounded-lg px-2 hover:bg-white dark:hover:bg-muted">
+          <AppLogo size={30} />
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-800 text-foreground">{sellerName}</p>
-            <p className="truncate text-[11px] text-muted-foreground">FabricTrad seller</p>
+            <p className="truncate text-sm font-850 text-foreground">{sellerName}</p>
+            <p className="truncate text-[11px] text-muted-foreground">FabricTrad merchant</p>
           </div>
-          <Icon name="ChevronUpDownIcon" size={15} className="text-muted-foreground" />
         </Link>
       </div>
 
       <nav className="flex-1 overflow-y-auto px-2 py-3" aria-label="Seller navigation">
         {navGroups.map((group) => (
           <section key={group.label} className="mb-4 last:mb-0">
-            <p className="mb-1 px-2 text-[10px] font-800 uppercase tracking-[0.14em] text-muted-foreground">{group.label}</p>
+            <p className="mb-1 px-2 text-[10px] font-850 uppercase tracking-[0.12em] text-muted-foreground">{group.label}</p>
             <div className="space-y-0.5">
-              {group.items.map((item) => (
-                <button
-                  key={item.key}
-                  type="button"
-                  onClick={() => navigateTo(item.key)}
-                  className={`flex min-h-10 w-full items-center gap-3 rounded-lg px-2.5 text-left text-sm font-650 transition ${
-                    activeTab === item.key
-                      ? 'bg-[#e1e3e5] text-foreground shadow-sm dark:bg-muted'
-                      : 'text-foreground/80 hover:bg-[#ebebeb] hover:text-foreground dark:hover:bg-muted'
-                  }`}
-                >
-                  <Icon name={item.icon as 'HomeIcon'} size={18} className="text-muted-foreground" />
-                  <span className="min-w-0 flex-1 truncate">{item.label}</span>
-                </button>
-              ))}
+              {group.items.map((item) => {
+                const active = activeTab === item.key;
+                return (
+                  <button
+                    key={item.key}
+                    type="button"
+                    onClick={() => navigateTo(item.key)}
+                    aria-current={active ? 'page' : undefined}
+                    className={`flex min-h-9 w-full items-center gap-3 rounded-lg px-2.5 text-left text-[13px] font-700 transition ${active ? 'is-active bg-[#e7e8ea] text-foreground dark:bg-muted' : 'text-foreground/80 hover:bg-[#eceeef] hover:text-foreground dark:hover:bg-muted'}`}
+                  >
+                    <Icon name={item.icon as 'HomeIcon'} size={17} className={active ? 'text-foreground' : 'text-muted-foreground'} />
+                    <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                  </button>
+                );
+              })}
             </div>
           </section>
         ))}
       </nav>
 
-      <div className="space-y-1 border-t border-border p-2">
-        <button type="button" onClick={() => void logout()} disabled={signingOut} className="flex min-h-10 w-full items-center gap-3 rounded-lg px-2.5 text-left text-sm font-700 text-error hover:bg-error/10 disabled:opacity-50">
-          <Icon name="ArrowRightOnRectangleIcon" size={18} /> {signingOut ? 'Signing out…' : 'Sign out'}
+      <div className="space-y-1 border-t border-[#dde1e5] p-2 dark:border-border">
+        <Link href={storefrontHref} className="flex min-h-10 items-center gap-3 rounded-lg px-2.5 text-sm font-700 text-foreground/80 hover:bg-white dark:hover:bg-muted">
+          <Icon name="EyeIcon" size={17} className="text-muted-foreground" /> View marketplace listing
+        </Link>
+        <Link href="/account" className="flex min-h-10 items-center gap-3 rounded-lg px-2.5 text-sm font-700 text-foreground/80 hover:bg-white dark:hover:bg-muted">
+          <Icon name="ArrowsRightLeftIcon" size={17} className="text-muted-foreground" /> Switch workspace
+        </Link>
+        <button type="button" onClick={() => void logout()} disabled={signingOut} className="flex min-h-10 w-full items-center gap-3 rounded-lg px-2.5 text-left text-sm font-750 text-error hover:bg-error/10 disabled:opacity-50">
+          <Icon name="ArrowRightOnRectangleIcon" size={17} /> {signingOut ? 'Signing out…' : 'Sign out'}
         </button>
       </div>
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-[#f1f1f1] text-foreground dark:bg-background">
-      <header className="sticky top-0 z-40 flex h-14 items-center gap-3 border-b border-border bg-card/95 px-3 shadow-sm backdrop-blur-xl sm:px-4">
-        <button type="button" onClick={() => setSidebarOpen(true)} className="ft-icon-button md:hidden" aria-label="Open seller navigation">
-          <Icon name="Bars3Icon" size={20} />
-        </button>
-        <div className="hidden min-w-0 md:block lg:w-48">
-          <p className="truncate text-sm font-800 text-foreground">{activeItem.label}</p>
+    <div className="ft-admin-shell ft-seller-admin">
+      <header className="ft-admin-header sticky top-0 z-40 flex items-center gap-3 px-3 backdrop-blur-xl sm:px-4">
+        <button type="button" onClick={() => setSidebarOpen(true)} className="ft-icon-button md:hidden" aria-label="Open seller navigation"><Icon name="Bars3Icon" size={20} /></button>
+
+        <div className="hidden min-w-0 md:block lg:w-52">
+          <p className="truncate text-sm font-850 text-foreground">{activeItem.label}</p>
           <p className="truncate text-[11px] text-muted-foreground">{activeItem.description}</p>
         </div>
-        <form onSubmit={searchMarketplace} className="hidden min-h-10 min-w-0 flex-1 items-center gap-2 rounded-xl border border-border bg-muted/60 px-3 md:flex md:max-w-xl">
+
+        <form onSubmit={searchMarketplace} className="ft-admin-toolbar-search hidden min-h-10 min-w-0 flex-1 items-center gap-2 rounded-lg border px-3 md:flex md:max-w-xl">
           <Icon name="MagnifyingGlassIcon" size={17} className="text-muted-foreground" />
-          <input
-            type="search"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search marketplace products, suppliers, GSM or SKU"
-            className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
-          />
-          <button type="submit" className="text-xs font-800 text-primary">Search</button>
+          <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search products, suppliers, GSM or SKU" className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground" />
+          <button type="submit" className="text-xs font-850 text-primary">Search</button>
         </form>
-        <Link href="/marketplace" className="ft-icon-button md:hidden" aria-label="Search marketplace">
-          <Icon name="MagnifyingGlassIcon" size={18} />
-        </Link>
+
         <div className="ml-auto flex items-center gap-2">
-          <button type="button" onClick={() => navigateTo('upload')} className="ft-primary-action hidden items-center gap-2 px-3 py-2 text-xs sm:inline-flex">
-            <Icon name="PlusIcon" size={15} /> Add product
-          </button>
+          <span className="hidden items-center gap-1.5 rounded-full border border-success/20 bg-success/5 px-2.5 py-1 text-[11px] font-800 text-success lg:inline-flex"><span className="h-1.5 w-1.5 rounded-full bg-success" /> Store active</span>
+          <Link href={storefrontHref} className="ft-secondary-action hidden items-center gap-2 px-3 py-2 text-xs lg:inline-flex"><Icon name="EyeIcon" size={15} /> View store</Link>
+          <button type="button" onClick={() => navigateTo('upload')} className="ft-primary-action hidden items-center gap-2 px-3 py-2 text-xs sm:inline-flex"><Icon name="PlusIcon" size={15} /> Add product</button>
           <PreferenceControls compact />
-          <button type="button" onClick={() => navigateTo('notifications')} className="ft-icon-button" aria-label="Open seller notifications">
-            <Icon name="BellIcon" size={18} />
-          </button>
+          <button type="button" onClick={() => navigateTo('notifications')} className="ft-icon-button" aria-label="Open seller notifications"><Icon name="BellIcon" size={18} /></button>
           <ProfileMenu />
         </div>
       </header>
 
-      <div className="flex min-h-[calc(100vh-3.5rem)]">
-        <aside className="hidden w-[240px] shrink-0 border-r border-border md:block">{sidebar}</aside>
+      <div className="flex min-h-[calc(100vh-3.75rem)]">
+        <aside className="ft-admin-sidebar hidden shrink-0 md:block">{sidebar}</aside>
 
         {sidebarOpen && (
           <>
             <button type="button" className="fixed inset-0 z-40 bg-black/45 md:hidden" onClick={() => setSidebarOpen(false)} aria-label="Close seller navigation" />
-            <aside className="fixed inset-y-0 left-0 z-50 w-[min(88vw,290px)] border-r border-border shadow-2xl md:hidden">
-              <button type="button" onClick={() => setSidebarOpen(false)} className="ft-icon-button absolute right-3 top-3 z-10" aria-label="Close seller navigation">
-                <Icon name="XMarkIcon" size={18} />
-              </button>
+            <aside className="ft-admin-sidebar fixed inset-y-0 left-0 z-50 w-[min(88vw,290px)] shadow-2xl md:hidden">
+              <button type="button" onClick={() => setSidebarOpen(false)} className="ft-icon-button absolute right-3 top-3 z-10" aria-label="Close seller navigation"><Icon name="XMarkIcon" size={18} /></button>
               {sidebar}
             </aside>
           </>
         )}
 
-        <main className="min-w-0 flex-1 overflow-y-auto px-3 py-4 pb-24 sm:px-5 sm:py-6 lg:px-7">
-          <div className="mx-auto max-w-[1500px]">
+        <main className="ft-admin-main min-w-0 flex-1 overflow-y-auto px-3 pb-24 sm:px-5 lg:px-7">
+          <div className="mx-auto">
             <SellerProfileReadiness />
-            {isDemoAccount && (
-              <div className="mb-4 rounded-xl border border-secondary/20 bg-secondary/5 p-3 text-xs leading-5 text-muted-foreground">
-                <strong className="text-secondary">Demo seller sandbox:</strong> real publishing, payments, fulfillment and billing require a verified production seller account.
-              </div>
-            )}
 
             {activeTab === 'overview' && <SellerOverview onNavigate={navigateTo} />}
-            {activeTab === 'orders' && (
-              <div className="space-y-6">
-                <SellerCatalogOrders />
-                <SellerOrders />
-              </div>
-            )}
+            {activeTab === 'orders' && <div className="space-y-5"><SellerCatalogOrders /><SellerOrders /></div>}
             {activeTab === 'inventory' && <SellerInventory />}
             {activeTab === 'variants' && <SellerVariantCatalog />}
             {activeTab === 'catalogs' && <SellerCatalogPricing />}
@@ -274,9 +246,11 @@ export default function SellerDashboardLayout() {
             {activeTab === 'disputes' && <SellerDisputes />}
             {activeTab === 'notifications' && <NotificationPreferences mode="seller" />}
             {activeTab === 'profile' && (
-              <section className="rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-6">
-                <p className="text-xs font-800 uppercase tracking-wider text-primary">Business settings</p>
-                <h1 className="mt-2 text-2xl font-800 text-foreground">Store identity, GST and fulfillment profile</h1>
+              <section className="ft-shopify-card p-5 sm:p-6">
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div><p className="text-xs font-850 uppercase tracking-wider text-primary">Business settings</p><h1 className="ft-admin-page-title mt-2 text-2xl">Store identity, GST and fulfilment profile</h1></div>
+                  <Link href="/profile?tab=business" className="ft-primary-action inline-flex items-center gap-2 px-4 py-2.5 text-sm">Edit settings <Icon name="ArrowRightIcon" size={15} /></Link>
+                </div>
                 <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                   {[
                     ['Business', profile?.business_name || sellerName],
@@ -286,15 +260,9 @@ export default function SellerDashboardLayout() {
                     ['GSTIN', profile?.gstin || 'Add GSTIN'],
                     ['Location', [profile?.city, profile?.state].filter(Boolean).join(', ') || 'Add pickup location'],
                   ].map(([label, value]) => (
-                    <div key={label} className="rounded-2xl border border-border bg-muted/40 p-4">
-                      <p className="text-xs font-800 uppercase tracking-wider text-muted-foreground">{label}</p>
-                      <p className="mt-1 break-words text-sm font-800 text-foreground">{value}</p>
-                    </div>
+                    <div key={label} className="rounded-xl border border-border bg-muted/30 p-4"><p className="text-[11px] font-850 uppercase tracking-wider text-muted-foreground">{label}</p><p className="mt-1 break-words text-sm font-800 text-foreground">{value}</p></div>
                   ))}
                 </div>
-                <Link href="/profile?tab=business" className="ft-primary-action mt-6 inline-flex items-center gap-2 px-5 py-3 text-sm">
-                  Manage business profile <Icon name="ArrowRightIcon" size={15} />
-                </Link>
               </section>
             )}
           </div>
@@ -309,9 +277,7 @@ export default function SellerDashboardLayout() {
           { key: 'inventory' as SellerTab, label: 'Products', icon: 'ArchiveBoxIcon' },
           { key: 'earnings' as SellerTab, label: 'Payouts', icon: 'BanknotesIcon' },
         ].map((item) => (
-          <button key={item.key} type="button" onClick={() => navigateTo(item.key)} className={`flex flex-col items-center gap-1 rounded-lg py-2 text-[10px] font-800 ${activeTab === item.key ? 'bg-primary/10 text-primary' : 'text-muted-foreground'}`}>
-            <Icon name={item.icon as 'HomeIcon'} size={18} /> {item.label}
-          </button>
+          <button key={item.key} type="button" onClick={() => navigateTo(item.key)} className={`flex flex-col items-center gap-1 rounded-lg py-2 text-[10px] font-850 ${activeTab === item.key ? 'bg-primary/10 text-primary' : 'text-muted-foreground'}`}><Icon name={item.icon as 'HomeIcon'} size={18} /> {item.label}</button>
         ))}
       </nav>
     </div>
