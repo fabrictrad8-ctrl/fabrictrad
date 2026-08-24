@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import AppLogo from '@/components/ui/AppLogo';
@@ -101,6 +101,25 @@ const navGroups: Array<{ label: string; items: NavItem[] }> = [
 const allItems = navGroups.flatMap((group) => group.items);
 const validTabs = allItems.map((item) => item.key);
 const normaliseTab = (value: string | null): SellerTab => validTabs.includes(value as SellerTab) ? value as SellerTab : 'overview';
+const sellerSearchAliases: Record<SellerTab, string> = {
+  overview: 'home overview store health tasks setup',
+  orders: 'orders sales purchases accept payment fulfil fulfillment status',
+  inventory: 'products inventory stock listings sku',
+  variants: 'variants colours colors designs gtin options',
+  catalogs: 'catalog catalogue pricing price moq wholesale breaks',
+  upload: 'add create upload new product listing ai',
+  requests: 'buyer requests sourcing requirements leads',
+  inbox: 'inbox messages chat conversations buyers',
+  fulfillment: 'shipments dispatch tracking fulfilment fulfillment delivery',
+  courier: 'shipping courier pickup logistics settings',
+  earnings: 'earnings payouts settlements money finance',
+  analytics: 'analytics reports performance sales metrics',
+  categories: 'categories organization taxonomy product groups',
+  billing: 'billing invoices documents receipts gst invoice',
+  disputes: 'returns disputes exchanges claims refunds',
+  notifications: 'notifications alerts email sms settings',
+  profile: 'business settings profile gst bank address identity',
+};
 
 export default function SellerDashboardLayout() {
   const router = useRouter();
@@ -110,8 +129,20 @@ export default function SellerDashboardLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [signingOut, setSigningOut] = useState(false);
+  const searchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => setActiveTab(normaliseTab(searchParams.get('tab'))), [searchParams]);
+
+  useEffect(() => {
+    const handleShortcut = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        searchRef.current?.focus();
+      }
+    };
+    window.addEventListener('keydown', handleShortcut);
+    return () => window.removeEventListener('keydown', handleShortcut);
+  }, []);
 
   const activeItem = useMemo(() => allItems.find((item) => item.key === activeTab) || allItems[0], [activeTab]);
   const sellerName = profile?.business_name || profile?.full_name || user?.email?.split('@')[0] || 'Seller';
@@ -123,10 +154,20 @@ export default function SellerDashboardLayout() {
     router.replace(tab === 'overview' ? '/seller-dashboard' : `/seller-dashboard?tab=${tab}`, { scroll: false });
   };
 
-  const searchMarketplace = (event: FormEvent<HTMLFormElement>) => {
+  const searchSellerTools = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const query = search.trim();
-    router.push(query ? `/marketplace?search=${encodeURIComponent(query)}` : '/marketplace');
+    const query = search.trim().toLowerCase();
+    if (!query) return;
+    const match = allItems.find((item) =>
+      `${item.label} ${item.description} ${sellerSearchAliases[item.key]}`.toLowerCase().includes(query)
+    );
+    if (match) {
+      navigateTo(match.key);
+      setSearch('');
+      return;
+    }
+    setSearch('');
+    searchRef.current?.blur();
   };
 
   const logout = async () => {
@@ -172,13 +213,7 @@ export default function SellerDashboardLayout() {
         ))}
       </nav>
 
-      <div className="space-y-1 border-t border-[#dde1e5] p-2 dark:border-border">
-        <Link href={storefrontHref} className="flex min-h-10 items-center gap-3 rounded-lg px-2.5 text-sm font-700 text-foreground/80 hover:bg-white dark:hover:bg-muted">
-          <Icon name="EyeIcon" size={17} className="text-muted-foreground" /> View marketplace listing
-        </Link>
-        <Link href="/account" className="flex min-h-10 items-center gap-3 rounded-lg px-2.5 text-sm font-700 text-foreground/80 hover:bg-white dark:hover:bg-muted">
-          <Icon name="ArrowsRightLeftIcon" size={17} className="text-muted-foreground" /> Switch workspace
-        </Link>
+      <div className="border-t border-[#dde1e5] p-2 dark:border-border">
         <button type="button" onClick={() => void logout()} disabled={signingOut} className="flex min-h-10 w-full items-center gap-3 rounded-lg px-2.5 text-left text-sm font-750 text-error hover:bg-error/10 disabled:opacity-50">
           <Icon name="ArrowRightOnRectangleIcon" size={17} /> {signingOut ? 'Signing out…' : 'Sign out'}
         </button>
@@ -196,10 +231,11 @@ export default function SellerDashboardLayout() {
           <p className="truncate text-[11px] text-muted-foreground">{activeItem.description}</p>
         </div>
 
-        <form onSubmit={searchMarketplace} className="ft-admin-toolbar-search hidden min-h-10 min-w-0 flex-1 items-center gap-2 rounded-lg border px-3 md:flex md:max-w-xl">
+        <form onSubmit={searchSellerTools} className="ft-admin-toolbar-search hidden min-h-10 min-w-0 flex-1 items-center gap-2 rounded-lg border px-3 md:flex md:max-w-xl">
           <Icon name="MagnifyingGlassIcon" size={17} className="text-muted-foreground" />
-          <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search products, suppliers, GSM or SKU" className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground" />
-          <button type="submit" className="text-xs font-850 text-primary">Search</button>
+          <input ref={searchRef} type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search seller tools: orders, products, payouts…" className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground" />
+          <kbd className="hidden rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] font-750 text-muted-foreground lg:inline">Ctrl K</kbd>
+          <button type="submit" className="text-xs font-850 text-primary">Go</button>
         </form>
 
         <div className="ml-auto flex items-center gap-2">
