@@ -4,27 +4,36 @@ import Link from 'next/link';
 import AppLogo from '@/components/ui/AppLogo';
 import Icon from '@/components/ui/AppIcon';
 
-const trustItems = [
+const capabilityCards = [
   {
-    icon: 'ShieldCheckIcon',
-    title: 'Verified commerce network',
-    copy: 'Buyer, seller and administrator workspaces stay account-scoped and role-aware.',
+    icon: 'MagnifyingGlassIcon',
+    title: 'Search-first buying',
+    copy: 'Compare verified sellers, stock, MOQ, price, variants and dispatch details from one marketplace.',
+    accent: 'orange',
   },
   {
-    icon: 'BoltIcon',
-    title: 'One account, faster movement',
-    copy: 'Buy, sell, pay, fulfil and track without creating duplicate identities for every workflow.',
+    icon: 'BuildingStorefrontIcon',
+    title: 'Merchant command centre',
+    copy: 'Run products, inventory, orders, payments, invoices, shipping and analytics without leaving FabricTrad.',
+    accent: 'teal',
   },
   {
-    icon: 'LockClosedIcon',
-    title: 'Private marketplace by default',
-    copy: 'Products, prices, seller details and transaction data remain behind authenticated access.',
+    icon: 'SparklesIcon',
+    title: 'AI textile workflows',
+    copy: 'Use AI-assisted catalogue tools and the seller-textile Virtual Drape experience where they add real value.',
+    accent: 'violet',
   },
 ];
 
+const trustItems = [
+  ['ShieldCheckIcon', 'Verified network', 'Seller verification and role-aware account access.'],
+  ['CreditCardIcon', 'Protected payments', 'Seller acceptance followed by server-verified Razorpay payment.'],
+  ['TruckIcon', 'Connected fulfilment', 'Paid-order shipping and tracking stay attached to the same order.'],
+] as const;
+
 export default function PublicAccessLanding() {
   return (
-    <main id="main-content" className="ft-future-landing">
+    <main id="main-content" className="ft-future-landing min-h-screen overflow-hidden text-slate-900">
       <header className="ft-future-topbar">
         <div className="ft-future-nav">
           <Link href="/" className="ft-future-brand" aria-label="FabricTrad home">
@@ -34,15 +43,15 @@ export default function PublicAccessLanding() {
 
           <nav className="ft-future-navlinks" aria-label="Public navigation">
             <a href="#platform">Platform</a>
-            <a href="#how-it-works">How it works</a>
+            <a href="#capabilities">Capabilities</a>
             <a href="#trust">Trust & safety</a>
           </nav>
 
           <div className="ml-auto flex items-center gap-2">
-            <Link href="/login" className="ft-secondary-action inline-flex min-h-10 items-center justify-center px-4 text-sm font-800">
+            <Link href="/login" className="ft-secondary-action inline-flex min-h-10 items-center justify-center rounded-xl px-4 text-sm font-800">
               Sign in
             </Link>
-            <Link href="/register" className="ft-primary-action inline-flex min-h-10 items-center justify-center gap-2 px-4 text-sm font-800">
+            <Link href="/register" className="ft-primary-action inline-flex min-h-10 items-center justify-center gap-2 rounded-xl px-4 text-sm font-800">
               Join FabricTrad <Icon name="ArrowRightIcon" size={15} />
             </Link>
           </div>
@@ -50,7 +59,7 @@ export default function PublicAccessLanding() {
       </header>
 
       <section id="platform" className="ft-future-hero">
-        <div>
+        <div className="relative z-10">
           <div className="ft-future-kicker">
             <span className="h-1.5 w-1.5 rounded-full bg-current shadow-[0_0_12px_currentColor]" />
             India&apos;s textile commerce operating layer
@@ -62,22 +71,22 @@ export default function PublicAccessLanding() {
           </h1>
 
           <p className="ft-future-hero-copy">
-            FabricTrad brings sourcing, selling, approvals, payments, order tracking and business operations into one secure account. Buyers get a fast search-first marketplace. Sellers get a modern operating workspace built around real inventory and real orders.
+            FabricTrad connects verified textile buyers and sellers around the same real commerce records. Search and source faster, manage catalogue and inventory, collect protected payments, generate documents and move paid orders into fulfilment without duplicate accounts or disconnected tools.
           </p>
 
           <div className="ft-future-hero-actions">
-            <Link href="/login" className="ft-primary-action">
+            <Link href="/login" className="ft-primary-action rounded-xl">
               Enter FabricTrad <Icon name="ArrowRightIcon" size={17} />
             </Link>
-            <Link href="/register" className="ft-secondary-action">
-              Create an account
+            <Link href="/register" className="ft-secondary-action rounded-xl">
+              Create a free account
             </Link>
           </div>
 
           <div className="ft-future-trustline">
-            <span><Icon name="ShieldCheckIcon" size={15} className="text-emerald-400" /> Verified seller access</span>
-            <span><Icon name="CreditCardIcon" size={15} className="text-orange-300" /> Secure payment workflow</span>
-            <span><Icon name="DevicePhoneMobileIcon" size={15} className="text-cyan-300" /> Desktop + mobile</span>
+            <span><Icon name="ShieldCheckIcon" size={15} className="text-emerald-600" /> Verified seller access</span>
+            <span><Icon name="CreditCardIcon" size={15} className="text-orange-600" /> Protected payment flow</span>
+            <span><Icon name="DevicePhoneMobileIcon" size={15} className="text-teal-600" /> Phone, tablet and desktop</span>
           </div>
         </div>
 
@@ -85,82 +94,94 @@ export default function PublicAccessLanding() {
           <div className="ft-future-core">
             <div className="ft-future-core-inner" />
           </div>
-
           <div className="ft-future-float-card c1">
-            <strong><span className="dot" />Buyer workspace</strong>
-            <p>Search, compare, order, pay and track from one place.</p>
+            <strong><span className="dot" />Buyer marketplace</strong>
+            <p>Search, compare, request, pay and track.</p>
           </div>
           <div className="ft-future-float-card c2">
-            <strong><span className="dot" />Seller command centre</strong>
-            <p>Products, orders, inventory, payouts and fulfilment.</p>
+            <strong><span className="dot" />Seller operations</strong>
+            <p>Products, orders, money and fulfilment.</p>
           </div>
           <div className="ft-future-float-card c3">
-            <strong><span className="dot" />Role-aware access</strong>
-            <p>One identity can unlock the workspaces it is approved to use.</p>
+            <strong><span className="dot" />AI Virtual Drape</strong>
+            <p>Preview the seller textile on your photo or an AI model.</p>
           </div>
         </div>
       </section>
 
-      <section id="how-it-works" className="ft-future-bento">
+      <section id="capabilities" className="relative z-[2] mx-auto w-[min(1420px,calc(100%-32px))] px-4 pb-8 sm:px-0">
+        <div className="rounded-[30px] border border-slate-200 bg-white/80 p-6 shadow-[0_24px_80px_rgba(15,23,42,0.08)] backdrop-blur-xl sm:p-9">
+          <div className="grid gap-8 lg:grid-cols-[0.8fr_1.2fr] lg:items-end">
+            <div>
+              <p className="text-xs font-850 uppercase tracking-[0.16em] text-orange-700">One platform, two focused workspaces</p>
+              <h2 className="mt-3 text-3xl font-850 tracking-[-0.04em] text-slate-900 sm:text-5xl">Simple at the surface. Serious underneath.</h2>
+              <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-600">Buyers should feel like they are shopping, not operating an ERP. Sellers should feel like they are running a modern store, not navigating a buyer website.</p>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="rounded-2xl border border-orange-200 bg-orange-50 p-4">
+                <p className="text-xs font-850 uppercase tracking-wider text-orange-700">Buyer</p>
+                <p className="mt-2 text-sm font-800 text-slate-900">Marketplace-first</p>
+                <p className="mt-1 text-xs leading-5 text-slate-600">Discovery, orders, payment and tracking.</p>
+              </div>
+              <div className="rounded-2xl border border-teal-200 bg-teal-50 p-4">
+                <p className="text-xs font-850 uppercase tracking-wider text-teal-700">Seller</p>
+                <p className="mt-2 text-sm font-800 text-slate-900">Operations-first</p>
+                <p className="mt-1 text-xs leading-5 text-slate-600">Catalogue, fulfilment, earnings and analytics.</p>
+              </div>
+              <div className="rounded-2xl border border-violet-200 bg-violet-50 p-4">
+                <p className="text-xs font-850 uppercase tracking-wider text-violet-700">Admin</p>
+                <p className="mt-2 text-sm font-800 text-slate-900">Control-first</p>
+                <p className="mt-1 text-xs leading-5 text-slate-600">Verification, risk, transactions and operations.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="ft-future-bento">
         <article className="ft-future-panel large">
           <div>
-            <div className="ft-future-panel-icon"><Icon name="SparklesIcon" size={22} /></div>
-            <p className="mt-6 text-xs font-850 uppercase tracking-[0.16em] text-orange-300">A simpler commerce flow</p>
-            <h2 className="mt-3 max-w-xl text-4xl leading-tight">From sourcing intent to fulfilled order without fragmented tools.</h2>
-            <p className="mt-4 max-w-xl text-sm">FabricTrad keeps the buyer and seller sides connected around the same live commerce records instead of forcing users through disconnected pages or duplicate accounts.</p>
+            <div className="ft-future-panel-icon"><Icon name="ArrowsRightLeftIcon" size={22} /></div>
+            <p className="mt-6 text-xs font-850 uppercase tracking-[0.16em] text-orange-700">A connected order lifecycle</p>
+            <h2 className="mt-3 max-w-xl text-4xl leading-tight text-slate-900">From product discovery to paid fulfilment without losing context.</h2>
+            <p className="mt-4 max-w-xl text-sm text-slate-600">Every important step remains attached to the real order: seller acceptance, Razorpay capture, invoice generation, shipment creation, tracking and support.</p>
           </div>
           <div className="ft-future-steps">
-            <div className="ft-future-step"><b>01</b><span>Create one account and complete only the verification relevant to your role.</span></div>
-            <div className="ft-future-step"><b>02</b><span>Enter the buyer marketplace or seller workspace you are approved to use.</span></div>
-            <div className="ft-future-step"><b>03</b><span>Keep orders, payments, invoices, fulfilment and history tied to the same account.</span></div>
+            <div className="ft-future-step"><b>01</b><span>Discover a live product or post a sourcing requirement.</span></div>
+            <div className="ft-future-step"><b>02</b><span>Seller confirms the order and stock before payment opens.</span></div>
+            <div className="ft-future-step"><b>03</b><span>Verified payment unlocks invoicing, earnings and fulfilment.</span></div>
           </div>
         </article>
 
-        <article className="ft-future-panel">
-          <div className="ft-future-panel-icon"><Icon name="MagnifyingGlassIcon" size={21} /></div>
-          <h3 className="mt-5 text-xl">Search-first buying</h3>
-          <p className="mt-3 text-sm">Find fabrics by seller, colour, GSM, work type, SKU, price, MOQ and dispatch details after sign-in.</p>
-          <Link href="/buyer-registration" className="mt-6 inline-flex items-center gap-2 text-sm font-800 text-orange-300 hover:text-orange-200">
-            Create buyer access <Icon name="ArrowRightIcon" size={14} />
-          </Link>
-        </article>
+        {capabilityCards.map((item) => (
+          <article key={item.title} className="ft-future-panel">
+            <div className="ft-future-panel-icon"><Icon name={item.icon as 'SparklesIcon'} size={21} /></div>
+            <h3 className="mt-5 text-xl text-slate-900">{item.title}</h3>
+            <p className="mt-3 text-sm text-slate-600">{item.copy}</p>
+          </article>
+        ))}
 
         <article className="ft-future-panel">
-          <div className="ft-future-panel-icon"><Icon name="BuildingStorefrontIcon" size={21} /></div>
-          <h3 className="mt-5 text-xl">Merchant control centre</h3>
-          <p className="mt-3 text-sm">Manage catalogue, inventory, buyer orders, pricing, payouts, shipping and analytics from a merchant-style workspace.</p>
-          <Link href="/seller-registration" className="mt-6 inline-flex items-center gap-2 text-sm font-800 text-cyan-300 hover:text-cyan-200">
-            Activate selling <Icon name="ArrowRightIcon" size={14} />
-          </Link>
-        </article>
-
-        <article id="trust" className="ft-future-panel">
           <div className="ft-future-panel-icon"><Icon name="LockClosedIcon" size={21} /></div>
-          <h3 className="mt-5 text-xl">Nothing sensitive on the public page</h3>
-          <p className="mt-3 text-sm">Public visitors do not see marketplace inventory, seller information, prices, account dashboards or transaction records.</p>
-        </article>
-
-        <article className="ft-future-panel">
-          <div className="ft-future-panel-icon"><Icon name="ArrowsRightLeftIcon" size={21} /></div>
-          <h3 className="mt-5 text-xl">Buy and sell with one identity</h3>
-          <p className="mt-3 text-sm">Approved accounts can switch workspaces instead of maintaining separate phone numbers and duplicate profiles.</p>
+          <h3 className="mt-5 text-xl text-slate-900">Private before sign-in</h3>
+          <p className="mt-3 text-sm text-slate-600">The public landing page does not expose live marketplace prices, seller data, dashboards or transaction records.</p>
         </article>
       </section>
 
-      <section className="relative z-[2] mx-auto w-[min(1420px,calc(100%-32px))] px-4 pb-24 sm:px-0">
-        <div className="rounded-[28px] border border-white/10 bg-white/[0.055] p-6 backdrop-blur-xl sm:p-9">
-          <div className="grid gap-7 lg:grid-cols-[1fr_auto] lg:items-end">
+      <section id="trust" className="relative z-[2] mx-auto w-[min(1420px,calc(100%-32px))] px-4 pb-24 sm:px-0">
+        <div className="rounded-[30px] border border-slate-200 bg-white p-6 shadow-[0_20px_70px_rgba(15,23,42,0.08)] sm:p-9">
+          <div className="grid gap-8 lg:grid-cols-[1fr_auto] lg:items-end">
             <div>
-              <p className="text-xs font-850 uppercase tracking-[0.16em] text-orange-300">Built for trust at scale</p>
-              <h2 className="mt-3 max-w-3xl text-3xl font-850 tracking-[-0.035em] text-white sm:text-4xl">A serious commerce product should feel clear before it feels clever.</h2>
-              <p className="mt-4 max-w-3xl text-sm leading-7 text-slate-400">The interface prioritises clear navigation, visible next actions, strong contrast, responsive layouts and role-specific workflows while keeping advanced features available when they are actually useful.</p>
+              <p className="text-xs font-850 uppercase tracking-[0.16em] text-orange-700">Built for trust at scale</p>
+              <h2 className="mt-3 max-w-3xl text-3xl font-850 tracking-[-0.035em] text-slate-900 sm:text-4xl">Clear commerce beats visual noise.</h2>
+              <p className="mt-4 max-w-3xl text-sm leading-7 text-slate-600">FabricTrad prioritises readable contrast, obvious next actions, role-specific navigation and responsive layouts while keeping advanced functionality available when it is useful.</p>
             </div>
-            <div className="grid gap-3 sm:grid-cols-3 lg:min-w-[520px]">
-              {trustItems.map((item) => (
-                <div key={item.title} className="rounded-2xl border border-white/10 bg-black/10 p-4">
-                  <Icon name={item.icon as 'ShieldCheckIcon'} size={19} className="text-orange-300" />
-                  <p className="mt-3 text-sm font-800 text-white">{item.title}</p>
-                  <p className="mt-2 text-xs leading-5 text-slate-400">{item.copy}</p>
+            <div className="grid gap-3 sm:grid-cols-3 lg:min-w-[590px]">
+              {trustItems.map(([icon, title, copy]) => (
+                <div key={title} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <Icon name={icon} size={19} className="text-orange-600" />
+                  <p className="mt-3 text-sm font-800 text-slate-900">{title}</p>
+                  <p className="mt-2 text-xs leading-5 text-slate-600">{copy}</p>
                 </div>
               ))}
             </div>
@@ -172,13 +193,13 @@ export default function PublicAccessLanding() {
         <div className="mx-auto flex max-w-[1420px] flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2.5">
             <AppLogo size={28} />
-            <span className="font-850 text-white">FabricTrad</span>
+            <span className="font-850 text-slate-900">FabricTrad</span>
           </div>
-          <nav className="flex flex-wrap gap-x-5 gap-y-2 text-sm" aria-label="Footer navigation">
-            <Link href="/help" className="hover:text-white">Help</Link>
-            <Link href="/privacy" className="hover:text-white">Privacy</Link>
-            <Link href="/terms" className="hover:text-white">Terms</Link>
-            <Link href="/login" className="font-800 text-orange-300 hover:text-orange-200">Sign in</Link>
+          <nav className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-slate-600" aria-label="Footer navigation">
+            <Link href="/help" className="hover:text-slate-950">Help</Link>
+            <Link href="/privacy" className="hover:text-slate-950">Privacy</Link>
+            <Link href="/terms" className="hover:text-slate-950">Terms</Link>
+            <Link href="/login" className="font-800 text-orange-700 hover:text-orange-900">Sign in</Link>
           </nav>
         </div>
       </footer>
