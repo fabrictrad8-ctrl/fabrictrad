@@ -57,24 +57,24 @@ export default function MarketplaceBanner() {
   return (
     <section className="ft-marketplace-hero" aria-labelledby="marketplace-title">
       <div className="ft-marketplace-hero-inner">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-3 text-[11px] text-slate-200">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3 text-[11px] text-slate-600">
           <div className="flex flex-wrap items-center gap-4">
             <span className="inline-flex items-center gap-1.5"><Icon name="MapPinIcon" size={13} /> {deliveryLocation ? `Delivering to ${deliveryLocation}` : 'Add delivery location from your profile'}</span>
             <span className="inline-flex items-center gap-1.5"><Icon name="UserCircleIcon" size={13} /> {buyerMode}</span>
           </div>
-          <Link href="/buyer-dashboard?tab=orders" className="font-800 text-white hover:underline">Your orders</Link>
+          <Link href="/buyer-dashboard?tab=orders" className="font-800 text-slate-800 hover:text-orange-700 hover:underline">Your orders</Link>
         </div>
 
         <div className="ft-marketplace-heading">
           <div>
-            <p className="mb-2 text-[11px] font-850 uppercase tracking-[0.16em] text-orange-200">FabricTrad marketplace</p>
+            <p className="mb-2 text-[11px] font-850 uppercase tracking-[0.16em] text-orange-700">FabricTrad marketplace</p>
             <h1 id="marketplace-title">Find the right fabric, seller and quantity faster.</h1>
           </div>
           <p>Compare real seller inventory, price per unit, MOQ, variants and dispatch time before you open the product page.</p>
         </div>
 
         <form className="ft-marketplace-search" onSubmit={handleSearch} role="search" aria-label="Marketplace product search">
-          <select value={searchCategory} onChange={(event) => setSearchCategory(event.target.value)} aria-label="Search category" className="mr-3 hidden h-10 max-w-40 border-0 border-r border-slate-200 bg-slate-100 px-2 text-xs font-750 text-slate-700 outline-none sm:block">
+          <select value={searchCategory} onChange={(event) => setSearchCategory(event.target.value)} aria-label="Search category" className="mr-3 hidden h-10 max-w-40 border-0 border-r border-slate-200 bg-slate-50 px-2 text-xs font-750 text-slate-700 outline-none sm:block">
             {categories.map((category) => <option key={category}>{category}</option>)}
           </select>
           <div className="flex min-w-0 items-center gap-2">
