@@ -1,0 +1,76 @@
+name: Verify deployed FabricTrad release
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/production-release-proof.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  production-release-proof:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Verify live domains, release marker and critical services
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='https://fabrictrad.com'
+          marker='fabrictrad-commerce-ux-2026-08-25'
+
+          get() {
+            local url="$1"
+            local output="$2"
+            curl --silent --show-error --location --connect-timeout 10 --max-time 30 \
+              --output "$output" --write-out '%{http_code}' "$url"
+          }
+
+          home=$(get "$base/" /tmp/home.html)
+          login=$(get "$base/login" /tmp/login.html)
+          www=$(get 'https://www.fabrictrad.com/' /tmp/www.html)
+          test "$home" = '200'
+          test "$login" = '200'
+          test "$www" = '200'
+          grep -q "$marker" /tmp/home.html
+          grep -q "$marker" /tmp/login.html
+          grep -q "$marker" /tmp/www.html
+          grep -q 'Textile trade' /tmp/home.html
+
+          marketplace=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+            --dump-header /tmp/marketplace.headers --output /dev/null --write-out '%{http_code}' \
+            --max-redirs 0 "$base/marketplace")
+          test "$marketplace" = '307' -o "$marketplace" = '308'
+          grep -qi '^location: .*login' /tmp/marketplace.headers
+
+          destination=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+            --output /tmp/destination.json --write-out '%{http_code}' \
+            "$base/api/auth/session-destination")
+          test "$destination" = '401'
+
+          google=$(get "$base/api/auth/google/status" /tmp/google.json)
+          test "$google" = '200'
+          grep -q '"configured":true' /tmp/google.json
+
+          ai=$(get "$base/api/ai/drape-on" /tmp/ai.json)
+          test "$ai" = '200'
+          grep -q '"configured":true' /tmp/ai.json
+          grep -q '"mode":"real_ai_image_try_on"' /tmp/ai.json
+
+          shiprocket=$(get "$base/api/shiprocket/status" /tmp/shiprocket.json)
+          test "$shiprocket" = '200'
+          grep -q '"configured":true' /tmp/shiprocket.json
+
+          webhook=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+            --output /tmp/webhook.json --write-out '%{http_code}' \
+            --header 'Content-Type: application/json' \
+            --header 'x-razorpay-signature: 00' \
+            --data '{}' "$base/api/razorpay/webhook")
+          test "$webhook" = '400'
+          grep -qi 'invalid signature' /tmp/webhook.json
+
+          echo 'Production release marker, public domains, auth boundary, Google OAuth, AI Drape, Shiprocket and Razorpay webhook checks passed.'
