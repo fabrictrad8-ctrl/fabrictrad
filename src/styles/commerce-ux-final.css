@@ -1,0 +1,354 @@
+/*
+ * Final commerce UX layer.
+ * Keep this file last in the global cascade so role-specific surfaces do not
+ * regress when legacy style bundles are loaded earlier.
+ */
+
+/* ---------- Authentication: readable, calm and conversion-first ---------- */
+.ft-auth-page {
+  min-height: 100vh !important;
+  background:
+    radial-gradient(circle at 8% 8%, rgba(255, 183, 77, 0.13), transparent 30rem),
+    linear-gradient(180deg, #f8fafc 0%, #f3f4f6 100%) !important;
+  color: #111827 !important;
+}
+
+.ft-auth-stage {
+  width: min(1180px, calc(100% - 32px)) !important;
+  margin: 0 auto !important;
+  padding: 48px 0 !important;
+  gap: 36px !important;
+  align-items: center !important;
+}
+
+.ft-auth-visual {
+  min-height: 620px !important;
+  padding: clamp(30px, 4vw, 58px) !important;
+  border: 1px solid #e5e7eb !important;
+  border-radius: 28px !important;
+  background:
+    radial-gradient(circle at 75% 28%, rgba(27, 137, 145, 0.13), transparent 16rem),
+    radial-gradient(circle at 92% 58%, rgba(242, 107, 44, 0.12), transparent 18rem),
+    linear-gradient(145deg, #ffffff 0%, #f8fafc 100%) !important;
+  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.08) !important;
+  overflow: hidden !important;
+}
+
+.ft-auth-visual h1,
+.ft-auth-visual h2,
+.ft-auth-visual strong,
+.ft-auth-visual .text-foreground {
+  color: #0f172a !important;
+  text-shadow: none !important;
+}
+
+.ft-auth-visual p,
+.ft-auth-visual .text-muted-foreground {
+  color: #526071 !important;
+}
+
+.ft-auth-flow-card,
+.ft-auth-visual [class*='flow-card'] {
+  background: rgba(255, 255, 255, 0.92) !important;
+  border-color: #e5e7eb !important;
+  color: #111827 !important;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.06) !important;
+}
+
+.ft-auth-card {
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 24px !important;
+  background: #ffffff !important;
+  color: #111827 !important;
+  box-shadow: 0 22px 60px rgba(15, 23, 42, 0.12) !important;
+}
+
+.ft-auth-card input,
+.ft-auth-card select {
+  background: #ffffff !important;
+  color: #111827 !important;
+}
+
+@media (max-width: 900px) {
+  .ft-auth-stage {
+    width: min(620px, calc(100% - 24px)) !important;
+    grid-template-columns: 1fr !important;
+    padding: 24px 0 36px !important;
+  }
+
+  .ft-auth-visual {
+    min-height: auto !important;
+    padding: 26px !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .ft-auth-visual {
+    display: none !important;
+  }
+
+  .ft-auth-stage {
+    padding-top: 18px !important;
+  }
+}
+
+/* ---------- Buyer storefront: familiar search -> product -> cart flow ---------- */
+.ft-marketplace-shell {
+  background: #eaeded !important;
+}
+
+.ft-buyer-header.ft-commerce-header {
+  background: #131921 !important;
+  border-bottom-color: #232f3e !important;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.05) !important;
+}
+
+.ft-buyer-header .ft-header-brand span,
+.ft-buyer-header .ft-header-orders-link,
+.ft-buyer-header .ft-workspace-button,
+.ft-buyer-header .ft-icon-button,
+.ft-buyer-header .ft-cart-button {
+  color: #ffffff !important;
+}
+
+.ft-buyer-header .ft-workspace-button,
+.ft-buyer-header .ft-icon-button,
+.ft-buyer-header .ft-cart-button,
+.ft-buyer-header .ft-header-orders-link {
+  border-color: transparent !important;
+  background: transparent !important;
+}
+
+.ft-buyer-header .ft-workspace-button:hover,
+.ft-buyer-header .ft-icon-button:hover,
+.ft-buyer-header .ft-cart-button:hover,
+.ft-buyer-header .ft-header-orders-link:hover {
+  border-color: rgba(255, 255, 255, 0.72) !important;
+  background: rgba(255, 255, 255, 0.04) !important;
+}
+
+.ft-buyer-search {
+  max-width: 880px;
+  min-height: 42px;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #ffffff;
+}
+
+.ft-buyer-search:focus-within {
+  border-color: #f59e0b;
+  box-shadow: 0 0 0 1px #f59e0b;
+}
+
+.ft-buyer-search-submit {
+  width: 50px;
+  display: inline-grid;
+  place-items: center;
+  border: 0;
+  background: #febd69;
+  color: #111827;
+  cursor: pointer;
+}
+
+.ft-buyer-search-submit:hover {
+  background: #f3a847;
+}
+
+.ft-header-orders-link,
+.ft-cart-button {
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 8px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  text-decoration: none;
+}
+
+.ft-cart-button {
+  position: relative;
+}
+
+.ft-cart-count {
+  position: absolute;
+  top: -9px;
+  right: -10px;
+  min-width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: #f59e0b;
+  color: #111827;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.ft-marketplace-shell .ft-storefront-content {
+  max-width: 1500px !important;
+}
+
+.ft-marketplace-results-toolbar {
+  border-color: #d5d9d9 !important;
+  border-radius: 8px !important;
+  background: #ffffff !important;
+  box-shadow: none !important;
+}
+
+.ft-marketplace-product-card {
+  border: 1px solid #d5d9d9 !important;
+  border-radius: 6px !important;
+  background: #ffffff !important;
+  box-shadow: none !important;
+  transition: box-shadow 140ms ease, transform 140ms ease !important;
+}
+
+.ft-marketplace-product-card:hover {
+  transform: translateY(-1px) !important;
+  box-shadow: 0 3px 12px rgba(15, 23, 42, 0.12) !important;
+}
+
+.ft-marketplace-product-image {
+  background: #f7f8f8 !important;
+}
+
+.ft-marketplace-buy-meta {
+  border: 0 !important;
+  border-radius: 6px !important;
+  background: #f7f8f8 !important;
+}
+
+.ft-add-cart-action,
+.ft-amazon-primary {
+  border: 1px solid #f0c14b !important;
+  border-radius: 999px !important;
+  background: #ffd814 !important;
+  color: #111827 !important;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08) !important;
+}
+
+.ft-add-cart-action:hover,
+.ft-amazon-primary:hover {
+  background: #f7ca00 !important;
+}
+
+.ft-amazon-secondary {
+  border: 1px solid #d5d9d9 !important;
+  border-radius: 999px !important;
+  background: #ffffff !important;
+  color: #111827 !important;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06) !important;
+}
+
+.ft-amazon-secondary:hover {
+  background: #f7fafa !important;
+}
+
+.ft-cart-page {
+  max-width: 1420px !important;
+}
+
+/* Wishlist is intentionally removed from the active buyer purchase path. */
+a[href='/wishlist'],
+[aria-label*='wishlist' i],
+[aria-label='Save product'],
+[aria-label='Remove saved product'] {
+  display: none !important;
+}
+
+/* ---------- Seller admin: Shopify-style information density and hierarchy ---------- */
+.ft-admin-shell.ft-seller-admin {
+  background: #f6f6f7 !important;
+}
+
+.ft-seller-admin .ft-admin-header {
+  min-height: 56px !important;
+  border-bottom: 1px solid #d9dadd !important;
+  background: rgba(255, 255, 255, 0.97) !important;
+  box-shadow: none !important;
+}
+
+.ft-seller-admin .ft-admin-sidebar {
+  width: 242px !important;
+  border-right: 1px solid #d9dadd !important;
+  background: #ebebeb !important;
+  box-shadow: none !important;
+}
+
+.ft-seller-admin .ft-admin-sidebar nav button {
+  min-height: 34px !important;
+  border-radius: 8px !important;
+  font-weight: 650 !important;
+}
+
+.ft-seller-admin .ft-admin-sidebar nav button.is-active {
+  background: #ffffff !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.07) !important;
+}
+
+.ft-seller-admin .ft-admin-main {
+  background: #f6f6f7 !important;
+}
+
+.ft-seller-admin .ft-shopify-card,
+.ft-seller-admin [class*='rounded-3xl'][class*='bg-card'] {
+  border-color: #dedfe2 !important;
+  border-radius: 12px !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06) !important;
+}
+
+.ft-seller-admin .ft-admin-toolbar-search {
+  border-color: #c9cccf !important;
+  border-radius: 9px !important;
+  background: #ffffff !important;
+  box-shadow: inset 0 1px 0 rgba(0, 0, 0, 0.03) !important;
+}
+
+/* Seller sidebar must stay seller-focused. Preview/switching live elsewhere. */
+.ft-seller-admin .ft-admin-sidebar a[href^='/marketplace'],
+.ft-seller-admin .ft-admin-sidebar a[href='/account'] {
+  display: none !important;
+}
+
+/* The floating command pill caused the sidebar collision shown in production. */
+body[data-route='seller-dashboard'] .ft-command-trigger,
+body[data-route='marketplace'] .ft-command-trigger,
+body[data-route='product-detail'] .ft-command-trigger,
+body[data-route='cart'] .ft-command-trigger,
+body[data-route='buyer-dashboard'] .ft-command-trigger {
+  display: none !important;
+}
+
+/* ---------- Notification settings: clearer locked/optional states ---------- */
+button[aria-label*='(required)'] {
+  opacity: 1 !important;
+}
+
+button[aria-label*='(required)']::after {
+  content: '';
+  pointer-events: none;
+}
+
+@media (max-width: 1100px) {
+  .ft-buyer-header .ft-workspace-label {
+    display: none !important;
+  }
+
+  .ft-buyer-search {
+    max-width: none;
+  }
+}
+
+@media (max-width: 767px) {
+  .ft-marketplace-shell {
+    background: #f5f6f6 !important;
+  }
+
+  .ft-marketplace-product-card {
+    border-radius: 8px !important;
+  }
+}
