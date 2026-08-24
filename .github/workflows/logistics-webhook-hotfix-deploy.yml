@@ -1,3 +1,4 @@
+# Dedicated deployment for FabricTrad's provider-neutral shipment tracking callback.
 name: Logistics webhook hotfix deploy
 
 on:
