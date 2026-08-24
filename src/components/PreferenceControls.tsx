@@ -3,15 +3,14 @@
 import { useState } from 'react';
 import Icon from '@/components/ui/AppIcon';
 import { SUPPORTED_LANGUAGES, type SupportedLanguageCode } from '@/lib/india';
-import { useAppPreferences, type ThemePreference } from '@/contexts/AppPreferencesContext';
+import { useAppPreferences } from '@/contexts/AppPreferencesContext';
 
 export default function PreferenceControls({ compact = false }: { compact?: boolean }) {
   const { language, setLanguage, theme, setTheme, resolvedTheme, t } = useAppPreferences();
   const [languageOpen, setLanguageOpen] = useState(false);
 
-  const cycleTheme = () => {
-    const order: ThemePreference[] = ['light', 'dark', 'system'];
-    setTheme(order[(order.indexOf(theme) + 1) % order.length]);
+  const toggleTheme = () => {
+    setTheme(resolvedTheme === 'dark' ? 'light' : 'dark');
   };
 
   return (
@@ -68,15 +67,12 @@ export default function PreferenceControls({ compact = false }: { compact?: bool
 
       <button
         type="button"
-        onClick={cycleTheme}
+        onClick={toggleTheme}
         className="flex h-10 w-10 items-center justify-center rounded-full border border-border bg-card text-foreground shadow-sm transition hover:border-primary/40 hover:text-primary"
-        title={`${t('preferences.theme')}: ${theme}`}
-        aria-label={`${t('preferences.theme')}: ${theme}`}
+        title={`${t('preferences.theme')}: ${theme === 'dark' ? 'Dark' : 'Light'}`}
+        aria-label={`Switch to ${resolvedTheme === 'dark' ? 'light' : 'dark'} theme`}
       >
-        <Icon
-          name={theme === 'system' ? 'ComputerDesktopIcon' : resolvedTheme === 'dark' ? 'MoonIcon' : 'SunIcon'}
-          size={18}
-        />
+        <Icon name={resolvedTheme === 'dark' ? 'SunIcon' : 'MoonIcon'} size={18} />
       </button>
     </div>
   );
