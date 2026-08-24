@@ -1,0 +1,211 @@
+/* FabricTrad light-first commerce correction layer.
+   Loaded last. Prevents accidental system-dark / negative-looking UI and normalises
+   public, authentication, buyer, seller and admin surfaces without removing features. */
+
+:root {
+  --ft-page: #f6f7f9;
+  --ft-surface: #ffffff;
+  --ft-surface-2: #fbfbfc;
+  --ft-warm: #fff8f3;
+  --ft-ink: #18212f;
+  --ft-muted: #667085;
+  --ft-line: #dde2e8;
+  --ft-line-strong: #c7ced7;
+  --ft-orange: #d85b24;
+  --ft-orange-strong: #b84416;
+  --ft-orange-soft: #fff0e8;
+  --ft-teal: #147d78;
+  --ft-teal-soft: #eaf8f6;
+  --ft-green: #168a52;
+  --ft-shadow: 0 12px 35px rgba(20, 30, 45, .08);
+  --ft-shadow-sm: 0 2px 10px rgba(20, 30, 45, .06);
+}
+
+html:not(.dark) { color-scheme: light !important; background: var(--ft-page); }
+html:not(.dark) body.ft-root { background: var(--ft-page) !important; color: var(--ft-ink) !important; }
+html:not(.dark) .ft-root { --background: 0 0% 97%; --foreground: 216 31% 14%; }
+
+/* Global clarity */
+html:not(.dark) .ft-root :where(input, select, textarea) {
+  color: var(--ft-ink);
+  background-color: #fff;
+  border-color: var(--ft-line-strong);
+}
+html:not(.dark) .ft-root :where(input, textarea)::placeholder { color: #98a2b3; }
+html:not(.dark) .ft-root :where(input, select, textarea):focus {
+  border-color: #e18358 !important;
+  box-shadow: 0 0 0 3px rgba(216,91,36,.12) !important;
+}
+html:not(.dark) .ft-root :where(button, a) { text-decoration-thickness: 1px; }
+html:not(.dark) .ft-root :where(.ft-section,.ft-feature-card,.ft-shopify-card,.ft-admin-card) {
+  background: #fff !important;
+  border-color: var(--ft-line) !important;
+  color: var(--ft-ink) !important;
+}
+
+/* Shared commerce header */
+html:not(.dark) .ft-commerce-header {
+  background: rgba(255,255,255,.96) !important;
+  border-bottom: 1px solid var(--ft-line) !important;
+  box-shadow: 0 1px 0 rgba(15,23,42,.03), 0 8px 24px rgba(15,23,42,.04) !important;
+  backdrop-filter: blur(18px) saturate(145%);
+}
+html:not(.dark) .ft-commerce-header :where(.ft-header-link,.ft-header-brand,.ft-header-browse,.ft-header-search-trigger) { color: #344054 !important; }
+html:not(.dark) .ft-commerce-header .ft-header-link:hover,
+html:not(.dark) .ft-commerce-header .ft-header-link.is-current { color: #111827 !important; background: #f1f3f5 !important; }
+html:not(.dark) .ft-workspace-button,
+html:not(.dark) .ft-icon-button,
+html:not(.dark) .ft-header-search-trigger,
+html:not(.dark) .ft-header-browse { background: #fff !important; color: #344054 !important; border-color: var(--ft-line) !important; }
+html:not(.dark) .ft-workspace-menu,
+html:not(.dark) .ft-mobile-commerce-menu { background: #fff !important; color: var(--ft-ink) !important; border-color: var(--ft-line) !important; box-shadow: var(--ft-shadow) !important; }
+html:not(.dark) .ft-workspace-link { color: #344054 !important; }
+html:not(.dark) .ft-workspace-link:hover { background: #f4f6f8 !important; color: #111827 !important; }
+
+/* Public landing — futuristic structure, light premium execution */
+html:not(.dark) .ft-future-landing {
+  color: var(--ft-ink) !important;
+  background:
+    radial-gradient(circle at 8% 6%, rgba(244,134,77,.22), transparent 30rem),
+    radial-gradient(circle at 92% 8%, rgba(72,177,170,.18), transparent 32rem),
+    linear-gradient(180deg, #fffaf6 0%, #f8fafc 52%, #f2f6f7 100%) !important;
+}
+html:not(.dark) .ft-future-landing::before {
+  opacity: .42 !important;
+  background-image: linear-gradient(rgba(17,24,39,.05) 1px,transparent 1px), linear-gradient(90deg,rgba(17,24,39,.05) 1px,transparent 1px) !important;
+}
+html:not(.dark) .ft-future-nav {
+  border-color: rgba(209,213,219,.9) !important;
+  background: rgba(255,255,255,.88) !important;
+  box-shadow: 0 14px 36px rgba(15,23,42,.08) !important;
+}
+html:not(.dark) .ft-future-nav a { color: #475467 !important; }
+html:not(.dark) .ft-future-nav a:hover { color: #111827 !important; background: #f4f6f8; }
+html:not(.dark) .ft-future-brand { color: #17202a !important; }
+html:not(.dark) .ft-future-kicker { border-color: #b9ddd9 !important; background: var(--ft-teal-soft) !important; color: #126761 !important; }
+html:not(.dark) .ft-future-hero h1 { color: #121926 !important; }
+html:not(.dark) .ft-future-hero h1 em {
+  background: linear-gradient(90deg,#b84416 0%,#ef7b41 48%,#147d78 100%) !important;
+  -webkit-background-clip: text !important; background-clip: text !important; color: transparent !important;
+}
+html:not(.dark) .ft-future-hero-copy { color: #667085 !important; }
+html:not(.dark) .ft-future-trustline { color: #667085 !important; }
+html:not(.dark) .ft-future-orbit::before { border-color: rgba(100,116,139,.18) !important; box-shadow: inset 0 0 70px rgba(72,177,170,.05) !important; }
+html:not(.dark) .ft-future-core { border-color: rgba(148,163,184,.28) !important; background: rgba(255,255,255,.78) !important; box-shadow: 0 30px 80px rgba(15,23,42,.12) !important; }
+html:not(.dark) .ft-future-float-card,
+html:not(.dark) .ft-future-panel {
+  border-color: #e0e5eb !important;
+  background: rgba(255,255,255,.84) !important;
+  color: var(--ft-ink) !important;
+  box-shadow: 0 16px 45px rgba(15,23,42,.07) !important;
+}
+html:not(.dark) .ft-future-panel.large { background: radial-gradient(circle at 82% 15%,rgba(244,134,77,.12),transparent 38%),rgba(255,255,255,.88) !important; }
+html:not(.dark) .ft-future-panel :where(h2,h3),
+html:not(.dark) .ft-future-float-card strong { color: #17202a !important; }
+html:not(.dark) .ft-future-panel p,
+html:not(.dark) .ft-future-float-card p { color: #667085 !important; }
+html:not(.dark) .ft-future-panel-icon { background: #fff4ed !important; border-color: #f3d5c5 !important; color: #bd4a19 !important; }
+html:not(.dark) .ft-future-step { background: #f7f9fb !important; }
+html:not(.dark) .ft-future-step span { color: #475467 !important; }
+html:not(.dark) .ft-future-footer { color: #667085 !important; border-color: #dfe4ea !important; }
+html:not(.dark) .ft-future-footer :where(a,span) { color: #475467 !important; }
+
+/* Authentication — no negative background or disappearing text */
+html:not(.dark) .ft-auth-page,
+html:not(.dark) .dark .ft-auth-page {
+  color-scheme: light !important;
+  color: var(--ft-ink) !important;
+  background:
+    radial-gradient(circle at 8% 8%, rgba(244,134,77,.20), transparent 30rem),
+    radial-gradient(circle at 88% 12%, rgba(72,177,170,.16), transparent 31rem),
+    linear-gradient(135deg,#fffaf6 0%,#f8fafc 48%,#f1f6f7 100%) !important;
+}
+html:not(.dark) .ft-auth-page::before { opacity:.42 !important; background-image:linear-gradient(rgba(17,24,39,.045) 1px,transparent 1px),linear-gradient(90deg,rgba(17,24,39,.045) 1px,transparent 1px) !important; }
+html:not(.dark) .ft-auth-brandline,
+html:not(.dark) .ft-auth-title { color: #111827 !important; }
+html:not(.dark) .ft-auth-eyebrow { color: var(--ft-orange-strong) !important; }
+html:not(.dark) .ft-auth-subtitle { color: #667085 !important; }
+html:not(.dark) .ft-auth-flow-card { background: rgba(255,255,255,.82) !important; border-color: #dde2e8 !important; box-shadow: var(--ft-shadow-sm) !important; }
+html:not(.dark) .ft-auth-flow-card span { color: #344054 !important; }
+html:not(.dark) .ft-auth-card { background: rgba(255,255,255,.97) !important; color: #17202a !important; border-color: #d9e0e7 !important; box-shadow: 0 28px 70px rgba(15,23,42,.12) !important; }
+html:not(.dark) .ft-auth-card h2 { color: #111827 !important; }
+html:not(.dark) .ft-auth-card :where(label,.ft-auth-copy,.ft-auth-muted) { color: #5f6b7a !important; }
+html:not(.dark) .ft-auth-field { background:#fff !important; color:#17202a !important; border-color:#cbd3dc !important; }
+html:not(.dark) .ft-auth-google { background:#fff !important; color:#243040 !important; border-color:#cdd5de !important; }
+html:not(.dark) .ft-auth-info { background:#f8fafc !important; color:#5f6b7a !important; border-color:#dce3ea !important; }
+
+/* Marketplace — Amazon-like clarity, not dark/negative */
+html:not(.dark) .ft-storefront,
+html:not(.dark) .ft-marketplace-shell { background: #f6f7f9 !important; color: var(--ft-ink) !important; }
+html:not(.dark) .ft-marketplace-hero {
+  color: #17202a !important;
+  border-bottom-color: #dfe3e8 !important;
+  background:
+    radial-gradient(circle at 9% 30%, rgba(239,123,65,.16), transparent 28rem),
+    radial-gradient(circle at 84% 18%, rgba(72,177,170,.14), transparent 34rem),
+    linear-gradient(135deg,#fffaf6,#f5f8fb 54%,#eef6f5) !important;
+}
+html:not(.dark) .ft-marketplace-heading h1 { color: #111827 !important; }
+html:not(.dark) .ft-marketplace-heading p { color: #5f6b7a !important; }
+html:not(.dark) .ft-marketplace-search { border: 2px solid #e8793f !important; background:#fff !important; box-shadow: 0 8px 26px rgba(15,23,42,.10) !important; }
+html:not(.dark) .ft-marketplace-category-row { border-color:#dce2e8 !important; }
+html:not(.dark) .ft-marketplace-category { color:#475467 !important; border-right:1px solid #e6eaee !important; }
+html:not(.dark) .ft-marketplace-category:hover,
+html:not(.dark) .ft-marketplace-category.is-active { background:#fff4ed !important; color:#9f381c !important; border-bottom-color:#d85b24 !important; }
+html:not(.dark) .ft-marketplace-quick-filter { background:#fff !important; color:#475467 !important; border-color:#d6dde5 !important; }
+html:not(.dark) .ft-marketplace-quick-filter:hover,
+html:not(.dark) .ft-marketplace-quick-filter.is-active { background:#fff0e8 !important; color:#9f381c !important; border-color:#efb18f !important; }
+html:not(.dark) .ft-marketplace-utility-link { color:#475467 !important; }
+html:not(.dark) .ft-marketplace-utility-link:hover { color:#111827 !important; }
+html:not(.dark) .ft-marketplace-filters-card,
+html:not(.dark) .ft-marketplace-results-toolbar,
+html:not(.dark) .ft-marketplace-product-card { background:#fff !important; color:#17202a !important; border-color:#dce2e8 !important; }
+html:not(.dark) .ft-marketplace-filters-card { border:1px solid #dce2e8 !important; border-radius:14px !important; padding:16px !important; box-shadow:var(--ft-shadow-sm) !important; }
+html:not(.dark) .ft-marketplace-product-card { box-shadow:0 2px 10px rgba(15,23,42,.05) !important; }
+html:not(.dark) .ft-marketplace-product-card:hover { box-shadow:0 12px 28px rgba(15,23,42,.10) !important; border-color:#bfc8d2 !important; }
+html:not(.dark) .ft-marketplace-product-card :where(h2,h3,strong) { color:#17202a !important; }
+html:not(.dark) .ft-marketplace-product-card :where(p,small,span) { text-shadow:none; }
+
+/* Buyer, seller and admin operational workspaces */
+html:not(.dark) .ft-admin-shell,
+html:not(.dark) .ft-buyer-shell,
+html:not(.dark) .ft-dashboard-shell { background:#f4f6f8 !important; color:var(--ft-ink) !important; }
+html:not(.dark) .ft-admin-header,
+html:not(.dark) .ft-admin-sidebar { background:#fff !important; border-color:#dce2e8 !important; color:#344054 !important; }
+html:not(.dark) .ft-admin-main { background:#f4f6f8 !important; color:var(--ft-ink) !important; }
+html:not(.dark) .ft-admin-sidebar nav button { color:#475467 !important; }
+html:not(.dark) .ft-admin-sidebar nav button:hover { background:#f2f4f7 !important; color:#111827 !important; }
+html:not(.dark) .ft-admin-sidebar nav button[aria-current='page'],
+html:not(.dark) .ft-admin-sidebar nav button.is-active { background:#fff0e8 !important; color:#9f381c !important; }
+html:not(.dark) .ft-admin-main :where(section,article,table) { color:var(--ft-ink); }
+html:not(.dark) .ft-admin-main :where(.bg-card,.bg-background) { background-color:#fff !important; }
+html:not(.dark) .ft-admin-main :where(.text-foreground) { color:#17202a !important; }
+html:not(.dark) .ft-admin-main :where(.text-muted-foreground) { color:#667085 !important; }
+html:not(.dark) .ft-admin-main table { background:#fff; border-color:#e1e6eb; }
+html:not(.dark) .ft-admin-main :where(th,td) { border-color:#edf0f3; }
+
+/* Generic light-mode repair for Tailwind dark surfaces that leaked into workspaces */
+html:not(.dark) .ft-root :where(.bg-slate-950,.bg-slate-900,.bg-gray-950,.bg-gray-900) { background-color:#fff !important; }
+html:not(.dark) .ft-root :where(.text-white,.text-slate-100,.text-gray-100) { color:#17202a; }
+html:not(.dark) .ft-root :where(.border-white\/10,.border-white\/15,.border-slate-800,.border-gray-800) { border-color:#dce2e8 !important; }
+
+/* Ensure state is not communicated by color alone */
+html:not(.dark) .ft-root :where([aria-current='page'],.is-active,.is-current) { font-weight:800; }
+
+/* Phone/tablet */
+@media (max-width: 900px) {
+  html:not(.dark) .ft-future-nav { width:calc(100% - 20px) !important; }
+  html:not(.dark) .ft-marketplace-filters-card { padding:14px !important; }
+  .ft-marketplace-heading { grid-template-columns:1fr !important; }
+}
+
+@media (max-width: 640px) {
+  html:not(.dark) .ft-commerce-header { min-height:58px; }
+  html:not(.dark) .ft-future-landing,
+  html:not(.dark) .ft-auth-page { overflow-x:hidden; }
+  html:not(.dark) .ft-marketplace-search { border-width:1px !important; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ft-root *, .ft-root *::before, .ft-root *::after { animation-duration:.01ms !important; animation-iteration-count:1 !important; transition-duration:.01ms !important; }
+}
