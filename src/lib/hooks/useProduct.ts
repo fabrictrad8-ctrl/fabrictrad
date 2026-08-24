@@ -9,6 +9,8 @@ import type {
 } from '@/lib/catalog';
 import { createClient } from '@/lib/supabase/client';
 
+const NO_IMAGE = '/assets/images/no_image.png';
+
 const EMPTY_PRODUCT: CatalogProduct = {
   id: 'unavailable',
   rawProductId: null,
@@ -30,7 +32,7 @@ const EMPTY_PRODUCT: CatalogProduct = {
   reviews: 0,
   badge: null,
   verified: false,
-  image: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64',
+  image: NO_IMAGE,
   images: [],
   media: [],
   alt: 'Product unavailable',
@@ -119,9 +121,7 @@ function mapSellerProduct(
 ): CatalogProduct {
   const selectedVariant =
     variants.find((variant) => variant.id === selectedVariantId) || variants[0] || null;
-  const parentImage = String(
-    row.image_url || 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64'
-  );
+  const parentImage = String(row.image_url || NO_IMAGE);
   const parentImages = Array.isArray(row.image_urls) ? row.image_urls.map(String) : [];
   const variantImages = variants.flatMap((variant) => variant.images);
   const selectedMedia = selectedVariant?.media || [];
