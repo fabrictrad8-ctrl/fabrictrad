@@ -31,8 +31,9 @@ const safeNextPath = (value: unknown) => {
 
 const destinationFor = (role: AccountRole, requestedNext: string | null) => {
   if (role === 'admin_staff' || role === 'super_admin') return '/admin-portal';
+  if (role === 'seller') return '/seller-dashboard';
   if (requestedNext) return requestedNext;
-  return role === 'seller' ? '/account' : '/marketplace';
+  return '/marketplace';
 };
 
 const setupRequired = (requestedRole: 'buyer' | 'seller') =>
@@ -113,11 +114,11 @@ export async function POST(request: NextRequest) {
     role = profile.role;
 
     if (role !== 'admin_staff' && role !== 'super_admin') {
-      const canBuy = profile.can_buy ?? true;
+      const canBuy = role === 'seller' ? false : (profile.can_buy ?? role === 'buyer');
       const canSell = profile.can_sell ?? role === 'seller';
       const [buyerResult, sellerResult] = await Promise.all([
         canBuy
-          ? supabase.from('buyer_profiles').select('id').eq('user_id', data.user.id).maybeSingle()
+          ? supabase.from('buyer_profiles').select('id').eq('user_id', data.user.id).eq('is_active', true).maybeSingle()
           : Promise.resolve({ data: { id: 'not-required' }, error: null }),
         canSell
           ? supabase.from('seller_profiles').select('id').eq('user_id', data.user.id).maybeSingle()
@@ -129,7 +130,7 @@ export async function POST(request: NextRequest) {
         !buyerResult.data?.id ||
         !sellerResult.data?.id
       ) {
-        return setupRequired(requestedRole);
+        return setupRequired(role === 'seller' ? 'seller' : requestedRole);
       }
     }
   }
