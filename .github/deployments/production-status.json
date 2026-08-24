@@ -1,6 +1,6 @@
 {
-  "sourceCommit": "2d2af86be83f87b31141107343ac024967fd9ece",
-  "recordedAt": "2026-08-24T22:11:35.482Z",
+  "sourceCommit": "7c07f52f41268171cfa4fd74bc7d1fc998fe71fb",
+  "recordedAt": "2026-08-24T22:14:16.881Z",
   "install": "success",
   "cloudflareAuthentication": "success",
   "razorpayApiCredentialCheckStep": "success",
@@ -15,10 +15,10 @@
   },
   "validation": "success",
   "validationLogTail": "=== Type check ===\n> fabrictrad@0.1.0 type-check\n> tsc --noEmit\n=== Lint (errors only) ===\n> fabrictrad@0.1.0 lint\n> eslint . --quiet\n=== Account lifecycle ===\nAccount lifecycle verification passed (19 required files checked).\n=== Marketplace integrity ===\nMarketplace integrity verification passed (22 required files checked).\n=== Mobile, WhatsApp and AI ===\nMobile persistence, flexible seller catalogue, WhatsApp ingestion and dual fully-AI Virtual Drape verification passed.",
-  "workerBuild": "success",
-  "workerDeployment": "success",
-  "liveAccountApiVerification": "success",
-  "liveAiDrapeVerification": "success",
-  "liveRazorpayWebhookVerification": "success",
-  "deploymentLogTail": " ⛅️ wrangler 4.125.0\n────────────────────\nCloudflare collects anonymous telemetry about your usage of Wrangler. Learn more at https://github.com/cloudflare/workers-sdk/tree/main/packages/wrangler/telemetry.md\n🌀 Building list of assets...\n✨ Read 244 files from the assets directory /home/runner/work/fabrictrad/fabrictrad/.open-next/assets\n🌀 Starting asset upload...\n🌀 Found 12 new or modified static assets to upload. Proceeding with upload...\n+ /BUILD_ID\n+ /_next/static/chunks/app/admin-login/page-973be6e1e21885e3.js\n+ /_next/static/chunks/app/login/page-1d53f7917e8b5b81.js\n+ /_next/static/chunks/app/buyer-dashboard/page-2da67703577add36.js\n+ /_next/static/chunks/app/register/page-3134a9a8ef8efff5.js\n+ /_next/static/chunks/4493-a192220b201b212f.js\n+ /_next/static/chunks/9241-8599a57203066e31.js\n+ /_next/static/chunks/app/product-detail/page-94b65b203316bc88.js\n+ /_next/static/chunks/app/layout-d3f18d7a960c7eef.js\n+ /_next/static/chunks/app/page-fba5e5185b53d274.js\n+ /_next/static/chunks/app/marketplace/page-2e4db34670638e16.js\n+ /_next/static/chunks/app/seller-dashboard/page-c1b627feaebdaa2f.js\nUploaded 4 of 12 assets\nUploaded 8 of 12 assets\nUploaded 12 of 12 assets\n✨ Success! Uploaded 12 files (111 already uploaded) (1.42 sec)\nTotal Upload: 13282.05 KiB / gzip: 2135.05 KiB\nWorker Startup Time: 38 ms\nYour Worker has access to the following bindings:\nBinding            Resource      \nenv.ASSETS         Assets        \nUploaded fabrictrad (5.52 sec)\nNo targets deployed for fabrictrad (0.27 sec)\nCurrent Version ID: ae73072e-efc3-4750-af25-a0893e2cdb01"
+  "workerBuild": "cancelled",
+  "workerDeployment": "skipped",
+  "liveAccountApiVerification": "skipped",
+  "liveAiDrapeVerification": "skipped",
+  "liveRazorpayWebhookVerification": "skipped",
+  "deploymentLogTail": null
 }
