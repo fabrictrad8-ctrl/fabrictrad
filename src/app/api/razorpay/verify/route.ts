@@ -8,6 +8,7 @@ import {
   verifyCheckoutSignature,
 } from '@/lib/razorpayIntegrity';
 import { getRazorpayCredentials } from '@/lib/razorpayCredentials';
+import { ensureAutomaticInvoice } from '@/lib/server/automaticInvoice';
 
 type PaymentKind = 'bulk' | 'catalog';
 type VerifyBody = {
@@ -239,6 +240,7 @@ export async function POST(request: NextRequest) {
 
   const paymentTable = kind === 'catalog' ? 'catalog_order_payments' : 'bulk_order_payments';
   const nextStatus = payment.status === 'captured' || payment.captured ? 'captured' : 'authorized';
+  const capturedAt = nextStatus === 'captured' ? new Date().toISOString() : null;
   const update: Record<string, unknown> = {
     razorpay_payment_id: payment.id,
     razorpay_signature: signature,
@@ -250,7 +252,7 @@ export async function POST(request: NextRequest) {
     failure_reason: null,
     updated_at: new Date().toISOString(),
   };
-  if (nextStatus === 'captured') update.captured_at = new Date().toISOString();
+  if (capturedAt) update.captured_at = capturedAt;
   const { error: updateError } = await admin
     .from(paymentTable)
     .update(update)
@@ -262,6 +264,17 @@ export async function POST(request: NextRequest) {
       ? await reconcileOrderPayment({ admin, kind, orderId: fabrictradOrderId })
       : null;
 
+  const automaticInvoice =
+    nextStatus === 'captured' && reconciliation?.paymentStatus === 'paid'
+      ? await ensureAutomaticInvoice({
+          admin,
+          kind,
+          orderId: fabrictradOrderId,
+          paymentId: payment.id,
+          capturedAt,
+        })
+      : null;
+
   return json({
     verified: true,
     status: nextStatus,
@@ -269,9 +282,20 @@ export async function POST(request: NextRequest) {
     orderId: fabrictradOrderId,
     orderType: kind,
     reconciliation,
+    invoice: automaticInvoice?.invoice
+      ? {
+          id: automaticInvoice.invoice.id,
+          number: automaticInvoice.invoice.invoice_number,
+          emailed: automaticInvoice.emailed,
+        }
+      : null,
     message:
       nextStatus === 'captured'
-        ? 'Payment captured and order records reconciled.'
+        ? reconciliation?.paymentStatus === 'paid'
+          ? automaticInvoice?.invoice
+            ? 'Payment captured, order reconciled and invoice generated.'
+            : 'Payment captured and order reconciled. Invoice generation requires seller billing details to be complete.'
+          : 'Payment captured and order records reconciled.'
         : 'Payment authorised. Capture confirmation will be completed by the signed webhook.',
   });
 }
