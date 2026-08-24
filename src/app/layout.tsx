@@ -23,6 +23,8 @@ import RouteExperienceEnhancer from '@/components/RouteExperienceEnhancer';
 import PageContinuity from '@/components/PageContinuity';
 import { AppPreferencesProvider } from '@/contexts/AppPreferencesContext';
 
+const PRODUCTION_UI_RELEASE = 'fabrictrad-commerce-ux-2026-08-25';
+
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
@@ -58,8 +60,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning data-fabrictrad-release={PRODUCTION_UI_RELEASE}>
       <head>
+        <meta name="fabrictrad-release" content={PRODUCTION_UI_RELEASE} />
         <script
           dangerouslySetInnerHTML={{
             __html: `(function(){try{localStorage.setItem('fabrictrad:theme','light');document.documentElement.classList.remove('dark');document.documentElement.dataset.theme='light';document.documentElement.style.colorScheme='light';}catch(e){document.documentElement.classList.remove('dark');document.documentElement.dataset.theme='light';document.documentElement.style.colorScheme='light';}})();`,
