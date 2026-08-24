@@ -9,7 +9,7 @@ import Icon from '@/components/ui/AppIcon';
 import { trackFunnelStep } from '@/lib/analytics';
 import { productDetailHref, type CatalogProduct, type CatalogVariant } from '@/lib/catalog';
 import { createClient } from '@/lib/supabase/client';
-import { useWishlist } from '@/lib/hooks/useWishlist';
+import { useCart } from '@/lib/hooks/useCart';
 import { useAuth } from '@/contexts/AuthContext';
 
 const PAGE_SIZE = 16;
@@ -112,11 +112,11 @@ export default function MarketplaceGrid() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { profile } = useAuth();
+  const { add } = useCart();
   const [products, setProducts] = useState<CatalogProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [view, setView] = useState<'grid' | 'list'>('grid');
-  const { has, toggle } = useWishlist();
 
   useEffect(() => { trackFunnelStep('marketplace_view', { page: 'marketplace' }); }, []);
 
@@ -198,12 +198,22 @@ export default function MarketplaceGrid() {
     router.replace(`${pathname}${next.size ? `?${next.toString()}` : ''}`, { scroll: false });
   };
 
+  const addProductToCart = (product: CatalogProduct) => {
+    const defaultVariant = product.variants?.find((variant) => variant.available > 0) || null;
+    const quantity = Number(defaultVariant?.moq ?? product.moq ?? 1);
+    const item = add(product, defaultVariant, quantity);
+    trackFunnelStep('add_to_cart', { product_id: product.id, variant_id: defaultVariant?.id || null });
+    toast.success(
+      `${product.name}${item.variantLabel ? ` · ${item.variantLabel}` : ''} added to cart.`
+    );
+  };
+
   return (
     <section id="marketplace-results" className="scroll-mt-24">
       <div className="ft-marketplace-results-toolbar mb-3 flex flex-col gap-3 border p-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-sm font-850 text-foreground">{loading ? 'Loading products…' : `${filteredProducts.length.toLocaleString('en-IN')} result${filteredProducts.length === 1 ? '' : 's'}`}</p>
-          <p className="text-xs text-muted-foreground">Only approved, in-stock products from verified sellers are shown.</p>
+          <p className="text-xs text-muted-foreground">Approved, in-stock products from verified sellers.</p>
         </div>
         <div className="flex items-center gap-2">
           <button type="button" onClick={() => void loadProducts()} disabled={loading} className="ft-icon-button" aria-label="Refresh marketplace"><Icon name="ArrowPathIcon" size={17} className={loading ? 'animate-spin' : ''} /></button>
@@ -221,7 +231,6 @@ export default function MarketplaceGrid() {
       {!loading && visibleProducts.length > 0 && (
         <div className={view === 'grid' ? 'grid gap-3 sm:grid-cols-2 xl:grid-cols-4' : 'space-y-3'}>
           {visibleProducts.map((product) => {
-            const saved = has(product.id);
             const visibleColors = product.variants?.slice(0, 6) || [];
             const lowAvailability = product.available <= Math.max(product.moq * 3, 10);
             return (
@@ -235,12 +244,9 @@ export default function MarketplaceGrid() {
                 </Link>
 
                 <div className="flex min-w-0 flex-1 flex-col p-3.5">
-                  <div className="flex items-start gap-2">
-                    <div className="min-w-0 flex-1">
-                      <Link href={productDetailHref(product)} className="block line-clamp-2 text-[14px] font-750 leading-5 text-foreground hover:text-[#b12704]">{product.name}</Link>
-                      <div className="mt-1 flex items-center gap-1 text-[11px] text-muted-foreground"><Icon name="ShieldCheckIcon" size={12} className="text-success" /><span className="truncate">{product.seller}</span></div>
-                    </div>
-                    <button type="button" onClick={async () => { try { const added = await toggle(product); toast.success(added ? 'Saved to wishlist' : 'Removed from wishlist'); } catch (wishlistError) { toast.error(wishlistError instanceof Error ? wishlistError.message : 'Wishlist could not be updated.'); } }} className={`ft-icon-button !h-8 !w-8 shrink-0 ${saved ? '!border-error/20 !bg-error/10 !text-error' : ''}`} aria-label={`${saved ? 'Remove' : 'Save'} ${product.name}`}><Icon name="HeartIcon" size={16} variant={saved ? 'solid' : 'outline'} /></button>
+                  <div className="min-w-0">
+                    <Link href={productDetailHref(product)} className="block line-clamp-2 text-[14px] font-750 leading-5 text-foreground hover:text-[#b12704]">{product.name}</Link>
+                    <div className="mt-1 flex items-center gap-1 text-[11px] text-muted-foreground"><Icon name="ShieldCheckIcon" size={12} className="text-success" /><span className="truncate">{product.seller}</span></div>
                   </div>
 
                   {product.rating > 0 && <div className="mt-1.5 flex items-center gap-1 text-[11px]"><span className="font-800 text-[#b45309]">{product.rating.toFixed(1)}</span><span className="text-[#f59e0b]">★★★★★</span><span className="text-muted-foreground">({product.reviews})</span></div>}
@@ -265,7 +271,19 @@ export default function MarketplaceGrid() {
                     {(product.variantCount || 0) > 0 && <span className="rounded-full bg-muted px-2 py-1 font-750 text-muted-foreground">{product.variantCount} variants</span>}
                   </div>
 
-                  <Link href={productDetailHref(product)} className="mt-3 inline-flex min-h-9 items-center justify-center rounded-lg border border-[#d5a129] bg-[#ffd814] px-3 py-2 text-xs font-850 text-[#111827] shadow-sm transition hover:bg-[#f7ca00]">View options & order</Link>
+                  <div className="mt-auto grid grid-cols-[1fr_auto] gap-2 pt-3">
+                    <button
+                      type="button"
+                      onClick={() => addProductToCart(product)}
+                      disabled={product.available <= 0}
+                      className="ft-add-cart-action inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-[#f0c14b] bg-[#ffd814] px-3 py-2 text-xs font-850 text-[#111827] shadow-sm transition hover:bg-[#f7ca00] disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <Icon name="ShoppingCartIcon" size={15} /> Add to cart
+                    </button>
+                    <Link href={productDetailHref(product)} className="ft-secondary-action inline-flex min-h-10 items-center justify-center px-3 text-xs" aria-label={`View details for ${product.name}`}>
+                      Details
+                    </Link>
+                  </div>
                 </div>
               </article>
             );
