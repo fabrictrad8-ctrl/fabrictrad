@@ -184,7 +184,7 @@ export async function GET(request: NextRequest) {
     : await serverClient.auth.getUser();
   if (error || !data.user) return json({ ready: false }, 401);
 
-  const user = data.user;
+  let user = data.user;
   let { data: profile } = await serverClient
     .from('user_profiles')
     .select('role,can_buy,can_sell,phone')
@@ -193,9 +193,7 @@ export async function GET(request: NextRequest) {
 
   if (!profile && !token) {
     const requestedRole: CommerceRole =
-      user.app_metadata?.role === 'seller' || user.user_metadata?.role === 'seller'
-        ? 'seller'
-        : 'buyer';
+      user.app_metadata?.role === 'seller' || user.user_metadata?.role === 'seller' ?'seller' :'buyer';
     try {
       await provisionAuthenticatedAccountWithRecovery(serverClient, user, requestedRole);
       const refreshed = await serverClient

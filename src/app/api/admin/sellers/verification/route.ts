@@ -162,7 +162,11 @@ async function loadApplications(): Promise<ApplicationRow[]> {
   const userIds = sellers.map((seller) => seller.user_id);
   const sellerIds = sellers.map((seller) => seller.id);
 
-  const [{ data: userData, error: userError }, { data: registrationData, error: registrationError }, { data: bankData, error: bankError }] = await Promise.all([
+  const [
+    { data: userData, error: userError },
+    { data: registrationData, error: registrationError },
+    { data: bankData, error: bankError }
+  ] = await Promise.all([
     admin
       .from('user_profiles')
       .select('id,full_name,email,phone,is_active,can_sell')

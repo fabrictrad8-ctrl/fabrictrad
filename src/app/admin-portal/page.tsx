@@ -19,29 +19,25 @@ export default async function AdminPortalPage() {
   const cookieStore = await cookies();
   const isAuditAdmin =
     process.env.FABRICTRAD_ENABLE_AUDIT_ADMIN === 'true' &&
-    cookieStore.get(DEMO_COOKIE_NAME)?.value === 'admin';
+    cookieStore?.get(DEMO_COOKIE_NAME)?.value === 'admin';
 
   if (!isAuditAdmin) {
     const supabase = await createClient();
     const {
       data: { user },
-    } = await supabase.auth.getUser();
+    } = await supabase?.auth?.getUser();
 
     if (!user) redirect('/admin-login');
 
-    const { data: profile } = await supabase
-      .from('user_profiles')
-      .select('role, is_active')
-      .eq('id', user.id)
-      .maybeSingle();
+    const { data: profile } = await supabase?.from('user_profiles')?.select('role, is_active')?.eq('id', user?.id)?.maybeSingle();
 
     const authorisedAdministrator =
-      isConfiguredAdminEmail(user.email) &&
+      isConfiguredAdminEmail(user?.email) &&
       profile?.is_active === true &&
-      (profile.role === 'super_admin' || profile.role === 'admin_staff');
+      (profile?.role === 'super_admin' || profile?.role === 'admin_staff');
 
     if (!authorisedAdministrator) {
-      await supabase.auth.signOut();
+      await supabase?.auth?.signOut();
       redirect('/admin-login?error=not_authorised');
     }
   }

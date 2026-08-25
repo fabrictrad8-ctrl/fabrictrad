@@ -86,12 +86,14 @@ export default function SellerCourierSettings() {
     }
 
     const supabase = createClient();
-    const [{ data: seller, error: sellerError }, statusResponse] = await Promise.all([
+    const [sellerResult, statusResponse] = await Promise.all([
       supabase.from('seller_profiles').select('id').eq('user_id', user.id).maybeSingle(),
       fetch('/api/shiprocket/status', { cache: 'no-store', credentials: 'same-origin' }).catch(
         () => null
       ),
     ]);
+
+    const { data: seller, error: sellerError } = sellerResult;
 
     if (statusResponse?.ok) {
       setShiprocket((await statusResponse.json().catch(() => ({}))) as ShiprocketStatus);

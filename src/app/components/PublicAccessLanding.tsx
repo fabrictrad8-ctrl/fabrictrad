@@ -45,6 +45,10 @@ export default function PublicAccessLanding() {
             <a href="#platform">Platform</a>
             <a href="#capabilities">Capabilities</a>
             <a href="#trust">Trust & safety</a>
+            <Link href="/how-to-use" className="flex items-center gap-1.5">
+              <Icon name="AcademicCapIcon" size={14} />
+              How to use
+            </Link>
           </nav>
 
           <div className="ml-auto flex items-center gap-2">

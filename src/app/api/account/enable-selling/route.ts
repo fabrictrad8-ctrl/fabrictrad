@@ -121,7 +121,7 @@ export async function POST(request: NextRequest) {
     return json({ error: 'Seller details are invalid.' }, 400);
   }
 
-  const [{ data: profileData }, { data: sellerData }, { data: registrationData }] = await Promise.all([
+  const [profileResult, sellerResult, registrationResult] = await Promise.all([
     supabase
       .from('user_profiles')
       .select('full_name,phone,business_name,gstin,address_line1,city,state,pincode')
@@ -138,6 +138,10 @@ export async function POST(request: NextRequest) {
       .eq('user_id', user.id)
       .maybeSingle(),
   ]);
+
+  const profileData = profileResult.data;
+  const sellerData = sellerResult.data;
+  const registrationData = registrationResult.data;
 
   const existingProfile = (profileData as ExistingProfile | null) ?? null;
   const existingSeller = (sellerData as ExistingSeller | null) ?? null;

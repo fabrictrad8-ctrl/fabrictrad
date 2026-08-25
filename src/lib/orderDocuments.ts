@@ -77,13 +77,9 @@ export function openPrintableOrderDocument(document: PrintableOrderDocument) {
   if (typeof window === 'undefined') return;
 
   const title =
-    document.documentType === 'payment_receipt'
-      ? 'FabricTrad payment receipt'
-      : 'FabricTrad order summary';
+    document.documentType === 'payment_receipt' ?'FabricTrad payment receipt' :'FabricTrad order summary';
   const legalNotice =
-    document.documentType === 'payment_receipt'
-      ? 'This receipt confirms payment recorded by FabricTrad. It is not the seller’s GST tax invoice. Download the seller-issued tax invoice from the order when it becomes available.'
-      : 'This document is an order summary and is not a GST tax invoice. The seller issues the final tax invoice after the order reaches the applicable billing stage.';
+    document.documentType === 'payment_receipt' ?'This receipt confirms payment recorded by FabricTrad. It is not the seller’s GST tax invoice. Download the seller-issued tax invoice from the order when it becomes available.' :'This document is an order summary and is not a GST tax invoice. The seller issues the final tax invoice after the order reaches the applicable billing stage.';
   const currency = document.currency || 'INR';
 
   const lines = document.lines.length
@@ -169,7 +165,7 @@ export function openPrintableOrderDocument(document: PrintableOrderDocument) {
   <div class="page">
     <div class="toolbar">
       <p>Use your browser’s print dialog to print or choose <strong>Save as PDF</strong>.</p>
-      <button type="button" onclick="window.print()">Print / Save PDF</button>
+      <button type="button" onClick="window.print()">Print / Save PDF</button>
     </div>
     <main class="document">
       <header class="header">

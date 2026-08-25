@@ -7,31 +7,7 @@ import type { CatalogProduct } from '@/lib/catalog';
 
 export type WishlistProduct = Pick<
   CatalogProduct,
-  | 'id'
-  | 'source'
-  | 'sellerId'
-  | 'name'
-  | 'seller'
-  | 'city'
-  | 'category'
-  | 'price'
-  | 'unit'
-  | 'moq'
-  | 'available'
-  | 'gsm'
-  | 'width'
-  | 'work'
-  | 'rating'
-  | 'reviews'
-  | 'badge'
-  | 'verified'
-  | 'image'
-  | 'images'
-  | 'alt'
-  | 'dispatchDays'
-  | 'gst'
-  | 'description'
-  | 'sku'
+  | 'id' |'source' |'sellerId' |'name' |'seller' |'city' |'category' |'price' |'unit' |'moq' |'available' |'gsm' |'width' |'work' |'rating' |'reviews' |'badge' |'verified' |'image' |'images' |'alt' |'dispatchDays' |'gst' |'description' |'sku'
 >;
 
 const LOCAL_KEY_PREFIX = 'fabrictrad:wishlist:';

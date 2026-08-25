@@ -334,9 +334,7 @@ export default function OrderLifecyclePanel({
           </button>
         ) : (
           <p className="mt-2 text-xs leading-5 text-muted-foreground">
-            {orderKind === 'bulk'
-              ? 'A verified seller-uploaded invoice will appear after payment.'
-              : 'Available after the order is fully paid and the seller issues it.'}
+            {orderKind === 'bulk' ?'A verified seller-uploaded invoice will appear after payment.' :'Available after the order is fully paid and the seller issues it.'}
           </p>
         )}
       </section>
@@ -431,9 +429,7 @@ export default function OrderLifecyclePanel({
           </div>
         ) : (
           <p className="mt-2 text-xs text-muted-foreground">
-            {viewerRole === 'seller' && orderKind === 'catalog'
-              ? 'Shipping becomes available automatically after full payment is captured.'
-              : 'Tracking appears after dispatch.'}
+            {viewerRole === 'seller' && orderKind === 'catalog' ?'Shipping becomes available automatically after full payment is captured.' :'Tracking appears after dispatch.'}
           </p>
         )}
       </section>

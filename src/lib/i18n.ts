@@ -20,8 +20,7 @@ const en = {
   'hero.titleStart': 'Source fabric.',
   'hero.titleAccent': 'See the drape.',
   'hero.titleEnd': 'Ship with confidence.',
-  'hero.description':
-    'Discover verified mills and wholesalers, compare bulk prices, preview fabric on garments with AI, and manage every order from payment to delivery.',
+  'hero.description': 'Discover verified mills and wholesalers, compare bulk prices, preview fabric on garments with AI, and manage every order from payment to delivery.',
   'hero.explore': 'Explore marketplace',
   'hero.tryDrape': 'Try AI Drape Studio',
   'hero.buyer': 'I am a buyer',
@@ -32,8 +31,7 @@ const en = {
   'hero.support': 'Indian languages',
   'drape.eyebrow': 'AI Drape Studio',
   'drape.title': 'Turn a fabric swatch into a buying decision.',
-  'drape.description':
-    'Upload a person or use a studio model, choose a garment silhouette, and generate a realistic fabric preview before placing a bulk order.',
+  'drape.description': 'Upload a person or use a studio model, choose a garment silhouette, and generate a realistic fabric preview before placing a bulk order.',
   'drape.upload': 'Upload photo',
   'drape.choose': 'Choose garment',
   'drape.preview': 'Preview drape',

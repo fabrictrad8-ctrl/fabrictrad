@@ -46,8 +46,7 @@ export default function PreferenceControls({ compact = false }: { compact?: bool
                   }}
                   className={`flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm transition ${
                     item.code === language
-                      ? 'bg-primary/10 font-800 text-primary'
-                      : 'text-foreground hover:bg-muted'
+                      ? 'bg-primary/10 font-800 text-primary' :'text-foreground hover:bg-muted'
                   }`}
                   role="option"
                   aria-selected={item.code === language}

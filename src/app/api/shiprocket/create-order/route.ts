@@ -78,7 +78,7 @@ const phone = (value: unknown) => {
 };
 
 const pincode = (value: unknown) => {
-  const digits = text(value).replace(/\D/g, '').slice(0, 6);
+  let digits = text(value).replace(/\D/g, '').slice(0, 6);
   return /^\d{6}$/.test(digits) ? digits : '';
 };
 
@@ -285,7 +285,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const [{ data: rawSellerUser }, { data: rawRegistration }] = await Promise.all([
+    const [sellerUserResult, registrationResult] = await Promise.all([
       admin
         .from('user_profiles')
         .select('full_name,email,phone,address_line1,address_line2,city,state,pincode')
@@ -299,6 +299,8 @@ export async function POST(request: NextRequest) {
         .limit(1)
         .maybeSingle(),
     ]);
+    const rawSellerUser = sellerUserResult.data;
+    const rawRegistration = registrationResult.data;
     const sellerUser = (rawSellerUser || {}) as unknown as BuyerUser;
     const registration = (rawRegistration || {}) as unknown as {
       owner_name?: string | null;
@@ -407,7 +409,7 @@ export async function POST(request: NextRequest) {
       orderTotal = numeric(order.total_amount);
       orderDate = order.created_at;
 
-      const [{ data: rawBuyerUser, error: buyerError }, { data: rawBuyerProfile }] = await Promise.all([
+      const [buyerUserResult, buyerProfileResult] = await Promise.all([
         admin
           .from('user_profiles')
           .select('full_name,email,phone,address_line1,address_line2,city,state,pincode,business_name')
@@ -419,6 +421,9 @@ export async function POST(request: NextRequest) {
           .eq('user_id', buyerId)
           .maybeSingle(),
       ]);
+      const buyerError = buyerUserResult.error;
+      const rawBuyerUser = buyerUserResult.data;
+      const rawBuyerProfile = buyerProfileResult.data;
       if (buyerError || !rawBuyerUser) {
         return reply({ success: false, error: 'Buyer delivery profile could not be loaded.' }, 409);
       }
@@ -542,7 +547,7 @@ export async function POST(request: NextRequest) {
       }
 
       buyerId = order.buyer_id;
-      const [{ data: rawBuyerUser }, { data: rawBuyerProfile }] = await Promise.all([
+      const [buyerUserResult2, buyerProfileResult2] = await Promise.all([
         admin
           .from('user_profiles')
           .select('full_name,email,phone,address_line1,address_line2,city,state,pincode,business_name')
@@ -554,6 +559,8 @@ export async function POST(request: NextRequest) {
           .eq('user_id', buyerId)
           .maybeSingle(),
       ]);
+      const rawBuyerUser = buyerUserResult2.data;
+      const rawBuyerProfile = buyerUserResult2.data !== undefined ? buyerProfileResult2.data : null;
       if (!rawBuyerUser) return reply({ success: false, error: 'Buyer delivery profile could not be loaded.' }, 409);
       const buyerUser = rawBuyerUser as unknown as BuyerUser;
       const buyerProfile = (rawBuyerProfile || {}) as unknown as BuyerProfile;
@@ -785,6 +792,39 @@ export async function POST(request: NextRequest) {
       .from('seller_shipments')
       .upsert(shipment, { onConflict: shipmentKey });
     if (saveError) throw saveError;
+
+    // Send invoice/shipment notification email to buyer via order-notifications edge function
+    if (buyerEmail) {
+      try {
+        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+        const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+        if (supabaseUrl && supabaseKey) {
+          await fetch(`${supabaseUrl}/functions/v1/order-notifications`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${supabaseKey}`,
+            },
+            body: JSON.stringify({
+              type: 'buyer_order_status',
+              orderId,
+              orderRef: `FT${orderType === 'catalog' ? 'C' : 'B'}${orderId.slice(0, 8).toUpperCase()}`,
+              status: 'shipped',
+              buyerEmail,
+              buyerName,
+              amount: orderTotal,
+              awb: result.awb || null,
+              courierName: result.courierName || courier.name || null,
+              trackingUrl,
+              eta: courier.etd || null,
+            }),
+            signal: AbortSignal.timeout(10_000),
+          }).catch(() => null); // Non-blocking
+        }
+      } catch {
+        // Non-blocking — don't fail shipment creation if email fails
+      }
+    }
 
     return reply({
       success: true,

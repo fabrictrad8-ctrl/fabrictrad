@@ -16,12 +16,7 @@ export function trackEvent(eventName: string, params?: Record<string, string | n
 
 export function trackFunnelStep(
   step:
-    | 'homepage_view'
-    | 'marketplace_view'
-    | 'product_view'
-    | 'add_to_cart'
-    | 'checkout_start'
-    | 'checkout_complete',
+    | 'homepage_view' |'marketplace_view' |'product_view' |'add_to_cart' |'checkout_start' |'checkout_complete',
   params?: Record<string, string | number | null>
 ) {
   trackEvent(step, { funnel_step: step, ...params });

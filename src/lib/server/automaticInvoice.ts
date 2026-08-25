@@ -117,9 +117,7 @@ function buildInvoiceEmail(invoice: InvoiceRow) {
 
 export async function ensureAutomaticInvoice(input: AutomaticInvoiceInput) {
   const rpc =
-    input.kind === 'catalog'
-      ? 'issue_paid_catalog_tax_invoice_system'
-      : 'issue_paid_bulk_tax_invoice_system';
+    input.kind === 'catalog' ?'issue_paid_catalog_tax_invoice_system' :'issue_paid_bulk_tax_invoice_system';
   const args =
     input.kind === 'catalog'
       ? {

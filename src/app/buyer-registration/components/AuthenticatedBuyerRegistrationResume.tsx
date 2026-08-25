@@ -21,10 +21,7 @@ type IdentityMethod = 'pan' | 'aadhaar_offline';
 type GstRegistrationStatus = 'registered' | 'unregistered';
 type DocumentKey =
   | 'gst_certificate'
-  | 'pan_card'
-  | 'aadhaar_offline_ekyc'
-  | 'business_proof'
-  | 'address_proof';
+  | 'pan_card' |'aadhaar_offline_ekyc' |'business_proof' |'address_proof';
 type Step = 'details' | 'address' | 'documents' | 'done';
 
 type Props = { buyerType: BuyerType };
@@ -200,8 +197,7 @@ export default function AuthenticatedBuyerRegistrationResume({ buyerType }: Prop
       if (/already|belongs|duplicate|unique/i.test(phoneError.message || '')) {
         throw new Error(
           isRetail
-            ? 'This mobile number is already attached to another FabricTrad login. Use another contact number or sign in to that existing account.'
-            : 'This mobile number is already attached to another FabricTrad login. Leave it blank to continue buying, or sign in to the existing account.'
+            ? 'This mobile number is already attached to another FabricTrad login. Use another contact number or sign in to that existing account.' :'This mobile number is already attached to another FabricTrad login. Leave it blank to continue buying, or sign in to the existing account.'
         );
       }
       throw phoneError;

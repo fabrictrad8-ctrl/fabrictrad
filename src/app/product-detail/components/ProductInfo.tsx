@@ -376,11 +376,8 @@ export default function ProductInfo() {
             {product.source === 'seller' && <span className="tag-new">Live seller catalogue</span>}
             <span className="badge-gstin">Server-calculated GST</span>
             <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-800 text-primary">
-              {product.saleChannel === 'both'
-                ? 'B2B + Retail'
-                : product.saleChannel === 'retail'
-                  ? 'Retail / B2C'
-                  : 'B2B / Wholesale'}
+              {product.saleChannel === 'both' ?'B2B + Retail'
+                : product.saleChannel === 'retail' ?'Retail / B2C' :'B2B / Wholesale'}
             </span>
             {catalogRule && (
               <span className="ft-orange-chip">
@@ -401,8 +398,7 @@ export default function ProductInfo() {
           onClick={() => setSaved((current) => !current)}
           className={`shrink-0 rounded-xl border p-2 transition-all ${
             saved
-              ? 'border-primary bg-primary/10 text-primary'
-              : 'border-border text-muted-foreground hover:border-primary hover:text-primary'
+              ? 'border-primary bg-primary/10 text-primary' :'border-border text-muted-foreground hover:border-primary hover:text-primary'
           }`}
           aria-label={saved ? 'Remove from saved products' : 'Save product'}
         >
@@ -437,8 +433,7 @@ export default function ProductInfo() {
                   onClick={() => selectVariant(variant.id)}
                   className={`rounded-xl border p-3 text-left transition ${
                     active
-                      ? 'border-primary bg-primary/5 ring-2 ring-primary/10'
-                      : 'border-border hover:border-primary/50'
+                      ? 'border-primary bg-primary/5 ring-2 ring-primary/10' :'border-border hover:border-primary/50'
                   } ${unavailable ? 'cursor-not-allowed opacity-55' : ''}`}
                 >
                   <div className="flex items-start gap-2.5">
@@ -704,9 +699,7 @@ export default function ProductInfo() {
                 ? requiresReview
                   ? 'Submit for company review'
                   : retailEnabled
-                    ? 'Request this order'
-                    : 'Submit B2B order request'
-                : 'Selected variation is out of stock'}
+                    ? 'Request this order' :'Submit B2B order request' :'Selected variation is out of stock'}
         </button>
       )}
     </div>

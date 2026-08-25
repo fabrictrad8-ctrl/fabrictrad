@@ -21,10 +21,7 @@ type IdentityMethod = 'pan' | 'aadhaar_offline';
 type GstRegistrationStatus = 'registered' | 'unregistered';
 type DocumentType =
   | 'gst_certificate'
-  | 'pan_card'
-  | 'aadhaar_offline_ekyc'
-  | 'business_proof'
-  | 'address_proof';
+  | 'pan_card' |'aadhaar_offline_ekyc' |'business_proof' |'address_proof';
 
 type BuyerPayload = {
   buyerType?: BuyerType;
@@ -77,8 +74,7 @@ const adminClientOrNull = () => {
 const validateDocument = (file: File, documentType: DocumentType) => {
   if (file.size > 10 * 1024 * 1024) throw new Error(`${file.name} exceeds the 10 MB limit.`);
   const commonAllowed =
-    file.type === 'application/pdf' ||
-    file.type.startsWith('image/') ||
+    file.type === 'application/pdf' || file.type.startsWith('image/') ||
     (documentType === 'aadhaar_offline_ekyc' &&
       ['application/xml', 'text/xml', 'application/zip', 'application/x-zip-compressed'].includes(file.type));
   if (!commonAllowed) {
@@ -328,9 +324,7 @@ export async function POST(request: NextRequest) {
       gstinStatus,
       businessKycStatus: buyerType === 'retail_store' ? 'pending' : 'not_required',
       message:
-        buyerType === 'retail_store'
-          ? 'Business buyer profile submitted. Buying is available while business documents are reviewed; B2B tax-invoice benefits require an active GSTIN.'
-          : 'Personal buyer profile created. No PAN, Aadhaar or GST documents are required.',
+        buyerType === 'retail_store' ?'Business buyer profile submitted. Buying is available while business documents are reviewed; B2B tax-invoice benefits require an active GSTIN.' :'Personal buyer profile created. No PAN, Aadhaar or GST documents are required.',
     });
   } catch (error) {
     return json({ error: error instanceof Error ? error.message : 'Buyer registration could not be completed.' }, 500);

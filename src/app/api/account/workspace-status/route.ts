@@ -19,7 +19,7 @@ export async function GET() {
 
   if (userError || !user) return json({ error: 'Sign in required.' }, 401);
 
-  const [{ data: profile }, { data: buyer }, { data: seller }] = await Promise.all([
+  const [profileResult, buyerResult, sellerResult] = await Promise.all([
     supabase
       .from('user_profiles')
       .select('role,can_buy,can_sell,is_active')
@@ -36,6 +36,10 @@ export async function GET() {
       .eq('user_id', user.id)
       .maybeSingle(),
   ]);
+
+  const profile = profileResult.data;
+  const buyer = buyerResult.data;
+  const seller = sellerResult.data;
 
   if (!profile) return json({ error: 'Account profile is not ready.' }, 404);
 
@@ -61,25 +65,19 @@ export async function GET() {
 
   const buyerLabel = !canBuy
     ? primarySeller
-      ? 'Seller account · buyer workspace unavailable'
-      : 'Not enabled'
+      ? 'Seller account · buyer workspace unavailable' :'Not enabled'
     : !buyerActive
       ? 'Buyer access inactive'
-      : personalBuyer || buyer?.business_kyc_status === 'not_required'
-        ? 'Active · no business KYC required'
+      : personalBuyer || buyer?.business_kyc_status === 'not_required' ?'Active · no business KYC required'
         : buyerVerified
           ? 'Buyer verified'
-          : buyer?.business_kyc_status === 'pending'
-            ? 'Business verification under review'
-            : 'Complete buyer verification';
+          : buyer?.business_kyc_status === 'pending' ?'Business verification under review' :'Complete buyer verification';
 
   const sellerLabel = !canSell
     ? 'Selling not activated'
     : sellerVerified
       ? 'Verified seller'
-      : seller?.verification_status === 'manual_review'
-        ? 'Seller verification under review'
-        : 'Complete seller verification';
+      : seller?.verification_status === 'manual_review' ?'Seller verification under review' :'Complete seller verification';
 
   const verificationSummary = primarySeller
     ? sellerLabel

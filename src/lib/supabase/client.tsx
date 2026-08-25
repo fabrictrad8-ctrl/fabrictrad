@@ -4,7 +4,7 @@ const PFX = 'sb_';
 
 const isBrowser = () => typeof window !== 'undefined' && typeof document !== 'undefined';
 const isSecureContextForCookies = () =>
-  typeof window !== 'undefined' && window.location.protocol === 'https:';
+  typeof window !== 'undefined' && typeof window.location !== 'undefined' && window.location.protocol === 'https:';
 
 let _canUseCookiesCache: boolean | null = null;
 
@@ -21,7 +21,7 @@ const canUseCookies = (): boolean => {
 const fromCookies = () =>
   !isBrowser()
     ? []
-    : document.cookie
+    : (typeof document !== 'undefined' ? document.cookie : '')
         .split(';')
         .filter(Boolean)
         .map((c) => {
@@ -33,7 +33,7 @@ const fromCookies = () =>
         .filter((c) => c.name);
 
 const fromStorage = () => {
-  if (!isBrowser()) return [];
+  if (!isBrowser() || typeof localStorage === 'undefined') return [];
   try {
     return Object.keys(localStorage)
       .filter((k) => k.startsWith(PFX))
@@ -51,7 +51,7 @@ type CookieOptions = {
 };
 
 const setCookie = (name: string, value: string, options?: CookieOptions) => {
-  if (typeof document === 'undefined') return;
+  if (typeof document === 'undefined' || !isBrowser()) return;
   let s = `${name}=${encodeURIComponent(value)}; Path=${options?.path || '/'}; SameSite=Lax`;
   if (isSecureContextForCookies()) s += '; Secure';
   if (options?.maxAge) s += `; Max-Age=${options.maxAge}`;
@@ -61,7 +61,7 @@ const setCookie = (name: string, value: string, options?: CookieOptions) => {
 };
 
 const deleteCookie = (name: string) => {
-  if (typeof document === 'undefined') return;
+  if (typeof document === 'undefined' || !isBrowser()) return;
   document.cookie = `${name}=; Max-Age=0; Path=/; SameSite=Lax${isSecureContextForCookies() ? '; Secure' : ''}`;
 };
 

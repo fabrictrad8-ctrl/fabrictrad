@@ -389,29 +389,41 @@ export default function SellerInventory() {
       if (lines.length < 2) throw new Error('The CSV does not contain product rows.');
       const headers = parseCsvLine(lines[0]).map((header) => header.toLowerCase().replace(/\s+/g, '_'));
       const missing = ['name', 'sku', 'price', 'available', 'moq'].filter((key) => !headers.includes(key));
-      if (missing.length) throw new Error(`Missing columns: ${missing.join(', ')}.`);
+      if (missing.length) throw new Error(`Missing required columns: ${missing.join(', ')}. Required: name, sku, price, available, moq`);
 
-      const records = lines.slice(1).map((line) => {
+      const errors: string[] = [];
+      const records = lines.slice(1).map((line, lineIndex) => {
         const values = parseCsvLine(line);
         const row = Object.fromEntries(headers.map((header, index) => [header, values[index] || '']));
         const unitLabel = row.unit || 'metre';
         const saleChannel: SaleChannel = row.sale_channel === 'retail' || row.sale_channel === 'both' ? row.sale_channel : 'b2b';
         const moq = Math.max(1, Number(row.moq));
+        const price = Number(row.price);
+        const available = Number(row.available);
+        const gsm = row.gsm ? Number(row.gsm) : null;
+
+        if (!row.name?.trim()) errors.push(`Row ${lineIndex + 2}: name is required`);
+        if (!row.sku?.trim()) errors.push(`Row ${lineIndex + 2}: sku is required`);
+        if (isNaN(price) || price <= 0) errors.push(`Row ${lineIndex + 2}: price must be a positive number (got "${row.price}")`);
+        if (isNaN(available) || available < 0) errors.push(`Row ${lineIndex + 2}: available must be 0 or more (got "${row.available}")`);
+        if (isNaN(moq) || moq < 1) errors.push(`Row ${lineIndex + 2}: moq must be at least 1 (got "${row.moq}")`);
+        if (gsm !== null && (isNaN(gsm) || gsm <= 0)) errors.push(`Row ${lineIndex + 2}: gsm must be a positive number if provided (got "${row.gsm}")`);
+
         const personalEnabled = saleChannel !== 'b2b';
         return {
           seller_id: sellerId,
-          name: row.name,
-          sku: row.sku.toUpperCase(),
+          name: row.name?.trim(),
+          sku: row.sku?.trim().toUpperCase(),
           category: row.category || 'Other',
           description: row.description || null,
-          price_per_unit: Number(row.price),
+          price_per_unit: price,
           unit: unitCode(unitLabel),
           unit_label: unitLabel,
-          available_quantity: Number(row.available),
+          available_quantity: available,
           reserved_quantity: 0,
           min_stock: Number(row.min_stock || 0),
           moq,
-          gsm: row.gsm ? Number(row.gsm) : null,
+          gsm,
           width_inches: row.width ? Number(row.width) : null,
           work_type: row.work_type || 'Plain',
           image_url: row.image_url || null,
@@ -429,18 +441,31 @@ export default function SellerInventory() {
         };
       });
 
-      if (records.some((record) => !record.name || !record.sku || record.price_per_unit <= 0 || record.available_quantity < 0 || record.moq < 1)) {
-        throw new Error('One or more CSV rows contain invalid values.');
+      if (errors.length > 0) {
+        const summary = errors.slice(0, 5).join('\n') + (errors.length > 5 ? `\n…and ${errors.length - 5} more errors` : '');
+        throw new Error(`CSV validation failed:\n${summary}`);
       }
 
       const supabase = createClient();
       const { error: importError } = await supabase.from('seller_products').upsert(records, { onConflict: 'seller_id,sku' });
       if (importError) throw importError;
-      toast.success(`${records.length} product${records.length === 1 ? '' : 's'} imported.`);
+      toast.success(`${records.length} product${records.length === 1 ? '' : 's'} imported successfully.`);
       await loadProducts();
     } catch (caught) {
       toast.error(caught instanceof Error ? caught.message : 'CSV import failed.');
     }
+  };
+
+  const downloadCsvTemplate = () => {
+    const headers = 'name,sku,price,available,moq,gsm,category,description,unit,work_type,dispatch_days,origin_city,origin_state,sale_channel,image_url';
+    const example = 'Premium Cotton Shirting,COTTON-001,450,500,50,120,Cotton,Fine combed cotton shirting fabric,metre,Plain,3,Surat,Gujarat,both,';
+    const blob = new Blob([`${headers}\n${example}\n`], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'fabrictrad-bulk-import-template.csv';
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -456,6 +481,9 @@ export default function SellerInventory() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <input ref={csvInputRef} type="file" accept=".csv,text/csv" onChange={importCsv} className="hidden" />
+          <button type="button" onClick={downloadCsvTemplate} className="ft-secondary-action flex items-center gap-2 px-3 py-2 text-xs">
+            <Icon name="ArrowDownTrayIcon" size={14} /> CSV Template
+          </button>
           <button type="button" onClick={() => csvInputRef.current?.click()} className="ft-secondary-action flex items-center gap-2 px-3 py-2 text-xs">
             <Icon name="ArrowUpTrayIcon" size={14} /> Import CSV
           </button>

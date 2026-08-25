@@ -13,20 +13,20 @@ export default function ProductCartAction() {
   if (loading) return <div className="h-11 animate-pulse rounded-xl bg-muted" />;
 
   const selectedVariant =
-    product.variants?.find((variant) => variant.id === product.selectedVariantId) ||
-    product.variants?.find((variant) => variant.available > 0) ||
+    product?.variants?.find((variant) => variant?.id === product?.selectedVariantId) ||
+    product?.variants?.find((variant) => variant?.available > 0) ||
     null;
-  const available = Number(selectedVariant?.available ?? product.available ?? 0);
-  const minimum = Number(selectedVariant?.moq ?? product.moq ?? 1);
+  const available = Number(selectedVariant?.available ?? product?.available ?? 0);
+  const minimum = Number(selectedVariant?.moq ?? product?.moq ?? 1);
 
   const addToCart = () => {
     const item = add(product, selectedVariant, minimum);
     trackFunnelStep('add_to_cart', {
-      product_id: product.id,
+      product_id: product?.id,
       variant_id: selectedVariant?.id || null,
     });
-    toast.success(
-      `${product.name}${item.variantLabel ? ` · ${item.variantLabel}` : ''} added to cart.`
+    toast?.success(
+      `${product?.name}${item?.variantLabel ? ` · ${item?.variantLabel}` : ''} added to cart.`
     );
   };
 

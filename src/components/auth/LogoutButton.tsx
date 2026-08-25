@@ -18,8 +18,8 @@ export default function LogoutButton() {
   const { user, loading } = useAuth();
   const [loggingOut, setLoggingOut] = useState(false);
 
-  const isAuthenticationPage = AUTH_PATH_PREFIXES.some(
-    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)
+  const isAuthenticationPage = AUTH_PATH_PREFIXES?.some(
+    (prefix) => pathname === prefix || pathname?.startsWith(`${prefix}/`)
   );
 
   if (loading || !user || isAuthenticationPage) return null;
@@ -30,7 +30,7 @@ export default function LogoutButton() {
 
     // A server redirect clears both Supabase and demo cookies before the login page is rendered.
     // Hard navigation also prevents a protected workspace from flashing while React state settles.
-    window.location.replace('/api/auth/logout');
+    window.location?.replace('/api/auth/logout');
   };
 
   return (

@@ -210,8 +210,7 @@ export default function InWebsiteChat({
                     <div
                       className={`rounded-2xl px-3 py-2 text-sm ${
                         isMe
-                          ? 'bg-primary text-white rounded-tr-sm'
-                          : 'bg-card border border-border text-foreground rounded-tl-sm'
+                          ? 'bg-primary text-white rounded-tr-sm' :'bg-card border border-border text-foreground rounded-tl-sm'
                       }`}
                     >
                       {msg.text && <p className="leading-relaxed">{msg.text}</p>}

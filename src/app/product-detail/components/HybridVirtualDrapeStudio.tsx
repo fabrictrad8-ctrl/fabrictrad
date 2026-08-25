@@ -426,8 +426,7 @@ export default function HybridVirtualDrapeStudio() {
       );
     } catch (generationError) {
       setError(
-        generationError instanceof DOMException && generationError.name === 'AbortError'
-          ? 'AI generation timed out. Please retry with a clear, well-lit full-body photo.'
+        generationError instanceof DOMException && generationError.name === 'AbortError' ?'AI generation timed out. Please retry with a clear, well-lit full-body photo.'
           : generationError instanceof Error
             ? generationError.message
             : 'Unable to generate the AI try-on.'
@@ -773,8 +772,7 @@ export default function HybridVirtualDrapeStudio() {
                     <h4 className="text-lg font-800 text-foreground">{personImage ? 'Ready for your AI try-on' : 'Upload or capture your photo'}</h4>
                     <p className="mt-2 max-w-lg text-sm leading-6 text-muted-foreground">
                       {personImage
-                        ? 'Confirm permission on the left, then Generate. FabricTrad will send your photo together with the exact approved seller textile to the configured image model.'
-                        : 'Use a clear standing or 3/4 body photo with visible arms and clothing. There is no stock studio model in this mode — the result is made for your selected photo.'}
+                        ? 'Confirm permission on the left, then Generate. FabricTrad will send your photo together with the exact approved seller textile to the configured image model.' :'Use a clear standing or 3/4 body photo with visible arms and clothing. There is no stock studio model in this mode — the result is made for your selected photo.'}
                     </p>
                   </div>
                 )}

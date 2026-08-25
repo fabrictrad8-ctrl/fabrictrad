@@ -245,8 +245,12 @@ export default function SellerRegistrationEntry() {
                 </span>
               </label>
 
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-800">
+                <strong className="text-amber-900">Seller accounts are separate from buyer accounts.</strong> Use a different email address and mobile number from any existing buyer account. The same credentials cannot be used for both roles.
+              </div>
+
               <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 text-xs leading-5 text-muted-foreground">
-                <strong className="text-foreground">Account first:</strong> FabricTrad creates your secure login and workspace now. Approval happens later after GST, bank and documents are complete.
+                <strong className="text-foreground">Account first:</strong> FabricTrad creates your secure seller login and workspace now. Approval happens later after GST, bank and documents are complete.
               </div>
 
               <button type="submit" disabled={submitting} className="btn-primary w-full py-3 text-sm disabled:opacity-50">

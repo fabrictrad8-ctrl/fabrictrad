@@ -37,11 +37,8 @@ const safeNextPath = (value: string | null) => {
 };
 
 const defaultDestinationForRole = (role?: AccountRole | null) =>
-  role === 'admin_staff' || role === 'super_admin'
-    ? '/admin-portal'
-    : role === 'seller'
-      ? '/account'
-      : '/marketplace';
+  role === 'admin_staff' || role === 'super_admin' ?'/admin-portal'
+    : role === 'seller' ?'/account' :'/marketplace';
 
 const destinationForRole = (role?: AccountRole | null, requestedNext?: string | null) => {
   const fallback = defaultDestinationForRole(role);
@@ -76,16 +73,16 @@ function AuthVisual() {
         <span className="ft-auth-node n3" />
       </div>
 
-      <p className="ft-auth-eyebrow">One account for textile commerce</p>
-      <h1 className="ft-auth-title">Source, sell and run your textile business from one place.</h1>
+      <p className="ft-auth-eyebrow">India&apos;s fabric marketplace</p>
+      <h1 className="ft-auth-title">Source and sell premium fabrics across India.</h1>
       <p className="ft-auth-subtitle">
-        A single verified account opens the workspaces you are approved to use. Buyers get a search-first marketplace and order tracking; sellers get products, orders, payments, shipping and analytics without duplicate accounts.
+        Sign in to your FabricTrad account. Buyers and sellers use separate accounts — Google sign-in is available for buyers. Sellers sign in with email and password.
       </p>
 
       <div className="ft-auth-flow" aria-label="How sign in works">
-        <div className="ft-auth-flow-card"><strong>1</strong><span>Sign in with your registered account</span></div>
-        <div className="ft-auth-flow-card"><strong>2</strong><span>FabricTrad detects your approved workspaces</span></div>
-        <div className="ft-auth-flow-card"><strong>3</strong><span>Continue directly to buying or selling</span></div>
+        <div className="ft-auth-flow-card"><strong>1</strong><span>Sign in with your registered email and password</span></div>
+        <div className="ft-auth-flow-card"><strong>2</strong><span>FabricTrad opens your buyer or seller workspace</span></div>
+        <div className="ft-auth-flow-card"><strong>3</strong><span>Start browsing, ordering, or managing your store</span></div>
       </div>
     </section>
   );
@@ -289,18 +286,15 @@ export default function EmailOtpLoginClient() {
     clearMessages();
   };
 
-  const recoveryDescription = recoveryStep === 'email'
-    ? 'Enter your registered email to receive a one-time password.'
-    : recoveryStep === 'otp'
-      ? 'Enter the newest OTP sent to your registered email.'
-      : 'Your email has been verified. Create a new password.';
+  const recoveryDescription = recoveryStep === 'email' ?'Enter your registered email to receive a one-time password.'
+    : recoveryStep === 'otp' ?'Enter the newest OTP sent to your registered email.' :'Your email has been verified. Create a new password.';
 
   if (loading) {
-    return <main className="ft-auth-page flex min-h-screen items-center justify-center"><div className="h-9 w-9 animate-spin rounded-full border-2 border-orange-600 border-t-transparent" /></main>;
+    return <main suppressHydrationWarning className="ft-auth-page flex min-h-screen items-center justify-center"><div className="h-9 w-9 animate-spin rounded-full border-2 border-orange-600 border-t-transparent" /></main>;
   }
 
   return (
-    <main className="ft-auth-page">
+    <main suppressHydrationWarning className="ft-auth-page">
       <div className="ft-auth-stage">
         <AuthVisual />
 
@@ -312,8 +306,7 @@ export default function EmailOtpLoginClient() {
             <p className="ft-auth-kicker">{mode === 'login' ? 'Account sign in' : 'Password recovery'}</p>
             <h2 id="auth-title" className="mt-2">{mode === 'login' ? 'Welcome back' : 'Reset your password'}</h2>
             <p className="ft-auth-copy mt-2 text-sm leading-6">
-              {mode === 'login'
-                ? requestedNext ? 'Sign in to continue to the page you selected.' : 'Use the email and password registered with your FabricTrad account.'
+              {mode === 'login' ? requestedNext ?'Sign in to continue to the page you selected.' : 'Use the email and password registered with your FabricTrad account.'
                 : recoveryDescription}
             </p>
 

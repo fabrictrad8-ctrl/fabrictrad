@@ -21,31 +21,31 @@ const options: Array<{
 }> = [
   {
     value: 'retail_store',
-    title: 'Retail Store',
-    subtitle: 'I am buying for my shop or business',
+    title: 'Bulk Buyer — Shop / Business',
+    subtitle: 'I am buying in bulk for my shop, boutique, or business',
     description:
-      'Create the login first, then complete GST and business KYC without risking your progress.',
+      'Create your buyer login first, then complete GST and business KYC. Designed for shops, boutiques, garment manufacturers, and businesses ordering 50+ metres.',
     icon: 'BuildingStorefrontIcon',
     features: [
       'Secure account created before KYC begins',
-      'GSTIN verification when the shop is GST registered',
-      'PAN or voluntary Aadhaar Offline e-KYC plus business proof',
-      'Can activate selling on the same account after seller verification',
+      'GSTIN verification for GST-registered businesses',
+      'PAN or Aadhaar Offline e-KYC plus business proof',
+      'Access to bulk pricing, MOQ-based orders, and B2B catalogue',
     ],
     notice: 'Account first · KYC second',
   },
   {
     value: 'end_user',
-    title: 'Personal Buyer',
-    subtitle: 'I am buying for myself, tailoring, an event or my household',
+    title: 'Single / Personal Buyer',
+    subtitle: 'I am buying for myself, tailoring, an event, or household use',
     description:
-      'Create a simple account and start shopping. Add a delivery address later from your profile before fulfilment.',
+      'Create a simple account and start shopping. No business documents required. Add a delivery address from your profile before your first order.',
     icon: 'UserIcon',
     features: [
       'No PAN, Aadhaar, GST certificate or business proof',
       'One-screen account creation',
       'Delivery address is not a signup requirement',
-      'Can activate business buying or selling later on the same account',
+      'Access to retail listings with no minimum order quantity',
     ],
     notice: 'Fast signup · no official documents',
   },
@@ -126,9 +126,7 @@ export default function BuyerRegistrationEntry() {
               <div>
                 <p className="text-xs font-800 uppercase tracking-[0.13em] text-primary">Buyer type</p>
                 <p className="text-sm font-800 text-foreground">
-                  {buyerType === 'retail_store'
-                    ? 'Retail Store · account first, business KYC second'
-                    : 'Personal Buyer · fast signup, no business KYC'}
+                  {buyerType === 'retail_store' ?'Retail Store · account first, business KYC second' :'Personal Buyer · fast signup, no business KYC'}
                 </p>
               </div>
             </div>
@@ -158,15 +156,14 @@ export default function BuyerRegistrationEntry() {
       <div className="mx-auto max-w-5xl">
         <div className="text-center">
           <p className="text-xs font-800 uppercase tracking-[0.16em] text-primary">
-            {isAuthenticatedAccount ? 'Continue your FabricTrad setup' : 'Create your FabricTrad account'}
+            {isAuthenticatedAccount ? 'Continue your FabricTrad setup' : 'Create your buyer account'}
           </p>
           <h1 className="mt-3 text-3xl font-800 tracking-tight text-foreground sm:text-4xl">
-            How will you buy?
+            What type of buyer are you?
           </h1>
           <p className="mx-auto mt-3 max-w-2xl text-sm leading-6 text-muted-foreground sm:text-base">
             {isAuthenticatedAccount
-              ? 'Your login is already secured. Choose what you need and FabricTrad will update this account instead of creating another one.'
-              : 'Personal buyers get a fast account with no business documents. Retail stores create the login first and complete business verification afterward.'}
+              ? 'Your login is already secured. Choose your buyer type and FabricTrad will set up your buyer workspace.' :'Bulk buyers (shops and businesses) get B2B pricing and catalogue access. Personal buyers get a fast account with no business documents required.'}
           </p>
         </div>
 
@@ -193,9 +190,7 @@ export default function BuyerRegistrationEntry() {
               <p className="mt-3 text-sm leading-6 text-muted-foreground">{option.description}</p>
               <div
                 className={`mt-4 inline-flex rounded-full px-3 py-1 text-xs font-800 ${
-                  option.value === 'end_user'
-                    ? 'bg-success/10 text-success'
-                    : 'bg-amber-100 text-amber-800'
+                  option.value === 'end_user' ?'bg-success/10 text-success' :'bg-amber-100 text-amber-800'
                 }`}
               >
                 {option.notice}
@@ -212,9 +207,9 @@ export default function BuyerRegistrationEntry() {
           ))}
         </div>
 
-        <div className="mx-auto mt-6 max-w-3xl rounded-2xl border border-primary/20 bg-primary/5 p-4 text-xs leading-5 text-muted-foreground">
-          <strong className="text-foreground">One account:</strong> start as a personal buyer now and add
-          retail-store or seller verification later without creating another login or using another mobile number.
+        <div className="mx-auto mt-6 max-w-3xl rounded-2xl border border-error/20 bg-error/5 p-4 text-xs leading-5 text-muted-foreground">
+          <strong className="text-foreground">Important:</strong> Buyer and seller accounts must use different email addresses and mobile numbers. The same account cannot be used as both a buyer and a seller. If you want to sell on FabricTrad,{' '}
+          <a href="/seller-registration" className="font-700 text-primary hover:underline">register a separate seller account</a>.
         </div>
       </div>
     </section>

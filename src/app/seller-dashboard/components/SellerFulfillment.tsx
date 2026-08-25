@@ -107,7 +107,7 @@ export default function SellerFulfillment() {
   const scopedShipments = shipments.filter((shipment) => new Date(shipment.created_at).getTime() >= cutoff);
   const scopedDisputes = disputes.filter((dispute) => new Date(dispute.created_at).getTime() >= cutoff);
   const delivered = scopedShipments.filter((shipment) => terminalDelivered.has(String(shipment.status || '').toLowerCase()));
-  const failed = scopedShipments.filter((shipment) => terminalFailed.has(String(shipment.status || '').toLowerCase()));
+  const _failed = scopedShipments.filter((shipment) => terminalFailed.has(String(shipment.status || '').toLowerCase()));
   const active = scopedShipments.filter((shipment) => !terminalDelivered.has(String(shipment.status || '').toLowerCase()) && !terminalFailed.has(String(shipment.status || '').toLowerCase()));
   const avgDeliveryDays = delivered.length
     ? delivered.reduce((sum, shipment) => sum + Math.max(0, new Date(shipment.updated_at).getTime() - new Date(shipment.created_at).getTime()) / 86400000, 0) / delivered.length

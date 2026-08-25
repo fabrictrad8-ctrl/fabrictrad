@@ -194,8 +194,7 @@ export async function POST(request: NextRequest) {
           : netPaid + 0.01 >= total
             ? 'paid'
             : netPaid > 0
-              ? 'partial'
-              : 'unpaid';
+              ? 'partial' :'unpaid';
 
     const patch: Record<string, unknown> = {
       amount_paid: roundMoney(captured),

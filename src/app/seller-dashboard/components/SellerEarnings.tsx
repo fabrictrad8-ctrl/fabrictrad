@@ -85,12 +85,12 @@ export default function SellerEarnings() {
       linkedAccountId: sellerRow.razorpay_linked_account_id || null,
     });
 
-    const [{ data: catalogOrders }, { data: bulkOrders }] = await Promise.all([
+    const [catalogOrdersResult, bulkOrdersResult] = await Promise.all([
       supabase.from('catalog_order_requests').select('id').eq('seller_id', sellerRow.id).limit(5000),
       supabase.from('bulk_orders').select('id').eq('seller_id', sellerRow.id).limit(5000),
     ]);
-    const catalogIds = (catalogOrders || []).map((row) => row.id);
-    const bulkIds = (bulkOrders || []).map((row) => row.id);
+    const catalogIds = (catalogOrdersResult.data || []).map((row) => row.id);
+    const bulkIds = (bulkOrdersResult.data || []).map((row) => row.id);
     const fields =
       'id,amount,captured_amount,refunded_amount,platform_commission,razorpay_fee,razorpay_fee_actual,gst_on_commission,seller_payable,status,transfer_status,razorpay_transfer_id,payment_method,captured_at,created_at';
 
@@ -206,8 +206,7 @@ export default function SellerEarnings() {
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
             {seller?.linkedAccountId
-              ? 'Razorpay linked settlement account connected.'
-              : 'No Razorpay linked settlement account is connected yet.'}
+              ? 'Razorpay linked settlement account connected.' :'No Razorpay linked settlement account is connected yet.'}
           </p>
         </div>
         <button type="button" onClick={() => void load()} disabled={loading} className="btn-secondary inline-flex items-center gap-2 rounded-xl px-3 py-2 text-xs disabled:opacity-50">

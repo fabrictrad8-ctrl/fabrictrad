@@ -546,8 +546,7 @@ const currentIndex = STEP_ORDER.indexOf(currentStep);
                     isCompleted
                       ? 'bg-success border-success'
                       : isActive
-                        ? 'bg-secondary border-secondary'
-                        : 'bg-background border-border'
+                        ? 'bg-secondary border-secondary' :'bg-background border-border'
                   }`}
                 >
                   {isCompleted ? (
@@ -837,8 +836,7 @@ const currentIndex = STEP_ORDER.indexOf(currentStep);
                         onClick={() => setField('moqMetres', qty)}
                         className={`px-4 py-2.5 rounded-xl text-sm font-700 border-2 transition-all ${
                           form.moqMetres === qty
-                            ? 'bg-secondary text-white border-secondary'
-                            : 'bg-card border-border text-muted-foreground hover:border-secondary/50'
+                            ? 'bg-secondary text-white border-secondary' :'bg-card border-border text-muted-foreground hover:border-secondary/50'
                         }`}
                       >
                         {qty} mtr
@@ -898,11 +896,8 @@ const currentIndex = STEP_ORDER.indexOf(currentStep);
                     }}
                     placeholder="24AAAPL1234Z1Z5"
                     className={`input-base flex-1 px-4 py-3 text-sm rounded-xl font-mono tracking-wider uppercase ${
-                      gstinValidation.status === 'valid'
-                        ? 'border-success'
-                        : gstinValidation.status === 'invalid'
-                          ? 'border-error'
-                          : ''
+                      gstinValidation.status === 'valid' ?'border-success'
+                        : gstinValidation.status === 'invalid' ?'border-error' :''
                     }`}
                   />
                   <button
@@ -916,20 +911,14 @@ const currentIndex = STEP_ORDER.indexOf(currentStep);
                 {gstinValidation.status !== 'idle' && (
                   <div
                     className={`mt-2 flex items-start gap-2 p-3 rounded-xl text-xs ${
-                      gstinValidation.status === 'valid'
-                        ? 'bg-success/10 border border-success/20 text-success'
-                        : gstinValidation.status === 'invalid'
-                          ? 'bg-error/10 border border-error/20 text-error'
-                          : 'bg-muted border border-border text-muted-foreground'
+                      gstinValidation.status === 'valid' ?'bg-success/10 border border-success/20 text-success'
+                        : gstinValidation.status === 'invalid' ?'bg-error/10 border border-error/20 text-error' :'bg-muted border border-border text-muted-foreground'
                     }`}
                   >
                     <Icon
                       name={
-                        gstinValidation.status === 'valid'
-                          ? 'CheckCircleIcon'
-                          : gstinValidation.status === 'invalid'
-                            ? 'XCircleIcon'
-                            : 'ArrowPathIcon'
+                        gstinValidation.status === 'valid' ?'CheckCircleIcon'
+                          : gstinValidation.status === 'invalid' ?'XCircleIcon' :'ArrowPathIcon'
                       }
                       size={14}
                       className="shrink-0 mt-0.5"
@@ -1055,8 +1044,7 @@ const currentIndex = STEP_ORDER.indexOf(currentStep);
                   }
                   className={`w-full py-3 text-sm rounded-xl font-700 transition-all ${
                     bankVerification.status === 'verified'
-                      ? 'bg-success/10 text-success border border-success/30 cursor-default'
-                      : 'btn-secondary disabled:opacity-50'
+                      ? 'bg-success/10 text-success border border-success/30 cursor-default' :'btn-secondary disabled:opacity-50'
                   }`}
                 >
                   {bankVerification.status === 'verifying' ? (
@@ -1077,16 +1065,13 @@ const currentIndex = STEP_ORDER.indexOf(currentStep);
                     className={`flex items-start gap-2 p-3 rounded-xl text-xs ${
                       bankVerification.status === 'verified'
                         ? 'bg-success/10 border border-success/20 text-success'
-                        : bankVerification.status === 'failed'
-                          ? 'bg-error/10 border border-error/20 text-error'
-                          : 'bg-muted border border-border text-muted-foreground'
+                        : bankVerification.status === 'failed' ?'bg-error/10 border border-error/20 text-error' :'bg-muted border border-border text-muted-foreground'
                     }`}
                   >
                     <Icon
                       name={
                         bankVerification.status === 'verified'
-                          ? 'CheckCircleIcon'
-                          : 'ExclamationCircleIcon'
+                          ? 'CheckCircleIcon' :'ExclamationCircleIcon'
                       }
                       size={14}
                       className="shrink-0 mt-0.5"

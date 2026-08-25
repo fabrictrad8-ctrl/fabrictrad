@@ -139,8 +139,7 @@ export default function ProfileMenu() {
                       isAdmin
                         ? 'bg-error/10 text-error'
                         : isSeller
-                          ? 'bg-primary/10 text-primary'
-                          : 'bg-secondary/10 text-secondary'
+                          ? 'bg-primary/10 text-primary' :'bg-secondary/10 text-secondary'
                     }`}
                   >
                     {roleLabel}

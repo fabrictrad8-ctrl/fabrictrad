@@ -119,9 +119,7 @@ export default function SellerCatalogOrders() {
       });
       if (error) throw error;
       toast.success(
-        action === 'accept'
-          ? 'Order accepted and stock reserved. The buyer sees the server-calculated deposit or balance.'
-          : 'Order request rejected and the buyer status was updated.'
+        action === 'accept' ?'Order accepted and stock reserved. The buyer sees the server-calculated deposit or balance.' :'Order request rejected and the buyer status was updated.'
       );
       await loadOrders();
     } catch (error) {
@@ -214,19 +212,14 @@ export default function SellerCatalogOrders() {
                       </p>
                       <span
                         className={`rounded-full px-2 py-0.5 text-[10px] font-800 uppercase ${
-                          fullyPaid || order.status === 'fulfilled'
-                            ? 'bg-success/10 text-success'
-                            : order.status === 'rejected' || order.status === 'cancelled'
-                              ? 'bg-error/10 text-error'
-                              : 'bg-warning/10 text-warning'
+                          fullyPaid || order.status === 'fulfilled' ?'bg-success/10 text-success'
+                            : order.status === 'rejected'|| order.status === 'cancelled' ?'bg-error/10 text-error' :'bg-warning/10 text-warning'
                         }`}
                       >
                         {waitingForReview
                           ? 'Company review pending'
                           : order.status === 'accepted'
-                            ? order.payment_status === 'partial'
-                              ? 'Deposit captured · balance due'
-                              : 'Awaiting buyer payment'
+                            ? order.payment_status === 'partial' ?'Deposit captured · balance due' :'Awaiting buyer payment'
                             : order.status}
                       </span>
                     </div>

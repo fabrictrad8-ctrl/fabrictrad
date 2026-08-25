@@ -14,7 +14,7 @@ export async function GET() {
     process.env.SUPABASE_SECRET_KEY?.trim() || process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()
   );
 
-  return NextResponse.json(
+  return NextResponse?.json(
     {
       ok: true,
       configured: webhookTokenConfigured && databaseConfigured,

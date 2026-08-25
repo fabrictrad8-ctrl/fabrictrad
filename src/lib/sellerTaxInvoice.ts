@@ -163,7 +163,7 @@ export function openPrintableSellerTaxInvoice(invoice: SellerTaxInvoice) {
   .void { color:#b91c1c; font-weight:800; }
   @media print { .actions { display:none; } }
 </style></head><body>
-<div class="actions" style="margin-bottom:12px"><button onclick="window.print()">Print / Save as PDF</button></div>
+<div class="actions" style="margin-bottom:12px"><button onClick="window.print()">Print / Save as PDF</button></div>
 <div class="top">
   <div><div class="brand">FabricTrad</div><p class="muted">Seller-issued tax document</p></div>
   <div class="title"><h1>GST TAX INVOICE</h1><p><strong>${escapeHtml(

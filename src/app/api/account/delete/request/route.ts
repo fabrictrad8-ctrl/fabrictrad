@@ -91,8 +91,7 @@ export async function POST(request: NextRequest) {
       {
         error:
           otpError.status === 429
-            ? 'An OTP was requested recently. Wait one minute and try again.'
-            : 'The deletion OTP could not be sent. Check the email service and try again.',
+            ? 'An OTP was requested recently. Wait one minute and try again.' :'The deletion OTP could not be sent. Check the email service and try again.',
         code: otpError.status === 429 ? 'OTP_RATE_LIMITED' : 'OTP_SEND_FAILED',
         ...(retryAfter ? { retryAfter } : {}),
       },

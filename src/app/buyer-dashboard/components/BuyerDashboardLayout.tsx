@@ -15,15 +15,7 @@ import DisputeMessaging from '@/app/buyer-dashboard/components/DisputeMessaging'
 import NotificationPreferences from '@/app/components/NotificationPreferences';
 
 type DashTab =
-  | 'overview'
-  | 'orders'
-  | 'tracking'
-  | 'wishlist'
-  | 'company'
-  | 'disputes'
-  | 'notifications'
-  | 'account'
-  | 'requirements';
+  | 'overview' |'orders' |'tracking' |'wishlist' |'company' |'disputes' |'notifications' |'account' |'requirements';
 
 const navItems: { key: DashTab; label: string; icon: string; badge?: number }[] = [
   { key: 'overview', label: 'Overview', icon: 'HomeIcon' },

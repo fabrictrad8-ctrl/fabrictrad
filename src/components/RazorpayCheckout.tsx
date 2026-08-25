@@ -94,11 +94,8 @@ export function RazorpayCheckout({
 
       const serverAmount = Number(orderData.amountRupees || orderData.amount / 100);
       const purpose =
-        orderData.paymentPurpose === 'deposit'
-          ? 'Deposit'
-          : orderData.paymentPurpose === 'balance'
-            ? 'Balance payment'
-            : 'Order payment';
+        orderData.paymentPurpose === 'deposit' ?'Deposit'
+          : orderData.paymentPurpose === 'balance' ?'Balance payment' :'Order payment';
 
       const options = {
         key: orderData.keyId,
@@ -135,9 +132,7 @@ export function RazorpayCheckout({
             setFeedback({
               tone: 'success',
               message:
-                verifyData.status === 'captured'
-                  ? 'Payment captured and recorded successfully.'
-                  : 'Payment authorised. Capture confirmation is being reconciled.',
+                verifyData.status === 'captured' ?'Payment captured and recorded successfully.' :'Payment authorised. Capture confirmation is being reconciled.',
             });
             onSuccess?.({
               paymentId: verifyData.paymentId,
@@ -188,11 +183,8 @@ export function RazorpayCheckout({
   };
 
   const feedbackClass =
-    feedback?.tone === 'error'
-      ? 'border-error/20 bg-error/5 text-error'
-      : feedback?.tone === 'success'
-        ? 'border-success/20 bg-success/5 text-success'
-        : 'border-primary/20 bg-primary/5 text-primary';
+    feedback?.tone === 'error' ?'border-error/20 bg-error/5 text-error'
+      : feedback?.tone === 'success' ?'border-success/20 bg-success/5 text-success' :'border-primary/20 bg-primary/5 text-primary';
 
   return (
     <>
@@ -234,8 +226,7 @@ export function RazorpayCheckout({
       <p className="mt-1.5 flex items-center justify-center gap-1 text-center text-xs text-muted-foreground">
         <Icon name="ShieldCheckIcon" size={11} className="text-success" />
         {isDemoAccount
-          ? 'Demo checkout only · real payment disabled'
-          : 'Server-priced Razorpay checkout · UPI/cards/netbanking as enabled · no COD'}
+          ? 'Demo checkout only · real payment disabled' :'Server-priced Razorpay checkout · UPI/cards/netbanking as enabled · no COD'}
       </p>
       {feedback && (
         <p role={feedback.tone === 'error' ? 'alert' : 'status'} className={`mt-2 rounded-xl border px-3 py-2 text-xs ${feedbackClass}`}>

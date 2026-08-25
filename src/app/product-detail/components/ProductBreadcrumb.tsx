@@ -9,9 +9,9 @@ export default function ProductBreadcrumb() {
     <nav className="mx-auto flex max-w-7xl items-center gap-2 overflow-x-auto px-4 py-4 text-sm text-muted-foreground sm:px-6" aria-label="Breadcrumb">
       <Link href="/marketplace" className="shrink-0 hover:text-primary">Marketplace</Link>
       <span>/</span>
-      <Link href={`/marketplace?category=${encodeURIComponent(product.category)}`} className="shrink-0 hover:text-primary">{product.category}</Link>
+      <Link href={`/marketplace?category=${encodeURIComponent(product?.category)}`} className="shrink-0 hover:text-primary">{product?.category}</Link>
       <span>/</span>
-      <span className="truncate font-500 text-foreground" aria-current="page">{product.name}</span>
+      <span className="truncate font-500 text-foreground" aria-current="page">{product?.name}</span>
     </nav>
   );
 }

@@ -29,8 +29,8 @@
     }
   },
   "include": [
-    "**/*.ts",
-    "**/*.tsx",
+    "src/**/*.ts",
+    "src/**/*.tsx",
     ".next/types/**/*.ts",
     "next-env.d.ts",
     "types/**/*.d.ts",
@@ -38,6 +38,9 @@
   ],
   "exclude": [
     "node_modules",
-    "supabase/functions"
+    "supabase/functions",
+    "playwright.config.ts",
+    "tests",
+    "scripts"
   ]
 }

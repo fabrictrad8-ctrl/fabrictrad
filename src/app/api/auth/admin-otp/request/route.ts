@@ -76,8 +76,7 @@ export async function POST(request: NextRequest) {
           error.status === 429
             ? 'An administrator OTP was requested recently. Wait a minute and try again.'
             : /smtp|email|mailer/i.test(error.message)
-              ? 'Supabase could not send the administrator OTP. Check Authentication → SMTP Settings.'
-              : 'The administrator OTP could not be sent. Check Supabase Auth logs and try again.',
+              ? 'Supabase could not send the administrator OTP. Check Authentication → SMTP Settings.' :'The administrator OTP could not be sent. Check Supabase Auth logs and try again.',
         code: error.status === 429 ? 'OTP_RATE_LIMITED' : 'OTP_SEND_FAILED',
         ...(retryAfter ? { retryAfter } : {}),
       },

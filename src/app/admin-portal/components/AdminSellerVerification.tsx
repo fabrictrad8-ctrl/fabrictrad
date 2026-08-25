@@ -68,7 +68,7 @@ type Filter = 'all' | 'needs_action' | 'approved' | 'incomplete';
 
 type ReviewAction = 'approve_seller' | 'reject_seller';
 
-const humanStatus = (value?: string | null) =>
+const _humanStatus = (value?: string | null) =>
   String(value || 'not started')
     .replaceAll('_', ' ')
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
@@ -121,8 +121,7 @@ export default function AdminSellerVerification() {
       });
     } catch (caught) {
       setError(
-        caught instanceof DOMException && caught.name === 'AbortError'
-          ? 'The seller queue took too long to load. Please refresh once.'
+        caught instanceof DOMException && caught.name === 'AbortError' ?'The seller queue took too long to load. Please refresh once.'
           : caught instanceof Error
             ? caught.message
             : 'Seller applications could not be loaded.'
@@ -396,9 +395,7 @@ export default function AdminSellerVerification() {
                 >
                   {working
                     ? 'Saving…'
-                    : selected.seller.verification_status === 'verified'
-                      ? 'Seller approved'
-                      : 'Approve seller'}
+                    : selected.seller.verification_status === 'verified' ?'Seller approved' :'Approve seller'}
                 </button>
               </div>
 

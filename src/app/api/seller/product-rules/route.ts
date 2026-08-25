@@ -60,23 +60,24 @@ export async function GET() {
   if (!user) return json({ error: 'Sign in to manage seller product rules.' }, 401);
   if (!seller?.id) return json({ error: 'Complete seller onboarding first.' }, 403);
 
-  const [{ data: products, error: productError }, { data: variants, error: variantError }] =
-    await Promise.all([
-      supabase
-        .from('seller_products')
-        .select(
-          'id,name,sku,status,approval_status,sale_channel,unit,moq,available_quantity,gtin,gtin_status,gtin_verified_at,hsn_code,brand_name,manufacturer_name,country_of_origin,gst_rate,price_includes_gst,retail_store_min_quantity,retail_store_max_quantity,end_user_enabled,end_user_limit_mode,end_user_min_quantity,end_user_max_quantity,updated_at'
-        )
-        .eq('seller_id', seller.id)
-        .order('updated_at', { ascending: false }),
-      supabase
-        .from('seller_product_variants')
-        .select(
-          'id,product_id,variant_code,color_name,design_name,status,unit,moq,available_quantity,gtin,gtin_status,gtin_verified_at,gst_rate,price_includes_gst,retail_store_min_quantity,retail_store_max_quantity,end_user_enabled,end_user_limit_mode,end_user_min_quantity,end_user_max_quantity,updated_at'
-        )
-        .eq('seller_id', seller.id)
-        .order('updated_at', { ascending: false }),
-    ]);
+  const [productResult, variantResult] = await Promise.all([
+    supabase
+      .from('seller_products')
+      .select(
+        'id,name,sku,status,approval_status,sale_channel,unit,moq,available_quantity,gtin,gtin_status,gtin_verified_at,hsn_code,brand_name,manufacturer_name,country_of_origin,gst_rate,price_includes_gst,retail_store_min_quantity,retail_store_max_quantity,end_user_enabled,end_user_limit_mode,end_user_min_quantity,end_user_max_quantity,updated_at'
+      )
+      .eq('seller_id', seller.id)
+      .order('updated_at', { ascending: false }),
+    supabase
+      .from('seller_product_variants')
+      .select(
+        'id,product_id,variant_code,color_name,design_name,status,unit,moq,available_quantity,gtin,gtin_status,gtin_verified_at,gst_rate,price_includes_gst,retail_store_min_quantity,retail_store_max_quantity,end_user_enabled,end_user_limit_mode,end_user_min_quantity,end_user_max_quantity,updated_at'
+      )
+      .eq('seller_id', seller.id)
+      .order('updated_at', { ascending: false }),
+  ]);
+  const { data: products, error: productError } = productResult;
+  const { data: variants, error: variantError } = variantResult;
   if (productError || variantError) {
     return json({ error: productError?.message || variantError?.message || 'Product rules could not be loaded.' }, 500);
   }
@@ -182,10 +183,8 @@ export async function PUT(request: NextRequest) {
     manufacturer_name: clean(input.manufacturerName, 200) || null,
     country_of_origin: clean(input.countryOfOrigin, 120) || 'India',
     sale_channel:
-      endUserEnabled && product.sale_channel === 'b2b'
-        ? 'both'
-        : !endUserEnabled && product.sale_channel === 'retail'
-          ? 'b2b'
+      endUserEnabled && product.sale_channel === 'b2b' ?'both'
+        : !endUserEnabled && product.sale_channel === 'retail' ?'b2b'
           : product.sale_channel,
   };
   const { data, error } = await supabase

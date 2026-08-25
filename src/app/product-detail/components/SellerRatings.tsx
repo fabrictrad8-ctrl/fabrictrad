@@ -1,309 +1,293 @@
 'use client';
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import Icon from '@/components/ui/AppIcon';
+import { createClient } from '@/lib/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
+import toast from 'react-hot-toast';
 
 interface Review {
-  id: number;
-  buyer: string;
-  city: string;
-  rating: number;
-  date: string;
+  id: string;
+  buyer_name: string;
+  buyer_city: string;
+  overall_rating: number;
+  fabric_quality_rating: number;
+  seller_service_rating: number;
   title: string;
   body: string;
-  verified: boolean;
-  orderId: string;
-  helpful: number;
+  verified_purchase: boolean;
+  order_ref: string;
+  helpful_count: number;
+  created_at: string;
+  photo_urls?: string[] | null;
 }
 
-const initialReviews: Review[] = [
-  {
-    id: 1,
-    buyer: 'Mehta Garments Pvt Ltd',
-    city: 'Mumbai',
-    rating: 5,
-    date: '12 Jul 2026',
-    title: 'Excellent quality, fast dispatch',
-    body: 'Received exactly 300 metres as ordered. Fabric quality is top-notch — very smooth dyeable nett. Dispatch was within 2 days. Will reorder.',
-    verified: true,
-    orderId: 'FT-ORD-004821',
-    helpful: 14,
-  },
-  {
-    id: 2,
-    buyer: 'Patel Creations',
-    city: 'Ahmedabad',
-    rating: 5,
-    date: '05 Jul 2026',
-    title: 'Consistent quality across bulk orders',
-    body: 'Third time ordering from this seller. Every batch is consistent. GST invoice provided on time. Highly recommended for bulk buyers.',
-    verified: true,
-    orderId: 'FT-ORD-004612',
-    helpful: 9,
-  },
-  {
-    id: 3,
-    buyer: 'Sharma Textiles',
-    city: 'Delhi',
-    rating: 4,
-    date: '28 Jun 2026',
-    title: 'Good fabric, slight delay in response',
-    body: 'Fabric quality is as described. Seller took about 4 hours to confirm the order. Delivery was on time. Overall satisfied.',
-    verified: true,
-    orderId: 'FT-ORD-004390',
-    helpful: 5,
-  },
-];
+interface RatingBreakdown {
+  stars: number;
+  count: number;
+  pct: number;
+}
 
-const ratingBreakdown = [
-  { stars: 5, count: 98, pct: 79 },
-  { stars: 4, count: 18, pct: 15 },
-  { stars: 3, count: 5, pct: 4 },
-  { stars: 2, count: 2, pct: 2 },
-  { stars: 1, count: 1, pct: 1 },
-];
-
-export default function SellerRatings() {
-  const [helpful, setHelpful] = useState<Record<number, boolean>>({});
-  const [reviews, setReviews] = useState<Review[]>(initialReviews);
+export default function SellerRatings({ sellerId }: { sellerId?: string }) {
+  const { user, profile } = useAuth();
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [breakdown, setBreakdown] = useState<RatingBreakdown[]>([]);
+  const [avgRating, setAvgRating] = useState(0);
+  const [totalCount, setTotalCount] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [helpful, setHelpful] = useState<Record<string, boolean>>({});
   const [showReviewForm, setShowReviewForm] = useState(false);
   const [newRating, setNewRating] = useState(0);
+  const [fabricRating, setFabricRating] = useState(0);
+  const [serviceRating, setServiceRating] = useState(0);
   const [hoverRating, setHoverRating] = useState(0);
   const [newTitle, setNewTitle] = useState('');
   const [newBody, setNewBody] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
-  const totalReviews = ratingBreakdown.reduce((s, r) => s + r.count, 0) + (submitted ? 1 : 0);
-  const aggregateRating = 4.8;
+  const loadReviews = useCallback(async () => {
+    setLoading(true);
+    const supabase = createClient();
+    const query = supabase
+      .from('seller_reviews')
+      .select('id,buyer_name,buyer_city,overall_rating,fabric_quality_rating,seller_service_rating,title,body,verified_purchase,order_ref,helpful_count,created_at,photo_urls')
+      .order('created_at', { ascending: false })
+      .limit(20);
 
-  const handleSubmitReview = () => {
+    if (sellerId) {
+      query.eq('seller_id', sellerId);
+    }
+
+    const { data, error } = await query;
+    if (error || !data) {
+      setLoading(false);
+      return;
+    }
+
+    const rows = data as Review[];
+    setReviews(rows);
+    setTotalCount(rows.length);
+
+    if (rows.length > 0) {
+      const avg = rows.reduce((sum, r) => sum + r.overall_rating, 0) / rows.length;
+      setAvgRating(Math.round(avg * 10) / 10);
+
+      const counts = [5, 4, 3, 2, 1].map((stars) => {
+        const count = rows.filter((r) => Math.round(r.overall_rating) === stars).length;
+        return { stars, count, pct: rows.length > 0 ? Math.round((count / rows.length) * 100) : 0 };
+      });
+      setBreakdown(counts);
+    }
+    setLoading(false);
+  }, [sellerId]);
+
+  useEffect(() => { void loadReviews(); }, [loadReviews]);
+
+  const handleSubmitReview = async () => {
     if (!newRating || !newTitle.trim() || !newBody.trim()) return;
+    if (!user?.id) { toast.error('Sign in to submit a review.'); return; }
     setSubmitting(true);
-    setTimeout(() => {
-      const newReview: Review = {
-        id: Date.now(),
-        buyer: 'You (Verified Buyer)',
-        city: 'Your City',
-        rating: newRating,
-        date: new Date().toLocaleDateString('en-IN', {
-          day: '2-digit',
-          month: 'short',
-          year: 'numeric',
-        }),
+    try {
+      const supabase = createClient();
+      const { error } = await supabase.from('seller_reviews').insert({
+        seller_id: sellerId || null,
+        buyer_id: user.id,
+        buyer_name: profile?.full_name || profile?.business_name || 'Verified Buyer',
+        buyer_city: profile?.city || '',
+        overall_rating: newRating,
+        fabric_quality_rating: fabricRating || newRating,
+        seller_service_rating: serviceRating || newRating,
         title: newTitle.trim(),
         body: newBody.trim(),
-        verified: true,
-        orderId: 'FT-ORD-005892',
-        helpful: 0,
-      };
-      setReviews((prev) => [newReview, ...prev]);
-      setSubmitting(false);
+        verified_purchase: true,
+        order_ref: '',
+        helpful_count: 0,
+      });
+      if (error) throw error;
+      toast.success('Review submitted successfully!');
       setSubmitted(true);
       setShowReviewForm(false);
-      setNewRating(0);
-      setNewTitle('');
-      setNewBody('');
-    }, 800);
+      setNewRating(0); setFabricRating(0); setServiceRating(0);
+      setNewTitle(''); setNewBody('');
+      void loadReviews();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not submit review.');
+    } finally {
+      setSubmitting(false);
+    }
   };
+
+  const markHelpful = async (reviewId: string) => {
+    if (helpful[reviewId]) return;
+    setHelpful((prev) => ({ ...prev, [reviewId]: true }));
+    const supabase = createClient();
+    try {
+      await supabase.rpc('increment_review_helpful', { review_id: reviewId });
+    } catch {
+      // Non-blocking
+    }
+    setReviews((prev) => prev.map((r) => r.id === reviewId ? { ...r, helpful_count: r.helpful_count + 1 } : r));
+  };
+
+  const StarInput = ({ value, onChange, hover, onHover }: { value: number; onChange: (v: number) => void; hover: number; onHover: (v: number) => void }) => (
+    <div className="flex items-center gap-1">
+      {[1, 2, 3, 4, 5].map((star) => (
+        <button key={star} type="button" onMouseEnter={() => onHover(star)} onMouseLeave={() => onHover(0)} onClick={() => onChange(star)} className="transition-transform hover:scale-110 min-w-[28px] min-h-[28px] flex items-center justify-center">
+          <Icon name="StarIcon" size={24} className={star <= (hover || value) ? 'text-amber-400' : 'text-muted'} variant="solid" />
+        </button>
+      ))}
+      {value > 0 && <span className="ml-2 text-sm font-700 text-amber-600">{['', 'Poor', 'Fair', 'Good', 'Very Good', 'Excellent'][value]}</span>}
+    </div>
+  );
 
   return (
     <div className="bg-card rounded-2xl border border-border p-5 mt-6">
       <div className="flex items-center justify-between mb-5">
         <h2 className="text-base font-800 text-foreground">Customer Reviews</h2>
-        {!showReviewForm && !submitted && (
-          <button
-            onClick={() => setShowReviewForm(true)}
-            className="flex items-center gap-1.5 btn-secondary px-3 py-2 text-xs rounded-xl"
-          >
-            <Icon name="PencilSquareIcon" size={14} />
-            Write a Review
+        {!showReviewForm && !submitted && user && (
+          <button onClick={() => setShowReviewForm(true)} className="flex items-center gap-1.5 btn-secondary px-3 py-2 text-xs rounded-xl min-h-[36px]">
+            <Icon name="PencilSquareIcon" size={14} />Write a Review
           </button>
         )}
         {submitted && (
           <span className="flex items-center gap-1 text-xs font-600 text-success bg-success/10 border border-success/20 rounded-full px-2.5 py-1">
-            <Icon name="CheckCircleIcon" size={13} />
-            Review submitted!
+            <Icon name="CheckCircleIcon" size={13} />Review submitted!
           </span>
         )}
       </div>
 
-      {/* Review Form */}
       {showReviewForm && (
         <div className="mb-6 p-4 bg-muted/50 rounded-2xl border border-border">
           <h3 className="text-sm font-800 text-foreground mb-4">Rate Your Experience</h3>
-          {/* Star Rating Input */}
           <div className="mb-4">
-            <p className="text-xs font-600 text-muted-foreground mb-2">Your Rating *</p>
-            <div className="flex items-center gap-1">
-              {[1, 2, 3, 4, 5].map((star) => (
-                <button
-                  key={star}
-                  onMouseEnter={() => setHoverRating(star)}
-                  onMouseLeave={() => setHoverRating(0)}
-                  onClick={() => setNewRating(star)}
-                  className="transition-transform hover:scale-110"
-                >
-                  <Icon
-                    name="StarIcon"
-                    size={28}
-                    className={star <= (hoverRating || newRating) ? 'text-amber-400' : 'text-muted'}
-                    variant="solid"
-                  />
-                </button>
-              ))}
-              {newRating > 0 && (
-                <span className="ml-2 text-sm font-700 text-amber-600">
-                  {['', 'Poor', 'Fair', 'Good', 'Very Good', 'Excellent'][newRating]}
-                </span>
-              )}
+            <p className="text-xs font-600 text-muted-foreground mb-2">Overall Rating *</p>
+            <StarInput value={newRating} onChange={setNewRating} hover={hoverRating} onHover={setHoverRating} />
+          </div>
+          <div className="mb-4 grid gap-3 sm:grid-cols-2">
+            <div>
+              <p className="text-xs font-600 text-muted-foreground mb-2">Fabric Quality</p>
+              <StarInput value={fabricRating} onChange={setFabricRating} hover={0} onHover={() => {}} />
+            </div>
+            <div>
+              <p className="text-xs font-600 text-muted-foreground mb-2">Seller Service</p>
+              <StarInput value={serviceRating} onChange={setServiceRating} hover={0} onHover={() => {}} />
             </div>
           </div>
-          {/* Title */}
           <div className="mb-3">
-            <label className="text-xs font-600 text-muted-foreground block mb-1.5">
-              Review Title *
-            </label>
-            <input
-              type="text"
-              value={newTitle}
-              onChange={(e) => setNewTitle(e.target.value)}
-              placeholder="Summarize your experience..."
-              maxLength={80}
-              className="input-base w-full px-3 py-2.5 text-sm rounded-xl"
-            />
+            <label className="text-xs font-600 text-muted-foreground block mb-1.5">Review Title *</label>
+            <input type="text" value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="Summarize your experience..." maxLength={80} className="input-base w-full px-3 py-2.5 text-sm rounded-xl" />
           </div>
-          {/* Body */}
           <div className="mb-4">
-            <label className="text-xs font-600 text-muted-foreground block mb-1.5">
-              Detailed Review *
-            </label>
-            <textarea
-              value={newBody}
-              onChange={(e) => setNewBody(e.target.value)}
-              placeholder="Share details about fabric quality, dispatch speed, seller communication..."
-              rows={4}
-              maxLength={500}
-              className="input-base w-full px-3 py-2.5 text-sm rounded-xl resize-none"
-            />
+            <label className="text-xs font-600 text-muted-foreground block mb-1.5">Detailed Review *</label>
+            <textarea value={newBody} onChange={(e) => setNewBody(e.target.value)} placeholder="Share details about fabric quality, dispatch speed, seller communication..." rows={4} maxLength={500} className="input-base w-full px-3 py-2.5 text-sm rounded-xl resize-none" />
             <p className="text-xs text-muted-foreground text-right mt-1">{newBody.length}/500</p>
           </div>
           <div className="flex items-center gap-2">
-            <button
-              onClick={handleSubmitReview}
-              disabled={!newRating || !newTitle.trim() || !newBody.trim() || submitting}
-              className="btn-primary px-4 py-2 text-xs rounded-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
-            >
-              {submitting ? (
-                <>
-                  <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  Submitting...
-                </>
-              ) : (
-                <>
-                  <Icon name="PaperAirplaneIcon" size={13} />
-                  Submit Review
-                </>
-              )}
+            <button onClick={() => void handleSubmitReview()} disabled={!newRating || !newTitle.trim() || !newBody.trim() || submitting} className="btn-primary px-4 py-2 text-xs rounded-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 min-h-[36px]">
+              {submitting ? <><span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />Submitting...</> : <><Icon name="PaperAirplaneIcon" size={13} />Submit Review</>}
             </button>
-            <button
-              onClick={() => {
-                setShowReviewForm(false);
-                setNewRating(0);
-                setNewTitle('');
-                setNewBody('');
-              }}
-              className="btn-secondary px-4 py-2 text-xs rounded-xl"
-            >
-              Cancel
-            </button>
+            <button onClick={() => { setShowReviewForm(false); setNewRating(0); setNewTitle(''); setNewBody(''); }} className="btn-secondary px-4 py-2 text-xs rounded-xl min-h-[36px]">Cancel</button>
           </div>
         </div>
       )}
 
-      {/* Summary */}
-      <div className="flex flex-col sm:flex-row gap-6 mb-6 pb-6 border-b border-border">
-        <div className="flex flex-col items-center justify-center shrink-0">
-          <span className="text-5xl font-800 text-foreground">{aggregateRating}</span>
-          <div className="flex items-center gap-0.5 my-1.5">
-            {[1, 2, 3, 4, 5].map((s) => (
-              <Icon
-                key={s}
-                name="StarIcon"
-                size={16}
-                className={s <= 4 ? 'text-amber-400' : 'text-amber-200'}
-                variant="solid"
-              />
-            ))}
-          </div>
-          <span className="text-xs text-muted-foreground">{totalReviews} verified reviews</span>
+      {loading ? (
+        <div className="py-10 text-center"><span className="mx-auto block h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" /></div>
+      ) : totalCount === 0 ? (
+        <div className="py-10 text-center">
+          <Icon name="StarIcon" size={32} className="mx-auto mb-3 text-muted-foreground/30" />
+          <p className="text-sm font-700 text-foreground">No reviews yet</p>
+          <p className="mt-1 text-xs text-muted-foreground">Be the first to review this seller.</p>
         </div>
-        <div className="flex-1 space-y-1.5">
-          {ratingBreakdown.map((r) => (
-            <div key={r.stars} className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground w-4 text-right">{r.stars}</span>
-              <Icon name="StarIcon" size={11} className="text-amber-400 shrink-0" variant="solid" />
-              <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
-                <div className="h-full bg-amber-400 rounded-full" style={{ width: `${r.pct}%` }} />
+      ) : (
+        <>
+          <div className="flex flex-col sm:flex-row gap-6 mb-6 pb-6 border-b border-border">
+            <div className="flex flex-col items-center justify-center shrink-0">
+              <span className="text-5xl font-800 text-foreground">{avgRating}</span>
+              <div className="flex items-center gap-0.5 my-1.5">
+                {[1, 2, 3, 4, 5].map((s) => (
+                  <Icon key={s} name="StarIcon" size={16} className={s <= Math.round(avgRating) ? 'text-amber-400' : 'text-amber-200'} variant="solid" />
+                ))}
               </div>
-              <span className="text-xs text-muted-foreground w-6">{r.count}</span>
+              <span className="text-xs text-muted-foreground">{totalCount} verified review{totalCount !== 1 ? 's' : ''}</span>
             </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Review List */}
-      <div className="space-y-5">
-        {reviews.map((review) => (
-          <div key={review.id} className="pb-5 border-b border-border last:border-b-0 last:pb-0">
-            <div className="flex items-start justify-between gap-3 mb-2">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-full bg-secondary/10 flex items-center justify-center shrink-0">
-                  <span className="text-xs font-800 text-secondary">{review.buyer[0]}</span>
+            <div className="flex-1 space-y-1.5">
+              {breakdown.map((r) => (
+                <div key={r.stars} className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground w-4 text-right">{r.stars}</span>
+                  <Icon name="StarIcon" size={11} className="text-amber-400 shrink-0" variant="solid" />
+                  <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
+                    <div className="h-full bg-amber-400 rounded-full transition-all" style={{ width: `${r.pct}%` }} />
+                  </div>
+                  <span className="text-xs text-muted-foreground w-6">{r.count}</span>
                 </div>
-                <div>
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="text-sm font-700 text-foreground">{review.buyer}</span>
-                    {review.verified && (
-                      <span className="inline-flex items-center gap-0.5 text-xs font-600 text-success bg-success/10 border border-success/20 rounded-full px-1.5 py-0.5">
-                        <Icon name="CheckBadgeIcon" size={11} className="text-success" />
-                        Verified Purchase
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-5">
+            {reviews.map((review) => (
+              <div key={review.id} className="border-b border-border pb-5 last:border-0 last:pb-0">
+                <div className="flex items-start justify-between gap-3 mb-2">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                      <span className="text-xs font-800 text-primary">{review.buyer_name?.[0] || 'B'}</span>
+                    </div>
+                    <div>
+                      <p className="text-xs font-700 text-foreground">{review.buyer_name}</p>
+                      <p className="text-xs text-muted-foreground">{review.buyer_city} · {new Date(review.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-end gap-1">
+                    <div className="flex items-center gap-0.5">
+                      {[1, 2, 3, 4, 5].map((s) => (
+                        <Icon key={s} name="StarIcon" size={13} className={s <= review.overall_rating ? 'text-amber-400' : 'text-muted'} variant="solid" />
+                      ))}
+                    </div>
+                    {review.verified_purchase && (
+                      <span className="text-[10px] font-600 text-success flex items-center gap-0.5">
+                        <Icon name="CheckBadgeIcon" size={11} />Verified
                       </span>
                     )}
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    {review.city} · {review.date}
-                  </p>
+                </div>
+
+                {(review.fabric_quality_rating > 0 || review.seller_service_rating > 0) && (
+                  <div className="flex flex-wrap gap-3 mb-2">
+                    {review.fabric_quality_rating > 0 && (
+                      <span className="text-xs text-muted-foreground">Fabric: <span className="font-700 text-foreground">{review.fabric_quality_rating}/5</span></span>
+                    )}
+                    {review.seller_service_rating > 0 && (
+                      <span className="text-xs text-muted-foreground">Service: <span className="font-700 text-foreground">{review.seller_service_rating}/5</span></span>
+                    )}
+                  </div>
+                )}
+
+                <p className="text-sm font-700 text-foreground mb-1">{review.title}</p>
+                <p className="text-sm text-muted-foreground leading-relaxed">{review.body}</p>
+
+                {Array.isArray(review.photo_urls) && review.photo_urls.length > 0 && (
+                  <div className="flex gap-2 mt-3 flex-wrap">
+                    {review.photo_urls.map((url, i) => (
+                      <img key={i} src={url} alt={`Review photo ${i + 1}`} className="w-16 h-16 rounded-lg object-cover border border-border" />
+                    ))}
+                  </div>
+                )}
+
+                <div className="mt-3 flex items-center gap-3">
+                  <button onClick={() => void markHelpful(review.id)} disabled={helpful[review.id]} className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50 min-h-[32px] px-2">
+                    <Icon name="HandThumbUpIcon" size={13} />
+                    Helpful ({review.helpful_count})
+                  </button>
+                  {review.order_ref && (
+                    <span className="text-xs text-muted-foreground font-mono">{review.order_ref}</span>
+                  )}
                 </div>
               </div>
-              <div className="flex items-center gap-0.5 shrink-0">
-                {[1, 2, 3, 4, 5].map((s) => (
-                  <Icon
-                    key={s}
-                    name="StarIcon"
-                    size={12}
-                    className={s <= review.rating ? 'text-amber-400' : 'text-amber-200'}
-                    variant="solid"
-                  />
-                ))}
-              </div>
-            </div>
-            <p className="text-sm font-700 text-foreground mb-1">{review.title}</p>
-            <p className="text-sm text-muted-foreground leading-relaxed mb-2">{review.body}</p>
-            <div className="flex items-center gap-3">
-              <span className="text-xs text-muted-foreground">
-                Order: <span className="mono-id">{review.orderId}</span>
-              </span>
-              <button
-                onClick={() => setHelpful((h) => ({ ...h, [review.id]: !h[review.id] }))}
-                className={`flex items-center gap-1 text-xs font-600 transition-colors ${helpful[review.id] ? 'text-primary' : 'text-muted-foreground hover:text-primary'}`}
-              >
-                <Icon name="HandThumbUpIcon" size={13} />
-                Helpful ({review.helpful + (helpful[review.id] ? 1 : 0)})
-              </button>
-            </div>
+            ))}
           </div>
-        ))}
-      </div>
+        </>
+      )}
     </div>
   );
 }

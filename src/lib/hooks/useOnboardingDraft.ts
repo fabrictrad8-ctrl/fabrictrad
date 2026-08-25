@@ -44,28 +44,41 @@ export function saveOnboardingDraftLocally<T>(
   step: string,
   payload: T
 ): DraftEnvelope<T>;
+
 export function saveOnboardingDraftLocally<T>(
   flow: Flow,
   userId: string | null | undefined,
   step: string,
   payload: T
 ): DraftEnvelope<T>;
+
 export function saveOnboardingDraftLocally<T>(
   flow: Flow,
   userIdOrStep: string | null | undefined,
-  stepOrPayload: string | T,
-  maybePayload?: T
+  stepOrPayload?: string | T,
+  payloadArg?: T
 ): DraftEnvelope<T> {
-  const scopedCall = maybePayload !== undefined;
-  const userId = scopedCall ? userIdOrStep : undefined;
-  const step = scopedCall ? String(stepOrPayload) : String(userIdOrStep || '');
-  const payload = (scopedCall ? maybePayload : stepOrPayload) as T;
+  let userId: string | null | undefined;
+  let step: string;
+  let payload: T;
+
+  if (payloadArg !== undefined) {
+    userId = userIdOrStep;
+    step = stepOrPayload as string;
+    payload = payloadArg;
+  } else {
+    userId = undefined;
+    step = userIdOrStep as string;
+    payload = stepOrPayload as T;
+  }
+
   const envelope: DraftEnvelope<T> = {
     step,
     payload,
     savedAt: new Date().toISOString(),
   };
-  writeStorage(keyFor(flow, userId), JSON.stringify(envelope));
+  const key = keyFor(flow, userId);
+  writeStorage(key, JSON.stringify(envelope));
   return envelope;
 }
 

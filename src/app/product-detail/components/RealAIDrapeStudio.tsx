@@ -284,8 +284,7 @@ export default function RealAIDrapeStudio() {
       );
     } catch (generationError) {
       setError(
-        generationError instanceof DOMException && generationError.name === 'AbortError'
-          ? 'AI generation timed out. Please retry.'
+        generationError instanceof DOMException && generationError.name === 'AbortError' ?'AI generation timed out. Please retry.'
           : generationError instanceof Error
             ? generationError.message
             : 'Unable to generate the AI drape.'
@@ -496,8 +495,7 @@ export default function RealAIDrapeStudio() {
                 onClick={() => setFit(item)}
                 className={`flex-1 rounded-xl border py-2 text-xs font-800 transition ${
                   fit === item
-                    ? 'border-secondary bg-secondary text-white'
-                    : 'border-border text-foreground hover:border-secondary/40'
+                    ? 'border-secondary bg-secondary text-white' :'border-border text-foreground hover:border-secondary/40'
                 }`}
               >
                 {item}

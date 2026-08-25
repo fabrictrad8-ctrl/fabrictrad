@@ -209,8 +209,7 @@ async function ingestMessage(message: MetaMessage) {
     : messageText || mediaStoragePath
       ? 'needs_review'
       : processingError
-        ? 'failed'
-        : 'ignored';
+        ? 'failed' :'ignored';
 
   const { error: insertError } = await admin.from('whatsapp_catalog_ingestions').insert({
     user_id: profile.id,

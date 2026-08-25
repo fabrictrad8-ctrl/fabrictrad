@@ -11,23 +11,23 @@ const careInstructions = [
 
 export default function ProductSpecs() {
   const { product, loading } = useProduct();
-  const selectedVariant = product.variants?.find(
-    (variant) => variant.id === product.selectedVariantId
+  const selectedVariant = product?.variants?.find(
+    (variant) => variant?.id === product?.selectedVariantId
   );
 
   const specs = [
-    { label: 'Fabric / Category', value: product.category },
-    { label: 'Width', value: product.width },
-    { label: 'GSM', value: product.gsm ? `${product.gsm} GSM` : 'Not specified' },
-    { label: 'Work / Design', value: selectedVariant?.designName || product.work },
-    { label: 'Colour', value: selectedVariant?.colorName || product.colors?.join(', ') || 'See product photos' },
-    { label: 'Variant SKU', value: selectedVariant?.code || product.sku || 'Not specified' },
-    { label: 'Variant stock', value: selectedVariant ? `${selectedVariant.available} ${selectedVariant.unit}` : `${product.available} ${product.unit}` },
-    { label: 'Minimum order', value: `${selectedVariant?.moq || product.moq} ${selectedVariant?.unit || product.unit}` },
-    { label: 'Dispatch', value: `${product.dispatchDays} business day${product.dispatchDays === 1 ? '' : 's'}` },
-    { label: 'Country of origin', value: `India${product.city ? ` · ${product.city}` : ''}` },
-    { label: 'GST invoice', value: product.gst ? 'Available' : 'Confirm with seller' },
-    { label: 'Catalogue variations', value: product.variantCount ? `${product.variantCount} colour/design options` : 'Single listing' },
+    { label: 'Fabric / Category', value: product?.category },
+    { label: 'Width', value: product?.width },
+    { label: 'GSM', value: product?.gsm ? `${product?.gsm} GSM` : 'Not specified' },
+    { label: 'Work / Design', value: selectedVariant?.designName || product?.work },
+    { label: 'Colour', value: selectedVariant?.colorName || product?.colors?.join(', ') || 'See product photos' },
+    { label: 'Variant SKU', value: selectedVariant?.code || product?.sku || 'Not specified' },
+    { label: 'Variant stock', value: selectedVariant ? `${selectedVariant?.available} ${selectedVariant?.unit}` : `${product?.available} ${product?.unit}` },
+    { label: 'Minimum order', value: `${selectedVariant?.moq || product?.moq} ${selectedVariant?.unit || product?.unit}` },
+    { label: 'Dispatch', value: `${product?.dispatchDays} business day${product?.dispatchDays === 1 ? '' : 's'}` },
+    { label: 'Country of origin', value: `India${product?.city ? ` · ${product?.city}` : ''}` },
+    { label: 'GST invoice', value: product?.gst ? 'Available' : 'Confirm with seller' },
+    { label: 'Catalogue variations', value: product?.variantCount ? `${product?.variantCount} colour/design options` : 'Single listing' },
   ];
 
   if (loading) {
@@ -40,7 +40,6 @@ export default function ProductSpecs() {
         <Icon name="ClipboardDocumentListIcon" size={18} className="text-primary" />
         Product specifications
       </h2>
-
       <div className="mb-5 rounded-xl border border-success/20 bg-success/10 p-4">
         <div className="flex items-start gap-3">
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-success">
@@ -55,38 +54,35 @@ export default function ProductSpecs() {
           </div>
         </div>
       </div>
-
       <div className="mb-5 grid grid-cols-1 overflow-hidden rounded-xl border border-border sm:grid-cols-2">
-        {specs.map((spec, index) => (
+        {specs?.map((spec, index) => (
           <div
-            key={spec.label}
+            key={spec?.label}
             className={`flex gap-3 border-b border-border px-4 py-3 ${
               index % 2 === 0 ? 'bg-muted/50' : 'bg-card'
             }`}
           >
             <span className="w-36 shrink-0 text-xs font-500 text-muted-foreground">
-              {spec.label}
+              {spec?.label}
             </span>
-            <span className="text-xs font-700 text-foreground">{spec.value}</span>
+            <span className="text-xs font-700 text-foreground">{spec?.value}</span>
           </div>
         ))}
       </div>
-
-      {product.description && (
+      {product?.description && (
         <div className="mb-5 rounded-xl bg-muted/50 p-4">
           <p className="text-xs font-800 uppercase tracking-wider text-muted-foreground">Description</p>
           <p className="mt-2 whitespace-pre-line text-sm leading-6 text-foreground">
-            {product.description}
+            {product?.description}
           </p>
         </div>
       )}
-
       <div>
         <p className="mb-3 flex items-center gap-2 text-sm font-700 text-foreground">
           <Icon name="SparklesIcon" size={16} className="text-primary" /> Buyer checks
         </p>
         <div className="flex flex-wrap gap-2">
-          {careInstructions.map((instruction) => (
+          {careInstructions?.map((instruction) => (
             <span
               key={instruction}
               className="rounded-full border border-border bg-muted px-3 py-1 text-xs text-muted-foreground"

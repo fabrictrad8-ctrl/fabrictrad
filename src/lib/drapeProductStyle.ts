@@ -1,14 +1,5 @@
 export type DrapeProductStyle =
-  | 'saree'
-  | 'lehenga'
-  | 'kurta'
-  | 'shirt'
-  | 'dress'
-  | 'dupatta'
-  | 'top'
-  | 'bottom'
-  | 'set'
-  | 'fabric';
+  | 'saree' |'lehenga' |'kurta' |'shirt' |'dress' |'dupatta' |'top' |'bottom' |'set' |'fabric';
 
 type DrapeProductInput = {
   name?: string | null;

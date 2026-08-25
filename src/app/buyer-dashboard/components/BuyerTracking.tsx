@@ -50,11 +50,20 @@ const statusProgress = (status: string) => {
   return 15;
 };
 
+const statusColor = (status: string) => {
+  const n = status.toLowerCase();
+  if (n.includes('deliver')) return 'bg-success text-white';
+  if (n.includes('transit') || n.includes('shipped')) return 'bg-primary text-white';
+  if (n.includes('cancel') || n.includes('fail') || n.includes('rto')) return 'bg-error/10 text-error';
+  return 'bg-primary/10 text-primary';
+};
+
 export default function BuyerTracking() {
   const { user } = useAuth();
   const [shipments, setShipments] = useState<ShipmentView[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [liveUpdate, setLiveUpdate] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -90,14 +99,24 @@ export default function BuyerTracking() {
         .from('catalog_order_requests')
         .select('id,seller_products(name)')
         .in('id', catalogIds);
-      (data || []).forEach((order: any) => catalogNames.set(order.id, order.seller_products?.name || 'Catalogue product'));
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (data || []).forEach((order: any) => {
+        const sp = order.seller_products;
+        const name = Array.isArray(sp) ? sp[0]?.name : sp?.name;
+        catalogNames.set(order.id as string, name || 'Catalogue product');
+      });
     }
     if (bulkIds.length) {
       const { data } = await supabase
         .from('bulk_orders')
         .select('id,bulk_order_items(product_name)')
         .in('id', bulkIds);
-      (data || []).forEach((order: any) => bulkNames.set(order.id, order.bulk_order_items?.[0]?.product_name || 'Bulk fabric order'));
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (data || []).forEach((order: any) => {
+        const items = order.bulk_order_items;
+        const name = Array.isArray(items) ? items[0]?.product_name : items?.product_name;
+        bulkNames.set(order.id as string, name || 'Bulk fabric order');
+      });
     }
 
     setShipments(rows.map((row) => ({
@@ -112,6 +131,37 @@ export default function BuyerTracking() {
     void load();
   }, [load]);
 
+  // Supabase Realtime subscription for live shipment updates
+  useEffect(() => {
+    if (!user?.id) return;
+    const supabase = createClient();
+    const channel = supabase
+      .channel(`buyer-shipments-${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'seller_shipments',
+          filter: `buyer_id=eq.${user.id}`,
+        },
+        (payload) => {
+          const updated = payload.new as ShipmentRow;
+          setShipments((prev) =>
+            prev.map((s) =>
+              s.id === updated.id
+                ? { ...s, ...updated }
+                : s
+            )
+          );
+          setLiveUpdate(`Shipment ${updated.id.slice(0, 8).toUpperCase()} updated to ${titleCase(updated.status || 'pending')}`);
+          setTimeout(() => setLiveUpdate(null), 5000);
+        }
+      )
+      .subscribe();
+    return () => { void supabase.removeChannel(channel); };
+  }, [user?.id]);
+
   const activeCount = useMemo(() => shipments.filter((shipment) => !['delivered', 'cancelled', 'failed', 'rto_delivered'].includes(String(shipment.status || '').toLowerCase())).length, [shipments]);
 
   return (
@@ -121,10 +171,23 @@ export default function BuyerTracking() {
           <h1 className="text-xl font-800 text-foreground">Track shipments</h1>
           <p className="mt-1 text-xs text-muted-foreground">{activeCount} active shipment{activeCount === 1 ? '' : 's'} for this buyer account.</p>
         </div>
-        <button type="button" onClick={() => void load()} disabled={loading} className="btn-secondary inline-flex items-center gap-2 rounded-xl px-3 py-2 text-xs disabled:opacity-50">
-          <Icon name="ArrowPathIcon" size={14} className={loading ? 'animate-spin' : ''} /> Refresh
-        </button>
+        <div className="flex items-center gap-2">
+          <span className="flex items-center gap-1.5 rounded-full bg-success/10 px-2.5 py-1 text-xs font-600 text-success">
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-success" />
+            Live updates
+          </span>
+          <button type="button" onClick={() => void load()} disabled={loading} className="btn-secondary inline-flex items-center gap-2 rounded-xl px-3 py-2 text-xs disabled:opacity-50">
+            <Icon name="ArrowPathIcon" size={14} className={loading ? 'animate-spin' : ''} /> Refresh
+          </button>
+        </div>
       </div>
+
+      {liveUpdate && (
+        <div className="mb-4 flex items-center gap-2 rounded-xl border border-success/20 bg-success/10 px-4 py-2.5 text-xs font-600 text-success">
+          <Icon name="BellIcon" size={14} />
+          {liveUpdate}
+        </div>
+      )}
 
       {error && <div className="mb-5 rounded-2xl border border-error/20 bg-error/5 p-4 text-sm text-error">{error}</div>}
 
@@ -146,7 +209,7 @@ export default function BuyerTracking() {
                 <div className="border-b border-border bg-muted/30 px-5 py-4">
                   <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
                     <div>
-                      <div className="mb-1 flex flex-wrap items-center gap-2"><span className="mono-id">{shipment.orderRef}</span><span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-700 text-primary">{titleCase(status)}</span></div>
+                      <div className="mb-1 flex flex-wrap items-center gap-2"><span className="mono-id">{shipment.orderRef}</span><span className={`rounded-full px-2.5 py-0.5 text-xs font-700 ${statusColor(status)}`}>{titleCase(status)}</span></div>
                       <p className="text-sm font-800 text-foreground">{shipment.product}</p>
                       <p className="mt-1 text-xs text-muted-foreground">Shipment {shipment.id.slice(0, 8).toUpperCase()}</p>
                     </div>
@@ -161,7 +224,7 @@ export default function BuyerTracking() {
                 <div className="p-5">
                   <div className="mb-4">
                     <div className="mb-2 flex items-center justify-between text-xs"><span className="font-700 text-foreground">Delivery progress</span><span className="text-muted-foreground">{statusProgress(status)}%</span></div>
-                    <div className="h-2 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-success transition-all" style={{ width: `${statusProgress(status)}%` }} /></div>
+                    <div className="h-2 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-success transition-all duration-500" style={{ width: `${statusProgress(status)}%` }} /></div>
                   </div>
 
                   {events.length ? (

@@ -53,7 +53,7 @@ export default function LoginRedirectGuard() {
     if (loading || !user || !profile) return;
 
     const destination = destinationFor(profile.role as AccountRole, requestedNext);
-    const timer = window.setTimeout(() => {
+    let timer = window.setTimeout(() => {
       if (window.location.pathname === '/login') {
         window.location.replace(destination);
       }

@@ -275,8 +275,7 @@ export default function SellerApplicationResume() {
       detail: status.bankDetailsPresent
         ? status.bankVerified
           ? 'Bank verified'
-          : 'Bank submitted, verification pending'
-        : 'Bank details not submitted',
+          : 'Bank submitted, verification pending' :'Bank details not submitted',
     },
     {
       label: 'Required documents',
@@ -317,15 +316,13 @@ export default function SellerApplicationResume() {
                 fullyApproved
                   ? 'bg-success/10 text-success'
                   : status.applicationSubmitted
-                    ? 'bg-amber-100 text-amber-900'
-                    : 'bg-error/10 text-error'
+                    ? 'bg-amber-100 text-amber-900' :'bg-error/10 text-error'
               }`}
             >
               {fullyApproved
                 ? 'Approved'
                 : status.applicationSubmitted
-                  ? 'Under review'
-                  : 'Not submitted'}
+                  ? 'Under review' :'Not submitted'}
             </span>
           </div>
 
@@ -336,8 +333,7 @@ export default function SellerApplicationResume() {
                   <span
                     className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
                       stage.complete
-                        ? 'bg-success text-white'
-                        : 'bg-amber-100 text-amber-900'
+                        ? 'bg-success text-white' :'bg-amber-100 text-amber-900'
                     }`}
                   >
                     {stage.complete ? (

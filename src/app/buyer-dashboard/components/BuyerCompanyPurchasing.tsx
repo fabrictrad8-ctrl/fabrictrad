@@ -180,12 +180,12 @@ export default function BuyerCompanyPurchasing() {
         default_deposit_percent: Number(resolvedCompany.default_deposit_percent || 0),
       });
 
-      const [{ data: locationData }, { data: contactData }] = await Promise.all([
+      const [{ data: locData }, { data: contData }] = await Promise.all([
         supabase.from('b2b_company_locations').select('*').eq('company_id', resolvedCompany.id).order('is_default', { ascending: false }),
         supabase.from('b2b_company_contacts').select('*').eq('company_id', resolvedCompany.id).order('created_at', { ascending: true }),
       ]);
-      setLocations((locationData || []) as CompanyLocation[]);
-      setContacts((contactData || []) as CompanyContact[]);
+      setLocations((locData || []) as CompanyLocation[]);
+      setContacts((contData || []) as CompanyContact[]);
     } else {
       setLocations([]);
       setContacts([]);

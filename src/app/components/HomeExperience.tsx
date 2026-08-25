@@ -12,17 +12,17 @@ export default function HomeExperience() {
   useEffect(() => {
     if (loading || !user || !profile) return;
 
-    if (profile.role === 'seller') {
-      router.replace('/seller-dashboard');
+    if (profile?.role === 'seller') {
+      router?.replace('/seller-dashboard');
       return;
     }
 
-    if (profile.role === 'admin_staff' || profile.role === 'super_admin') {
-      router.replace('/admin-portal');
+    if (profile?.role === 'admin_staff' || profile?.role === 'super_admin') {
+      router?.replace('/admin-portal');
       return;
     }
 
-    router.replace('/buyer-dashboard');
+    router?.replace('/buyer-dashboard');
   }, [loading, profile, router, user]);
 
   if (loading || (user && profile)) {

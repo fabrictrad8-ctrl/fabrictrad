@@ -277,8 +277,7 @@ export default function ProfilePage() {
   const dashboardLink = isAdmin
     ? '/admin-portal'
     : isSeller
-      ? '/seller-dashboard'
-      : '/buyer-dashboard';
+      ? '/seller-dashboard' :'/buyer-dashboard';
   const roleLabel = isAdmin ? 'Admin' : isSeller ? 'Seller' : 'Buyer';
   const handleProfileTabChange = (tab: ProfileTab) => {
     setActiveTab(tab);
@@ -418,9 +417,7 @@ export default function ProfilePage() {
           </div>
           <span
             className={`ml-auto text-xs font-700 px-3 py-1 rounded-full border ${
-              profile?.role === 'seller'
-                ? 'bg-secondary/10 text-secondary border-secondary/20'
-                : 'bg-primary/10 text-primary border-primary/20'
+              profile?.role === 'seller' ?'bg-secondary/10 text-secondary border-secondary/20' :'bg-primary/10 text-primary border-primary/20'
             }`}
           >
             {roleLabel} Account
@@ -547,8 +544,7 @@ export default function ProfilePage() {
                   onClick={() => handleProfileTabChange(tab.key as ProfileTab)}
                   className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-700 transition-colors ${
                     activeTab === tab.key
-                      ? 'bg-primary text-white'
-                      : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                      ? 'bg-primary text-white' :'text-muted-foreground hover:bg-muted hover:text-foreground'
                   }`}
                 >
                   <Icon name={tab.icon} size={17} />

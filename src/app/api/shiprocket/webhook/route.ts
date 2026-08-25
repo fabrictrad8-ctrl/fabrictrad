@@ -16,8 +16,7 @@ const normalizeStatus = (status: string) => {
   if (value === 'DELIVERED') return 'delivered';
   if (
     value.includes('FAILED') ||
-    value === 'UNDELIVERED' ||
-    value.includes('RTO') ||
+    value === 'UNDELIVERED'|| value.includes('RTO') ||
     value === 'CANCELLED' ||
     value === 'EXCEPTION'
   ) {

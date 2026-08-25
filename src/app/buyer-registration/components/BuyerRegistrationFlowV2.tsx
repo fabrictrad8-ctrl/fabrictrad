@@ -29,10 +29,7 @@ type GstCheck = {
 };
 type DocumentKey =
   | 'gst_certificate'
-  | 'pan_card'
-  | 'aadhaar_offline_ekyc'
-  | 'business_proof'
-  | 'address_proof';
+  | 'pan_card' |'aadhaar_offline_ekyc' |'business_proof' |'address_proof';
 
 type Props = { buyerType: BuyerType };
 
@@ -404,9 +401,7 @@ const currentIndex = steps.indexOf(step);
             {buyerType === 'retail_store' ? 'Create your Retail Store profile' : 'Create your Buy for me account'}
           </h1>
           <p className="mx-auto mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-            {buyerType === 'retail_store'
-              ? 'Business documents are kept private and reviewed for wholesale access and B2B invoicing.'
-              : 'No PAN, Aadhaar, GST certificate or business documents are required for personal purchases.'}
+            {buyerType === 'retail_store' ?'Business documents are kept private and reviewed for wholesale access and B2B invoicing.' :'No PAN, Aadhaar, GST certificate or business documents are required for personal purchases.'}
           </p>
         </div>
 
@@ -421,8 +416,7 @@ const currentIndex = steps.indexOf(step);
                     complete
                       ? 'border-success bg-success text-white'
                       : active
-                        ? 'border-primary bg-primary text-white'
-                        : 'border-border bg-card text-muted-foreground'
+                        ? 'border-primary bg-primary text-white' :'border-border bg-card text-muted-foreground'
                   }`}
                 >
                   <Icon name={(complete ? 'CheckIcon' : stepMeta[item].icon) as 'UserIcon'} size={17} />
