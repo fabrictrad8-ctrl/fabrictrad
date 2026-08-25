@@ -14,7 +14,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
   statuses: write
 
 concurrency:
@@ -104,6 +104,9 @@ jobs:
             http=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
               --output /tmp/shiprocket-status.json --write-out '%{http_code}' \
               'https://fabrictrad.com/api/shiprocket/status?verify=1' || true)
+            echo "Shiprocket status HTTP ${http}"
+            cat /tmp/shiprocket-status.json || true
+            echo
             if [ "$http" = '200' ]; then
               if python - <<'PY'
           import json
@@ -117,34 +120,21 @@ jobs:
           done
           [ "$ready" = true ] || { cat /tmp/shiprocket-status.json || true; exit 1; }
 
-      - name: Record logistics deployment
+      - name: Summarize logistics deployment
         if: always()
-        continue-on-error: true
         shell: bash
         run: |
-          mkdir -p .github/deployments
-          python - <<'PY'
-          import datetime,json,os,pathlib
-          status={}
-          try:
-            status=json.load(open('/tmp/shiprocket-status.json'))
-          except Exception:
-            pass
-          payload={
-            'sourceCommit':os.environ.get('GITHUB_SHA'),
-            'recordedAt':datetime.datetime.now(datetime.timezone.utc).isoformat(),
-            'callbackUrl':'https://fabrictrad.com/api/logistics/tracking-webhook',
-            'shiprocketConfigured':status.get('configured'),
-            'shiprocketAuthenticated':status.get('authenticated'),
-            'shiprocketWebhookConfigured':status.get('webhookConfigured'),
-            'credentialSource':status.get('source'),
-            'note':'Multi-vendor pickup and buyer delivery data are resolved server-side from FabricTrad accounts.',
-          }
-          p=pathlib.Path('.github/deployments/logistics-webhook-status.json')
-          p.write_text(json.dumps(payload,indent=2))
-          PY
-          git config user.name github-actions
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add .github/deployments/logistics-webhook-status.json
-          git diff --cached --quiet || git commit -m 'ci: record logistics deployment [skip deploy] [skip validation] [skip integration audit]'
-          git push
+          {
+            echo '## FabricTrad logistics verification'
+            echo
+            echo "Source commit: ${GITHUB_SHA}"
+            echo 'Callback: https://fabrictrad.com/api/logistics/tracking-webhook'
+            if [ -s /tmp/shiprocket-status.json ]; then
+              echo
+              echo 'Shiprocket readiness:'
+              echo '```json'
+              cat /tmp/shiprocket-status.json
+              echo
+              echo '```'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
