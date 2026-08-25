@@ -9,6 +9,7 @@ on:
       - 'src/app/api/razorpay/**'
       - 'supabase/migrations/20260822160500_server_razorpay_credentials_vault_reader.sql'
       - '.github/workflows/razorpay-hotfix-deploy.yml'
+      - 'scripts/deploy-cloudflare-worker-version.sh'
   workflow_dispatch:
 
 permissions:
@@ -64,8 +65,8 @@ jobs:
       - name: Build OpenNext Worker
         run: npm run build:sites
 
-      - name: Deploy Razorpay hotfix to Cloudflare
-        run: npx wrangler deploy --config wrangler.jsonc --keep-vars
+      - name: Promote Razorpay release on existing FabricTrad Worker
+        run: bash scripts/deploy-cloudflare-worker-version.sh wrangler.jsonc
 
       - name: Verify live Razorpay authentication
         id: live-razorpay
