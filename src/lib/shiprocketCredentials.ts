@@ -8,6 +8,20 @@ export type ShiprocketCredentials = {
 };
 
 export async function getShiprocketCredentials(): Promise<ShiprocketCredentials | null> {
+  // Restore the original production contract: Cloudflare Worker secrets are authoritative.
+  // The vault remains a fallback so current marketplace features do not regress.
+  const environmentEmail = process.env.SHIPROCKET_EMAIL?.trim() || '';
+  const environmentPassword = process.env.SHIPROCKET_PASSWORD?.trim() || '';
+  const environmentWebhookToken = process.env.SHIPROCKET_WEBHOOK_TOKEN?.trim() || '';
+  if (environmentEmail && environmentPassword) {
+    return {
+      email: environmentEmail,
+      password: environmentPassword,
+      webhookToken: environmentWebhookToken,
+      source: 'environment',
+    };
+  }
+
   try {
     const admin = createAdminClient();
     const { data, error } = await admin.rpc('get_server_shiprocket_credentials');
@@ -20,25 +34,22 @@ export async function getShiprocketCredentials(): Promise<ShiprocketCredentials 
       return { email, password, webhookToken, source: 'vault' };
     }
   } catch (error) {
-    console.warn('Shiprocket Vault credential lookup failed; falling back to Worker secrets.', {
+    console.warn('Shiprocket Vault fallback lookup failed.', {
       message: error instanceof Error ? error.message : 'unknown error',
     });
   }
 
-  const email = process.env.SHIPROCKET_EMAIL?.trim() || '';
-  const password = process.env.SHIPROCKET_PASSWORD?.trim() || '';
-  const webhookToken = process.env.SHIPROCKET_WEBHOOK_TOKEN?.trim() || '';
-  if (!email || !password) return null;
-
-  return { email, password, webhookToken, source: 'environment' };
+  return null;
 }
 
 export async function getShiprocketWebhookToken(): Promise<string> {
+  const environmentWebhookToken = process.env.SHIPROCKET_WEBHOOK_TOKEN?.trim() || '';
+  if (environmentWebhookToken) return environmentWebhookToken;
+
   try {
     const credentials = await getShiprocketCredentials();
-    if (credentials?.webhookToken) return credentials.webhookToken;
+    return credentials?.webhookToken || '';
   } catch {
-    // Fall through to the dedicated environment variable below.
+    return '';
   }
-  return process.env.SHIPROCKET_WEBHOOK_TOKEN?.trim() || '';
 }
