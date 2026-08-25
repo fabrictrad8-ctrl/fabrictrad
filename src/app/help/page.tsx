@@ -7,8 +7,8 @@ import Footer from '@/components/Footer';
 import Icon from '@/components/ui/AppIcon';
 
 const topics = [
-  { title: 'Buying fabrics', icon: 'ShoppingBagIcon', copy: 'Marketplace filters, colours, quantity, orders, payments and tracking.', href: '/buyer-dashboard' },
-  { title: 'Selling on FabricTrad', icon: 'BuildingStorefrontIcon', copy: 'GST activation, catalogue upload, inventory, orders and payouts.', href: '/seller-dashboard' },
+  { title: 'Buying fabrics', icon: 'ShoppingBagIcon', copy: 'Watch the buyer flow for discovery, product review, ordering, payment and tracking.', href: '/how-to-use?role=buyer' },
+  { title: 'Selling on FabricTrad', icon: 'BuildingStorefrontIcon', copy: 'Watch the seller flow for verification, catalogue, inventory, orders and fulfilment.', href: '/how-to-use?role=seller' },
   { title: 'Account & verification', icon: 'ShieldCheckIcon', copy: 'Login, phone, identity, GST, profile and security settings.', href: '/profile' },
   { title: 'Orders & fulfilment', icon: 'TruckIcon', copy: 'Seller acceptance, payment, shipment tracking and issue evidence.', href: '/buyer-dashboard?tab=orders' },
   { title: 'Buyer requirements', icon: 'MegaphoneIcon', copy: 'Post sourcing needs, review responses and use secure messaging.', href: '/buyer-requirements' },
@@ -42,8 +42,12 @@ export default function HelpPage() {
             <p className="ft-route-kicker">Help centre</p>
             <h1 className="ft-route-title mt-3">How can we help with FabricTrad?</h1>
             <p className="mx-auto mt-4 max-w-2xl text-sm leading-7 text-muted-foreground sm:text-base">
-              Find buyer, seller, account, payment and fulfilment guidance, or contact support with the relevant account or order ID.
+              Start with the public interactive Buyer or Seller walkthrough, then use the help centre for specific account, payment and fulfilment questions.
             </p>
+            <div className="mx-auto mt-6 flex max-w-md flex-col gap-2 sm:flex-row sm:justify-center">
+              <Link href="/how-to-use?role=buyer" className="ft-primary-action flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 text-sm"><Icon name="PlayIcon" size={16} />Buyer walkthrough</Link>
+              <Link href="/how-to-use?role=seller" className="ft-secondary-action flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 text-sm"><Icon name="PlayIcon" size={16} />Seller walkthrough</Link>
+            </div>
             <div className="ft-search mx-auto mt-7 max-w-2xl text-left">
               <Icon name="MagnifyingGlassIcon" size={19} className="ml-4 text-muted-foreground" />
               <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search help topics and questions" className="min-w-0 flex-1 bg-transparent px-3 text-sm outline-none" />
