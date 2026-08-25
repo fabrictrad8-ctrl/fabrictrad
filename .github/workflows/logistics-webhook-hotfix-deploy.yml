@@ -11,6 +11,7 @@ on:
       - 'src/app/seller-dashboard/components/SellerCourierSettings.tsx'
       - 'supabase/migrations/*shiprocket*'
       - '.github/workflows/logistics-webhook-hotfix-deploy.yml'
+      - 'scripts/deploy-cloudflare-worker-version.sh'
   workflow_dispatch:
 
 permissions:
@@ -60,8 +61,8 @@ jobs:
       - name: Build OpenNext Worker
         run: npm run build:sites
 
-      - name: Deploy logistics and Shiprocket update
-        run: npx wrangler deploy --config wrangler.jsonc --keep-vars
+      - name: Promote logistics and Shiprocket release on existing Worker
+        run: bash scripts/deploy-cloudflare-worker-version.sh wrangler.jsonc
 
       - name: Verify provider-safe callback URL
         shell: bash
