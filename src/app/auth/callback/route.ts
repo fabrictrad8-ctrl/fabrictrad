@@ -1,12 +1,11 @@
 import { createClient } from '@/lib/supabase/server';
 import type { AuthenticatedProvisionedAccount } from '@/lib/accountProvisioning';
 import { provisionAuthenticatedAccountWithRecovery } from '@/lib/server/accountProvisioningRecovery';
+import { configuredAdminEmail } from '@/lib/adminAccess';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 type BuyerType = 'retail_store' | 'end_user';
-
-const ADMIN_EMAIL = 'fabrictrad8@gmail.com';
 
 const getRequestedRole = (request: NextRequest, roleParam: string | null): 'buyer' | 'seller' => {
   if (roleParam === 'seller' || roleParam === 'buyer') return roleParam;
@@ -38,6 +37,12 @@ const loginErrorUrl = (origin: string, code: string) => {
   return loginUrl.toString();
 };
 
+const adminOtpUrl = (origin: string) => {
+  const adminUrl = new URL('/admin-login', origin);
+  adminUrl.searchParams.set('reason', 'admin_otp_required');
+  return adminUrl.toString();
+};
+
 const setupRecoveryUrl = (origin: string, requestedRole: 'buyer' | 'seller') => {
   const setupUrl = new URL('/auth/setup', origin);
   setupUrl.searchParams.set('role', requestedRole);
@@ -50,7 +55,7 @@ const destinationForAccount = (
   requestedRole: 'buyer' | 'seller',
   account: AuthenticatedProvisionedAccount
 ) => {
-  if (account.role === 'admin_staff' || account.role === 'super_admin') return `${origin}/admin-portal`;
+  if (account.role === 'admin_staff' || account.role === 'super_admin') return adminOtpUrl(origin);
 
   const sellerSession = account.role === 'seller' || requestedRole === 'seller';
   if (sellerSession && !account.phonePresent) {
@@ -89,17 +94,13 @@ export async function GET(request: NextRequest) {
   if (userError || !user) return redirectAfterAuth(loginErrorUrl(origin, 'auth_failed'));
 
   const normalizedEmail = user.email?.trim().toLowerCase() || '';
-  if (normalizedEmail === ADMIN_EMAIL && user.email_confirmed_at) {
-    try {
-      await provisionAuthenticatedAccountWithRecovery(supabase, user, 'buyer');
-    } catch (error) {
-      console.error('Administrator profile bootstrap failed', {
-        userId: user.id,
-        code: typeof error === 'object' && error && 'code' in error ? String(error.code) : undefined,
-      });
-      return redirectAfterAuth(setupRecoveryUrl(origin, 'buyer'));
-    }
-    return redirectAfterAuth(`${origin}/admin-portal`);
+
+  // Administration is deliberately OTP-only. A Google OAuth session for the
+  // configured administrator must never become an alternate route into the
+  // admin portal, even when the Google address itself is verified.
+  if (normalizedEmail === configuredAdminEmail()) {
+    await supabase.auth.signOut().catch(() => undefined);
+    return redirectAfterAuth(adminOtpUrl(origin));
   }
 
   let account: AuthenticatedProvisionedAccount;
@@ -117,6 +118,13 @@ export async function GET(request: NextRequest) {
       code: typeof error === 'object' && error && 'code' in error ? String(error.code) : undefined,
     });
     return redirectAfterAuth(setupRecoveryUrl(origin, requestedRole));
+  }
+
+  // An administrator role must never be entered via Google OAuth even if stale
+  // profile data exists on a non-admin email.
+  if (account.role === 'admin_staff' || account.role === 'super_admin') {
+    await supabase.auth.signOut().catch(() => undefined);
+    return redirectAfterAuth(adminOtpUrl(origin));
   }
 
   // Buyer-type setup is only meaningful for buyer-primary accounts. A stale
@@ -162,6 +170,11 @@ export async function GET(request: NextRequest) {
   if (profile.is_active === false) {
     await supabase.auth.signOut();
     return redirectAfterAuth(loginErrorUrl(origin, 'account_inactive'));
+  }
+
+  if (profile.role === 'admin_staff' || profile.role === 'super_admin') {
+    await supabase.auth.signOut().catch(() => undefined);
+    return redirectAfterAuth(adminOtpUrl(origin));
   }
 
   if (profile.role === 'seller') {
