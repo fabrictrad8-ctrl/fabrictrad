@@ -1,6 +1,6 @@
 {
-  "sourceCommit": "59210f187b63f9d5e0217e305de7616a9551767d",
-  "recordedAt": "2026-08-25T07:59:11.931Z",
+  "sourceCommit": "982d1f4d49efd63bf5f4dc9c43d37c5303f7238b",
+  "recordedAt": "2026-08-25T08:05:13.514Z",
   "install": "success",
   "cloudflareAuthentication": "success",
   "razorpayApiCredentialCheckStep": "success",
@@ -17,10 +17,10 @@
   "validation": "success",
   "validationLogTail": "=== Type check ===\n> fabrictrad@0.1.0 type-check\n> tsc --noEmit\n=== Lint (errors only) ===\n> fabrictrad@0.1.0 lint\n> eslint . --quiet",
   "workerBuild": "success",
-  "workerDeployment": "success",
-  "livePublicUiVerification": "failure",
+  "workerDeployment": "failure",
+  "livePublicUiVerification": "skipped",
   "liveAccountApiVerification": "skipped",
   "liveAiDrapeVerification": "skipped",
   "liveRazorpayWebhookVerification": "skipped",
-  "deploymentLogTail": " ⛅️ wrangler 4.125.0\n────────────────────\nCloudflare collects anonymous telemetry about your usage of Wrangler. Learn more at https://github.com/cloudflare/workers-sdk/tree/main/packages/wrangler/telemetry.md\n🌀 Building list of assets...\n✨ Read 248 files from the assets directory /home/runner/work/fabrictrad/fabrictrad/.open-next/assets\n🌀 Starting asset upload...\n🌀 Found 1 new or modified static asset to upload. Proceeding with upload...\n+ /BUILD_ID\nUploaded 1 of 1 asset\n✨ Success! Uploaded 1 file (124 already uploaded) (0.83 sec)\nTotal Upload: 13408.79 KiB / gzip: 2272.43 KiB\nWorker Startup Time: 37 ms\nYour Worker has access to the following bindings:\nBinding            Resource      \nenv.ASSETS         Assets        \nUploaded fabrictrad (6.00 sec)\nNo targets deployed for fabrictrad (0.31 sec)\nCurrent Version ID: cca173ae-b20b-49e4-b673-ec2782f2eb6c"
+  "deploymentLogTail": " ⛅️ wrangler 4.125.0\n────────────────────\nCloudflare collects anonymous telemetry about your usage of Wrangler. Learn more at https://github.com/cloudflare/workers-sdk/tree/main/packages/wrangler/telemetry.md\n🌀 Building list of assets...\n✨ Read 248 files from the assets directory /home/runner/work/fabrictrad/fabrictrad/.open-next/assets\n🌀 Starting asset upload...\n🌀 Found 1 new or modified static asset to upload. Proceeding with upload...\n+ /BUILD_ID\nUploaded 1 of 1 asset\n✨ Success! Uploaded 1 file (124 already uploaded) (0.78 sec)\nTotal Upload: 13443.80 KiB / gzip: 2275.49 KiB\nWorker Startup Time: 29 ms\nYour Worker has access to the following bindings:\nBinding            Resource      \nenv.ASSETS         Assets        \nUploaded fabrictrad (6.15 sec)\n✘ [ERROR] A request to the Cloudflare API (/zones/0b43edbee1574bb82d2034c693ae877c/workers/routes) failed.\n  Authentication error [code: 10000]\n  To learn more about this error, visit: https://developers.cloudflare.com/api/resources/workers/subresources/routes/methods/list\n📎 It looks like you are authenticating Wrangler via a custom API token set in an environment variable.\nPlease ensure it has the correct permissions for this operation.\nGetting User settings...\n👋 You are logged in with an Account API Token, associated with the account Fabrictrad8@gmail.com's Account.\nℹ️  The API Token is read from the CLOUDFLARE_API_TOKEN environment variable.\n┌─────────────────────────────────┬──────────────────────────────────┐\n│ Account Name                    │ Account ID                       │\n├─────────────────────────────────┼──────────────────────────────────┤\n│ Fabrictrad8@gmail.com's Account │ aa4ff7a482130e543f176e2d73c93f45 │\n└─────────────────────────────────┴──────────────────────────────────┘\n🔓 To see token permissions visit https://dash.cloudflare.com/aa4ff7a482130e543f176e2d73c93f45/api-tokens\n🪵  Logs were written to \"/home/runner/.config/.wrangler/logs/wrangler-2026-08-25_08-05-04_275.log\""
 }
