@@ -26,6 +26,11 @@ jobs:
             failures=$((failures + 1))
           }
 
+          warn() {
+            echo "::warning::$1"
+            warnings=$((warnings + 1))
+          }
+
           fetch_json() {
             local name="$1"
             local path="$2"
@@ -66,40 +71,43 @@ jobs:
           }
 
           fetch_json 'Google OAuth readiness' '/api/auth/google/status' /tmp/google.json || true
+          fetch_json 'Razorpay authenticated readiness' '/api/razorpay/status' /tmp/razorpay.json || true
+          fetch_json 'Shiprocket authenticated readiness' '/api/shiprocket/status?verify=1' /tmp/shiprocket.json || true
           fetch_json 'AI Drape readiness' '/api/ai/drape-on' /tmp/ai.json || true
           fetch_json '3D trial-room readiness' '/api/ai/trial-room/status' /tmp/trial-room.json || true
-          fetch_json 'Shiprocket readiness' '/api/shiprocket/status' /tmp/shiprocket.json || true
           fetch_json 'GSTIN readiness' '/api/gstin/status' /tmp/gstin.json || true
           fetch_json 'WhatsApp catalog readiness' '/api/whatsapp/status' /tmp/whatsapp.json || true
 
-          if [ -s /tmp/google.json ] && ! grep -q '"configured":true' /tmp/google.json; then
-            echo '::warning::Google OAuth is not configured or not healthy.'
-            warnings=$((warnings + 1))
+          if [ -s /tmp/google.json ]; then
+            grep -q '"configured":true' /tmp/google.json || fail 'Google OAuth is not configured.'
+          fi
+
+          if [ -s /tmp/razorpay.json ]; then
+            grep -q '"configured":true' /tmp/razorpay.json || fail 'Razorpay credentials are missing.'
+            grep -q '"authenticated":true' /tmp/razorpay.json || fail 'Razorpay credentials do not authenticate with Razorpay.'
+            grep -q '"mode":"live"' /tmp/razorpay.json || fail 'Razorpay is not using LIVE credentials in production.'
+          fi
+
+          if [ -s /tmp/shiprocket.json ]; then
+            grep -q '"configured":true' /tmp/shiprocket.json || fail 'Shiprocket credentials are missing.'
+            grep -q '"authenticated":true' /tmp/shiprocket.json || fail 'Shiprocket credentials do not authenticate with Shiprocket.'
+            grep -q '"webhookConfigured":true' /tmp/shiprocket.json || fail 'Shiprocket webhook token is missing.'
           fi
 
           if [ -s /tmp/ai.json ] && ! grep -q '"configured":true' /tmp/ai.json; then
-            echo '::warning::AI Drape provider is not configured.'
-            warnings=$((warnings + 1))
+            fail 'AI Drape provider is not configured.'
           fi
 
           if [ -s /tmp/trial-room.json ] && ! grep -q '"threeDProviderConfigured":true' /tmp/trial-room.json; then
-            echo '::warning::True 3D trial-room asset architecture is present, but no 3D rendering/provider service is configured.'
-            warnings=$((warnings + 1))
-          fi
-
-          if [ -s /tmp/shiprocket.json ] && ! grep -q '"configured":true' /tmp/shiprocket.json; then
-            echo '::warning::Shiprocket is not configured; automated dispatch is unavailable.'
-            warnings=$((warnings + 1))
+            warn 'True 3D trial-room architecture exists, but no dedicated 3D rendering provider is configured.'
           fi
 
           if [ -s /tmp/gstin.json ] && ! grep -q '"providerConfigured":true' /tmp/gstin.json; then
-            echo '::warning::GSTIN verification is using official-manual review because no external provider is configured.'
-            warnings=$((warnings + 1))
+            warn 'GSTIN verification is using the official-manual review path.'
           fi
 
           if [ -s /tmp/whatsapp.json ] && ! grep -q '"configured":true' /tmp/whatsapp.json; then
-            echo '::warning::WhatsApp seller catalog sync backend is installed but Meta Business credentials/number are not fully configured.'
-            warnings=$((warnings + 1))
+            warn 'WhatsApp seller catalog sync is installed but not fully configured.'
           fi
 
           webhook_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
@@ -131,7 +139,7 @@ jobs:
           assert_cookie_cannot_unlock seller '/seller-dashboard' 'login'
           assert_cookie_cannot_unlock admin '/admin-portal' 'admin-login'
 
-          echo "Integration readiness completed with ${failures} failure(s) and ${warnings} non-blocking configuration warning(s)."
+          echo "Integration readiness completed with ${failures} failure(s) and ${warnings} non-blocking warning(s)."
           if [ "$failures" -gt 0 ]; then
             exit 1
           fi
