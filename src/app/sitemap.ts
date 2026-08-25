@@ -13,6 +13,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${baseUrl}/register`, lastModified, priority: 0.8 },
     { url: `${baseUrl}/buyer-registration`, lastModified, priority: 0.8 },
     { url: `${baseUrl}/seller-registration`, lastModified, priority: 0.8 },
+    { url: `${baseUrl}/how-to-use`, lastModified, priority: 0.75 },
     { url: `${baseUrl}/login`, lastModified, priority: 0.7 },
     { url: `${baseUrl}/help`, lastModified, priority: 0.65 },
     { url: `${baseUrl}/privacy`, lastModified, priority: 0.4 },
