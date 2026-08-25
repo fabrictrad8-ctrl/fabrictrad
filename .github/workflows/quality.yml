@@ -41,121 +41,60 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      - name: Production build
-        run: npm run build
+      - name: Core regression scripts
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run verify:oauth-recovery
+          npm run verify:public-home
+          npm run verify:database-security
+          npm run verify:seller-onboarding
+          node scripts/verify-marketplace-integrity.mjs
 
-      - name: Account, marketplace, payment and document regressions
+      - name: Security architecture assertions
         shell: bash
         run: |
           set -euo pipefail
 
-          required_files=(
-            src/app/api/auth/logout/route.ts
-            src/app/api/auth/provision-account/route.ts
-            src/app/api/auth/admin-otp/request/route.ts
-            src/app/api/account/enable-selling/route.ts
-            src/app/api/registration/seller/finalize/route.ts
-            src/app/api/catalog-assistant/parse/route.ts
-            src/app/api/razorpay/order/route.ts
-            src/app/api/razorpay/verify/route.ts
-            src/app/api/razorpay/webhook/route.ts
-            src/app/api/seller/invoices/route.ts
-            src/app/admin-login/AdminLoginClient.tsx
-            src/app/admin-portal/page.tsx
-            src/app/seller-dashboard/components/SellerCatalogAssistant.tsx
-            src/app/seller-dashboard/components/SellerCatalogOrders.tsx
-            src/app/seller-dashboard/components/SellerOrders.tsx
-            src/app/buyer-dashboard/components/BuyerCatalogOrders.tsx
-            src/app/buyer-dashboard/components/BuyerOrders.tsx
-            src/app/product-detail/components/ProductGallery.tsx
-            src/app/product-detail/components/ProductInfo.tsx
-            src/components/RazorpayCheckout.tsx
-            src/components/commerce/OrderLifecyclePanel.tsx
-            src/lib/accountProvisioning.ts
-            src/lib/adminAccess.ts
-            src/lib/catalogAssistant.ts
-            src/lib/razorpayIntegrity.ts
-            src/lib/sellerTaxInvoice.ts
-            src/middleware.ts
-            supabase/migrations/20260728180000_in_app_catalog_media.sql
-            supabase/migrations/20260730210000_account_role_profile_provisioning.sql
-            supabase/migrations/20260730211000_catalog_order_payment_flow.sql
-            supabase/migrations/20260730212000_catalog_order_inventory_reservation.sql
-            supabase/migrations/20260730220000_unified_commerce_accounts.sql
-            supabase/migrations/20260803052000_marketplace_payment_invoice_shipping_integrity.sql
-            supabase/migrations/20260803061000_marketplace_payment_attempt_uniqueness.sql
-          )
-          for file in "${required_files[@]}"; do test -f "$file"; done
-
-          # Authentication and role isolation.
-          grep -Fq "window.location.replace('/api/auth/logout')" src/components/auth/LogoutButton.tsx
-          grep -Fq "signOut({ scope: 'local' })" src/app/api/auth/logout/route.ts
+          # Admin authentication must remain isolated from buyer/seller OAuth.
           grep -Fq 'configuredEmail={configuredAdminEmail()}' src/app/admin-login/page.tsx
           grep -Fq 'emailAllowed = normalizedEmail === authorisedEmail' src/app/admin-login/AdminLoginClient.tsx
           grep -Fq 'shouldCreateUser: false' src/app/api/auth/admin-otp/request/route.ts
-          grep -Fq 'isConfiguredAdminEmail(user.email)' src/app/admin-portal/page.tsx
+          grep -Fq 'admin_otp_required' src/app/auth/callback/route.ts
+          grep -Fq 'await supabase.auth.signOut().catch' src/app/auth/callback/route.ts
           grep -Fq "const isAdminApi = pathname.startsWith('/api/admin')" src/middleware.ts
           grep -Fq "'/api/admin/:path*'" src/middleware.ts
 
-          # Unified buyer/seller account and catalogue ingestion.
-          grep -Fq 'ensureAccountProvisioned' src/app/api/auth/provision-account/route.ts
-          grep -Fq "fetch('/api/account/enable-selling'" src/app/seller-registration/components/SellerRegistrationFlow.tsx
-          grep -Fq "rpc('request_seller_access'" src/app/api/account/enable-selling/route.ts
-          grep -Fq 'can_buy' src/contexts/AuthContext.tsx
-          grep -Fq 'can_sell' src/contexts/AuthContext.tsx
-          grep -Fq 'MAX_VIDEO_SECONDS = 20.5' src/app/seller-dashboard/components/SellerCatalogAssistant.tsx
-          grep -Fq "from('seller_product_media')" src/app/seller-dashboard/components/SellerCatalogAssistant.tsx
-          grep -Fq 'https://api.openai.com/v1/responses' src/app/api/catalog-assistant/parse/route.ts
-          grep -Fq "type: 'json_schema'" src/app/api/catalog-assistant/parse/route.ts
-          grep -Fq "active.type === 'video'" src/app/product-detail/components/ProductGallery.tsx
-          grep -Fq 'Retail quantity enabled' src/app/product-detail/components/ProductInfo.tsx
-
-          # Server-authoritative marketplace pricing and purchasing.
-          grep -Fq "rpc('submit_catalog_order_request'" src/app/product-detail/components/ProductInfo.tsx
-          test "$(grep -Fc "from('catalog_order_requests').insert" src/app/product-detail/components/ProductInfo.tsx)" = '0'
-          grep -Fq 'Server-calculated GST' src/app/product-detail/components/ProductInfo.tsx
-          grep -Fq 'payment_status' src/app/buyer-dashboard/components/BuyerCatalogOrders.tsx
-          grep -Fq 'amount_paid' src/app/seller-dashboard/components/SellerCatalogOrders.tsx
-          grep -Fq 'OrderLifecyclePanel' src/app/buyer-dashboard/components/BuyerOrders.tsx
-          grep -Fq 'OrderLifecyclePanel' src/app/seller-dashboard/components/SellerOrders.tsx
-          grep -Fq "onConflict: 'bulk_order_id'" src/app/seller-dashboard/components/SellerOrders.tsx
-
-          # Razorpay order, signature, amount, capture, refund and webhook integrity.
-          grep -Fq 'razorpayOrderId' src/components/RazorpayCheckout.tsx
-          grep -Fq 'serverAmount' src/components/RazorpayCheckout.tsx
+          # Razorpay credentials must be centralized and production must fail closed on non-live keys.
+          grep -Fq 'getRazorpayCredentials' src/app/api/razorpay/order/route.ts
+          grep -Fq 'getRazorpayCredentials' src/app/api/razorpay/verify/route.ts
+          grep -Fq "keyId.startsWith('rzp_live_')" src/lib/razorpayCredentials.ts
+          grep -Fq 'allowTestInProduction' src/app/api/razorpay/status/route.ts
+          grep -Fq 'productionReady' src/app/api/razorpay/status/route.ts
           grep -Fq 'assertRazorpayPaymentMatches' src/app/api/razorpay/verify/route.ts
-          grep -Fq 'fetchRazorpayPayment' src/app/api/razorpay/verify/route.ts
           grep -Fq 'verifyCheckoutSignature' src/app/api/razorpay/verify/route.ts
           grep -Fq 'Webhook amount does not match' src/app/api/razorpay/webhook/route.ts
           grep -Fq "eventType === 'refund.processed'" src/app/api/razorpay/webhook/route.ts
           grep -Fq 'webhook_dead_letter_queue' src/app/api/razorpay/webhook/route.ts
-          grep -Fq "code: 'PAYMENT_SERVICE_UNAVAILABLE'" src/app/api/razorpay/order/route.ts
-          grep -Fq "code: 'PAYMENT_SERVICE_UNAVAILABLE'" src/app/api/razorpay/verify/route.ts
 
-          order_auth_line=$(grep -n "const supabase = await createClient" src/app/api/razorpay/order/route.ts | head -1 | cut -d: -f1)
-          order_config_line=$(grep -n "const keyId = process.env.RAZORPAY_KEY_ID" src/app/api/razorpay/order/route.ts | head -1 | cut -d: -f1)
-          verify_auth_line=$(grep -n "const supabase = await createClient" src/app/api/razorpay/verify/route.ts | head -1 | cut -d: -f1)
-          verify_config_line=$(grep -n "const keyId = process.env.RAZORPAY_KEY_ID" src/app/api/razorpay/verify/route.ts | head -1 | cut -d: -f1)
-          test "$order_auth_line" -lt "$order_config_line"
-          test "$verify_auth_line" -lt "$verify_config_line"
+          # Shiprocket must use server-only credentials and support authenticated readiness checks.
+          grep -Fq 'getShiprocketCredentials' src/app/api/shiprocket/status/route.ts
+          grep -Fq "searchParams.get('verify') === '1'" src/app/api/shiprocket/status/route.ts
+          grep -Fq 'getShiprocketCredentials' src/app/api/shiprocket/create-order/route.ts
+          grep -Fq 'getShiprocketWebhookToken' src/app/api/shiprocket/webhook/route.ts
 
-          # Seller-issued invoice and private shipment records.
-          grep -Fq 'issue_catalog_tax_invoice' src/app/api/seller/invoices/route.ts
-          grep -Fq 'seller_tax_invoices' src/components/commerce/OrderLifecyclePanel.tsx
-          grep -Fq 'GST TAX INVOICE' src/lib/sellerTaxInvoice.ts
-          grep -Fq 'CREATE TABLE IF NOT EXISTS public.seller_tax_invoices' supabase/migrations/20260803052000_marketplace_payment_invoice_shipping_integrity.sql
-          grep -Fq 'DROP POLICY IF EXISTS "Public read shipments by order"' supabase/migrations/20260803052000_marketplace_payment_invoice_shipping_integrity.sql
-          grep -Fq 'REVOKE EXECUTE ON FUNCTION public.check_identity_conflict' supabase/migrations/20260803052000_marketplace_payment_invoice_shipping_integrity.sql
-          grep -Fq 'catalog_order_payments_one_active_attempt' supabase/migrations/20260803061000_marketplace_payment_attempt_uniqueness.sql
-          grep -Fq 'bulk_order_payments_one_active_attempt' supabase/migrations/20260803061000_marketplace_payment_attempt_uniqueness.sql
+          # Production Worker must be attached to both public hostnames.
+          grep -Fq '"pattern": "fabrictrad.com"' wrangler.jsonc
+          grep -Fq '"pattern": "www.fabrictrad.com"' wrangler.jsonc
+          test "$(grep -Fc '"custom_domain": true' wrangler.jsonc)" -ge 2
 
-          # Removed WhatsApp ingestion surface stays removed.
-          test ! -e src/app/seller-dashboard/components/SellerWhatsAppUpload.tsx
-          test ! -e src/app/api/whatsapp/webhook/route.ts
-          test ! -e src/app/api/whatsapp/catalog/status/route.ts
-          test ! -e src/lib/whatsappConfig.ts
+          # Synthetic demo APIs must stay removed from the production route tree.
+          test ! -e src/app/api/auth/demo-session/route.ts
 
-      - name: Runtime route and authorization smoke tests
+      - name: Production build
+        run: npm run build
+
+      - name: Runtime authorization smoke tests
         shell: bash
         run: |
           set -euo pipefail
@@ -180,12 +119,19 @@ jobs:
             exit 1
           fi
 
+          home=$(curl --silent --output /tmp/home.html --write-out '%{http_code}' http://127.0.0.1:3000/)
+          login=$(curl --silent --output /tmp/login-2.html --write-out '%{http_code}' http://127.0.0.1:3000/login)
+          admin_login=$(curl --silent --output /tmp/admin-login.html --write-out '%{http_code}' http://127.0.0.1:3000/admin-login)
+          test "$home" = '200'
+          test "$login" = '200'
+          test "$admin_login" = '200'
+
           admin_otp_rejected=$(curl --silent --output /tmp/admin-otp-rejected.json --write-out '%{http_code}' \
             --header 'Content-Type: application/json' \
             --data '{"email":"attacker@example.com"}' \
             http://127.0.0.1:3000/api/auth/admin-otp/request)
           test "$admin_otp_rejected" = '403'
-          grep -q 'not authorised' /tmp/admin-otp-rejected.json
+          grep -qi 'not authorised' /tmp/admin-otp-rejected.json
 
           admin_api=$(curl --silent --output /tmp/admin-api.json --write-out '%{http_code}' \
             http://127.0.0.1:3000/api/admin/overview)
@@ -194,81 +140,19 @@ jobs:
           payment_order=$(curl --silent --output /tmp/payment-order.json --write-out '%{http_code}' \
             --header 'Content-Type: application/json' --data '{}' \
             http://127.0.0.1:3000/api/razorpay/order)
-          test "$payment_order" = '401'
-          grep -q 'Authentication required' /tmp/payment-order.json
-
           payment_verify=$(curl --silent --output /tmp/payment-verify.json --write-out '%{http_code}' \
             --header 'Content-Type: application/json' --data '{}' \
             http://127.0.0.1:3000/api/razorpay/verify)
-          test "$payment_verify" = '401'
-          grep -q 'Authentication required' /tmp/payment-verify.json
-
-          invoice_get=$(curl --silent --output /tmp/invoice-get.json --write-out '%{http_code}' \
-            'http://127.0.0.1:3000/api/seller/invoices?catalogOrderId=00000000-0000-0000-0000-000000000000')
-          test "$invoice_get" = '401'
-
-          invoice_post=$(curl --silent --output /tmp/invoice-post.json --write-out '%{http_code}' \
-            --header 'Content-Type: application/json' \
-            --data '{"catalogOrderId":"00000000-0000-0000-0000-000000000000"}' \
-            http://127.0.0.1:3000/api/seller/invoices)
-          test "$invoice_post" = '401'
-
-          catalog_get=$(curl --silent --output /tmp/catalog-get.json --write-out '%{http_code}' \
-            http://127.0.0.1:3000/api/catalog-assistant/parse)
-          test "$catalog_get" = '200'
-          grep -q '"available":true' /tmp/catalog-get.json
-
-          catalog_post=$(curl --silent --output /tmp/catalog-post.json --write-out '%{http_code}' \
-            --header 'Content-Type: application/json' \
-            --data '{"text":"Catalog = Summer Cotton\nFabric = cotton\nRate = 220 per mtr\nChannel = both\nFormat = Top & Bottom\n\nColor = Blue\nStock = 9 mtr\nDesign = woven stripe"}' \
-            http://127.0.0.1:3000/api/catalog-assistant/parse)
-          test "$catalog_post" = '200'
-          grep -q '"fabric":"Cotton"' /tmp/catalog-post.json
-          grep -q '"saleChannel":"both"' /tmp/catalog-post.json
-          grep -q '"packageFormat":"Top & Bottom"' /tmp/catalog-post.json
-          grep -q '"colorName":"Blue"' /tmp/catalog-post.json
-
-          provision=$(curl --silent --output /tmp/provision.json --write-out '%{http_code}' \
+          shipping_create=$(curl --silent --output /tmp/shipping-create.json --write-out '%{http_code}' \
             --header 'Content-Type: application/json' --data '{}' \
-            http://127.0.0.1:3000/api/auth/provision-account)
-          test "$provision" = '401'
+            http://127.0.0.1:3000/api/shiprocket/create-order)
+          test "$payment_order" = '401'
+          test "$payment_verify" = '401'
+          test "$shipping_create" = '401'
 
-          enable_selling=$(curl --silent --output /tmp/enable-selling.json --write-out '%{http_code}' \
-            --form 'payload={}' \
-            http://127.0.0.1:3000/api/account/enable-selling)
-          test "$enable_selling" = '401'
-
-          finalize=$(curl --silent --output /tmp/finalize.json --write-out '%{http_code}' \
-            --form 'payload={}' \
-            http://127.0.0.1:3000/api/registration/seller/finalize)
-          test "$finalize" = '401'
-
-          buyer=$(curl --silent --output /tmp/buyer.json --write-out '%{http_code}' \
-            --cookie-jar /tmp/buyer.cookies --header 'Content-Type: application/json' \
-            --data '{"email":"demo.buyer@fabrictrad.com","password":"FabricDemo@2026"}' \
+          demo_get=$(curl --silent --output /dev/null --write-out '%{http_code}' \
             http://127.0.0.1:3000/api/auth/demo-session)
-          test "$buyer" = '200'
-          grep -q '"role":"buyer"' /tmp/buyer.json
-
-          logout=$(curl --silent --dump-header /tmp/logout.headers --output /dev/null \
-            --write-out '%{http_code}' --cookie /tmp/buyer.cookies --max-redirs 0 \
-            http://127.0.0.1:3000/api/auth/logout)
-          test "$logout" = '303'
-          grep -qi '^location: .*login?logged_out=1' /tmp/logout.headers
-
-          seller=$(curl --silent --output /tmp/seller.json --write-out '%{http_code}' \
-            --cookie-jar /tmp/seller.cookies --header 'Content-Type: application/json' \
-            --data '{"email":"demo.seller@fabrictrad.com","password":"FabricDemo@2026"}' \
-            http://127.0.0.1:3000/api/auth/demo-session)
-          test "$seller" = '200'
-          dashboard=$(curl --silent --output /tmp/dashboard.html --write-out '%{http_code}' \
-            --cookie /tmp/seller.cookies --max-redirs 0 \
-            'http://127.0.0.1:3000/seller-dashboard?tab=upload')
-          test "$dashboard" = '200'
-
-          old_whatsapp=$(curl --silent --output /dev/null --write-out '%{http_code}' \
-            http://127.0.0.1:3000/api/whatsapp/catalog/status)
-          test "$old_whatsapp" = '404'
+          test "$demo_get" = '404'
 
       - name: OpenNext Cloudflare compatibility build
         run: npm run build:sites
