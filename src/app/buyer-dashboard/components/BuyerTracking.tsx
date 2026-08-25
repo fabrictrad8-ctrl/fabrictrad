@@ -90,7 +90,7 @@ export default function BuyerTracking() {
         .from('catalog_order_requests')
         .select('id,seller_products(name)')
         .in('id', catalogIds);
-      (data || []).forEach((order: { id: string; seller_products?: { name?: string } | null }) => catalogNames.set(order.id, order.seller_products?.name || 'Catalogue product'));
+      (data || []).forEach((order: { id: string; seller_products?: Array<{ name?: string }> | null }) => catalogNames.set(order.id, (Array.isArray(order.seller_products) ? order.seller_products[0]?.name : (order.seller_products as { name?: string } | null)?.name) || 'Catalogue product'));
     }
     if (bulkIds.length) {
       const { data } = await supabase
