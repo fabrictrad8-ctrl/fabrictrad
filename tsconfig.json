@@ -29,8 +29,8 @@
     }
   },
   "include": [
-    "**/*.ts",
-    "**/*.tsx",
+    "src/**/*.ts",
+    "src/**/*.tsx",
     ".next/types/**/*.ts",
     "next-env.d.ts",
     "types/**/*.d.ts",
@@ -40,6 +40,7 @@
     "node_modules",
     "supabase/functions",
     "playwright.config.ts",
-    "tests"
+    "tests",
+    "scripts"
   ]
 }

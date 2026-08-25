@@ -25,9 +25,10 @@ import AdminFulfillmentAnalytics from '@/app/admin-portal/components/AdminFulfil
 import AdminSellerMetrics from '@/app/admin-portal/components/AdminSellerMetrics';
 import AdminDisputes from '@/app/admin-portal/components/AdminDisputes';
 import AdminPayoutRequests from '@/app/admin-portal/components/AdminPayoutRequests';
+import AdminFinance from '@/app/admin-portal/components/AdminFinance';
 
 type AdminTab =
-  | 'dashboard' |'orders' |'listings' |'customers' |'sellers' |'payments' |'disputes' |'reconciliation' |'fulfillment' |'seller-metrics' |'top-sellers' |'discounts' |'activity' |'errors' |'settings' | 'payout-requests';
+  | 'dashboard' |'orders' |'listings' |'customers' |'sellers' |'payments' |'disputes' |'reconciliation' |'fulfillment' |'seller-metrics' |'top-sellers' |'discounts' |'activity' |'errors' |'settings' | 'payout-requests' | 'finance';
 
 type NavItem = {
   key: AdminTab;
@@ -61,6 +62,7 @@ const navGroups: NavGroup[] = [
   {
     label: 'Finance',
     items: [
+      { key: 'finance', label: 'Finance Overview', icon: 'ChartPieIcon' },
       { key: 'payments', label: 'Payments', icon: 'CreditCardIcon' },
       { key: 'payout-requests', label: 'Payout Requests', icon: 'BanknotesIcon', badge: 0 },
       { key: 'disputes', label: 'Returns & disputes', icon: 'ChatBubbleLeftRightIcon' },
@@ -107,6 +109,7 @@ const tabTitles: Record<AdminTab, string> = {
   activity: 'Activity',
   errors: 'Error Monitor',
   settings: 'Settings',
+  finance: 'Finance Overview',
 };
 
 export default function AdminPortalLayout() {
@@ -312,6 +315,7 @@ export default function AdminPortalLayout() {
             {activeTab === 'activity' && <AdminActivityFeed />}
             {activeTab === 'errors' && <AdminErrorMonitor />}
             {activeTab === 'settings' && <AdminSettings />}
+            {activeTab === 'finance' && <AdminFinance />}
           </div>
         </main>
       </div>
