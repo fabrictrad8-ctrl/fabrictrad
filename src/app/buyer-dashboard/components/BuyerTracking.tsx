@@ -90,14 +90,14 @@ export default function BuyerTracking() {
         .from('catalog_order_requests')
         .select('id,seller_products(name)')
         .in('id', catalogIds);
-      (data || []).forEach((order: any) => catalogNames.set(order.id, order.seller_products?.name || 'Catalogue product'));
+      (data || []).forEach((order: { id: string; seller_products?: { name?: string } | null }) => catalogNames.set(order.id, order.seller_products?.name || 'Catalogue product'));
     }
     if (bulkIds.length) {
       const { data } = await supabase
         .from('bulk_orders')
         .select('id,bulk_order_items(product_name)')
         .in('id', bulkIds);
-      (data || []).forEach((order: any) => bulkNames.set(order.id, order.bulk_order_items?.[0]?.product_name || 'Bulk fabric order'));
+      (data || []).forEach((order: { id: string; bulk_order_items?: Array<{ product_name?: string }> | null }) => bulkNames.set(order.id, order.bulk_order_items?.[0]?.product_name || 'Bulk fabric order'));
     }
 
     setShipments(rows.map((row) => ({

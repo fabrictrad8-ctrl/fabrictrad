@@ -1,3 +1,5 @@
 'use client';
 
-export { default } from './AdminSellerVerification';
+import AdminSellerVerification from './AdminSellerVerification';
+
+export default AdminSellerVerification;

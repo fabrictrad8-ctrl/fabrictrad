@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import Icon from '@/components/ui/AppIcon';
 
@@ -81,7 +81,7 @@ export default function AdminDashboard() {
     else setGreeting('Good evening');
   }, []);
 
-  const load = async (selectedRange = range) => {
+  const load = useCallback(async (selectedRange = range) => {
     setLoading(true);
     setError('');
     try {
@@ -98,11 +98,11 @@ export default function AdminDashboard() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [range]);
 
   useEffect(() => {
     void load(range);
-  }, [range]);
+  }, [range, load]);
 
   const metrics = useMemo(
     () => [

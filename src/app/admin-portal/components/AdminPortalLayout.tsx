@@ -137,6 +137,7 @@ export default function AdminPortalLayout() {
   };
 
   const adminName = profile?.full_name || user?.email?.split('@')[0] || 'Administrator';
+  void adminName; // used in sidebar greeting below
 
   const sidebar = (
     <div className="flex h-full flex-col bg-[#1a1f2e] text-white">

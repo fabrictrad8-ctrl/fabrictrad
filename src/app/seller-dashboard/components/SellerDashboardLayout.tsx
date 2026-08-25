@@ -150,7 +150,7 @@ export default function SellerDashboardLayout() {
     return () => window.removeEventListener('keydown', handleShortcut);
   }, []);
 
-  const activeItem = useMemo(() => allItems.find((item) => item.key === activeTab) || allItems[0], [activeTab]);
+  const _activeItem = useMemo(() => allItems.find((item) => item.key === activeTab) || allItems[0], [activeTab]);
   const sellerName = profile?.business_name || profile?.full_name || user?.email?.split('@')[0] || 'Seller';
   const storefrontHref = `/marketplace?search=${encodeURIComponent(sellerName)}`;
 

@@ -88,7 +88,7 @@ export default function ProductInfoV2() {
   const [buyerType, setBuyerType] = useState<BuyerType>('end_user');
   const [buyerGstin, setBuyerGstin] = useState<string | null>(null);
   const [buyerGstinStatus, setBuyerGstinStatus] = useState('not_provided');
-  const [sellerGstinVerified, setSellerGstinVerified] = useState(false);
+  const [_sellerGstinVerified, setSellerGstinVerified] = useState(false);
   const [productPolicy, setProductPolicy] = useState<PolicyRow | null>(null);
   const [variantPolicy, setVariantPolicy] = useState<PolicyRow | null>(null);
   const [company, setCompany] = useState<Company | null>(null);
@@ -450,11 +450,8 @@ export default function ProductInfoV2() {
           <div className="flex flex-wrap gap-2">
             <span className="tag-new">Live seller catalogue</span>
             <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-800 text-primary">
-              {product.saleChannel === 'both'
-                ? 'Business + personal'
-                : product.saleChannel === 'retail'
-                  ? 'Personal enabled'
-                  : 'Business only'}
+              {product.saleChannel === 'both' ?'Business + personal'
+                : product.saleChannel === 'retail' ?'Personal enabled' :'Business only'}
             </span>
             <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-800 text-muted-foreground">
               {buyerType === 'retail_store' ? 'Retail Store profile' : 'Buy for me profile'}
@@ -468,8 +465,7 @@ export default function ProductInfoV2() {
           onClick={() => setSaved((current) => !current)}
           className={`rounded-xl border p-2 ${
             saved
-              ? 'border-primary bg-primary/10 text-primary'
-              : 'border-border text-muted-foreground'
+              ? 'border-primary bg-primary/10 text-primary' :'border-border text-muted-foreground'
           }`}
           aria-label={saved ? 'Remove saved product' : 'Save product'}
         >
@@ -488,8 +484,7 @@ export default function ProductInfoV2() {
                 onClick={() => changeVariant(variant.id)}
                 className={`rounded-xl border px-3 py-2 text-xs font-700 ${
                   variant.id === selectedVariant?.id
-                    ? 'border-primary bg-primary/10 text-primary'
-                    : 'border-border text-foreground'
+                    ? 'border-primary bg-primary/10 text-primary' :'border-border text-foreground'
                 }`}
               >
                 {variant.colorName} · {variant.designName}
@@ -615,15 +610,11 @@ export default function ProductInfoV2() {
           </div>
 
           <div className={`rounded-xl border p-3 text-xs leading-5 ${
-            buyerType === 'retail_store' && buyerGstinStatus === 'active'
-              ? 'border-success/30 bg-success/10 text-success'
-              : 'border-border bg-muted/30 text-muted-foreground'
+            buyerType === 'retail_store' && buyerGstinStatus === 'active' ?'border-success/30 bg-success/10 text-success' :'border-border bg-muted/30 text-muted-foreground'
           }`}>
             {buyerType === 'retail_store' && buyerGstinStatus === 'active'
               ? `Verified buyer GSTIN ${buyerGstin}. The B2B invoice will include it. GST is still charged; eligible input tax credit depends on invoice and return conditions.`
-              : buyerType === 'retail_store'
-                ? 'Business profile selected, but an active buyer GSTIN is not confirmed. The order receives a consumer/non-ITC invoice until verification succeeds.'
-                : 'Personal purchase: no PAN, Aadhaar or GSTIN is needed. A consumer invoice is issued with GST where applicable.'}
+              : buyerType === 'retail_store' ?'Business profile selected, but an active buyer GSTIN is not confirmed. The order receives a consumer/non-ITC invoice until verification succeeds.' :'Personal purchase: no PAN, Aadhaar or GSTIN is needed. A consumer invoice is issued with GST where applicable.'}
           </div>
 
           <div className="rounded-xl border border-border bg-card p-3 text-xs leading-5 text-muted-foreground">

@@ -51,7 +51,7 @@ const normaliseTab = (value: string | null): DashboardTab =>
 const money = (value: number) =>
   new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 }).format(value);
 
-const tabTitles: Record<DashboardTab, string> = {
+const _tabTitles: Record<DashboardTab, string> = {
   overview: 'Your Account',
   orders: 'Your Orders',
   tracking: 'Track Packages',
@@ -74,7 +74,7 @@ export default function ModernBuyerDashboardLayout() {
 
   useEffect(() => setActiveTab(normaliseTab(searchParams.get('tab'))), [searchParams]);
 
-  const activeItem = useMemo(() => allItems.find((item) => item.key === activeTab) || allItems[0], [activeTab]);
+  const _activeItem = useMemo(() => allItems.find((item) => item.key === activeTab) || allItems[0], [activeTab]);
   const buyerName = profile?.full_name || user?.email?.split('@')[0] || 'Buyer';
 
   const navigateTo = (tab: DashboardTab) => {
