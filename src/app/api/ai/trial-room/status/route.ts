@@ -7,7 +7,7 @@ export async function GET() {
   const openAiConfigured = Boolean(process.env.OPENAI_API_KEY);
   const geminiConfigured = Boolean(process.env.GEMINI_API_KEY);
 
-  return NextResponse.json(
+  return NextResponse?.json(
     {
       currentExperience: 'dual_ai_virtual_drape',
       configured: openAiConfigured || geminiConfigured,

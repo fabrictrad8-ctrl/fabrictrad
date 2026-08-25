@@ -118,10 +118,15 @@ export default function SellerCatalogPricing() {
     }
     setSellerId(seller.id);
 
-    const [{ data: productData, error: productError }, { data: catalogData, error: catalogError }] = await Promise.all([
+    const [productResult, catalogResult] = await Promise.all([
       supabase.from('seller_products').select('id,name,sku,price_per_unit,unit,moq,available_quantity,status').eq('seller_id', seller.id).neq('status', 'archived').order('name'),
       supabase.from('seller_catalogs').select('*').eq('seller_id', seller.id).order('updated_at', { ascending: false }),
     ]);
+    const productData = productResult.data;
+    const productError = productResult.error;
+    const catalogData = catalogResult.data;
+    const catalogError = catalogResult.error;
+
     if (productError) toast.error(productError.message);
     if (catalogError) toast.error(catalogError.message);
     setProducts((productData || []) as Product[]);

@@ -65,8 +65,7 @@ export async function POST(request: NextRequest) {
       {
         error:
           error?.status === 429
-            ? 'Too many sign-in attempts. Wait a minute and try again.'
-            : 'The email or password is incorrect.',
+            ? 'Too many sign-in attempts. Wait a minute and try again.' :'The email or password is incorrect.',
         ...(retryAfter ? { retryAfter } : {}),
       },
       error?.status === 429 ? 429 : 401,
@@ -75,9 +74,7 @@ export async function POST(request: NextRequest) {
   }
 
   const requestedRole =
-    data.user.app_metadata?.role === 'seller' || data.user.user_metadata?.role === 'seller'
-      ? 'seller'
-      : 'buyer';
+    data.user.app_metadata?.role === 'seller' || data.user.user_metadata?.role === 'seller' ?'seller' :'buyer';
   const requestedNext = safeNextPath(body.next);
 
   let role: AccountRole = requestedRole;

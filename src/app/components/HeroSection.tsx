@@ -5,23 +5,23 @@ import AppImage from '@/components/ui/AppImage';
 import Icon from '@/components/ui/AppIcon';
 
 const heroStats = [
-  { value: '12,400+', label: 'Verified Sellers' },
-  { value: '₹4.2Cr+', label: 'Monthly GMV' },
-  { value: '340+', label: 'Cities Covered' },
-  { value: '98.2%', label: 'GST Compliance' },
-];
+{ value: '12,400+', label: 'Verified Sellers' },
+{ value: '₹4.2Cr+', label: 'Monthly GMV' },
+{ value: '340+', label: 'Cities Covered' },
+{ value: '98.2%', label: 'GST Compliance' }];
+
 
 const quickCategories = [
-  { name: 'Pure Silk', icon: 'SparklesIcon', color: 'bg-rose-50 border-rose-200' },
-  { name: 'Cotton Fabric', icon: 'Squares2X2Icon', color: 'bg-emerald-50 border-emerald-200' },
-  { name: 'Net & Netting', icon: 'BoltIcon', color: 'bg-amber-50 border-amber-200' },
-  { name: 'Georgette', icon: 'SwatchIcon', color: 'bg-pink-50 border-pink-200' },
-  { name: 'Embroidered', icon: 'PaintBrushIcon', color: 'bg-purple-50 border-purple-200' },
-  { name: 'Wholesale', icon: 'ArchiveBoxIcon', color: 'bg-blue-50 border-blue-200' },
-];
+{ name: 'Pure Silk', icon: 'SparklesIcon', color: 'bg-rose-50 border-rose-200' },
+{ name: 'Cotton Fabric', icon: 'Squares2X2Icon', color: 'bg-emerald-50 border-emerald-200' },
+{ name: 'Net & Netting', icon: 'BoltIcon', color: 'bg-amber-50 border-amber-200' },
+{ name: 'Georgette', icon: 'SwatchIcon', color: 'bg-pink-50 border-pink-200' },
+{ name: 'Embroidered', icon: 'PaintBrushIcon', color: 'bg-purple-50 border-purple-200' },
+{ name: 'Wholesale', icon: 'ArchiveBoxIcon', color: 'bg-blue-50 border-blue-200' }];
+
 
 const englishTagline =
-  "The textile market's smartest and most trustworthy B2B network platform. From sourcing to shipping, everything is automated.";
+"The textile market's smartest and most trustworthy B2B network platform. From sourcing to shipping, everything is automated.";
 
 export default function HeroSection() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -56,36 +56,36 @@ export default function HeroSection() {
                   <Icon
                     name="MagnifyingGlassIcon"
                     size={18}
-                    className="text-muted-foreground shrink-0"
-                  />
+                    className="text-muted-foreground shrink-0" />
+
                   <input
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e?.target?.value)}
                     placeholder="Search fabric, silk, cotton, netting..."
-                    className="flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground min-w-0"
-                  />
+                    className="flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground min-w-0" />
+
                 </div>
                 <Link
                   href="/marketplace"
-                  className="btn-primary px-5 py-3 text-sm rounded-xl shrink-0 text-center"
-                >
+                  className="btn-primary px-5 py-3 text-sm rounded-xl shrink-0 text-center">
+
                   Search
                 </Link>
               </div>
 
               {/* Quick Category Pills */}
               <div className="flex flex-wrap gap-2">
-                {quickCategories?.map((cat) => (
-                  <Link
-                    key={cat?.name}
-                    href="/marketplace"
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-600 border ${cat?.color} hover:shadow-sm transition-all`}
-                  >
+                {quickCategories?.map((cat) =>
+                <Link
+                  key={cat?.name}
+                  href="/marketplace"
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-600 border ${cat?.color} hover:shadow-sm transition-all`}>
+
                     <Icon name={cat?.icon as 'SparklesIcon'} size={13} className="text-primary" />
                     <span className="text-foreground">{cat?.name}</span>
                   </Link>
-                ))}
+                )}
               </div>
             </div>
           </div>
@@ -139,27 +139,27 @@ export default function HeroSection() {
               </p>
               <div className="grid grid-cols-2 gap-2">
                 {[
-                  ['ReceiptPercentIcon', 'Payment receipts'],
-                  ['TruckIcon', 'Shipment tracking'],
-                  ['SparklesIcon', 'AI drape preview'],
-                  ['ChatBubbleLeftRightIcon', 'Seller messages'],
-                ].map(([icon, label]) => (
-                  <div key={label} className="rounded-xl bg-white/10 px-3 py-2">
+                ['ReceiptPercentIcon', 'Payment receipts'],
+                ['TruckIcon', 'Shipment tracking'],
+                ['SparklesIcon', 'AI drape preview'],
+                ['ChatBubbleLeftRightIcon', 'Seller messages']].
+                map(([icon, label]) =>
+                <div key={label} className="rounded-xl bg-white/10 px-3 py-2">
                     <Icon name={icon as 'TruckIcon'} size={15} className="mb-1 text-gold" />
                     <p className="text-[0.68rem] font-700 leading-4 text-white/85">{label}</p>
                   </div>
-                ))}
+                )}
               </div>
             </div>
 
             <div className="relative hidden overflow-hidden rounded-2xl border border-border bg-card card-shadow md:block">
               <AppImage
-                src="https://images.unsplash.com/photo-1582738411706-bfc8e691d1c2?auto=format&fit=crop&w=900&q=80"
+                src="https://img.rocket.new/generatedImages/rocket_gen_img_1d477241b-1779797594053.png"
                 alt="Buyer reviewing textile samples and fabric swatches"
                 width={500}
                 height={180}
-                className="h-36 w-full object-cover"
-              />
+                className="h-36 w-full object-cover" />
+
               <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/65 to-transparent p-4">
                 <div className="flex items-center gap-2 text-white">
                   <Icon name="MagnifyingGlassCircleIcon" size={18} />
@@ -171,15 +171,15 @@ export default function HeroSection() {
 
           {/* Stats Row — col-span-2 */}
           <div className="lg:col-span-2 grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {heroStats?.map((stat) => (
-              <div
-                key={stat?.label}
-                className="bg-card rounded-xl p-4 border border-border card-shadow text-center"
-              >
+            {heroStats?.map((stat) =>
+            <div
+              key={stat?.label}
+              className="bg-card rounded-xl p-4 border border-border card-shadow text-center">
+
                 <p className="text-xl font-800 text-primary">{stat?.value}</p>
                 <p className="text-xs text-muted-foreground mt-0.5 font-500">{stat?.label}</p>
               </div>
-            ))}
+            )}
           </div>
 
           {/* CTA Banner — col-span-full */}
@@ -200,20 +200,20 @@ export default function HeroSection() {
             <div className="flex gap-2 shrink-0">
               <Link
                 href="/buyer-requirements"
-                className="bg-primary hover:bg-saffron-light text-white px-4 py-2 rounded-xl text-sm font-600 transition-colors"
-              >
+                className="bg-primary hover:bg-saffron-light text-white px-4 py-2 rounded-xl text-sm font-600 transition-colors">
+
                 Post Requirement
               </Link>
               <Link
                 href="/buyer-dashboard"
-                className="bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-xl text-sm font-600 transition-colors border border-white/20"
-              >
+                className="bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-xl text-sm font-600 transition-colors border border-white/20">
+
                 My Orders
               </Link>
             </div>
           </div>
         </div>
       </div>
-    </section>
-  );
+    </section>);
+
 }

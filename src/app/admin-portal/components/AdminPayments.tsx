@@ -399,13 +399,9 @@ export default function AdminPayments() {
                     </span>
                     <span
                       className={`rounded-full px-2 py-0.5 text-[10px] font-800 uppercase ${
-                        payment.status === 'captured'
-                          ? 'bg-success/10 text-success'
-                          : payment.status === 'failed'
-                            ? 'bg-error/10 text-error'
-                            : payment.status.includes('refund')
-                              ? 'bg-warning/10 text-warning'
-                              : 'bg-secondary/10 text-secondary'
+                        payment.status === 'captured' ?'bg-success/10 text-success'
+                          : payment.status === 'failed' ?'bg-error/10 text-error' : payment.status.includes('refund')
+                              ? 'bg-warning/10 text-warning' :'bg-secondary/10 text-secondary'
                       }`}
                     >
                       {human(payment.status)}
@@ -493,8 +489,7 @@ export default function AdminPayments() {
                       {payment.refundStatus === 'requested'
                         ? `Refund pending ${money(payment.refundRequestedAmount)}`
                         : payment.refundableAmount < 1
-                          ? 'No refundable balance'
-                          : 'Request refund'}
+                          ? 'No refundable balance' :'Request refund'}
                     </button>
                     {payment.razorpayPaymentId && (
                       <button

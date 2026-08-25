@@ -75,13 +75,13 @@ BEGIN
       USING (
         EXISTS (
           SELECT 1 FROM public.user_profiles
-          WHERE id = auth.uid() AND role = 'admin'
+          WHERE id = auth.uid() AND role = 'super_admin'::public.user_role
         )
       )
       WITH CHECK (
         EXISTS (
           SELECT 1 FROM public.user_profiles
-          WHERE id = auth.uid() AND role = 'admin'
+          WHERE id = auth.uid() AND role = 'super_admin'::public.user_role
         )
       );
   END IF;

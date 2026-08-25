@@ -28,7 +28,7 @@ export default function BuyerRegistrationFlow() {
     phone: '',
     password: '',
     confirmPassword: '',
-    verificationMethod: 'pan' as 'pan' | 'aadhaar_offline',
+    verificationMethod: 'pan\' as \'pan\' | \'aadhaar_offline',
     identityReferenceLast4: '',
   });
   const [showPassword, setShowPassword] = useState(false);
@@ -88,9 +88,7 @@ export default function BuyerRegistrationFlow() {
       ? /^\d{4}$/.test(identityLast4)
       : /^[A-Z0-9]{4}$/.test(identityLast4);
     if (!identityValid) {
-      setError(account.verificationMethod === 'aadhaar_offline'
-        ? 'Enter only the last 4 digits from the Aadhaar Offline e-KYC reference.'
-        : 'Enter the last 4 characters of the PAN reference.');
+      setError(account.verificationMethod === 'aadhaar_offline' ?'Enter only the last 4 digits from the Aadhaar Offline e-KYC reference.' :'Enter the last 4 characters of the PAN reference.');
       return;
     }
     if (account.password.length < 8) {
@@ -206,8 +204,7 @@ export default function BuyerRegistrationFlow() {
                     isCompleted
                       ? 'bg-success border-success'
                       : isActive
-                        ? 'bg-primary border-primary'
-                        : 'bg-background border-border'
+                        ? 'bg-primary border-primary' :'bg-background border-border'
                   }`}
                 >
                   {isCompleted ? (

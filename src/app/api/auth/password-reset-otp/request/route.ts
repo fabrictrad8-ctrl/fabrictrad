@@ -104,8 +104,7 @@ export async function POST(request: NextRequest) {
     return noStoreJson(
       {
         error: /smtp|email|mailer/i.test(error.message)
-          ? 'Supabase could not send the password-reset OTP. Check Authentication → SMTP Settings.'
-          : 'Password recovery is temporarily unavailable. Please try again shortly.',
+          ? 'Supabase could not send the password-reset OTP. Check Authentication → SMTP Settings.' :'Password recovery is temporarily unavailable. Please try again shortly.',
       },
       503
     );

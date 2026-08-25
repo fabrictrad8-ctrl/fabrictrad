@@ -109,9 +109,7 @@ export default function ProductOrderStatusCard() {
               ? 'Seller accepted — payment is ready'
               : paid
                 ? shipment
-                  ? 'Paid — shipment in progress'
-                  : 'Payment complete — awaiting dispatch'
-                : 'Order sent — waiting for seller'}
+                  ? 'Paid — shipment in progress' :'Payment complete — awaiting dispatch' :'Order sent — waiting for seller'}
           </h2>
         </div>
         <button type="button" onClick={() => void load()} className="ft-icon-button !min-h-8 !min-w-8" aria-label="Refresh order status">

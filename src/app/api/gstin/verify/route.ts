@@ -326,8 +326,7 @@ export async function POST(request: NextRequest) {
     providerReference: providerData?.providerReference || null,
     checkedAt,
     message:
-      status === 'active'
-        ? 'GSTIN is active. The legal business details have been matched through the configured authorised provider.'
+      status === 'active' ?'GSTIN is active. The legal business details have been matched through the configured authorised provider.'
         : providerData
           ? `GST registration status returned as ${status}. Selling and B2B tax benefits remain restricted until active.`
           : GST_MANUAL_REVIEW_MESSAGE,

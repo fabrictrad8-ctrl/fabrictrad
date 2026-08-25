@@ -82,8 +82,7 @@ async function reconcileOrderPayment(input: {
         : netPaid + 0.01 >= total
           ? 'paid'
           : netPaid > 0
-            ? 'partial'
-            : 'unpaid';
+            ? 'partial' :'unpaid';
 
   const patch: Record<string, unknown> = {
     amount_paid: roundMoney(captured),
@@ -293,9 +292,6 @@ export async function POST(request: NextRequest) {
       nextStatus === 'captured'
         ? reconciliation?.paymentStatus === 'paid'
           ? automaticInvoice?.invoice
-            ? 'Payment captured, order reconciled and invoice generated.'
-            : 'Payment captured and order reconciled. Invoice generation requires seller billing details to be complete.'
-          : 'Payment captured and order records reconciled.'
-        : 'Payment authorised. Capture confirmation will be completed by the signed webhook.',
+            ? 'Payment captured, order reconciled and invoice generated.' :'Payment captured and order reconciled. Invoice generation requires seller billing details to be complete.' :'Payment captured and order records reconciled.' :'Payment authorised. Capture confirmation will be completed by the signed webhook.',
   });
 }

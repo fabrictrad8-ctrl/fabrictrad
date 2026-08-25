@@ -61,7 +61,7 @@ export default function VendorsPage() {
       return;
     }
 
-    const [{ data: profiles, error: profileError }, { data: ratings }] = await Promise.all([
+    const [profileResult, ratingResult] = await Promise.all([
       supabase
         .from('seller_profiles')
         .select('id,display_name,legal_business_name,business_type,gstin_status,gstin_verified,verification_status,is_active')
@@ -73,6 +73,10 @@ export default function VendorsPage() {
         .select('seller_id,review_count,avg_rating')
         .in('seller_id', sellerIds),
     ]);
+
+    const profiles = profileResult.data;
+    const profileError = profileResult.error;
+    const ratings = ratingResult.data;
 
     if (profileError) {
       setVendors([]);

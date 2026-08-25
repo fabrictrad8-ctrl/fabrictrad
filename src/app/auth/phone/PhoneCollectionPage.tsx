@@ -14,8 +14,7 @@ const safeReturnPath = (value: string | null, role: string) => {
       const parsed = new URL(value, 'https://fabrictrad.com');
       if (
         parsed.origin === 'https://fabrictrad.com' &&
-        parsed.pathname !== '/login' &&
-        !parsed.pathname.startsWith('/auth/') &&
+        parsed.pathname !== '/login'&& !parsed.pathname.startsWith('/auth/') &&
         !parsed.pathname.startsWith('/admin-')
       ) {
         return `${parsed.pathname}${parsed.search}${parsed.hash}`;
@@ -121,8 +120,7 @@ export default function PhoneCollectionPage() {
 
       setInfo(
         sellerContactRequired
-          ? 'Contact number saved. Continuing seller onboarding…'
-          : 'Mobile number saved. Opening FabricTrad…'
+          ? 'Contact number saved. Continuing seller onboarding…' :'Mobile number saved. Opening FabricTrad…'
       );
       window.setTimeout(() => router.replace(returnTo), 200);
     } catch (caught) {

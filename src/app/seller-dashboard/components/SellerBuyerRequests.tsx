@@ -178,8 +178,7 @@ export default function SellerBuyerRequests() {
                 onClick={() => setSelectedCategory(category)}
                 className={`shrink-0 rounded-xl border px-3 py-2 text-xs font-700 transition-colors ${
                   selectedCategory === category
-                    ? 'border-primary bg-primary text-white'
-                    : 'border-border bg-card text-muted-foreground hover:border-primary/50'
+                    ? 'border-primary bg-primary text-white' :'border-border bg-card text-muted-foreground hover:border-primary/50'
                 }`}
               >
                 {category}

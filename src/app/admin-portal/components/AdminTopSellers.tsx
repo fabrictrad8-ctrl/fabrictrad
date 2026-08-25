@@ -226,9 +226,7 @@ export default function AdminTopSellers() {
                     <span className={`rounded-full border px-2.5 py-1 text-[11px] font-800 ${
                       seller.verificationStatus === 'approved' || seller.verificationStatus === 'verified' || seller.verificationStatus === 'active'
                         ? 'border-success/20 bg-success/10 text-success'
-                        : seller.verificationStatus === 'inactive'
-                          ? 'border-error/20 bg-error/10 text-error'
-                          : 'border-warning/20 bg-warning/10 text-warning'
+                        : seller.verificationStatus === 'inactive' ?'border-error/20 bg-error/10 text-error' :'border-warning/20 bg-warning/10 text-warning'
                     }`}>
                       {statusLabel(seller.verificationStatus)}
                     </span>

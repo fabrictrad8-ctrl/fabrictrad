@@ -1,4 +1,5 @@
-import { defineConfig, devices } from '@playwright/test';
+import { defineConfig } from '@playwright/test';
+import devices from '@playwright/test';
 
 export default defineConfig({
   testDir: './tests/e2e',
@@ -36,14 +37,14 @@ export default defineConfig({
     {
       name: 'desktop-chromium',
       use: {
-        ...devices['Desktop Chrome'],
+        ...devices?.['Desktop Chrome'],
         viewport: { width: 1440, height: 900 },
       },
     },
     {
       name: 'tablet-chromium',
       use: {
-        ...devices['Desktop Chrome'],
+        ...devices?.['Desktop Chrome'],
         viewport: { width: 1024, height: 768 },
         hasTouch: true,
       },
@@ -51,7 +52,7 @@ export default defineConfig({
     {
       name: 'mobile-chromium',
       use: {
-        ...devices['Pixel 7'],
+        ...devices?.['Pixel 7'],
         viewport: { width: 412, height: 915 },
       },
     },

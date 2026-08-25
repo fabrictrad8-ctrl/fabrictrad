@@ -45,9 +45,7 @@ const userForRecovery = async (
   const recoveryRole: CommerceRole =
     requestedRole === 'seller' ||
     user.app_metadata?.role === 'seller' ||
-    user.user_metadata?.role === 'seller'
-      ? 'seller'
-      : 'buyer';
+    user.user_metadata?.role === 'seller' ?'seller' :'buyer';
   metadata.role = recoveryRole;
 
   if (!phone) {

@@ -271,12 +271,10 @@ export default function AdminErrorMonitor() {
               onClick={() => setFilter(f)}
               className={`px-3 py-1.5 rounded-xl text-xs font-600 transition-all capitalize ${
                 filter === f
-                  ? 'bg-secondary text-white'
-                  : 'bg-card border border-border text-muted-foreground hover:border-secondary'
+                  ? 'bg-secondary text-white' :'bg-card border border-border text-muted-foreground hover:border-secondary'
               }`}
             >
-              {f === 'all'
-                ? 'All Errors'
+              {f === 'all' ?'All Errors'
                 : f === 'unresolved'
                   ? `Unresolved (${unresolvedCount})`
                   : `Critical (${criticalCount})`}

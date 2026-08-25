@@ -178,12 +178,10 @@ export default function SellerProfileReadiness() {
       state: verification.gstinVerified
         ? 'complete'
         : verification.gstinEntered || profile?.gstin
-          ? 'pending'
-          : 'missing',
+          ? 'pending' :'missing',
       detail: verification.gstinVerified
         ? 'Active GSTIN confirmed'
-        : verification.gstinStatus === 'manual_review'
-          ? 'Official GST status review pending'
+        : verification.gstinStatus === 'manual_review' ?'Official GST status review pending'
           : verification.gstinEntered || profile?.gstin
             ? 'GST verification pending'
             : 'GSTIN missing',
@@ -194,8 +192,7 @@ export default function SellerProfileReadiness() {
         documentsApproved >= documentTotal
           ? 'complete'
           : documentsUploaded >= documentTotal
-            ? 'pending'
-            : 'missing',
+            ? 'pending' :'missing',
       detail:
         documentsApproved >= documentTotal
           ? `${documentTotal}/${documentTotal} approved`
@@ -208,13 +205,11 @@ export default function SellerProfileReadiness() {
       state: verification.bankVerified
         ? 'complete'
         : verification.bankDetailsPresent
-          ? 'pending'
-          : 'missing',
+          ? 'pending' :'missing',
       detail: verification.bankVerified
         ? 'Bank account verified'
         : verification.bankDetailsPresent
-          ? 'Bank review pending'
-          : 'Settlement details missing',
+          ? 'Bank review pending' :'Settlement details missing',
     },
   ];
 
@@ -271,9 +266,7 @@ export default function SellerProfileReadiness() {
                       name={
                         item.state === 'complete'
                           ? 'CheckCircleIcon'
-                          : item.state === 'pending'
-                            ? 'ClockIcon'
-                            : 'MinusCircleIcon'
+                          : item.state === 'pending' ?'ClockIcon' :'MinusCircleIcon'
                       }
                       size={15}
                     />

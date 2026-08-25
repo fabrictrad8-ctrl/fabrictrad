@@ -303,9 +303,7 @@ export async function POST(request: NextRequest) {
         status: result.status || 'pending',
         amount: refundRequest.amount,
         message:
-          result.status === 'processed'
-            ? 'Refund processed. The signed webhook will reconcile the final ledger.'
-            : 'Refund requested. Final status will be confirmed by Razorpay webhook.',
+          result.status === 'processed' ?'Refund processed. The signed webhook will reconcile the final ledger.' :'Refund requested. Final status will be confirmed by Razorpay webhook.',
       },
       202
     );

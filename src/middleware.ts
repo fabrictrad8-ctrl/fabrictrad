@@ -151,14 +151,12 @@ export async function middleware(request: NextRequest) {
     const destination = isAdmin
       ? '/admin-portal'
       : normalizedEmail === configuredAdminEmail()
-        ? '/admin-login'
-        : '/marketplace';
+        ? '/admin-login' :'/marketplace';
     return withRefreshedCookies(redirect(request, destination), response);
   }
   if (pathname.startsWith('/admin-portal') && !isAdmin) {
     const destination = normalizedEmail === configuredAdminEmail()
-      ? '/admin-login'
-      : '/marketplace';
+      ? '/admin-login' :'/marketplace';
     return withRefreshedCookies(redirect(request, destination), response);
   }
   if (pathname.startsWith('/seller-dashboard') && !canSell) {

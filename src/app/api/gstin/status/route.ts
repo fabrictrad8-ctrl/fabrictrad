@@ -9,7 +9,7 @@ export async function GET() {
       process.env.GSTIN_VERIFICATION_API_KEY?.trim()
   );
 
-  return NextResponse.json(
+  return NextResponse?.json(
     {
       providerConfigured,
       mode: providerConfigured ? 'provider' : 'official_manual',

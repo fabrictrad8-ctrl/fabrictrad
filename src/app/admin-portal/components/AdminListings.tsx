@@ -375,11 +375,8 @@ export default function AdminListings() {
               <button type="button" onClick={() => setReviewing(null)} disabled={saving} className="ft-icon-button"><Icon name="XMarkIcon" size={18} /></button>
             </div>
             <p className="mt-3 text-sm leading-6 text-muted-foreground">
-              {reviewing.action === 'approve'
-                ? 'Approval does not require a product URL. If the seller supplied one, it is shown in the product row; otherwise no URL field is displayed.'
-                : reviewing.action === 'reject'
-                  ? 'The rejection reason is saved for the seller and the product remains unavailable to buyers.'
-                  : 'Pausing removes the product from active marketplace results without deleting seller data.'}
+              {reviewing.action === 'approve' ?'Approval does not require a product URL. If the seller supplied one, it is shown in the product row; otherwise no URL field is displayed.'
+                : reviewing.action === 'reject' ?'The rejection reason is saved for the seller and the product remains unavailable to buyers.' :'Pausing removes the product from active marketplace results without deleting seller data.'}
             </p>
             <label className="mt-5 block text-sm font-700 text-foreground">
               {reviewing.action === 'reject' ? 'Reason for seller' : 'Administrator note (optional)'}

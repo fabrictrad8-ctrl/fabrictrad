@@ -51,8 +51,7 @@ export default function BuyerOnlyGuard({ children }: { children: React.ReactNode
             </h1>
             <p className="mt-2 text-sm leading-6 text-muted-foreground">
               {primarySeller
-                ? 'Seller accounts stay inside the Seller workspace and cannot open buyer-only dashboards or place buyer orders.'
-                : 'This account is not currently enabled for purchasing. Review the account profile or contact FabricTrad support.'}
+                ? 'Seller accounts stay inside the Seller workspace and cannot open buyer-only dashboards or place buyer orders.' :'This account is not currently enabled for purchasing. Review the account profile or contact FabricTrad support.'}
             </p>
             <Link href={destination} className="btn-primary mt-5 inline-flex w-full justify-center rounded-xl px-4 py-3 text-sm">
               {primarySeller ? 'Return to Seller workspace' : 'Review account'}

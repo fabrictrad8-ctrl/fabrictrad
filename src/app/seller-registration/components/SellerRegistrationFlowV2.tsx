@@ -575,9 +575,7 @@ export default function SellerRegistrationFlowV2() {
       setDocuments({});
       setResultMessage(
         payload.message ||
-          (gstStatus === 'active'
-            ? 'GSTIN and seller application submitted. Document and bank review will determine settlement eligibility.'
-            : 'Seller application submitted for official GST, document and bank review.')
+          (gstStatus === 'active' ?'GSTIN and seller application submitted. Document and bank review will determine settlement eligibility.' :'Seller application submitted for official GST, document and bank review.')
       );
       goTo('done');
     } catch (caught) {

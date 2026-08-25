@@ -253,7 +253,7 @@ async function inputToBlob(input: string, label = 'reference'): Promise<ImageInp
   }
 
   validateRemoteUrl(url);
-  const response = await fetchAllowedRemoteImage(url, label);
+  let response = await fetchAllowedRemoteImage(url, label);
   const mime = normalizeMime(
     (response.headers.get('content-type') || '').split(';')[0].trim().toLowerCase()
   );
@@ -457,7 +457,7 @@ async function readUsageCookie(request: NextRequest, secret: string) {
 }
 
 async function writeUsageCookie(response: NextResponse, count: number, secret: string) {
-  const payload = `${todayUtc()}:${count}`;
+  let payload = `${todayUtc()}:${count}`;
   const encodedPayload = Buffer.from(payload).toString('base64url');
   const signature = await signUsage(payload, secret);
   response.cookies.set(USAGE_COOKIE_NAME, `${encodedPayload}.${signature}`, {
@@ -570,7 +570,7 @@ async function generateWithOpenAI(
   }
 
   const requestId = response.headers.get('x-request-id');
-  const payload = (await response.json().catch(() => ({}))) as OpenAIImageResponse;
+  let payload = (await response.json().catch(() => ({}))) as OpenAIImageResponse;
   if (!response.ok) {
     console.error('OpenAI virtual try-on failed', {
       status: response.status,
@@ -582,8 +582,7 @@ async function generateWithOpenAI(
     if (payload.error?.code === 'moderation_blocked') {
       throw new DrapeClientError(
         person
-          ? 'The selected photo could not be processed. Try a clear, fully clothed adult photo.'
-          : 'The AI model request could not be processed. Please retry.',
+          ? 'The selected photo could not be processed. Try a clear, fully clothed adult photo.' :'The AI model request could not be processed. Please retry.',
         400,
         'OPENAI_MODERATION_BLOCKED'
       );
@@ -747,8 +746,7 @@ export async function POST(request: NextRequest) {
     });
 
     const person =
-      subjectMode === 'own_photo' && body.modelImage
-        ? await inputToBlob(body.modelImage, 'person reference')
+      subjectMode === 'own_photo' && body.modelImage ? await inputToBlob(body.modelImage,'person reference')
         : null;
     const fabricInputs = await Promise.all(
       fabricReference.imageUrls.map((url, index) =>
@@ -841,8 +839,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           error: openAiKey
-            ? 'OpenAI GPT Image received the drape request but could not produce a result. Please retry.'
-            : 'AI virtual try-on generation failed. Please retry.',
+            ? 'OpenAI GPT Image received the drape request but could not produce a result. Please retry.' :'AI virtual try-on generation failed. Please retry.',
           code: 'AI_PROVIDER_GENERATION_FAILED',
           providerAttempted: openAiKey ? 'OpenAI' : geminiKey ? 'Gemini' : null,
           providerError: providerErrors[0]?.message || null,
@@ -851,7 +848,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const response = NextResponse.json(
+    let response = NextResponse.json(
       {
         image: generated.image,
         provider: generated.provider,

@@ -159,8 +159,7 @@ export default function SellerProductRulesPage() {
       hsnCode: selectedVariant ? selectedProduct.hsn_code || '' : selectedProduct.hsn_code || '',
       brandName: selectedVariant ? selectedProduct.brand_name || '' : selectedProduct.brand_name || '',
       manufacturerName: selectedVariant
-        ? selectedProduct.manufacturer_name || ''
-        : selectedProduct.manufacturer_name || '',
+        ? selectedProduct.manufacturer_name || '' : selectedProduct.manufacturer_name ||'',
       countryOfOrigin: selectedProduct.country_of_origin || 'India',
       gstRate: textNumber(item.gst_rate, textNumber(selectedProduct.gst_rate, '5')),
       priceIncludesGst: item.price_includes_gst ?? selectedProduct.price_includes_gst,

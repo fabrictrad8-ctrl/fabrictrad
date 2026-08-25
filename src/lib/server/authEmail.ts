@@ -174,7 +174,7 @@ const buildMimeMessage = (
 ) => {
   const to = singleLineHeader(input.to, 'recipient');
   const subject = singleLineHeader(input.subject, 'subject');
-  const boundary = `fabrictrad_${randomUUID().replace(/-/g, '')}`;
+  let boundary = `fabrictrad_${randomUUID().replace(/-/g, '')}`;
   const headers = [
     `From: ${config.from}`,
     `To: ${to}`,

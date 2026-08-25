@@ -46,8 +46,6 @@ test('account recovery exposes an accessible retry without logging out', async (
   });
 
   await page.goto('/auth/setup?role=buyer&reason=profile_setup', { waitUntil: 'domcontentloaded' });
-  // Next.js also renders a route-announcer with role="alert". Scope this
-  // assertion to the recovery content so strict mode checks the app alert.
   await expect(page.locator('main [role="alert"]').filter({ hasText: 'automatic repair' })).toBeVisible();
   await expect(page.getByRole('button', { name: /Retry account setup/i })).toBeVisible();
   await expect(page).not.toHaveURL(/\/login/);

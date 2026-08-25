@@ -1,4 +1,5 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test } from '@playwright/test';
+import type { Page } from '@playwright/test';
 
 type Role = 'public' | 'buyer' | 'seller' | 'admin';
 type RouteCase = { role: Role; path: string; label: string; capture?: boolean };
@@ -165,8 +166,7 @@ async function assertNoHeaderCollisions(page: Page) {
       const rect = element.getBoundingClientRect();
       return (
         style.display !== 'none' &&
-        style.visibility !== 'hidden' &&
-        Number(style.opacity || '1') > 0.01 &&
+        style.visibility !== 'hidden'&& Number(style.opacity ||'1') > 0.01 &&
         rect.width > 2 &&
         rect.height > 2 &&
         rect.right > 0 &&
@@ -219,8 +219,7 @@ async function assertUsableTargets(page: Page) {
       const rect = element.getBoundingClientRect();
       const hidden =
         style.display === 'none' ||
-        style.visibility === 'hidden' ||
-        Number(style.opacity || '1') <= 0.01 ||
+        style.visibility === 'hidden'|| Number(style.opacity ||'1') <= 0.01 ||
         rect.width === 0 ||
         rect.height === 0 ||
         rect.right <= 0 ||

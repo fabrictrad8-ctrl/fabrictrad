@@ -241,7 +241,7 @@ export default function NotificationPreferences({ mode }: { mode: 'buyer' | 'sel
       }
 
       const supabase = createClient();
-      const [{ data: rows }, { data: userProfile }] = await Promise.all([
+      const [notifResult, profileResult] = await Promise.all([
         supabase.from('notification_preferences').select('*').eq('user_id', user.id),
         supabase
           .from('user_profiles')
@@ -249,6 +249,8 @@ export default function NotificationPreferences({ mode }: { mode: 'buyer' | 'sel
           .eq('id', user.id)
           .maybeSingle(),
       ]);
+      const rows = notifResult.data;
+      const userProfile = profileResult.data;
       if (!active) return;
 
       const byId = new Map((rows || []).map((row) => [row.topic_id, row]));
@@ -366,9 +368,7 @@ export default function NotificationPreferences({ mode }: { mode: 'buyer' | 'sel
           {mode === 'seller' ? 'Seller notifications' : 'Buyer notifications'}
         </h1>
         <p className="mt-1 max-w-3xl text-xs leading-5 text-muted-foreground">
-          {mode === 'seller'
-            ? 'Keep time-sensitive order, payment, payout, shipping and dispute alerts visible while choosing where optional alerts are delivered.'
-            : 'Keep essential order, dispute and security updates visible while choosing how optional delivery and marketing alerts reach you.'}
+          {mode === 'seller' ?'Keep time-sensitive order, payment, payout, shipping and dispute alerts visible while choosing where optional alerts are delivered.' :'Keep essential order, dispute and security updates visible while choosing how optional delivery and marketing alerts reach you.'}
         </p>
         <p className="mt-2 text-[11px] leading-5 text-muted-foreground">
           Essential channels are locked on so an account cannot accidentally miss a transaction or security event. SMS is optional unless explicitly enabled.
@@ -383,8 +383,7 @@ export default function NotificationPreferences({ mode }: { mode: 'buyer' | 'sel
             onClick={() => setCategory(item)}
             className={`shrink-0 rounded-xl px-3 py-2 text-xs font-700 capitalize ${
               category === item
-                ? 'bg-primary text-white'
-                : 'border border-border bg-card text-muted-foreground'
+                ? 'bg-primary text-white' :'border border-border bg-card text-muted-foreground'
             }`}
           >
             {item}

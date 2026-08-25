@@ -2,12 +2,7 @@ const GSTIN_ALPHABET = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 
 export type GstinStatus =
   | 'format_valid'
-  | 'pending_provider'
-  | 'active'
-  | 'inactive'
-  | 'cancelled'
-  | 'invalid'
-  | 'manual_review';
+  | 'pending_provider' |'active' |'inactive' |'cancelled' |'invalid' |'manual_review';
 
 export type GstinVerificationResult = {
   gstin: string;

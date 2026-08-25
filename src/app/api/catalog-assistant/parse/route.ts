@@ -210,9 +210,7 @@ export async function POST(request: NextRequest) {
       draft,
       provider,
       message:
-        provider === 'openai'
-          ? 'AI organised the product details. Review them before publishing.'
-          : 'The built-in textile parser organised the details. Review them before publishing.',
+        provider === 'openai' ?'AI organised the product details. Review them before publishing.' :'The built-in textile parser organised the details. Review them before publishing.',
     },
     { headers: { 'Cache-Control': 'no-store, max-age=0' } }
   );

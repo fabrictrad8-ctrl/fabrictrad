@@ -29,10 +29,8 @@ export async function GET() {
         authenticated: response.ok,
         source: credentials.source,
         mode: credentials.keyId.startsWith('rzp_live_')
-          ? 'live'
-          : credentials.keyId.startsWith('rzp_test_')
-            ? 'test'
-            : 'unknown',
+          ? 'live' : credentials.keyId.startsWith('rzp_test_')
+            ? 'test' :'unknown',
       },
       {
         status: response.ok ? 200 : response.status === 401 ? 503 : 502,

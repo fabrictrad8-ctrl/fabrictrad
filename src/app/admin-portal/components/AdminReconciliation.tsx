@@ -385,15 +385,11 @@ export default function AdminReconciliation() {
             onClick={() => setActiveTab(tab)}
             className={`px-4 py-2.5 text-sm font-600 border-b-2 transition-all capitalize ${
               activeTab === tab
-                ? 'border-secondary text-secondary'
-                : 'border-transparent text-muted-foreground hover:text-foreground'
+                ? 'border-secondary text-secondary' :'border-transparent text-muted-foreground hover:text-foreground'
             }`}
           >
-            {tab === 'reconciliation'
-              ? 'Reconciliation'
-              : tab === 'webhooks'
-                ? 'Failed Webhooks'
-                : 'Settlement Delays'}
+            {tab === 'reconciliation' ?'Reconciliation'
+              : tab === 'webhooks' ?'Failed Webhooks' :'Settlement Delays'}
           </button>
         ))}
       </div>
@@ -478,11 +474,8 @@ export default function AdminReconciliation() {
                         </p>
                         <span
                           className={`text-xs font-600 border rounded-full px-2 py-0.5 ${
-                            row.rzpStatus === 'Captured'
-                              ? 'bg-success/10 text-success border-success/20'
-                              : row.rzpStatus === 'Failed'
-                                ? 'bg-error/10 text-error border-error/20'
-                                : 'bg-amber-50 text-amber-700 border-amber-200'
+                            row.rzpStatus === 'Captured' ?'bg-success/10 text-success border-success/20'
+                              : row.rzpStatus === 'Failed' ?'bg-error/10 text-error border-error/20' :'bg-amber-50 text-amber-700 border-amber-200'
                           }`}
                         >
                           {row.rzpStatus}
@@ -494,11 +487,8 @@ export default function AdminReconciliation() {
                         </p>
                         <span
                           className={`text-xs font-600 border rounded-full px-2 py-0.5 ${
-                            row.ledgerStatus === 'Recorded'
-                              ? 'bg-success/10 text-success border-success/20'
-                              : row.ledgerStatus === 'Missing' || row.ledgerStatus === 'Mismatch'
-                                ? 'bg-error/10 text-error border-error/20'
-                                : 'bg-muted text-muted-foreground border-border'
+                            row.ledgerStatus === 'Recorded' ?'bg-success/10 text-success border-success/20'
+                              : row.ledgerStatus === 'Missing'|| row.ledgerStatus === 'Mismatch' ?'bg-error/10 text-error border-error/20' :'bg-muted text-muted-foreground border-border'
                           }`}
                         >
                           {row.ledgerStatus}
@@ -516,13 +506,9 @@ export default function AdminReconciliation() {
                       <td className="px-4 py-3">
                         <span
                           className={`text-xs font-600 border rounded-full px-2 py-0.5 ${
-                            row.transferStatus === 'Transferred'
-                              ? 'bg-success/10 text-success border-success/20'
-                              : row.transferStatus === 'Pending'
-                                ? 'bg-amber-50 text-amber-700 border-amber-200'
-                                : row.transferStatus === 'On Hold'
-                                  ? 'bg-purple-50 text-purple-700 border-purple-200'
-                                  : 'bg-muted text-muted-foreground border-border'
+                            row.transferStatus === 'Transferred' ?'bg-success/10 text-success border-success/20'
+                              : row.transferStatus === 'Pending' ?'bg-amber-50 text-amber-700 border-amber-200'
+                                : row.transferStatus === 'On Hold' ?'bg-purple-50 text-purple-700 border-purple-200' :'bg-muted text-muted-foreground border-border'
                           }`}
                         >
                           {row.transferStatus}
@@ -582,9 +568,7 @@ export default function AdminReconciliation() {
                   <div className="flex items-center gap-2 mb-1">
                     <span
                       className={`text-xs font-700 px-2 py-0.5 rounded-full border ${
-                        wh.source === 'razorpay'
-                          ? 'bg-primary/10 text-primary border-primary/20'
-                          : 'bg-secondary/10 text-secondary border-secondary/20'
+                        wh.source === 'razorpay' ?'bg-primary/10 text-primary border-primary/20' :'bg-secondary/10 text-secondary border-secondary/20'
                       }`}
                     >
                       {wh.source === 'razorpay' ? 'Razorpay' : 'Shiprocket'}
@@ -594,18 +578,12 @@ export default function AdminReconciliation() {
                     </span>
                     <span
                       className={`text-xs font-600 px-2 py-0.5 rounded-full border ${
-                        wh.status === 'dead'
-                          ? 'bg-error/10 text-error border-error/20'
-                          : wh.status === 'retrying'
-                            ? 'bg-warning/10 text-warning border-warning/20'
-                            : 'bg-muted text-muted-foreground border-border'
+                        wh.status === 'dead' ?'bg-error/10 text-error border-error/20'
+                          : wh.status === 'retrying' ?'bg-warning/10 text-warning border-warning/20' :'bg-muted text-muted-foreground border-border'
                       }`}
                     >
-                      {wh.status === 'dead'
-                        ? 'Dead Letter'
-                        : wh.status === 'retrying'
-                          ? 'Retrying'
-                          : 'Queued'}
+                      {wh.status === 'dead' ?'Dead Letter'
+                        : wh.status === 'retrying' ?'Retrying' :'Queued'}
                     </span>
                   </div>
                   <p className="text-xs text-error mb-2">{wh.errorMessage}</p>
@@ -758,9 +736,7 @@ export default function AdminReconciliation() {
                     </div>
                     <span
                       className={`text-xs font-600 border rounded-full px-2 py-0.5 shrink-0 ${
-                        row.transferStatus === 'On Hold'
-                          ? 'bg-purple-50 text-purple-700 border-purple-200'
-                          : 'bg-amber-50 text-amber-700 border-amber-200'
+                        row.transferStatus === 'On Hold' ?'bg-purple-50 text-purple-700 border-purple-200' :'bg-amber-50 text-amber-700 border-amber-200'
                       }`}
                     >
                       {row.transferStatus}

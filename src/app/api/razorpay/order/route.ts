@@ -83,9 +83,7 @@ async function createRazorpayOrder(input: {
     });
   } catch (error) {
     throw new RazorpayOrderError(
-      error instanceof Error && error.name === 'TimeoutError'
-        ? 'Razorpay did not respond in time. Please retry.'
-        : 'Razorpay could not be reached. Please retry.',
+      error instanceof Error && error.name === 'TimeoutError' ?'Razorpay did not respond in time. Please retry.' :'Razorpay could not be reached. Please retry.',
       500,
       'RAZORPAY_UNREACHABLE'
     );

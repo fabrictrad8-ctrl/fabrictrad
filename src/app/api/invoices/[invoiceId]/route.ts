@@ -75,7 +75,7 @@ export async function GET(
   <table><thead><tr><th>Item</th><th class="num">Qty</th><th class="num">Unit price</th><th class="num">GST</th><th class="num">Amount</th></tr></thead><tbody>${lineRows}</tbody></table>
   <div class="totals"><div><span>Taxable value</span><strong>${money(invoice.taxable_value)}</strong></div><div><span>CGST</span><strong>${money(invoice.cgst_amount)}</strong></div><div><span>SGST</span><strong>${money(invoice.sgst_amount)}</strong></div><div><span>IGST</span><strong>${money(invoice.igst_amount)}</strong></div><div><span>Total tax</span><strong>${money(invoice.total_tax)}</strong></div><div class="total"><span>Total paid</span><span>${money(invoice.total_amount)}</span></div></div>
   <p class="muted" style="margin-top:24px">Generated automatically by FabricTrad after server-side confirmation that the Razorpay payment was captured. This invoice remains accessible to the buyer, seller and authorised FabricTrad administrators.</p>
-  <div class="actions"><button class="print" onclick="window.print()">Print / Save PDF</button><button class="back" onclick="history.back()">Back</button></div></main></body></html>`;
+  <div class="actions"><button class="print" onClick="window.print()">Print / Save PDF</button><button class="back" onClick="history.back()">Back</button></div></main></body></html>`;
 
   return new NextResponse(html, {
     status: 200,

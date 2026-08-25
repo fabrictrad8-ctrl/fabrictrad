@@ -45,8 +45,7 @@ export default function ResetPasswordPage() {
 
   const recoverySessionReady = Boolean(user && session);
   const recoveryLoginHref = isAdminRecovery
-    ? '/admin-login?error=recovery_failed'
-    : '/login?error=recovery_failed';
+    ? '/admin-login?error=recovery_failed' :'/login?error=recovery_failed';
 
   return (
     <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#0d1117] px-4 py-10 text-slate-100">

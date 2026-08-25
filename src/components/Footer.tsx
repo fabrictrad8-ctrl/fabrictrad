@@ -59,16 +59,16 @@ export default function Footer() {
         </p>
 
         <div className="mt-5 divide-y divide-border border-y border-border sm:hidden">
-          {footerGroups.map((group) => (
-            <details key={group.label} className="group py-1">
+          {footerGroups?.map((group) => (
+            <details key={group?.label} className="group py-1">
               <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 py-2 text-sm font-800 text-foreground marker:content-none">
-                {group.label}
+                {group?.label}
                 <Icon name="ChevronDownIcon" size={16} className="text-muted-foreground transition-transform group-open:rotate-180" />
               </summary>
-              <nav className="grid grid-cols-2 gap-x-4 gap-y-1 pb-3" aria-label={`${group.label} footer links`}>
-                {group.links.map((link) => (
-                  <Link key={link.label} href={link.href} className="min-h-10 py-2 text-xs font-600 text-muted-foreground hover:text-primary">
-                    {link.label}
+              <nav className="grid grid-cols-2 gap-x-4 gap-y-1 pb-3" aria-label={`${group?.label} footer links`}>
+                {group?.links?.map((link) => (
+                  <Link key={link?.label} href={link?.href} className="min-h-10 py-2 text-xs font-600 text-muted-foreground hover:text-primary">
+                    {link?.label}
                   </Link>
                 ))}
               </nav>
@@ -99,13 +99,13 @@ export default function Footer() {
           </div>
 
           <div className="grid grid-cols-3 gap-8">
-            {footerGroups.map((group) => (
-              <div key={group.label}>
-                <p className="text-xs font-800 uppercase tracking-[0.14em] text-primary">{group.label}</p>
-                <nav className="mt-4 space-y-3" aria-label={`${group.label} footer links`}>
-                  {group.links.map((link) => (
-                    <Link key={link.label} href={link.href} className="block text-sm font-600 text-muted-foreground transition hover:text-primary">
-                      {link.label}
+            {footerGroups?.map((group) => (
+              <div key={group?.label}>
+                <p className="text-xs font-800 uppercase tracking-[0.14em] text-primary">{group?.label}</p>
+                <nav className="mt-4 space-y-3" aria-label={`${group?.label} footer links`}>
+                  {group?.links?.map((link) => (
+                    <Link key={link?.label} href={link?.href} className="block text-sm font-600 text-muted-foreground transition hover:text-primary">
+                      {link?.label}
                     </Link>
                   ))}
                 </nav>

@@ -33,8 +33,7 @@ const cityFromAddress = (value: unknown) => {
 
 async function requireAdministrator(request: NextRequest) {
   const auditAdmin =
-    process.env.FABRICTRAD_ENABLE_AUDIT_ADMIN === 'true' &&
-    request.cookies.get('fabrictrad_demo_role')?.value === 'admin';
+    process.env.FABRICTRAD_ENABLE_AUDIT_ADMIN === 'true' && request.cookies.get('fabrictrad_demo_role')?.value === 'admin';
   if (auditAdmin) return true;
 
   const supabase = await createClient();

@@ -126,9 +126,7 @@ export default function BuyerRegistrationEntry() {
               <div>
                 <p className="text-xs font-800 uppercase tracking-[0.13em] text-primary">Buyer type</p>
                 <p className="text-sm font-800 text-foreground">
-                  {buyerType === 'retail_store'
-                    ? 'Retail Store · account first, business KYC second'
-                    : 'Personal Buyer · fast signup, no business KYC'}
+                  {buyerType === 'retail_store' ?'Retail Store · account first, business KYC second' :'Personal Buyer · fast signup, no business KYC'}
                 </p>
               </div>
             </div>
@@ -165,8 +163,7 @@ export default function BuyerRegistrationEntry() {
           </h1>
           <p className="mx-auto mt-3 max-w-2xl text-sm leading-6 text-muted-foreground sm:text-base">
             {isAuthenticatedAccount
-              ? 'Your login is already secured. Choose what you need and FabricTrad will update this account instead of creating another one.'
-              : 'Personal buyers get a fast account with no business documents. Retail stores create the login first and complete business verification afterward.'}
+              ? 'Your login is already secured. Choose what you need and FabricTrad will update this account instead of creating another one.' :'Personal buyers get a fast account with no business documents. Retail stores create the login first and complete business verification afterward.'}
           </p>
         </div>
 
@@ -193,9 +190,7 @@ export default function BuyerRegistrationEntry() {
               <p className="mt-3 text-sm leading-6 text-muted-foreground">{option.description}</p>
               <div
                 className={`mt-4 inline-flex rounded-full px-3 py-1 text-xs font-800 ${
-                  option.value === 'end_user'
-                    ? 'bg-success/10 text-success'
-                    : 'bg-amber-100 text-amber-800'
+                  option.value === 'end_user' ?'bg-success/10 text-success' :'bg-amber-100 text-amber-800'
                 }`}
               >
                 {option.notice}

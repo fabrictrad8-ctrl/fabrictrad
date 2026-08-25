@@ -1,13 +1,7 @@
 export type CatalogUnit = 'mtr' | 'kg' | 'piece' | 'roll';
 export type SaleChannel = 'b2b' | 'retail' | 'both';
 export type PackageFormat =
-  | 'Fabric Only'
-  | 'Full Set'
-  | 'Top'
-  | 'Bottom'
-  | 'Top & Bottom'
-  | 'Additional Accessory'
-  | 'Other';
+  | 'Fabric Only' |'Full Set' |'Top' |'Bottom' |'Top & Bottom' |'Additional Accessory' |'Other';
 
 export type ParsedCatalogVariant = {
   colorName: string;

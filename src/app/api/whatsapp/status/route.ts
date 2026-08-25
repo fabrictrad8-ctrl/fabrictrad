@@ -11,15 +11,15 @@ export async function GET() {
     phoneNumberId: Boolean(process.env.WHATSAPP_PHONE_NUMBER_ID),
     businessNumber: Boolean(process.env.NEXT_PUBLIC_WHATSAPP_BUSINESS_NUMBER),
   };
-  const configured = Object.values(required).every(Boolean);
+  const configured = Object.values(required)?.every(Boolean);
 
-  return NextResponse.json(
+  return NextResponse?.json(
     {
       configured,
-      webhookReady: required.appSecret && required.verifyToken,
-      mediaReady: required.accessToken && required.phoneNumberId,
-      businessNumber: required.businessNumber
-        ? String(process.env.NEXT_PUBLIC_WHATSAPP_BUSINESS_NUMBER).replace(/\D/g, '')
+      webhookReady: required?.appSecret && required?.verifyToken,
+      mediaReady: required?.accessToken && required?.phoneNumberId,
+      businessNumber: required?.businessNumber
+        ? String(process.env.NEXT_PUBLIC_WHATSAPP_BUSINESS_NUMBER)?.replace(/\D/g, '')
         : null,
       graphVersion: process.env.WHATSAPP_GRAPH_API_VERSION || 'v23.0',
       required,

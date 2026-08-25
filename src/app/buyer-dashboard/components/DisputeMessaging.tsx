@@ -8,12 +8,7 @@ import { createClient } from '@/lib/supabase/client';
 
 type DisputeType =
   | 'return_request'
-  | 'exchange_request'
-  | 'refund_request'
-  | 'damage_claim'
-  | 'quality_issue'
-  | 'delivery_issue'
-  | 'general_query';
+  | 'exchange_request' |'refund_request' |'damage_claim' |'quality_issue' |'delivery_issue' |'general_query';
 type DisputeStatus = 'open' | 'under_review' | 'resolved' | 'escalated' | 'closed';
 type OrderKind = 'catalog' | 'bulk';
 type Evidence = { file: File; type: 'image' | 'document' | 'video' };
@@ -226,10 +221,8 @@ export default function DisputeMessaging({ mode = 'buyer' }: { mode?: 'buyer' | 
     return {
       file,
       type: file.type.startsWith('video/')
-        ? 'video'
-        : file.type.startsWith('image/')
-          ? 'image'
-          : 'document',
+        ? 'video' : file.type.startsWith('image/')
+          ? 'image' :'document',
     };
   };
 
@@ -253,7 +246,7 @@ export default function DisputeMessaging({ mode = 'buyer' }: { mode?: 'buyer' | 
     }
     setBusy(true);
     try {
-      const filePath = messageEvidence ? await uploadEvidence(active.id, messageEvidence) : null;
+      let filePath = messageEvidence ? await uploadEvidence(active.id, messageEvidence) : null;
       const { error } = await supabase.from('dispute_messages').insert({
         dispute_id: active.id,
         sender_type: mode,

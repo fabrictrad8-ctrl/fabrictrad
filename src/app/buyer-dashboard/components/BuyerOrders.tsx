@@ -165,8 +165,7 @@ export default function BuyerOrders() {
               onClick={() => setFilter(item)}
               className={`shrink-0 rounded-xl px-3 py-1.5 text-xs font-600 ${
                 filter === item
-                  ? 'bg-primary text-white'
-                  : 'border border-border bg-card text-muted-foreground'
+                  ? 'bg-primary text-white' :'border border-border bg-card text-muted-foreground'
               }`}
             >
               {item}
@@ -237,12 +236,9 @@ export default function BuyerOrders() {
                       <span
                         className={`rounded-full px-2 py-0.5 text-xs font-600 ${
                           paid
-                            ? 'bg-success/10 text-success'
-                            : paymentStatus.includes('refund')
+                            ? 'bg-success/10 text-success' : paymentStatus.includes('refund')
                               ? 'bg-warning/10 text-warning'
-                              : status === 'cancelled'
-                                ? 'bg-error/10 text-error'
-                                : 'bg-warning/10 text-warning'
+                              : status === 'cancelled' ?'bg-error/10 text-error' :'bg-warning/10 text-warning'
                         }`}
                       >
                         {paymentLabels[paymentStatus] || paymentStatus.replaceAll('_', ' ')}
@@ -290,9 +286,7 @@ export default function BuyerOrders() {
                           buttonText={netPaid > 0 ? 'Pay remaining balance' : 'Pay confirmed order'}
                           onSuccess={({ status: resultStatus }) => {
                             toast.success(
-                              resultStatus === 'captured'
-                                ? 'Payment captured and the order was updated.'
-                                : 'Payment authorised. Waiting for capture confirmation.'
+                              resultStatus === 'captured' ?'Payment captured and the order was updated.' :'Payment authorised. Waiting for capture confirmation.'
                             );
                             window.setTimeout(() => void refresh(), 1200);
                           }}

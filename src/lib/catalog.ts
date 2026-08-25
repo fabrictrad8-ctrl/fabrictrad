@@ -60,13 +60,7 @@ export type CatalogProduct = {
   searchTerms?: string;
   saleChannel?: 'b2b' | 'retail' | 'both';
   packageFormat?:
-    | 'Fabric Only'
-    | 'Full Set'
-    | 'Top'
-    | 'Bottom'
-    | 'Top & Bottom'
-    | 'Additional Accessory'
-    | 'Other';
+    | 'Fabric Only' |'Full Set' |'Top' |'Bottom' |'Top & Bottom' |'Additional Accessory' |'Other';
 };
 
 /**

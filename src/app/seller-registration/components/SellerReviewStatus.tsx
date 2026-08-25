@@ -62,15 +62,13 @@ export default function SellerReviewStatus({
                 {approved
                   ? 'Your seller account is approved'
                   : rejected
-                    ? 'Your seller application needs attention'
-                    : 'Your seller application is under review'}
+                    ? 'Your seller application needs attention' :'Your seller application is under review'}
               </h1>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
                 {approved
                   ? 'Selling, product publishing and settlement eligibility are now active.'
                   : rejected
-                    ? 'FabricTrad could not approve the current submission. Review the reason below and update the application.'
-                    : 'Everything you submitted is saved. You can leave this page and come back later without restarting the application.'}
+                    ? 'FabricTrad could not approve the current submission. Review the reason below and update the application.' :'Everything you submitted is saved. You can leave this page and come back later without restarting the application.'}
               </p>
             </div>
             <span
@@ -78,8 +76,7 @@ export default function SellerReviewStatus({
                 approved
                   ? 'bg-success/10 text-success'
                   : rejected
-                    ? 'bg-error/10 text-error'
-                    : 'bg-amber-100 text-amber-900'
+                    ? 'bg-error/10 text-error' :'bg-amber-100 text-amber-900'
               }`}
             >
               {approved ? 'Approved' : rejected ? 'Needs attention' : 'Under review'}
@@ -179,8 +176,7 @@ function Stage({
             complete
               ? 'bg-success text-white'
               : pending
-                ? 'bg-amber-100 text-amber-900'
-                : 'bg-muted text-muted-foreground'
+                ? 'bg-amber-100 text-amber-900' :'bg-muted text-muted-foreground'
           }`}
         >
           <Icon name={complete ? 'CheckIcon' : 'ClockIcon'} size={18} />

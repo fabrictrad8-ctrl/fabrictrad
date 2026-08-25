@@ -241,7 +241,7 @@ export function useProduct() {
         return;
       }
 
-      const [{ data: seller }, { data: variantRows }, { data: mediaRows }] =
+      const [sellerResult, variantResult, mediaResult] =
         await Promise.all([
           supabase
             .from('seller_directory')
@@ -263,6 +263,9 @@ export function useProduct() {
             .eq('product_id', id)
             .order('sort_order', { ascending: true }),
         ]);
+      const seller = sellerResult.data;
+      const variantRows = variantResult.data;
+      const mediaRows = mediaResult.data;
       if (!mounted) return;
 
       const media = (mediaRows || []).map((entry) => ({
