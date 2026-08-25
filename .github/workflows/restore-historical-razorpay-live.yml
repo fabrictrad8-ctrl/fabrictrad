@@ -1,0 +1,258 @@
+name: Recover pre-rocket Razorpay LIVE bindings
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/restore-historical-razorpay-live.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fabrictrad-razorpay-live-recovery
+  cancel-in-progress: false
+
+jobs:
+  recover-live-bindings:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: aa4ff7a482130e543f176e2d73c93f45
+      WORKER_NAME: fabrictrad
+      BASE_URL: https://fabrictrad.com
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Wrangler
+        run: npm install --no-audit --no-fund --package-lock=false --legacy-peer-deps
+
+      - name: Verify Cloudflare access
+        run: npx wrangler whoami
+
+      - name: Recover historical Razorpay bindings without rolling back app code
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          api="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts/${WORKER_NAME}"
+          auth=(-H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}")
+
+          # Versions recorded by FabricTrad's own successful pre-rocket.new
+          # production deployment history, newest first.
+          historical_versions=(
+            '9bdafdef-4dca-4c9d-9a76-bfb45ce44b3f'
+            'bdda6baf-2f0b-45f9-b684-86eb20d51c51'
+            '82f7add8-e2a1-4342-8cf6-30e1ae9aa4d9'
+            'f1421962-6568-46a4-acc4-aa71d878465e'
+            '9e18a9aa-4c83-4523-a7d4-4a1d057ff239'
+            'd4d0676b-f775-44fd-b26c-1c4b55a8c98a'
+            '7467834c-a5a8-464d-9819-32804a5247e9'
+            '6a716744-0f0e-4f81-927e-bfb26d845e5a'
+            'e3112f9d-8d11-43bc-98b3-771cb8c695b9'
+            '77a122c4-35e1-4a4b-a3a2-b64dbcc12146'
+          )
+
+          curl --fail --silent --show-error "${auth[@]}" "${api}/deployments" > /tmp/deployments.json
+          active_version=$(node - <<'NODE'
+          const fs=require('node:fs');
+          const p=JSON.parse(fs.readFileSync('/tmp/deployments.json','utf8'));
+          const ds=p?.result?.deployments || [];
+          if (!ds.length) process.exit(2);
+          const versions=ds[0].versions || [];
+          versions.sort((a,b)=>(b.percentage||0)-(a.percentage||0));
+          if (!versions[0]?.version_id) process.exit(3);
+          process.stdout.write(versions[0].version_id);
+          NODE
+          )
+          echo "Current production version preserved at 100% during testing: ${active_version}"
+
+          # Save the latest/current version's binding inventory. Secret values are
+          # never requested or printed; only binding names and version references
+          # are used.
+          curl --fail --silent --show-error "${auth[@]}" "${api}/settings" > /tmp/current-settings.json
+          curl --fail --silent --show-error "${auth[@]}" "${api}/versions?per_page=100&deployable=true" > /tmp/versions.json
+          baseline_version=$(node - <<'NODE'
+          const fs=require('node:fs');
+          const p=JSON.parse(fs.readFileSync('/tmp/versions.json','utf8'));
+          const items=p?.result?.items || [];
+          if (!items[0]?.id) process.exit(2);
+          process.stdout.write(items[0].id);
+          NODE
+          )
+          echo "Current-code baseline version: ${baseline_version}"
+
+          restore_active() {
+            npx wrangler versions deploy "${active_version}@100%" --config wrangler.jsonc -y >/dev/null
+          }
+          trap 'if [ ! -s /tmp/recovered-version.txt ]; then restore_active || true; fi' EXIT
+
+          for historical in "${historical_versions[@]}"; do
+            echo "Testing historical encrypted Razorpay binding set from ${historical}"
+
+            # Confirm the historical version still exists before referencing it.
+            historical_http=$(curl --silent --show-error --output /tmp/historical-version.json \
+              --write-out '%{http_code}' "${auth[@]}" "${api}/versions/${historical}" || true)
+            if [ "$historical_http" != '200' ]; then
+              echo "Historical version ${historical} is no longer available; skipping."
+              continue
+            fi
+
+            # Create settings containing current bindings from the current-code
+            # baseline, except Razorpay's three encrypted bindings which are
+            # inherited from the historical version. This preserves every current
+            # feature while transplanting only the old payment credentials.
+            HISTORICAL="$historical" BASELINE="$baseline_version" node - <<'NODE'
+            const fs=require('node:fs');
+            const p=JSON.parse(fs.readFileSync('/tmp/current-settings.json','utf8'));
+            const current=p.result || p;
+            const razorpay=new Set(['RAZORPAY_KEY_ID','RAZORPAY_KEY_SECRET','RAZORPAY_WEBHOOK_SECRET']);
+            const bindings=(current.bindings || [])
+              .filter((binding)=>binding && binding.name)
+              .map((binding)=>({
+                name: binding.name,
+                type: 'inherit',
+                version_id: razorpay.has(binding.name) ? process.env.HISTORICAL : process.env.BASELINE,
+              }));
+            for (const name of razorpay) {
+              if (!bindings.some((binding)=>binding.name===name)) {
+                bindings.push({name,type:'inherit',version_id:process.env.HISTORICAL});
+              }
+            }
+            const settings={
+              bindings,
+              annotations:{'workers/message':`FabricTrad Razorpay recovery candidate from ${process.env.HISTORICAL}`},
+            };
+            fs.writeFileSync('/tmp/candidate-settings.json',JSON.stringify(settings));
+            NODE
+
+            before=$(curl --fail --silent --show-error "${auth[@]}" "${api}/versions?per_page=1&deployable=true" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const p=JSON.parse(s);process.stdout.write(p?.result?.items?.[0]?.id||'')})")
+
+            patch_http=$(curl --silent --show-error --output /tmp/patch-settings.json \
+              --write-out '%{http_code}' -X PATCH "${auth[@]}" \
+              -F 'settings=@/tmp/candidate-settings.json;type=application/json' \
+              "${api}/settings" || true)
+            if [ "$patch_http" != '200' ]; then
+              echo "Could not inherit bindings from ${historical} (HTTP ${patch_http}); skipping."
+              continue
+            fi
+
+            sleep 2
+            curl --fail --silent --show-error "${auth[@]}" "${api}/versions?per_page=2&deployable=true" > /tmp/after-versions.json
+            candidate_version=$(BEFORE="$before" node - <<'NODE'
+            const fs=require('node:fs');
+            const p=JSON.parse(fs.readFileSync('/tmp/after-versions.json','utf8'));
+            const items=p?.result?.items || [];
+            const item=items.find((x)=>x?.id && x.id!==process.env.BEFORE) || items[0];
+            if (!item?.id || item.id===process.env.BEFORE) process.exit(2);
+            process.stdout.write(item.id);
+            NODE
+            ) || true
+            if [ -z "${candidate_version:-}" ]; then
+              echo "No candidate version was created for ${historical}; skipping."
+              continue
+            fi
+
+            # Candidate gets 0% normal traffic. The override header below is the
+            # only request routed to it during validation.
+            if ! npx wrangler versions deploy "${active_version}@100%" "${candidate_version}@0%" \
+              --config wrangler.jsonc -y >/dev/null; then
+              echo "Could not stage candidate ${candidate_version}; skipping."
+              restore_active
+              continue
+            fi
+            sleep 4
+
+            status_http=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+              --output /tmp/razorpay-candidate.json --write-out '%{http_code}' \
+              -H "Cloudflare-Workers-Version-Overrides: ${WORKER_NAME}=\"${candidate_version}\"" \
+              "${BASE_URL}/api/razorpay/status" || true)
+
+            # Print only non-secret health data returned by FabricTrad.
+            echo "Candidate ${candidate_version} status HTTP ${status_http}:"
+            cat /tmp/razorpay-candidate.json || true
+            echo
+
+            if [ "$status_http" = '200' ] && node - <<'NODE'
+            const fs=require('node:fs');
+            try {
+              const p=JSON.parse(fs.readFileSync('/tmp/razorpay-candidate.json','utf8'));
+              process.exit(p.authenticated===true && p.mode==='live' && p.productionReady===true ? 0 : 1);
+            } catch { process.exit(1); }
+            NODE
+            then
+              echo "Recovered a genuinely authenticated Razorpay LIVE binding set from ${historical}."
+              printf '%s' "$candidate_version" > /tmp/recovered-version.txt
+              printf '%s' "$historical" > /tmp/recovered-source-version.txt
+              npx wrangler versions deploy "${candidate_version}@100%" --config wrangler.jsonc -y >/dev/null
+              sleep 5
+              break
+            fi
+
+            restore_active
+          done
+
+          if [ ! -s /tmp/recovered-version.txt ]; then
+            echo '::error::No preserved pre-rocket Worker version contained a Razorpay credential that currently authenticates as LIVE. No existing app feature was rolled back.'
+            exit 1
+          fi
+
+      - name: Verify Razorpay and Shiprocket together on production
+        shell: bash
+        run: |
+          set -euo pipefail
+          recovered=$(cat /tmp/recovered-version.txt)
+          source_version=$(cat /tmp/recovered-source-version.txt)
+
+          for attempt in $(seq 1 12); do
+            razorpay_http=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+              --output /tmp/razorpay-final.json --write-out '%{http_code}' \
+              "${BASE_URL}/api/razorpay/status" || true)
+            shiprocket_http=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+              --output /tmp/shiprocket-final.json --write-out '%{http_code}' \
+              "${BASE_URL}/api/shiprocket/status?verify=1" || true)
+            if [ "$razorpay_http" = '200' ] && [ "$shiprocket_http" = '200' ] && node - <<'NODE'
+            const fs=require('node:fs');
+            const r=JSON.parse(fs.readFileSync('/tmp/razorpay-final.json','utf8'));
+            const s=JSON.parse(fs.readFileSync('/tmp/shiprocket-final.json','utf8'));
+            process.exit(r.authenticated===true && r.mode==='live' && r.productionReady===true && s.configured===true && s.authenticated===true && s.webhookConfigured===true ? 0 : 1);
+            NODE
+            then break; fi
+            sleep 5
+          done
+
+          node - <<'NODE'
+          const fs=require('node:fs');
+          const r=JSON.parse(fs.readFileSync('/tmp/razorpay-final.json','utf8'));
+          const s=JSON.parse(fs.readFileSync('/tmp/shiprocket-final.json','utf8'));
+          if (!(r.authenticated===true && r.mode==='live' && r.productionReady===true)) process.exit(1);
+          if (!(s.configured===true && s.authenticated===true && s.webhookConfigured===true)) process.exit(1);
+          NODE
+
+          order_status=$(curl --silent --show-error --output /tmp/order-probe.json --write-out '%{http_code}' \
+            -H 'Content-Type: application/json' --data '{}' "${BASE_URL}/api/razorpay/order" || true)
+          verify_status=$(curl --silent --show-error --output /tmp/verify-probe.json --write-out '%{http_code}' \
+            -H 'Content-Type: application/json' --data '{}' "${BASE_URL}/api/razorpay/verify" || true)
+          webhook_status=$(curl --silent --show-error --output /tmp/webhook-probe.json --write-out '%{http_code}' \
+            -H 'Content-Type: application/json' -H 'x-razorpay-signature: 00' --data '{}' \
+            "${BASE_URL}/api/razorpay/webhook" || true)
+          [ "$order_status" = '401' ]
+          [ "$verify_status" = '401' ]
+          [ "$webhook_status" = '400' ]
+          grep -qi 'invalid signature' /tmp/webhook-probe.json
+
+          home=$(curl --silent --show-error --output /tmp/home.html --write-out '%{http_code}' "${BASE_URL}/" || true)
+          login=$(curl --silent --show-error --output /tmp/login.html --write-out '%{http_code}' "${BASE_URL}/login" || true)
+          [ "$home" = '200' ]
+          [ "$login" = '200' ]
+
+          echo "Recovered current-code Worker version ${recovered} using historical Razorpay bindings from ${source_version}."
+          echo 'Razorpay LIVE: verified'
+          echo 'Shiprocket: verified'
+          echo 'Current public app: preserved'
