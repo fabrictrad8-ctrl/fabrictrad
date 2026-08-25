@@ -80,14 +80,17 @@ jobs:
             echo "Attempt ${attempt}/36: Razorpay status HTTP ${status}"
             cat /tmp/razorpay-status.json || true
             echo
-            if [ "$status" = '200' ] && grep -q '"authenticated":true' /tmp/razorpay-status.json; then
+            if [ "$status" = '200' ] \
+              && grep -q '"authenticated":true' /tmp/razorpay-status.json \
+              && grep -q '"mode":"live"' /tmp/razorpay-status.json \
+              && grep -q '"productionReady":true' /tmp/razorpay-status.json; then
               ready=true
               break
             fi
             sleep 10
           done
           if [ "$ready" != 'true' ]; then
-            echo '::error::The deployed FabricTrad worker still cannot authenticate to Razorpay.'
+            echo '::error::FabricTrad is not using an authenticated Razorpay LIVE credential. Real checkout remains blocked.'
             exit 1
           fi
 
@@ -125,10 +128,10 @@ jobs:
           set -euo pipefail
           if [ "$JOB_STATUS" = 'success' ]; then
             state='success'
-            description='Razorpay checkout authentication is live and verified'
+            description='Razorpay LIVE checkout authentication is verified'
           else
             state='failure'
-            description='Razorpay hotfix deployment or live verification failed'
+            description='Razorpay LIVE deployment or verification failed'
           fi
           payload=$(python - "$state" "$description" <<'PY'
           import json, sys
