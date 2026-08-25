@@ -8,10 +8,7 @@ import ProductOrderStatusCard from '@/app/product-detail/components/ProductOrder
 import ProductSpecs from '@/app/product-detail/components/ProductSpecs';
 import SellerCard from '@/app/product-detail/components/SellerCard';
 import RelatedProducts from '@/app/product-detail/components/RelatedProducts';
-import SellerRatings from '@/app/product-detail/components/SellerRatings';
-import ComparisonWidget from '@/app/product-detail/components/ComparisonWidget';
 import ModernFabricDrapeViewer from '@/app/product-detail/components/ModernFabricDrapeViewer';
-import BuyerFeedbackWidget from '@/app/product-detail/components/BuyerFeedbackWidget';
 import BuyerOnlyGuard from '@/components/BuyerOnlyGuard';
 import ProductBreadcrumb from '@/app/product-detail/components/ProductBreadcrumb';
 import { CurrentProductShareButton } from '@/components/ProductShareButton';
@@ -77,11 +74,8 @@ export default function ProductDetailPage() {
               <div className="min-w-0 space-y-5">
                 <ProductSpecs />
                 <section id="drape-on" className={`${styles.drapeSection} scroll-mt-24`}><ModernFabricDrapeViewer /></section>
-                <SellerRatings />
-                <BuyerFeedbackWidget />
               </div>
               <aside className="min-w-0 space-y-5">
-                <ComparisonWidget />
                 <div className="ft-product-content-card p-4">
                   <p className="text-xs font-850 uppercase tracking-wider text-muted-foreground">How checkout works</p>
                   <ol className="mt-3 space-y-3 text-xs leading-5 text-muted-foreground">

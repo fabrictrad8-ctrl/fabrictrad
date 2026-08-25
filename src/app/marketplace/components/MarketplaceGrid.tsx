@@ -87,8 +87,8 @@ function mapSellerProduct(row: Record<string, unknown>, sellerName: string): Cat
     gsm: Number(row.gsm || 0),
     width: row.width_inches ? `${Number(row.width_inches)} inches` : 'Width not specified',
     work: String(row.work_type || 'Plain'),
-    rating: Number(row.rating || 0),
-    reviews: Number(row.review_count || 0),
+    rating: 0,
+    reviews: 0,
     badge: row.created_at && Date.now() - new Date(String(row.created_at)).getTime() < 30 * 86400000 ? 'new' : null,
     verified: true,
     image,
@@ -249,7 +249,6 @@ export default function MarketplaceGrid() {
                     <div className="mt-1 flex items-center gap-1 text-[11px] text-muted-foreground"><Icon name="ShieldCheckIcon" size={12} className="text-success" /><span className="truncate">{product.seller}</span></div>
                   </div>
 
-                  {product.rating > 0 && <div className="mt-1.5 flex items-center gap-1 text-[11px]"><span className="font-800 text-[#b45309]">{product.rating.toFixed(1)}</span><span className="text-[#f59e0b]">★★★★★</span><span className="text-muted-foreground">({product.reviews})</span></div>}
                   <p className="mt-1.5 text-[11px] text-muted-foreground">{product.city} · {product.gsm || '—'} GSM · {product.width}</p>
 
                   {!!visibleColors.length && <div className="mt-2 flex items-center gap-1">{visibleColors.map((variant) => <span key={variant.id} title={`${variant.colorName} · ${variant.available} available`} className="h-4 w-4 rounded-full border border-border shadow-sm" style={{ backgroundColor: variant.colorHex || '#d1d5db' }} />)}{(product.variantCount || 0) > visibleColors.length && <span className="text-[10px] font-800 text-muted-foreground">+{(product.variantCount || 0) - visibleColors.length}</span>}</div>}
