@@ -26,9 +26,10 @@ import SellerCourierSettings from '@/app/seller-dashboard/components/SellerCouri
 import SellerInbox from '@/app/seller-dashboard/components/SellerInbox';
 import SellerBuyerRequests from '@/app/seller-dashboard/components/SellerBuyerRequests';
 import SellerBillingDocuments from '@/app/seller-dashboard/components/SellerBillingDocuments';
+import SellerSettlement from '@/app/seller-dashboard/components/SellerSettlement';
 
 type SellerTab =
-  | 'overview' |'orders' |'inventory' |'variants' |'catalogs' |'upload' |'requests' |'inbox' |'fulfillment' |'courier' |'earnings' |'analytics' |'categories' |'billing' |'disputes' |'notifications' |'profile';
+  | 'overview' |'orders' |'inventory' |'variants' |'catalogs' |'upload' |'requests' |'inbox' |'fulfillment' |'courier' |'earnings' |'analytics' |'categories' |'billing' |'disputes' |'notifications' |'profile' |'settlement';
 
 type NavItem = { key: SellerTab; label: string; icon: string; description: string };
 
@@ -62,6 +63,7 @@ const navGroups: Array<{ label: string; items: NavItem[] }> = [
     label: 'Finances',
     items: [
       { key: 'earnings', label: 'Earnings & payouts', icon: 'BanknotesIcon', description: 'Captured payments and settlements' },
+      { key: 'settlement', label: 'Settlements', icon: 'CreditCardIcon', description: 'Razorpay payouts, commission & tax' },
       { key: 'billing', label: 'Invoices & documents', icon: 'DocumentTextIcon', description: 'Automatic invoices and manual documents' },
       { key: 'analytics', label: 'Analytics', icon: 'ChartBarIcon', description: 'Sales and product performance' },
     ],
@@ -99,6 +101,7 @@ const sellerSearchAliases: Record<SellerTab, string> = {
   fulfillment: 'shipments dispatch tracking fulfilment fulfillment delivery',
   courier: 'shipping courier pickup logistics settings',
   earnings: 'earnings payouts settlements money finance',
+  settlement: 'settlement razorpay payout commission tax tds gst breakdown schedule',
   analytics: 'analytics reports performance sales metrics',
   categories: 'categories organization taxonomy product groups',
   billing: 'billing invoices documents receipts gst invoice',
@@ -119,6 +122,7 @@ const tabTitles: Record<SellerTab, string> = {
   fulfillment: 'Shipments',
   courier: 'Shipping Settings',
   earnings: 'Earnings & Payouts',
+  settlement: 'Settlements & Payouts',
   analytics: 'Analytics',
   categories: 'Categories',
   billing: 'Invoices & Documents',
@@ -376,6 +380,7 @@ export default function SellerDashboardLayout() {
             {activeTab === 'fulfillment' && <SellerFulfillment />}
             {activeTab === 'courier' && <SellerCourierSettings />}
             {activeTab === 'earnings' && <SellerEarnings />}
+            {activeTab === 'settlement' && <SellerSettlement />}
             {activeTab === 'analytics' && <SellerAnalytics />}
             {activeTab === 'categories' && <SellerCategories />}
             {activeTab === 'billing' && <SellerBillingDocuments />}

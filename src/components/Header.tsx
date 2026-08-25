@@ -74,8 +74,7 @@ export default function Header() {
     : canBuy && canSell
       ? 'Buyer + Seller'
       : canSell
-        ? 'Seller'
-        : 'Buyer';
+        ? 'Seller' :'Buyer';
 
   const publicNavLinks = useMemo<NavLink[]>(
     () => [
@@ -83,6 +82,7 @@ export default function Header() {
       { label: 'Categories', href: '/categories', icon: 'Squares2X2Icon' },
       { label: 'AI Drape', href: '/product-detail#drape-on', icon: 'SparklesIcon' },
       { label: 'Vendors', href: '/vendors', icon: 'BuildingStorefrontIcon' },
+      { label: 'How to Use', href: '/how-to-use', icon: 'AcademicCapIcon' },
     ],
     [t]
   );
@@ -93,6 +93,7 @@ export default function Header() {
       { label: 'Categories', href: '/categories', icon: 'Squares2X2Icon' },
       { label: 'Vendors', href: '/vendors', icon: 'BuildingStorefrontIcon' },
       { label: 'Requirements', href: '/buyer-requirements', icon: 'MegaphoneIcon' },
+      { label: 'How to Use', href: '/how-to-use', icon: 'AcademicCapIcon' },
     ],
     [t]
   );
@@ -102,6 +103,7 @@ export default function Header() {
       { label: 'Seller dashboard', href: '/seller-dashboard', icon: 'HomeIcon' },
       { label: 'Products', href: '/seller-dashboard?tab=inventory', icon: 'ArchiveBoxIcon' },
       { label: 'Orders', href: '/seller-dashboard?tab=orders', icon: 'ClipboardDocumentListIcon' },
+      { label: 'How to Use', href: '/how-to-use', icon: 'AcademicCapIcon' },
     ],
     []
   );
@@ -159,8 +161,7 @@ export default function Header() {
       : buyerContext && canBuy
         ? '/marketplace'
         : isLoggedIn
-          ? '/account'
-          : '/';
+          ? '/account' :'/';
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 12);

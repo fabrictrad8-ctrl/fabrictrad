@@ -90,14 +90,24 @@ export default function BuyerTracking() {
         .from('catalog_order_requests')
         .select('id,seller_products(name)')
         .in('id', catalogIds);
-      (data || []).forEach((order: { id: string; seller_products?: Array<{ name?: string }> | null }) => catalogNames.set(order.id, (Array.isArray(order.seller_products) ? order.seller_products[0]?.name : (order.seller_products as { name?: string } | null)?.name) || 'Catalogue product'));
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (data || []).forEach((order: any) => {
+        const sp = order.seller_products;
+        const name = Array.isArray(sp) ? sp[0]?.name : sp?.name;
+        catalogNames.set(order.id as string, name || 'Catalogue product');
+      });
     }
     if (bulkIds.length) {
       const { data } = await supabase
         .from('bulk_orders')
         .select('id,bulk_order_items(product_name)')
         .in('id', bulkIds);
-      (data || []).forEach((order: { id: string; bulk_order_items?: Array<{ product_name?: string }> | null }) => bulkNames.set(order.id, order.bulk_order_items?.[0]?.product_name || 'Bulk fabric order'));
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (data || []).forEach((order: any) => {
+        const items = order.bulk_order_items;
+        const name = Array.isArray(items) ? items[0]?.product_name : items?.product_name;
+        bulkNames.set(order.id as string, name || 'Bulk fabric order');
+      });
     }
 
     setShipments(rows.map((row) => ({
