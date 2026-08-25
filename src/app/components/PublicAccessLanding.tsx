@@ -44,6 +44,21 @@ export default function PublicAccessLanding() {
           <nav className="ft-future-navlinks" aria-label="Public navigation">
             <a href="#platform">Platform</a>
             <a href="#capabilities">Capabilities</a>
+            <details className="group relative">
+              <summary className="flex cursor-pointer list-none items-center gap-1 marker:content-none">
+                How to use <Icon name="ChevronDownIcon" size={13} className="transition group-open:rotate-180" />
+              </summary>
+              <div className="absolute left-1/2 top-[calc(100%+12px)] z-50 w-56 -translate-x-1/2 overflow-hidden rounded-2xl border border-slate-200 bg-white p-2 shadow-[0_22px_60px_rgba(15,23,42,0.16)]">
+                <Link href="/how-to-use?role=buyer" className="flex items-center gap-3 rounded-xl px-3 py-3 text-left hover:bg-orange-50">
+                  <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-orange-50 text-orange-700"><Icon name="ShoppingBagIcon" size={17} /></span>
+                  <span><strong className="block text-xs text-slate-900">Buyer walkthrough</strong><span className="mt-0.5 block text-[11px] text-slate-500">Interactive buying flow</span></span>
+                </Link>
+                <Link href="/how-to-use?role=seller" className="mt-1 flex items-center gap-3 rounded-xl px-3 py-3 text-left hover:bg-teal-50">
+                  <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-teal-50 text-teal-700"><Icon name="BuildingStorefrontIcon" size={17} /></span>
+                  <span><strong className="block text-xs text-slate-900">Seller walkthrough</strong><span className="mt-0.5 block text-[11px] text-slate-500">Interactive selling flow</span></span>
+                </Link>
+              </div>
+            </details>
             <a href="#trust">Trust & safety</a>
           </nav>
 
@@ -78,8 +93,8 @@ export default function PublicAccessLanding() {
             <Link href="/login" className="ft-primary-action rounded-xl">
               Enter FabricTrad <Icon name="ArrowRightIcon" size={17} />
             </Link>
-            <Link href="/register" className="ft-secondary-action rounded-xl">
-              Create a free account
+            <Link href="/how-to-use?role=buyer" className="ft-secondary-action rounded-xl">
+              Watch how it works
             </Link>
           </div>
 
@@ -163,8 +178,8 @@ export default function PublicAccessLanding() {
 
         <article className="ft-future-panel">
           <div className="ft-future-panel-icon"><Icon name="LockClosedIcon" size={21} /></div>
-          <h3 className="mt-5 text-xl text-slate-900">Private before sign-in</h3>
-          <p className="mt-3 text-sm text-slate-600">The public landing page does not expose live marketplace prices, seller data, dashboards or transaction records.</p>
+          <h3 className="mt-5 text-xl text-slate-900">Private commerce, public guidance</h3>
+          <p className="mt-3 text-sm text-slate-600">Live marketplace records and account data stay behind sign-in, while the Buyer and Seller interactive walkthroughs remain public so anyone can learn FabricTrad first.</p>
         </article>
       </section>
 
@@ -196,6 +211,7 @@ export default function PublicAccessLanding() {
             <span className="font-850 text-slate-900">FabricTrad</span>
           </div>
           <nav className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-slate-600" aria-label="Footer navigation">
+            <Link href="/how-to-use?role=buyer" className="hover:text-slate-950">How to use</Link>
             <Link href="/help" className="hover:text-slate-950">Help</Link>
             <Link href="/privacy" className="hover:text-slate-950">Privacy</Link>
             <Link href="/terms" className="hover:text-slate-950">Terms</Link>
