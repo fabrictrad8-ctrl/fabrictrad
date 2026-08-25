@@ -1,0 +1,27 @@
+/* Keep dropdown-backed public navigation items visually identical to normal links. */
+.ft-future-navlinks summary {
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  color: #cbd5e1;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 18px;
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+
+.ft-future-navlinks summary:hover,
+.ft-future-navlinks details[open] > summary {
+  background: rgba(255,255,255,.07);
+  color: #fff;
+}
+
+.ft-future-navlinks summary::-webkit-details-marker {
+  display: none;
+}
