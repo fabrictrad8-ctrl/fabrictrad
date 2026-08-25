@@ -59,12 +59,10 @@ jobs:
         id: cloudflare
         run: npx wrangler whoami
 
-      - name: Deploy UI release
+      - name: Promote UI release on existing FabricTrad Worker
         id: deploy
         shell: bash
-        run: |
-          set -euo pipefail
-          npx wrangler deploy --config wrangler.jsonc --keep-vars 2>&1 | tee /tmp/ui-wrangler-deploy.log
+        run: bash scripts/deploy-cloudflare-worker-version.sh wrangler.jsonc
 
       - name: Verify new public UI is live
         id: smoke
@@ -79,16 +77,20 @@ jobs:
             login_code=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
               --output /tmp/fabrictrad-login.html --write-out '%{http_code}' \
               https://fabrictrad.com/login || true)
-            if [ "$home_code" = '200' ] && [ "$login_code" = '200' ] && \
+            howto_code=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+              --output /tmp/fabrictrad-howto.html --write-out '%{http_code}' \
+              https://fabrictrad.com/how-to-use || true)
+            if [ "$home_code" = '200' ] && [ "$login_code" = '200' ] && [ "$howto_code" = '200' ] && \
                grep -q 'Textile trade' /tmp/fabrictrad-home.html && \
-               grep -q 'Welcome back' /tmp/fabrictrad-login.html; then
+               grep -q 'Welcome back' /tmp/fabrictrad-login.html && \
+               grep -q 'Choose how you use FabricTrad' /tmp/fabrictrad-howto.html; then
               live=true
               break
             fi
             sleep 10
           done
           if [ "$live" != 'true' ]; then
-            echo '::error::The newly built landing/login release did not become visible on fabrictrad.com.'
+            echo '::error::The newly promoted landing/login/how-to-use release did not become visible on fabrictrad.com.'
             exit 1
           fi
 
