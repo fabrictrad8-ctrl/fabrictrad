@@ -28,6 +28,20 @@ const withRefreshedCookies = (target: NextResponse, source: NextResponse) => {
   return target;
 };
 
+const clearStaleSupabaseCookies = (request: NextRequest, target: NextResponse) => {
+  for (const cookie of request.cookies.getAll()) {
+    if (cookie.name.startsWith('sb-') && cookie.name.includes('-auth-token')) {
+      target.cookies.set(cookie.name, '', {
+        path: '/',
+        maxAge: 0,
+        sameSite: 'lax',
+        secure: process.env.NODE_ENV === 'production',
+      });
+    }
+  }
+  return target;
+};
+
 const redirect = (request: NextRequest, pathname: string) => {
   const url = request.nextUrl.clone();
   url.pathname = pathname;
@@ -110,13 +124,21 @@ export async function middleware(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    if (isAdminApi) return adminApiError('Administrator sign-in required.', 401);
-    if (PUBLIC_PATHS.has(pathname)) return response;
+    if (isAdminApi) {
+      return clearStaleSupabaseCookies(
+        request,
+        adminApiError('Administrator sign-in required.', 401)
+      );
+    }
+    if (PUBLIC_PATHS.has(pathname)) return clearStaleSupabaseCookies(request, response);
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = pathname.startsWith('/admin-portal') ? '/admin-login' : '/login';
     loginUrl.search = '';
     loginUrl.searchParams.set('next', `${pathname}${request.nextUrl.search}`);
-    return withRefreshedCookies(NextResponse.redirect(loginUrl), response);
+    return clearStaleSupabaseCookies(
+      request,
+      withRefreshedCookies(NextResponse.redirect(loginUrl), response)
+    );
   }
 
   const normalizedEmail = user.email?.trim().toLowerCase() || '';
