@@ -97,3 +97,173 @@ button.min-h-auto, a.min-h-auto {
 .notification-badge {
   animation: badge-pulse 2s ease-in-out infinite;
 }
+
+/* ============================================================
+   ENHANCED MOBILE IMPROVEMENTS (all portals)
+   ============================================================ */
+
+/* Bottom nav safe area for iOS notch */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  nav.fixed.bottom-0 {
+    padding-bottom: calc(0.375rem + env(safe-area-inset-bottom));
+  }
+}
+
+/* Ensure main content doesn't hide behind bottom nav */
+@media screen and (max-width: 768px) {
+  main .mx-auto {
+    padding-bottom: 5rem !important;
+  }
+}
+
+/* Mobile card improvements */
+@media screen and (max-width: 640px) {
+  /* KPI grid stacks to 2 columns on small screens */
+  .ft-kpi-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+
+  /* Toolbar wraps cleanly on mobile */
+  .ft-toolbar {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  /* Full-width search on mobile */
+  .ft-search {
+    width: 100% !important;
+    flex: 1 1 100% !important;
+  }
+
+  /* Marketplace product cards: single column on very small screens */
+  .ft-marketplace-product-card {
+    min-height: unset;
+  }
+
+  /* Marketplace toolbar stacks */
+  .ft-marketplace-results-toolbar {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+  }
+
+  /* Batch apply modal full width */
+  [role="dialog"],
+  .fixed.inset-0 > div[class*="max-w"] {
+    margin: 0.5rem;
+    max-height: calc(100dvh - 1rem);
+  }
+}
+
+/* Marketplace filter drawer improvements */
+@media screen and (max-width: 1024px) {
+  /* Ensure filter drawer is scrollable */
+  .ft-marketplace-filters-card {
+    max-height: calc(100dvh - 4rem);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* Dashboard sidebar mobile improvements */
+@media screen and (max-width: 768px) {
+  /* Sidebar nav items have better touch targets */
+  aside nav button,
+  aside nav a {
+    min-height: 48px !important;
+    padding-top: 0.625rem !important;
+    padding-bottom: 0.625rem !important;
+  }
+
+  /* Header search bar full width on mobile */
+  header form[class*="flex"] {
+    flex: 1 1 auto;
+  }
+
+  /* Prevent header overflow */
+  header {
+    overflow: hidden;
+  }
+}
+
+/* Seller inventory table mobile */
+@media screen and (max-width: 768px) {
+  /* Wrap action buttons in table */
+  td .flex.justify-center {
+    flex-wrap: wrap;
+    gap: 0.25rem;
+  }
+
+  /* Bulk action bar wraps */
+  .ft-bulk-action-bar {
+    flex-wrap: wrap;
+  }
+}
+
+/* Admin portal mobile bottom nav */
+@media screen and (max-width: 768px) {
+  /* Admin portal doesn't have bottom nav — add padding to content */
+  .admin-main-content {
+    padding-bottom: 2rem;
+  }
+}
+
+/* Marketplace grid mobile improvements */
+@media screen and (max-width: 480px) {
+  /* 1 column on very small phones */
+  #marketplace-results .grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Product card image aspect ratio */
+  .ft-marketplace-product-image {
+    aspect-ratio: 4/3 !important;
+  }
+}
+
+/* Smooth scrolling for all scroll containers */
+.overflow-y-auto,
+.overflow-x-auto {
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Prevent text selection on interactive elements */
+button, [role="button"] {
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+/* Better focus rings on mobile */
+@media (hover: none) {
+  button:focus-visible,
+  a:focus-visible,
+  input:focus-visible,
+  select:focus-visible {
+    outline: 2px solid var(--color-primary, #e07b39);
+    outline-offset: 2px;
+  }
+}
+
+/* Sticky header z-index fix */
+header.sticky {
+  z-index: 40;
+}
+
+/* Mobile secondary nav bar horizontal scroll */
+@media screen and (max-width: 768px) {
+  .sticky.top-14 {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .sticky.top-14::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* Template batch apply modal mobile */
+@media screen and (max-width: 640px) {
+  .grid-cols-\[1fr_1fr_1fr_auto\] {
+    grid-template-columns: 1fr 1fr !important;
+  }
+}

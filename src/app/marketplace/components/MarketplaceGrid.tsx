@@ -11,6 +11,7 @@ import { productDetailHref, type CatalogProduct, type CatalogVariant } from '@/l
 import { createClient } from '@/lib/supabase/client';
 import { useCart } from '@/lib/hooks/useCart';
 import { useAuth } from '@/contexts/AuthContext';
+import { useWishlist } from '@/lib/hooks/useWishlist';
 
 const PAGE_SIZE = 16;
 const sortOptions = [
@@ -20,6 +21,7 @@ const sortOptions = [
   { value: 'moq', label: 'Lowest MOQ' },
   { value: 'dispatch', label: 'Fastest dispatch' },
   { value: 'newest', label: 'Newest arrivals' },
+  { value: 'rating', label: 'Top rated' },
 ];
 
 function splitParam(params: URLSearchParams, key: string) {
@@ -113,10 +115,12 @@ export default function MarketplaceGrid() {
   const searchParams = useSearchParams();
   const { profile } = useAuth();
   const { add } = useCart();
+  const { has: isWishlisted, toggle: toggleWishlist } = useWishlist();
   const [products, setProducts] = useState<CatalogProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [view, setView] = useState<'grid' | 'list'>('grid');
+  const [togglingWishlist, setTogglingWishlist] = useState<string | null>(null);
 
   useEffect(() => { trackFunnelStep('marketplace_view', { page: 'marketplace' }); }, []);
 
@@ -151,6 +155,7 @@ export default function MarketplaceGrid() {
   const params = useMemo(() => new URLSearchParams(searchParams.toString()), [searchParams]);
   const sort = params.get('sort') || 'relevance';
   const requestedPage = Math.max(1, Number(params.get('page') || 1));
+  const minRating = Number(params.get('minRating') || 0);
 
   const filteredProducts = useMemo(() => {
     const search = (params.get('search') || '').trim().toLowerCase();
@@ -174,6 +179,7 @@ export default function MarketplaceGrid() {
       if (widths.length && !widths.includes(product.width)) return false;
       if (works.length && !works.some((work) => searchable.includes(work.toLowerCase()))) return false;
       if (!matchesDispatch(product.dispatchDays, dispatch)) return false;
+      if (minRating > 0 && product.rating < minRating) return false;
       return true;
     });
 
@@ -183,9 +189,10 @@ export default function MarketplaceGrid() {
       case 'moq': return filtered.sort((a, b) => a.moq - b.moq);
       case 'dispatch': return filtered.sort((a, b) => a.dispatchDays - b.dispatchDays);
       case 'newest': return filtered.sort((a, b) => Number(b.badge === 'new') - Number(a.badge === 'new'));
+      case 'rating': return filtered.sort((a, b) => b.rating - a.rating);
       default: return filtered.sort((a, b) => b.available - a.available || a.price - b.price);
     }
-  }, [params, products, sort]);
+  }, [params, products, sort, minRating]);
 
   const pageCount = Math.max(1, Math.ceil(filteredProducts.length / PAGE_SIZE));
   const page = Math.min(requestedPage, pageCount);
@@ -203,9 +210,27 @@ export default function MarketplaceGrid() {
     const quantity = Number(defaultVariant?.moq ?? product.moq ?? 1);
     const item = add(product, defaultVariant, quantity);
     trackFunnelStep('add_to_cart', { product_id: product.id, variant_id: defaultVariant?.id || null });
-    toast.success(
-      `${product.name}${item.variantLabel ? ` · ${item.variantLabel}` : ''} added to cart.`
-    );
+    toast.success(`${product.name}${item.variantLabel ? ` · ${item.variantLabel}` : ''} added to cart.`);
+  };
+
+  const handleToggleWishlist = async (product: CatalogProduct) => {
+    if (togglingWishlist === product.id) return;
+    setTogglingWishlist(product.id);
+    try {
+      const added = await toggleWishlist({
+        id: product.id, source: product.source, sellerId: product.sellerId, name: product.name,
+        seller: product.seller, city: product.city, category: product.category, price: product.price,
+        unit: product.unit, moq: product.moq, available: product.available, gsm: product.gsm,
+        width: product.width, work: product.work, rating: product.rating, reviews: product.reviews,
+        badge: product.badge, verified: product.verified, image: product.image, images: product.images,
+        alt: product.alt, dispatchDays: product.dispatchDays, gst: product.gst, description: product.description, sku: product.sku,
+      });
+      toast.success(added ? `${product.name} saved to favourites.` : `${product.name} removed from favourites.`);
+    } catch {
+      toast.error('Could not update favourites.');
+    } finally {
+      setTogglingWishlist(null);
+    }
   };
 
   return (
@@ -217,22 +242,51 @@ export default function MarketplaceGrid() {
         </div>
         <div className="flex items-center gap-2">
           <button type="button" onClick={() => void loadProducts()} disabled={loading} className="ft-icon-button" aria-label="Refresh marketplace"><Icon name="ArrowPathIcon" size={17} className={loading ? 'animate-spin' : ''} /></button>
-          <label className="rounded-lg border border-border bg-card px-3 py-2 text-xs font-750 text-foreground"><span className="mr-1 text-muted-foreground">Sort:</span><select value={sort} onChange={(event) => updateParam('sort', event.target.value)} className="bg-transparent outline-none">{sortOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
-          <div className="hidden overflow-hidden rounded-lg border border-border sm:flex"><button type="button" onClick={() => setView('grid')} className={`px-3 py-2 ${view === 'grid' ? 'bg-primary/10 text-primary' : 'text-muted-foreground'}`} aria-label="Grid view"><Icon name="Squares2X2Icon" size={17} /></button><button type="button" onClick={() => setView('list')} className={`px-3 py-2 ${view === 'list' ? 'bg-primary/10 text-primary' : 'text-muted-foreground'}`} aria-label="List view"><Icon name="Bars3BottomLeftIcon" size={17} /></button></div>
+          <label className="rounded-lg border border-border bg-card px-3 py-2 text-xs font-750 text-foreground">
+            <span className="mr-1 text-muted-foreground">Sort:</span>
+            <select value={sort} onChange={(event) => updateParam('sort', event.target.value)} className="bg-transparent outline-none">
+              {sortOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </select>
+          </label>
+          <div className="hidden overflow-hidden rounded-lg border border-border sm:flex">
+            <button type="button" onClick={() => setView('grid')} className={`px-3 py-2 ${view === 'grid' ? 'bg-primary/10 text-primary' : 'text-muted-foreground'}`} aria-label="Grid view"><Icon name="Squares2X2Icon" size={17} /></button>
+            <button type="button" onClick={() => setView('list')} className={`px-3 py-2 ${view === 'list' ? 'bg-primary/10 text-primary' : 'text-muted-foreground'}`} aria-label="List view"><Icon name="Bars3BottomLeftIcon" size={17} /></button>
+          </div>
         </div>
       </div>
 
       {error && <div role="alert" className="mb-4 flex items-center justify-between gap-3 rounded-lg border border-error/20 bg-error/10 px-4 py-4 text-sm text-error"><span>{error}</span><button type="button" onClick={() => void loadProducts()} className="font-850 underline">Retry</button></div>}
 
-      {!loading && !error && visibleProducts.length === 0 && <div className="rounded-xl border border-dashed border-border bg-card px-5 py-16 text-center"><Icon name="MagnifyingGlassIcon" size={36} className="mx-auto text-muted-foreground" /><h2 className="mt-4 text-xl font-850 text-foreground">{products.length ? 'No products match these filters' : 'No approved products are live yet'}</h2><p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-muted-foreground">{products.length ? 'Try fewer filters or search for a broader fabric type, seller, colour, GSM or SKU.' : 'Products appear after a verified seller has approved stock available.'}</p>{products.length > 0 && <button type="button" onClick={() => router.replace('/marketplace')} className="ft-primary-action mt-5 px-4 py-2.5 text-sm">Clear filters</button>}</div>}
+      {!loading && !error && visibleProducts.length === 0 && (
+        <div className="rounded-xl border border-dashed border-border bg-card px-5 py-16 text-center">
+          <Icon name="MagnifyingGlassIcon" size={36} className="mx-auto text-muted-foreground" />
+          <h2 className="mt-4 text-xl font-850 text-foreground">{products.length ? 'No products match these filters' : 'No approved products are live yet'}</h2>
+          <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-muted-foreground">{products.length ? 'Try fewer filters or search for a broader fabric type, seller, colour, GSM or SKU.' : 'Products appear after a verified seller has approved stock available.'}</p>
+          {products.length > 0 && <button type="button" onClick={() => router.replace('/marketplace')} className="ft-primary-action mt-5 px-4 py-2.5 text-sm">Clear filters</button>}
+        </div>
+      )}
 
-      {loading && <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{Array.from({ length: 8 }).map((_, index) => <div key={index} className="overflow-hidden rounded-lg border border-border bg-card"><div className="aspect-square animate-pulse bg-muted" /><div className="space-y-3 p-4"><div className="h-4 w-3/4 animate-pulse rounded bg-muted" /><div className="h-3 w-1/2 animate-pulse rounded bg-muted" /><div className="h-9 animate-pulse rounded-lg bg-muted" /></div></div>)}</div>}
+      {loading && (
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {Array.from({ length: 8 }).map((_, index) => (
+            <div key={index} className="overflow-hidden rounded-lg border border-border bg-card">
+              <div className="aspect-square animate-pulse bg-muted" />
+              <div className="space-y-3 p-4">
+                <div className="h-4 w-3/4 animate-pulse rounded bg-muted" />
+                <div className="h-3 w-1/2 animate-pulse rounded bg-muted" />
+                <div className="h-9 animate-pulse rounded-lg bg-muted" />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {!loading && visibleProducts.length > 0 && (
         <div className={view === 'grid' ? 'grid gap-3 sm:grid-cols-2 xl:grid-cols-4' : 'space-y-3'}>
           {visibleProducts.map((product) => {
             const visibleColors = product.variants?.slice(0, 6) || [];
             const lowAvailability = product.available <= Math.max(product.moq * 3, 10);
+            const wishlisted = isWishlisted(product.id);
             return (
               <article key={product.id} className={`ft-marketplace-product-card overflow-hidden ${view === 'list' ? 'flex min-h-52' : ''}`}>
                 <Link href={productDetailHref(product)} onClick={() => trackFunnelStep('product_view', { product_id: product.id })} className={`ft-marketplace-product-image relative block overflow-hidden ${view === 'list' ? 'w-44 shrink-0 sm:w-60' : 'aspect-square'}`}>
@@ -241,6 +295,16 @@ export default function MarketplaceGrid() {
                     {product.badge === 'new' && <span className="rounded bg-[#cc0c39] px-2 py-1 text-[10px] font-850 text-white">New</span>}
                     <span className="rounded bg-success px-2 py-1 text-[10px] font-850 text-white">In stock</span>
                   </div>
+                  {/* Favourite button */}
+                  <button
+                    type="button"
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); void handleToggleWishlist(product); }}
+                    disabled={togglingWishlist === product.id}
+                    className={`absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full shadow-md transition ${wishlisted ? 'bg-red-500 text-white' : 'bg-white/90 text-muted-foreground hover:text-red-500'}`}
+                    aria-label={wishlisted ? `Remove ${product.name} from favourites` : `Save ${product.name} to favourites`}
+                  >
+                    <Icon name={wishlisted ? 'HeartIcon' : 'HeartIcon'} size={15} className={wishlisted ? 'fill-current' : ''} />
+                  </button>
                 </Link>
 
                 <div className="flex min-w-0 flex-1 flex-col p-3.5">
@@ -291,7 +355,13 @@ export default function MarketplaceGrid() {
         </div>
       )}
 
-      {!loading && filteredProducts.length > PAGE_SIZE && <nav className="mt-7 flex items-center justify-center gap-2" aria-label="Marketplace pagination"><button type="button" disabled={page <= 1} onClick={() => updateParam('page', String(page - 1))} className="ft-secondary-action px-3 py-2 text-xs disabled:opacity-40">Previous</button><span className="px-3 text-xs font-850 text-muted-foreground">Page {page} of {pageCount}</span><button type="button" disabled={page >= pageCount} onClick={() => updateParam('page', String(page + 1))} className="ft-secondary-action px-3 py-2 text-xs disabled:opacity-40">Next</button></nav>}
+      {!loading && filteredProducts.length > PAGE_SIZE && (
+        <nav className="mt-7 flex items-center justify-center gap-2" aria-label="Marketplace pagination">
+          <button type="button" disabled={page <= 1} onClick={() => updateParam('page', String(page - 1))} className="ft-secondary-action px-3 py-2 text-xs disabled:opacity-40">Previous</button>
+          <span className="px-3 text-xs font-850 text-muted-foreground">Page {page} of {pageCount}</span>
+          <button type="button" disabled={page >= pageCount} onClick={() => updateParam('page', String(page + 1))} className="ft-secondary-action px-3 py-2 text-xs disabled:opacity-40">Next</button>
+        </nav>
+      )}
     </section>
   );
 }

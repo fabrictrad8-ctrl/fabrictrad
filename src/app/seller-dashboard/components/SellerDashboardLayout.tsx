@@ -12,6 +12,7 @@ import SellerOverview from '@/app/seller-dashboard/components/SellerOverview';
 import SellerOrders from '@/app/seller-dashboard/components/SellerOrders';
 
 import SellerInventory from '@/app/seller-dashboard/components/SellerInventory';
+import SellerInventoryTemplates from '@/app/seller-dashboard/components/SellerInventoryTemplates';
 import SellerVariantCatalog from '@/app/seller-dashboard/components/SellerVariantCatalog';
 import SellerCatalogPricing from '@/app/seller-dashboard/components/SellerCatalogPricing';
 import SellerAnalytics from '@/app/seller-dashboard/components/SellerAnalytics';
@@ -29,7 +30,7 @@ import SellerBillingDocuments from '@/app/seller-dashboard/components/SellerBill
 import SellerSettlement from '@/app/seller-dashboard/components/SellerSettlement';
 
 type SellerTab =
-  | 'overview' |'orders' |'inventory' |'variants' |'catalogs' |'upload' |'requests' |'inbox' |'fulfillment' |'courier' |'earnings' |'analytics' |'categories' |'billing' |'disputes' |'notifications' |'profile' |'settlement';
+  | 'overview' |'orders' |'inventory' |'templates' |'variants' |'catalogs' |'upload' |'requests' |'inbox' |'fulfillment' |'courier' |'earnings' |'analytics' |'categories' |'billing' |'disputes' |'notifications' |'profile' |'settlement';
 
 type NavItem = { key: SellerTab; label: string; icon: string; description: string };
 
@@ -45,6 +46,7 @@ const navGroups: Array<{ label: string; items: NavItem[] }> = [
     label: 'Products',
     items: [
       { key: 'inventory', label: 'Products', icon: 'ArchiveBoxIcon', description: 'Listings and inventory' },
+      { key: 'templates', label: 'Inventory templates', icon: 'DocumentDuplicateIcon', description: 'Preset GSM/MOQ/pricing for bulk SKU management' },
       { key: 'upload', label: 'Add product', icon: 'PlusCircleIcon', description: 'AI-assisted catalogue creation' },
       { key: 'variants', label: 'Variants', icon: 'SwatchIcon', description: 'Colours, designs and GTIN' },
       { key: 'catalogs', label: 'Catalogues & pricing', icon: 'TagIcon', description: 'MOQ and buyer pricing' },
@@ -93,6 +95,7 @@ const sellerSearchAliases: Record<SellerTab, string> = {
   overview: 'home overview store health tasks setup',
   orders: 'orders sales purchases accept payment fulfil fulfillment status',
   inventory: 'products inventory stock listings sku',
+  templates: 'templates inventory template gsm moq pricing tiers bulk sku batch apply',
   variants: 'variants colours colors designs gtin options',
   catalogs: 'catalog catalogue pricing price moq wholesale breaks',
   upload: 'add create upload new product listing ai',
@@ -114,6 +117,7 @@ const tabTitles: Record<SellerTab, string> = {
   overview: 'Home',
   orders: 'Orders',
   inventory: 'Products',
+  templates: 'Inventory Templates',
   variants: 'Variants',
   catalogs: 'Catalogues & Pricing',
   upload: 'Add Product',
@@ -372,6 +376,7 @@ export default function SellerDashboardLayout() {
             {activeTab === 'overview' && <SellerOverview onNavigate={navigateTo} />}
             {activeTab === 'orders' && <SellerOrders />}
             {activeTab === 'inventory' && <SellerInventory />}
+            {activeTab === 'templates' && <SellerInventoryTemplates />}
             {activeTab === 'variants' && <SellerVariantCatalog />}
             {activeTab === 'catalogs' && <SellerCatalogPricing />}
             {activeTab === 'upload' && <SellerCatalogAssistant />}
