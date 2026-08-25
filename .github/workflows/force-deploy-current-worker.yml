@@ -58,32 +58,43 @@ jobs:
         id: cloudflare-auth
         run: npx wrangler whoami
 
-      - name: Verify optional GitHub Razorpay credentials
+      - name: Verify GitHub Razorpay LIVE credentials
         id: razorpay-api-verification
         shell: bash
         env:
           RAZORPAY_KEY_ID: ${{ secrets.RAZORPAY_KEY_ID }}
           RAZORPAY_KEY_SECRET: ${{ secrets.RAZORPAY_KEY_SECRET }}
+          RAZORPAY_WEBHOOK_SECRET: ${{ secrets.RAZORPAY_WEBHOOK_SECRET }}
         run: |
           set -euo pipefail
-          key_present=false
-          secret_present=false
-          [ -n "${RAZORPAY_KEY_ID:-}" ] && key_present=true
-          [ -n "${RAZORPAY_KEY_SECRET:-}" ] && secret_present=true
 
-          if [ "$key_present" != "$secret_present" ]; then
-            echo '::error::RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET must be configured together.'
+          if [ -z "${RAZORPAY_KEY_ID:-}" ] || [ -z "${RAZORPAY_KEY_SECRET:-}" ] || [ -z "${RAZORPAY_WEBHOOK_SECRET:-}" ]; then
+            echo '::error::RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET and RAZORPAY_WEBHOOK_SECRET must all be configured in GitHub Actions secrets for a production Razorpay release.'
             exit 1
           fi
 
-          if [ "$key_present" = 'true' ]; then
-            npm run verify:razorpay -- --api
-            printf '%s' 'verified_against_razorpay_api' > /tmp/razorpay-api-verification.txt
-          else
-            printf '%s' 'using_existing_worker_credentials' > /tmp/razorpay-api-verification.txt
+          case "$RAZORPAY_KEY_ID" in
+            rzp_live_*) ;;
+            *)
+              echo '::error::RAZORPAY_KEY_ID is not a Razorpay LIVE key. Production deployment is blocked.'
+              exit 1
+              ;;
+          esac
+
+          status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+            --output /tmp/razorpay-live-account.json --write-out '%{http_code}' \
+            --user "${RAZORPAY_KEY_ID}:${RAZORPAY_KEY_SECRET}" \
+            --header 'Accept: application/json' \
+            'https://api.razorpay.com/v1/orders?count=1' || true)
+          if [ "$status" != '200' ]; then
+            echo "::error::Razorpay LIVE credentials failed API authentication (HTTP ${status})."
+            exit 1
           fi
 
-      - name: Sync optional GitHub secrets to Worker
+          printf '%s' 'verified_live_against_razorpay_api' > /tmp/razorpay-api-verification.txt
+          echo 'Razorpay LIVE key pair authenticated successfully.'
+
+      - name: Sync production secrets to Worker
         id: secret-sync
         shell: bash
         env:
@@ -110,9 +121,11 @@ jobs:
             fi
           }
 
-          put_if_present RAZORPAY_KEY_ID "${RAZORPAY_KEY_ID_FROM_GITHUB:-}"
-          put_if_present RAZORPAY_KEY_SECRET "${RAZORPAY_KEY_SECRET_FROM_GITHUB:-}"
-          put_if_present RAZORPAY_WEBHOOK_SECRET "${RAZORPAY_WEBHOOK_SECRET_FROM_GITHUB:-}"
+          # These three were verified in the previous step and are mandatory.
+          printf '%s' "$RAZORPAY_KEY_ID_FROM_GITHUB" | npx wrangler secret put RAZORPAY_KEY_ID --config wrangler.jsonc >/dev/null
+          printf '%s' "$RAZORPAY_KEY_SECRET_FROM_GITHUB" | npx wrangler secret put RAZORPAY_KEY_SECRET --config wrangler.jsonc >/dev/null
+          printf '%s' "$RAZORPAY_WEBHOOK_SECRET_FROM_GITHUB" | npx wrangler secret put RAZORPAY_WEBHOOK_SECRET --config wrangler.jsonc >/dev/null
+          echo 'Synced verified Razorpay LIVE credentials and webhook secret.'
 
           if [ -n "${SUPABASE_SECRET_KEY_FROM_GITHUB:-}" ]; then
             put_if_present SUPABASE_SECRET_KEY "$SUPABASE_SECRET_KEY_FROM_GITHUB"
@@ -242,6 +255,37 @@ jobs:
           if (payload.configured !== true || payload.mode !== 'real_ai_image_try_on' || payload.usesListingMedia !== true) process.exit(1);
           NODE
 
+      - name: Verify production Razorpay LIVE status
+        id: razorpay-live-verification
+        shell: bash
+        run: |
+          set -euo pipefail
+          ready=false
+          for attempt in $(seq 1 36); do
+            status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+              --output /tmp/razorpay-status.json --write-out '%{http_code}' \
+              https://fabrictrad.com/api/razorpay/status || true)
+            echo "Attempt ${attempt}/36: Razorpay status HTTP ${status}"
+            if [ "$status" = '200' ] && node - <<'NODE'
+          const fs = require('node:fs');
+          try {
+            const payload = JSON.parse(fs.readFileSync('/tmp/razorpay-status.json', 'utf8'));
+            process.exit(payload.configured === true && payload.authenticated === true && payload.mode === 'live' && payload.productionReady === true ? 0 : 1);
+          } catch { process.exit(1); }
+          NODE
+            then
+              ready=true
+              break
+            fi
+            sleep 10
+          done
+          if [ "$ready" != 'true' ]; then
+            cat /tmp/razorpay-status.json || true
+            echo '::error::FabricTrad did not become authenticated against Razorpay LIVE after deployment.'
+            exit 1
+          fi
+          echo 'FabricTrad Razorpay LIVE status is production-ready.'
+
       - name: Verify production Razorpay webhook
         id: razorpay-webhook-verification
         shell: bash
@@ -271,6 +315,7 @@ jobs:
           PUBLIC_UI_OUTCOME: ${{ steps.public-ui-verification.outcome }}
           VERIFY_OUTCOME: ${{ steps.live-verification.outcome }}
           AI_DRAPE_OUTCOME: ${{ steps.ai-drape-verification.outcome }}
+          RAZORPAY_LIVE_OUTCOME: ${{ steps.razorpay-live-verification.outcome }}
           RAZORPAY_WEBHOOK_OUTCOME: ${{ steps.razorpay-webhook-verification.outcome }}
         run: |
           set -euo pipefail
@@ -296,6 +341,7 @@ jobs:
             install: process.env.INSTALL_OUTCOME || 'skipped',
             cloudflareAuthentication: process.env.AUTH_OUTCOME || 'skipped',
             razorpayApiCredentialCheckStep: process.env.RAZORPAY_API_OUTCOME || 'skipped',
+            razorpayApiCredentialVerification: fs.existsSync('/tmp/razorpay-api-verification.txt') ? fs.readFileSync('/tmp/razorpay-api-verification.txt', 'utf8').trim() : null,
             secretSync: process.env.SECRET_SYNC_OUTCOME || 'skipped',
             workerSecretPreflight: process.env.SECRET_PREFLIGHT_OUTCOME || 'skipped',
             integrationReadiness: readJson('/tmp/integration-readiness.json', null),
@@ -306,6 +352,7 @@ jobs:
             livePublicUiVerification: process.env.PUBLIC_UI_OUTCOME || 'skipped',
             liveAccountApiVerification: process.env.VERIFY_OUTCOME || 'skipped',
             liveAiDrapeVerification: process.env.AI_DRAPE_OUTCOME || 'skipped',
+            liveRazorpayStatusVerification: process.env.RAZORPAY_LIVE_OUTCOME || 'skipped',
             liveRazorpayWebhookVerification: process.env.RAZORPAY_WEBHOOK_OUTCOME || 'skipped',
             deploymentLogTail: tail('/tmp/wrangler-deploy.log'),
           };
