@@ -1,6 +1,6 @@
 {
-  "sourceCommit": "0162666d215804b11e43c2577ddf3995ddf8ea05",
-  "recordedAt": "2026-08-24T23:49:36.112Z",
+  "sourceCommit": "690f8fad47e92fc0fc4ace2d79148bb8d5049098",
+  "recordedAt": "2026-08-25T02:36:52.330Z",
   "install": "success",
   "cloudflareAuthentication": "success",
   "razorpayApiCredentialCheckStep": "success",
@@ -22,5 +22,5 @@
   "liveAccountApiVerification": "skipped",
   "liveAiDrapeVerification": "skipped",
   "liveRazorpayWebhookVerification": "skipped",
-  "deploymentLogTail": " ⛅️ wrangler 4.125.0\n────────────────────\nCloudflare collects anonymous telemetry about your usage of Wrangler. Learn more at https://github.com/cloudflare/workers-sdk/tree/main/packages/wrangler/telemetry.md\n🌀 Building list of assets...\n✨ Read 246 files from the assets directory /home/runner/work/fabrictrad/fabrictrad/.open-next/assets\n🌀 Starting asset upload...\n🌀 Found 1 new or modified static asset to upload. Proceeding with upload...\n+ /BUILD_ID\nUploaded 1 of 1 asset\n✨ Success! Uploaded 1 file (123 already uploaded) (0.76 sec)\nTotal Upload: 13405.65 KiB / gzip: 2268.34 KiB\nWorker Startup Time: 31 ms\nYour Worker has access to the following bindings:\nBinding            Resource      \nenv.ASSETS         Assets        \nUploaded fabrictrad (5.88 sec)\nNo targets deployed for fabrictrad (0.36 sec)\nCurrent Version ID: 299eab23-1c51-4377-bc4a-38a5a18f592c"
+  "deploymentLogTail": " ⛅️ wrangler 4.125.0\n────────────────────\nCloudflare collects anonymous telemetry about your usage of Wrangler. Learn more at https://github.com/cloudflare/workers-sdk/tree/main/packages/wrangler/telemetry.md\n🌀 Building list of assets...\n✨ Read 246 files from the assets directory /home/runner/work/fabrictrad/fabrictrad/.open-next/assets\n🌀 Starting asset upload...\n🌀 Found 1 new or modified static asset to upload. Proceeding with upload...\n+ /BUILD_ID\nUploaded 1 of 1 asset\n✨ Success! Uploaded 1 file (123 already uploaded) (0.93 sec)\nTotal Upload: 13319.67 KiB / gzip: 2256.67 KiB\nWorker Startup Time: 32 ms\nYour Worker has access to the following bindings:\nBinding            Resource      \nenv.ASSETS         Assets        \nUploaded fabrictrad (6.88 sec)\nNo targets deployed for fabrictrad (0.40 sec)\nCurrent Version ID: 79e7a814-8941-48bd-9c91-a8947c4eabc6"
 }
