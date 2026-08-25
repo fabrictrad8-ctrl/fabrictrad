@@ -25,6 +25,8 @@ const footerGroups = [
   {
     label: 'Support & legal',
     links: [
+      { label: 'How to use · Buyer', href: '/how-to-use?role=buyer' },
+      { label: 'How to use · Seller', href: '/how-to-use?role=seller' },
       { label: 'Help centre', href: '/help' },
       { label: 'Returns & exchanges', href: '/returns-exchanges' },
       { label: 'Buyer Agreement', href: '/buyer-agreement' },
@@ -48,6 +50,9 @@ export default function Footer() {
             <a href="mailto:fabrictrad8@gmail.com" className="ft-icon-button" aria-label="Email FabricTrad support">
               <Icon name="EnvelopeIcon" size={16} />
             </a>
+            <Link href="/how-to-use?role=buyer" className="ft-icon-button" aria-label="Open how to use guide">
+              <Icon name="PlayIcon" size={16} />
+            </Link>
             <Link href="/help" className="ft-icon-button" aria-label="Open help centre">
               <Icon name="QuestionMarkCircleIcon" size={16} />
             </Link>
@@ -89,6 +94,9 @@ export default function Footer() {
               <a href="mailto:fabrictrad8@gmail.com" className="ft-icon-button" aria-label="Email FabricTrad support">
                 <Icon name="EnvelopeIcon" size={17} />
               </a>
+              <Link href="/how-to-use?role=buyer" className="ft-icon-button" aria-label="Open how to use guide">
+                <Icon name="PlayIcon" size={17} />
+              </Link>
               <Link href="/help" className="ft-icon-button" aria-label="Open help centre">
                 <Icon name="QuestionMarkCircleIcon" size={17} />
               </Link>
