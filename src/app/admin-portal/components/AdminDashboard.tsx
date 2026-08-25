@@ -51,14 +51,21 @@ const money = (value: number) =>
 
 const rangeOptions: Array<{ value: Range; label: string }> = [
   { value: 'today', label: 'Today' },
-  { value: '7d', label: 'Last 7 days' },
-  { value: '30d', label: 'Last 30 days' },
+  { value: '7d', label: '7 days' },
+  { value: '30d', label: '30 days' },
 ];
 
 const statusLabel = (value: string) =>
-  value
-    .replace(/_/g, ' ')
-    .replace(/\b\w/g, (character) => character.toUpperCase());
+  value.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+
+const statusColor = (status: string) => {
+  const s = status.toLowerCase();
+  if (s.includes('paid') || s.includes('delivered') || s.includes('fulfilled')) return 'bg-[#008060]/10 text-[#008060]';
+  if (s.includes('pending') || s.includes('draft')) return 'bg-amber-50 text-amber-700';
+  if (s.includes('cancel') || s.includes('fail') || s.includes('reject')) return 'bg-red-50 text-red-600';
+  if (s.includes('ship') || s.includes('transit')) return 'bg-blue-50 text-blue-600';
+  return 'bg-gray-100 text-gray-600';
+};
 
 export default function AdminDashboard() {
   const [range, setRange] = useState<Range>('today');
@@ -83,11 +90,11 @@ export default function AdminDashboard() {
         credentials: 'same-origin',
       });
       const payload = (await response.json().catch(() => ({}))) as Overview & { error?: string };
-      if (!response.ok) throw new Error(payload.error || 'The live overview could not be loaded.');
+      if (!response.ok) throw new Error(payload.error || 'Overview could not be loaded.');
       setOverview(payload);
-    } catch (caughtError) {
+    } catch (err) {
       setOverview(null);
-      setError(caughtError instanceof Error ? caughtError.message : 'The live overview could not be loaded.');
+      setError(err instanceof Error ? err.message : 'Overview could not be loaded.');
     } finally {
       setLoading(false);
     }
@@ -99,191 +106,358 @@ export default function AdminDashboard() {
 
   const metrics = useMemo(
     () => [
-      { label: 'Orders', value: String(overview?.metrics.orders || 0), detail: 'Orders created in period', icon: 'ShoppingBagIcon', tone: 'text-primary bg-primary/10' },
-      { label: 'Gross merchandise value', value: money(overview?.metrics.gmv || 0), detail: 'Captured or authorised payments', icon: 'CurrencyRupeeIcon', tone: 'text-success bg-success/10' },
-      { label: 'Platform commission', value: money(overview?.metrics.commission || 0), detail: 'Estimated from configured rate', icon: 'ReceiptPercentIcon', tone: 'text-secondary bg-secondary/10' },
-      { label: 'New accounts', value: String(overview?.metrics.registrations || 0), detail: 'Buyer, seller and staff profiles', icon: 'UserPlusIcon', tone: 'text-blue-700 bg-blue-500/10' },
-      { label: 'Seller applications', value: String(overview?.metrics.sellerApplications || 0), detail: 'Applications created in period', icon: 'BuildingStorefrontIcon', tone: 'text-purple-700 bg-purple-500/10' },
-      { label: 'New listings', value: String(overview?.metrics.listings || 0), detail: 'Products submitted in period', icon: 'TagIcon', tone: 'text-amber-700 bg-amber-500/10' },
+      {
+        label: 'Total orders',
+        value: String(overview?.metrics.orders || 0),
+        icon: 'ShoppingBagIcon',
+        color: 'text-[#008060]',
+        bg: 'bg-[#008060]/10',
+        border: 'border-[#008060]/20',
+      },
+      {
+        label: 'Gross merchandise value',
+        value: money(overview?.metrics.gmv || 0),
+        icon: 'CurrencyRupeeIcon',
+        color: 'text-blue-600',
+        bg: 'bg-blue-50',
+        border: 'border-blue-100',
+      },
+      {
+        label: 'Platform commission',
+        value: money(overview?.metrics.commission || 0),
+        icon: 'ReceiptPercentIcon',
+        color: 'text-purple-600',
+        bg: 'bg-purple-50',
+        border: 'border-purple-100',
+      },
+      {
+        label: 'New accounts',
+        value: String(overview?.metrics.registrations || 0),
+        icon: 'UserPlusIcon',
+        color: 'text-amber-600',
+        bg: 'bg-amber-50',
+        border: 'border-amber-100',
+      },
+      {
+        label: 'Seller applications',
+        value: String(overview?.metrics.sellerApplications || 0),
+        icon: 'BuildingStorefrontIcon',
+        color: 'text-indigo-600',
+        bg: 'bg-indigo-50',
+        border: 'border-indigo-100',
+      },
+      {
+        label: 'New listings',
+        value: String(overview?.metrics.listings || 0),
+        icon: 'TagIcon',
+        color: 'text-rose-600',
+        bg: 'bg-rose-50',
+        border: 'border-rose-100',
+      },
     ],
     [overview]
   );
 
   const tasks = useMemo(
     () => [
-      { label: 'Review seller applications', count: overview?.tasks.pendingSellers || 0, href: '/admin-portal?tab=sellers', icon: 'ShieldCheckIcon', urgent: true },
-      { label: 'Review product listings', count: overview?.tasks.pendingProducts || 0, href: '/admin-portal?tab=listings', icon: 'TagIcon', urgent: true },
-      { label: 'Investigate failed payments', count: overview?.tasks.failedPayments || 0, href: '/admin-portal?tab=payments', icon: 'CreditCardIcon', urgent: true },
-      { label: 'Resolve disputes', count: overview?.tasks.openDisputes || 0, href: '/admin-portal?tab=disputes', icon: 'FlagIcon', urgent: true },
-      { label: 'Shipment exceptions', count: overview?.tasks.shipmentExceptions || 0, href: '/admin-portal?tab=fulfillment', icon: 'TruckIcon', urgent: true },
-      { label: 'Unresolved platform errors', count: overview?.tasks.unresolvedErrors || 0, href: '/admin-portal?tab=errors', icon: 'ExclamationTriangleIcon', urgent: true },
+      {
+        label: 'Seller applications',
+        count: overview?.tasks.pendingSellers || 0,
+        href: '/admin-portal?tab=sellers',
+        icon: 'ShieldCheckIcon',
+        desc: 'Awaiting review',
+      },
+      {
+        label: 'Product listings',
+        count: overview?.tasks.pendingProducts || 0,
+        href: '/admin-portal?tab=listings',
+        icon: 'TagIcon',
+        desc: 'Pending approval',
+      },
+      {
+        label: 'Failed payments',
+        count: overview?.tasks.failedPayments || 0,
+        href: '/admin-portal?tab=payments',
+        icon: 'CreditCardIcon',
+        desc: 'Need investigation',
+      },
+      {
+        label: 'Open disputes',
+        count: overview?.tasks.openDisputes || 0,
+        href: '/admin-portal?tab=disputes',
+        icon: 'FlagIcon',
+        desc: 'Awaiting resolution',
+      },
+      {
+        label: 'Shipment exceptions',
+        count: overview?.tasks.shipmentExceptions || 0,
+        href: '/admin-portal?tab=fulfillment',
+        icon: 'TruckIcon',
+        desc: 'Require attention',
+      },
+      {
+        label: 'Platform errors',
+        count: overview?.tasks.unresolvedErrors || 0,
+        href: '/admin-portal?tab=errors',
+        icon: 'ExclamationTriangleIcon',
+        desc: 'Unresolved issues',
+      },
     ],
     [overview]
   );
 
   const orderStatusEntries = Object.entries(overview?.orderStatus || {}).sort((a, b) => b[1] - a[1]);
   const orderTotal = orderStatusEntries.reduce((total, [, count]) => total + count, 0);
+  const totalTasks = tasks.reduce((sum, t) => sum + t.count, 0);
 
   return (
     <div className="space-y-6">
-      <section className="overflow-hidden rounded-3xl border border-border bg-card shadow-sm">
-        <div className="grid gap-6 p-5 sm:p-7 lg:grid-cols-[1fr_auto] lg:items-center">
-          <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="rounded-full bg-success/10 px-3 py-1 text-xs font-800 text-success">Live commerce data</span>
-              {overview?.generatedAt && (
-                <span className="text-xs text-muted-foreground">Updated {new Date(overview.generatedAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</span>
-              )}
-            </div>
-            <h1 className="mt-3 text-3xl font-800 tracking-tight text-foreground">{greeting || 'Welcome back'}. Here is what needs attention.</h1>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-              Live sales, verification, inventory, payments and fulfillment data from FabricTrad. No demonstration metrics are shown here.
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {rangeOptions.map((option) => (
+      {/* Page header */}
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <p className="text-xs font-600 text-muted-foreground">Admin portal</p>
+          <h1 className="mt-1 text-2xl font-700 text-foreground">
+            {greeting || 'Welcome back'}
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Live platform data — no demo metrics.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          {/* Range selector */}
+          <div className="flex items-center rounded-lg border border-[#e1e3e5] bg-white p-1 shadow-sm">
+            {rangeOptions.map((opt) => (
               <button
-                key={option.value}
+                key={opt.value}
                 type="button"
-                onClick={() => setRange(option.value)}
-                className={`rounded-xl px-3 py-2 text-xs font-800 transition ${range === option.value ? 'bg-foreground text-background' : 'border border-border bg-card text-muted-foreground hover:text-foreground'}`}
+                onClick={() => setRange(opt.value)}
+                className={`rounded-md px-3 py-1.5 text-xs font-600 transition-all ${
+                  range === opt.value
+                    ? 'bg-[#1a1f2e] text-white shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
               >
-                {option.label}
+                {opt.label}
               </button>
             ))}
-            <button type="button" onClick={() => void load()} disabled={loading} className="ft-icon-button" aria-label="Refresh administrator home">
-              <Icon name="ArrowPathIcon" size={17} className={loading ? 'animate-spin' : ''} />
-            </button>
           </div>
+          <button
+            type="button"
+            onClick={() => void load()}
+            disabled={loading}
+            className="flex h-9 w-9 items-center justify-center rounded-lg border border-[#e1e3e5] bg-white shadow-sm hover:bg-gray-50"
+            aria-label="Refresh"
+          >
+            <Icon name="ArrowPathIcon" size={16} className={loading ? 'animate-spin text-muted-foreground' : 'text-muted-foreground'} />
+          </button>
+          {overview?.generatedAt && (
+            <span className="hidden text-xs text-muted-foreground lg:inline">
+              Updated {new Date(overview.generatedAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+            </span>
+          )}
         </div>
-      </section>
+      </div>
 
       {error && (
-        <div role="alert" className="rounded-2xl border border-error/20 bg-error/10 px-4 py-4 text-sm text-error">
-          <div className="flex items-center justify-between gap-4">
-            <span>{error}</span>
-            <button type="button" onClick={() => void load()} className="font-800 underline">Retry</button>
-          </div>
+        <div role="alert" className="flex items-center justify-between gap-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <span>{error}</span>
+          <button type="button" onClick={() => void load()} className="font-700 underline">Retry</button>
         </div>
       )}
 
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+      {/* Metric cards */}
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {metrics.map((metric) => (
-          <article key={metric.label} className="rounded-2xl border border-border bg-card p-5 shadow-sm">
-            <div className="flex items-start gap-4">
-              <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${metric.tone}`}>
-                <Icon name={metric.icon as 'ShoppingBagIcon'} size={20} />
-              </span>
+          <div
+            key={metric.label}
+            className={`rounded-xl border bg-white p-5 shadow-sm transition hover:shadow-md ${metric.border}`}
+          >
+            <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <p className="text-xs font-800 uppercase tracking-[0.12em] text-muted-foreground">{metric.label}</p>
-                <p className="mt-1 truncate text-2xl font-800 tracking-tight text-foreground">{loading ? '—' : metric.value}</p>
-                <p className="mt-1 text-xs text-muted-foreground">{metric.detail}</p>
+                <p className="text-xs font-600 text-muted-foreground">{metric.label}</p>
+                <p className={`mt-2 text-2xl font-700 ${metric.color}`}>
+                  {loading ? (
+                    <span className="inline-block h-7 w-20 animate-pulse rounded-md bg-gray-100" />
+                  ) : (
+                    metric.value
+                  )}
+                </p>
               </div>
+              <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${metric.bg}`}>
+                <Icon name={metric.icon as 'ShoppingBagIcon'} size={20} className={metric.color} />
+              </span>
             </div>
-          </article>
+          </div>
         ))}
-      </section>
+      </div>
 
-      <section className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
-        <article className="rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-6">
-          <div className="flex items-center justify-between gap-3">
+      {/* Action centre + Inventory */}
+      <div className="grid gap-5 xl:grid-cols-[1.2fr_0.8fr]">
+        {/* Action centre */}
+        <div className="rounded-xl border border-[#e1e3e5] bg-white shadow-sm">
+          <div className="flex items-center justify-between border-b border-[#e1e3e5] px-5 py-4">
             <div>
-              <p className="text-xs font-800 uppercase tracking-[0.12em] text-primary">Action centre</p>
-              <h2 className="mt-1 text-lg font-800 text-foreground">Tasks that can block transactions</h2>
+              <h2 className="text-sm font-700 text-foreground">Action centre</h2>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                {totalTasks > 0 ? `${totalTasks} items need attention` : 'All clear — nothing pending'}
+              </p>
             </div>
-            <Link href="/admin-portal?tab=activity" className="text-xs font-800 text-primary hover:underline">Open activity</Link>
+            <Link href="/admin-portal?tab=activity" className="text-xs font-600 text-[#008060] hover:underline">
+              View activity
+            </Link>
           </div>
-          <div className="mt-5 grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-px bg-[#f6f6f7] sm:grid-cols-2">
             {tasks.map((task) => (
-              <Link key={task.label} href={task.href} className="group flex items-center gap-3 rounded-xl border border-border bg-muted/30 p-4 transition hover:border-primary/30 hover:bg-primary/5">
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-card text-muted-foreground shadow-sm group-hover:text-primary">
-                  <Icon name={task.icon as 'ShieldCheckIcon'} size={18} />
+              <Link
+                key={task.label}
+                href={task.href}
+                className="group flex items-center gap-3 bg-white p-4 transition hover:bg-[#f6f6f7]"
+              >
+                <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${task.count > 0 ? 'bg-red-50 text-red-600' : 'bg-[#008060]/10 text-[#008060]'}`}>
+                  <Icon name={task.icon as 'ShieldCheckIcon'} size={17} />
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block text-sm font-800 text-foreground">{task.label}</span>
-                  <span className="mt-0.5 block text-xs text-muted-foreground">{task.count ? `${task.count} require action` : 'Nothing waiting'}</span>
+                  <span className="block text-sm font-600 text-foreground">{task.label}</span>
+                  <span className="block text-xs text-muted-foreground">{task.desc}</span>
                 </span>
-                <span className={`flex h-8 min-w-8 items-center justify-center rounded-full px-2 text-xs font-800 ${task.count ? 'bg-error/10 text-error' : 'bg-success/10 text-success'}`}>{task.count}</span>
+                <span className={`flex h-7 min-w-7 items-center justify-center rounded-full px-2 text-xs font-700 ${task.count > 0 ? 'bg-red-100 text-red-700' : 'bg-[#008060]/10 text-[#008060]'}`}>
+                  {task.count}
+                </span>
               </Link>
             ))}
           </div>
-        </article>
+        </div>
 
-        <article className="rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-6">
-          <p className="text-xs font-800 uppercase tracking-[0.12em] text-secondary">Inventory health</p>
-          <h2 className="mt-1 text-lg font-800 text-foreground">Products ready to sell</h2>
-          <div className="mt-5 grid grid-cols-3 gap-3">
-            {[
-              ['Active', overview?.inventory.activeProducts || 0, 'text-success bg-success/10'],
-              ['Low stock', overview?.inventory.lowStockProducts || 0, 'text-warning bg-warning/10'],
-              ['Out of stock', overview?.inventory.outOfStockProducts || 0, 'text-error bg-error/10'],
-            ].map(([label, value, tone]) => (
-              <div key={String(label)} className="rounded-xl border border-border bg-muted/30 p-4 text-center">
-                <p className={`text-2xl font-800 ${tone}`.split(' ')[0]}>{loading ? '—' : value}</p>
-                <p className="mt-1 text-xs font-700 text-muted-foreground">{label}</p>
-              </div>
-            ))}
+        {/* Inventory health */}
+        <div className="rounded-xl border border-[#e1e3e5] bg-white shadow-sm">
+          <div className="border-b border-[#e1e3e5] px-5 py-4">
+            <h2 className="text-sm font-700 text-foreground">Inventory health</h2>
+            <p className="mt-0.5 text-xs text-muted-foreground">Products ready to sell</p>
           </div>
-          <Link href="/admin-portal?tab=listings" className="mt-5 inline-flex items-center gap-2 text-sm font-800 text-primary hover:underline">
-            Manage products <Icon name="ArrowRightIcon" size={14} />
-          </Link>
-        </article>
-      </section>
-
-      <section className="grid gap-5 xl:grid-cols-2">
-        <article className="rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs font-800 uppercase tracking-[0.12em] text-primary">Orders</p>
-              <h2 className="mt-1 text-lg font-800 text-foreground">Status distribution</h2>
-            </div>
-            <Link href="/admin-portal?tab=orders" className="text-xs font-800 text-primary hover:underline">View orders</Link>
-          </div>
-          <div className="mt-5 space-y-3">
-            {!loading && orderStatusEntries.length === 0 && (
-              <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">No orders have been created in this period.</div>
-            )}
-            {orderStatusEntries.map(([status, count]) => (
-              <div key={status}>
-                <div className="mb-1.5 flex items-center justify-between text-xs">
-                  <span className="font-700 text-foreground">{statusLabel(status)}</span>
-                  <span className="font-800 text-muted-foreground">{count}</span>
+          <div className="p-5">
+            <div className="grid grid-cols-3 gap-3">
+              {[
+                { label: 'Active', value: overview?.inventory.activeProducts || 0, color: 'text-[#008060]', bg: 'bg-[#008060]/10' },
+                { label: 'Low stock', value: overview?.inventory.lowStockProducts || 0, color: 'text-amber-600', bg: 'bg-amber-50' },
+                { label: 'Out of stock', value: overview?.inventory.outOfStockProducts || 0, color: 'text-red-600', bg: 'bg-red-50' },
+              ].map((item) => (
+                <div key={item.label} className={`rounded-xl p-4 text-center ${item.bg}`}>
+                  <p className={`text-2xl font-700 ${item.color}`}>
+                    {loading ? '—' : item.value}
+                  </p>
+                  <p className="mt-1 text-xs font-600 text-muted-foreground">{item.label}</p>
                 </div>
-                <div className="h-2 overflow-hidden rounded-full bg-muted">
-                  <div className="h-full rounded-full bg-primary" style={{ width: `${orderTotal ? Math.max(4, (count / orderTotal) * 100) : 0}%` }} />
-                </div>
-              </div>
-            ))}
-          </div>
-        </article>
-
-        <article className="rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs font-800 uppercase tracking-[0.12em] text-secondary">Timeline</p>
-              <h2 className="mt-1 text-lg font-800 text-foreground">Recent platform activity</h2>
+              ))}
             </div>
-            <Link href="/admin-portal?tab=activity" className="text-xs font-800 text-primary hover:underline">Full feed</Link>
+            <Link
+              href="/admin-portal?tab=listings"
+              className="mt-4 flex items-center gap-2 text-sm font-600 text-[#008060] hover:underline"
+            >
+              Manage products <Icon name="ArrowRightIcon" size={14} />
+            </Link>
           </div>
-          <div className="mt-5 divide-y divide-border">
-            {!loading && !overview?.recentActivity.length && (
-              <div className="py-8 text-center text-sm text-muted-foreground">New orders, sellers and products will appear here.</div>
+        </div>
+      </div>
+
+      {/* Order status + Recent activity */}
+      <div className="grid gap-5 xl:grid-cols-2">
+        {/* Order status */}
+        <div className="rounded-xl border border-[#e1e3e5] bg-white shadow-sm">
+          <div className="flex items-center justify-between border-b border-[#e1e3e5] px-5 py-4">
+            <div>
+              <h2 className="text-sm font-700 text-foreground">Order status breakdown</h2>
+              <p className="mt-0.5 text-xs text-muted-foreground">{orderTotal} total orders in period</p>
+            </div>
+            <Link href="/admin-portal?tab=orders" className="text-xs font-600 text-[#008060] hover:underline">
+              View orders
+            </Link>
+          </div>
+          <div className="p-5">
+            {!loading && orderStatusEntries.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-[#e1e3e5] p-8 text-center">
+                <Icon name="ShoppingBagIcon" size={28} className="mx-auto mb-2 text-muted-foreground/40" />
+                <p className="text-sm text-muted-foreground">No orders in this period</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {loading
+                  ? Array.from({ length: 4 }).map((_, i) => (
+                      <div key={i} className="h-8 animate-pulse rounded-lg bg-gray-100" />
+                    ))
+                  : orderStatusEntries.map(([status, count]) => {
+                      const pct = orderTotal > 0 ? Math.round((count / orderTotal) * 100) : 0;
+                      return (
+                        <div key={status}>
+                          <div className="mb-1.5 flex items-center justify-between text-xs">
+                            <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-600 ${statusColor(status)}`}>
+                              {statusLabel(status)}
+                            </span>
+                            <span className="font-700 text-foreground">{count} <span className="font-500 text-muted-foreground">({pct}%)</span></span>
+                          </div>
+                          <div className="h-1.5 overflow-hidden rounded-full bg-gray-100">
+                            <div
+                              className="h-full rounded-full bg-[#008060] transition-all"
+                              style={{ width: `${pct}%` }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+              </div>
             )}
-            {(overview?.recentActivity || []).slice(0, 7).map((activity) => (
-              <Link key={activity.id} href={activity.href} className="flex items-center gap-3 py-3 first:pt-0 last:pb-0 hover:text-primary">
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-muted text-muted-foreground">
-                  <Icon name={activity.type === 'order' ? 'ShoppingBagIcon' : activity.type === 'seller' ? 'BuildingStorefrontIcon' : 'TagIcon'} size={16} />
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-800 text-foreground">{activity.title}</span>
-                  <span className="block truncate text-xs capitalize text-muted-foreground">{activity.detail}</span>
-                </span>
-                <span className="shrink-0 text-[11px] text-muted-foreground">{new Date(activity.at).toLocaleDateString('en-IN')}</span>
-              </Link>
-            ))}
           </div>
-        </article>
-      </section>
+        </div>
+
+        {/* Recent activity */}
+        <div className="rounded-xl border border-[#e1e3e5] bg-white shadow-sm">
+          <div className="flex items-center justify-between border-b border-[#e1e3e5] px-5 py-4">
+            <div>
+              <h2 className="text-sm font-700 text-foreground">Recent activity</h2>
+              <p className="mt-0.5 text-xs text-muted-foreground">Latest platform events</p>
+            </div>
+            <Link href="/admin-portal?tab=activity" className="text-xs font-600 text-[#008060] hover:underline">
+              View all
+            </Link>
+          </div>
+          <div className="divide-y divide-[#f6f6f7]">
+            {loading ? (
+              Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-3 px-5 py-3">
+                  <div className="h-8 w-8 animate-pulse rounded-full bg-gray-100" />
+                  <div className="flex-1 space-y-1.5">
+                    <div className="h-3 w-3/4 animate-pulse rounded bg-gray-100" />
+                    <div className="h-2.5 w-1/2 animate-pulse rounded bg-gray-100" />
+                  </div>
+                </div>
+              ))
+            ) : overview?.recentActivity?.length ? (
+              overview.recentActivity.slice(0, 6).map((event) => (
+                <Link
+                  key={event.id}
+                  href={event.href || '/admin-portal?tab=activity'}
+                  className="flex items-start gap-3 px-5 py-3 transition hover:bg-[#f6f6f7]"
+                >
+                  <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#008060]/10">
+                    <Icon name="BoltIcon" size={13} className="text-[#008060]" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-600 text-foreground">{event.title}</span>
+                    <span className="block text-xs text-muted-foreground">{event.detail}</span>
+                  </span>
+                  <span className="shrink-0 text-[11px] text-muted-foreground">
+                    {new Date(event.at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                </Link>
+              ))
+            ) : (
+              <div className="px-5 py-10 text-center">
+                <Icon name="BoltIcon" size={28} className="mx-auto mb-2 text-muted-foreground/40" />
+                <p className="text-sm text-muted-foreground">No recent activity</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
