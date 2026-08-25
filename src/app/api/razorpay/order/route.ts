@@ -10,6 +10,14 @@ export const dynamic = 'force-dynamic';
 type OrderType = 'bulk' | 'catalog';
 type RequestBody = { orderId?: string; orderType?: OrderType };
 
+type RazorpayOrderSnapshot = {
+  id?: string;
+  amount?: number;
+  currency?: string;
+  status?: string;
+  error?: { code?: string; description?: string };
+};
+
 class RazorpayOrderError extends Error {
   status: number;
   code: string;
@@ -33,6 +41,9 @@ const safeRate = (raw: string | undefined, fallback: number, maximum: number) =>
   const value = Number(raw ?? fallback);
   return Number.isFinite(value) && value >= 0 && value <= maximum ? value : fallback;
 };
+
+const razorpayAuthorization = (keyId: string, keySecret: string) =>
+  `Basic ${Buffer.from(`${keyId}:${keySecret}`).toString('base64')}`;
 
 async function createRazorpayOrder(input: {
   keyId: string;
@@ -73,7 +84,7 @@ async function createRazorpayOrder(input: {
     response = await fetch('https://api.razorpay.com/v1/orders', {
       method: 'POST',
       headers: {
-        Authorization: `Basic ${Buffer.from(`${input.keyId}:${input.keySecret}`).toString('base64')}`,
+        Authorization: razorpayAuthorization(input.keyId, input.keySecret),
         'Content-Type': 'application/json',
         Accept: 'application/json',
       },
@@ -91,13 +102,7 @@ async function createRazorpayOrder(input: {
     );
   }
 
-  const result = (await response.json().catch(() => ({}))) as {
-    id?: string;
-    amount?: number;
-    currency?: string;
-    status?: string;
-    error?: { code?: string; description?: string };
-  };
+  const result = (await response.json().catch(() => ({}))) as RazorpayOrderSnapshot;
   if (response.status === 401) {
     throw new RazorpayOrderError(
       'Razorpay authentication failed. The server payment credentials are invalid or were revoked.',
@@ -120,6 +125,79 @@ async function createRazorpayOrder(input: {
     );
   }
   return result;
+}
+
+async function inspectExistingRazorpayOrder(input: {
+  keyId: string;
+  keySecret: string;
+  razorpayOrderId: string;
+  amountPaise: number;
+}) {
+  let response: Response;
+  try {
+    response = await fetch(
+      `https://api.razorpay.com/v1/orders/${encodeURIComponent(input.razorpayOrderId)}`,
+      {
+        method: 'GET',
+        headers: {
+          Authorization: razorpayAuthorization(input.keyId, input.keySecret),
+          Accept: 'application/json',
+        },
+        cache: 'no-store',
+        signal: AbortSignal.timeout(15_000),
+      }
+    );
+  } catch (error) {
+    throw new RazorpayOrderError(
+      error instanceof Error && error.name === 'TimeoutError'
+        ? 'Razorpay did not respond in time while checking the existing payment order.'
+        : 'Razorpay could not verify the existing payment order. Please retry.',
+      503,
+      'RAZORPAY_ORDER_LOOKUP_FAILED'
+    );
+  }
+
+  const result = (await response.json().catch(() => ({}))) as RazorpayOrderSnapshot;
+  if (response.status === 401) {
+    throw new RazorpayOrderError(
+      'Razorpay authentication failed while checking the existing payment order.',
+      503,
+      'RAZORPAY_AUTH_FAILED'
+    );
+  }
+
+  // A test-mode order checked with a live key (or an order from another Razorpay
+  // account) is not visible to the active credentials. Treat it as stale so the
+  // server can create a fresh order under the current production key.
+  if (response.status === 400 || response.status === 404) {
+    return { reusable: false, reason: 'not_visible_to_active_credentials' } as const;
+  }
+  if (!response.ok) {
+    throw new RazorpayOrderError(
+      result.error?.description || 'Razorpay could not verify the existing payment order.',
+      503,
+      result.error?.code || 'RAZORPAY_ORDER_LOOKUP_FAILED'
+    );
+  }
+
+  const providerStatus = String(result.status || '').toLowerCase();
+  const amountMatches = Number(result.amount) === input.amountPaise;
+  const currencyMatches = result.currency === 'INR';
+  const idMatches = result.id === input.razorpayOrderId;
+  const reusableStatus = ['created', 'attempted'].includes(providerStatus);
+
+  if (idMatches && amountMatches && currencyMatches && reusableStatus) {
+    return { reusable: true, providerStatus } as const;
+  }
+
+  return {
+    reusable: false,
+    reason:
+      providerStatus === 'paid'
+        ? 'provider_order_already_paid'
+        : 'provider_order_mismatch_or_not_payable',
+    providerStatus,
+  } as const;
 }
 
 export async function POST(request: NextRequest) {
@@ -293,21 +371,62 @@ export async function POST(request: NextRequest) {
     Number(existing.amount) === amountDue &&
     existing.currency === 'INR'
   ) {
-    return json({
-      keyId,
-      razorpayOrderId: existing.razorpay_order_id,
-      amount: amountPaise,
-      amountRupees: amountDue,
-      currency: 'INR',
-      orderType,
-      orderId,
-      paymentPurpose: requestedDeposit ? 'deposit' : firstPayment ? 'full' : 'balance',
-      fullOrderAmount: totalAmount,
-      remainingAfterPayment: roundMoney(remaining - amountDue),
-      reused: true,
-    });
-  }
-  if (existing?.id) {
+    try {
+      const inspection = await inspectExistingRazorpayOrder({
+        keyId,
+        keySecret,
+        razorpayOrderId: existing.razorpay_order_id,
+        amountPaise,
+      });
+
+      if (inspection.reusable) {
+        return json({
+          keyId,
+          razorpayOrderId: existing.razorpay_order_id,
+          amount: amountPaise,
+          amountRupees: amountDue,
+          currency: 'INR',
+          orderType,
+          orderId,
+          paymentPurpose: requestedDeposit ? 'deposit' : firstPayment ? 'full' : 'balance',
+          fullOrderAmount: totalAmount,
+          remainingAfterPayment: roundMoney(remaining - amountDue),
+          reused: true,
+        });
+      }
+
+      if (inspection.reason === 'provider_order_already_paid') {
+        return json(
+          {
+            error: 'Razorpay already shows this payment order as paid. Payment reconciliation is in progress; please refresh shortly.',
+            code: 'PAYMENT_RECONCILIATION_PENDING',
+          },
+          409
+        );
+      }
+
+      await admin
+        .from(paymentTable)
+        .update({
+          status: 'failed',
+          failure_reason:
+            inspection.reason === 'not_visible_to_active_credentials'
+              ? 'Stale Razorpay order: it is not visible to the currently active production credentials.'
+              : 'Stale Razorpay order: provider amount, currency, identity, or status no longer matches.',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', existing.id);
+    } catch (error) {
+      const providerError =
+        error instanceof RazorpayOrderError
+          ? error
+          : new RazorpayOrderError('Existing payment order validation failed.');
+      return json(
+        { error: providerError.message, code: providerError.code },
+        providerError.status
+      );
+    }
+  } else if (existing?.id) {
     await admin
       .from(paymentTable)
       .update({
