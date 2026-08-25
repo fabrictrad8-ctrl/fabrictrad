@@ -6,6 +6,8 @@ import Icon from '@/components/ui/AppIcon';
 import AppLogo from '@/components/ui/AppLogo';
 
 type UserType = 'buyer' | 'seller';
+type BuyerSubType = 'bulk' | 'personal';
+
 type TutorialStep = {
   id: string;
   title: string;
@@ -13,144 +15,299 @@ type TutorialStep = {
   icon: string;
   href: string;
   hrefLabel: string;
-  videoId?: string;
   tips: string[];
   badge?: string;
 };
 
-const buyerSteps: TutorialStep[] = [
+const bulkBuyerSteps: TutorialStep[] = [
   {
-    id: 'b1',
-    title: 'Create Your Buyer Account',
-    description: 'Register as a buyer in under 2 minutes. Provide your business details, GST number (optional for retail), and verify your phone number.',
-    icon: 'UserPlusIcon',
-    href: '/buyer-registration',
-    hrefLabel: 'Register as Buyer',
-    tips: ['Use your business email for GST invoices', 'Phone OTP verification is instant', 'You can upgrade to B2B buyer later'],
+    id: 'bb1',
+    title: 'Create Your Bulk Buyer Account',
+    description: 'Go to /buyer-registration and choose "Bulk Buyer — Shop / Business". Enter your name, business email, mobile number, and password. Your account is created instantly — GST and KYC verification comes after.',
+    icon: 'BuildingStorefrontIcon',
+    href: '/buyer-registration?type=retail_store',
+    hrefLabel: 'Register as Bulk Buyer',
+    tips: [
+      'Use a business email address — this cannot be the same email as a seller account',
+      'Keep your GSTIN certificate ready for the KYC step after account creation',
+      'Mobile number must be unique — not used on any other FabricTrad account',
+      'You will receive an email confirmation after registration',
+    ],
     badge: 'Start Here',
   },
   {
-    id: 'b2',
-    title: 'Browse the Marketplace',
-    description: 'Explore thousands of fabric listings from verified Indian manufacturers. Filter by fabric type, MOQ, price, and region.',
+    id: 'bb2',
+    title: 'Complete Business KYC',
+    description: 'After creating your login, complete your business verification from your profile. Submit your GSTIN, PAN, and business proof documents. Our team reviews within 24–48 hours.',
+    icon: 'IdentificationIcon',
+    href: '/profile',
+    hrefLabel: 'Complete KYC',
+    tips: [
+      'GSTIN verification is instant via the government API',
+      'Business name must match your GST registration exactly',
+      'Upload clear scans — blurry documents cause delays',
+      'You can browse the marketplace while KYC is pending',
+    ],
+  },
+  {
+    id: 'bb3',
+    title: 'Browse B2B Catalogue',
+    description: 'Access the full marketplace with B2B pricing, MOQ-based listings, and bulk fabric options. Filter by fabric type, GSM, MOQ, price range, and verified sellers.',
     icon: 'MagnifyingGlassIcon',
     href: '/marketplace',
     hrefLabel: 'Open Marketplace',
-    tips: ['Use the AI search bar for natural language queries', 'Filter by "Verified Seller" for trusted suppliers', 'Save products to wishlist for later comparison'],
+    tips: [
+      'Filter by "Verified Seller" for trusted, KYC-approved suppliers',
+      'Use GSM filter to find fabrics by weight (e.g. 120–200 GSM for shirting)',
+      'MOQ is shown on each listing — check before adding to cart',
+      'Save products to wishlist for later comparison and reordering',
+    ],
   },
   {
-    id: 'b3',
-    title: 'Try Fabrics Virtually',
-    description: 'Use the AI-powered Virtual Drape Studio on any product page. Upload your photo or use an AI model to see how the fabric looks draped.',
-    icon: 'SparklesIcon',
-    href: '/marketplace',
-    hrefLabel: 'Try Virtual Drape',
-    tips: ['Upload a clear front-facing photo for best results', 'Try different fits: Relaxed, Regular, Tailored', 'Save try-on results to your profile for reference'],
-    badge: 'AI Feature',
-  },
-  {
-    id: 'b4',
-    title: 'Place an Order',
-    description: 'Add fabrics to cart, choose quantity (respecting MOQ), and checkout securely via Razorpay. Supports UPI, cards, net banking.',
+    id: 'bb4',
+    title: 'Place Bulk Orders',
+    description: 'Add fabrics to cart respecting MOQ, choose quantity in metres or kilograms, and checkout via Razorpay. Supports UPI, cards, net banking, and business payment methods.',
     icon: 'ShoppingCartIcon',
     href: '/cart',
     hrefLabel: 'View Cart',
-    tips: ['Check MOQ before adding to cart', 'Razorpay supports all Indian payment methods', 'Order confirmation is sent via email and SMS'],
+    tips: [
+      'Minimum order quantity (MOQ) is enforced per product',
+      'GST invoice is auto-generated after payment',
+      'Order confirmation is sent via email and SMS',
+      'You can request samples before placing large orders',
+    ],
   },
   {
-    id: 'b5',
-    title: 'Track Your Shipment',
-    description: 'Monitor real-time shipment status from your buyer dashboard. Get AWB tracking, estimated delivery, and courier details.',
+    id: 'bb5',
+    title: 'Track Shipments',
+    description: 'Monitor real-time shipment status from your buyer dashboard. Get AWB tracking, estimated delivery, and courier details via Shiprocket integration.',
     icon: 'TruckIcon',
     href: '/buyer-dashboard?tab=tracking',
     hrefLabel: 'Track Orders',
-    tips: ['Enable notifications for shipment updates', 'Contact seller directly via Inbox if delayed', 'Raise a dispute within 7 days of delivery'],
+    tips: [
+      'Enable push notifications for live shipment updates',
+      'Contact seller directly via Inbox if there is a delay',
+      'Raise a dispute within 7 days of delivery for any issues',
+    ],
   },
   {
-    id: 'b6',
-    title: 'Raise Disputes & Returns',
-    description: 'If there\'s an issue with your order, raise a dispute from your dashboard. Our team mediates and ensures fair resolution.',
-    icon: 'FlagIcon',
-    href: '/buyer-dashboard?tab=disputes',
-    hrefLabel: 'Manage Disputes',
-    tips: ['Attach photos as evidence when raising disputes', 'Disputes must be raised within 7 days of delivery', 'Refunds are processed within 5–7 business days'],
+    id: 'bb6',
+    title: 'View Analytics & Reorder',
+    description: 'Use the Analytics tab in your buyer dashboard to track spending trends, order history by category, favourite sellers, and repeat purchase rate — making data-driven reorder decisions easy.',
+    icon: 'ChartBarIcon',
+    href: '/buyer-dashboard?tab=analytics',
+    hrefLabel: 'View Analytics',
+    tips: [
+      'Spending trends chart shows monthly spend over 6 months',
+      'Category breakdown helps you identify your most-ordered fabric types',
+      'Favourite sellers list ranks suppliers by order count and total spend',
+      'Repeat purchase rate shows your supplier loyalty score',
+    ],
+    badge: 'New Feature',
+  },
+];
+
+const personalBuyerSteps: TutorialStep[] = [
+  {
+    id: 'pb1',
+    title: 'Create Your Personal Buyer Account',
+    description: 'Go to /buyer-registration and choose "Single / Personal Buyer". Enter your name, email, mobile number, and password. No business documents required — your account is ready in under 2 minutes.',
+    icon: 'UserPlusIcon',
+    href: '/buyer-registration?type=end_user',
+    hrefLabel: 'Register as Personal Buyer',
+    tips: [
+      'Use a personal email address — different from any seller account',
+      'No GSTIN, PAN, or business proof needed',
+      'Add your delivery address from your profile before placing an order',
+      'Google sign-in is available for buyers — fastest way to get started',
+    ],
+    badge: 'Start Here',
+  },
+  {
+    id: 'pb2',
+    title: 'Sign In with Google (Optional)',
+    description: 'Personal buyers can sign in instantly with their Google account. Click "Continue with Google" on the login page — no password needed. Google sign-in is available for buyers only.',
+    icon: 'UserCircleIcon',
+    href: '/login',
+    hrefLabel: 'Sign In',
+    tips: [
+      'Google sign-in is only available for buyer accounts',
+      'Seller accounts must use email and password',
+      'Your Google email becomes your FabricTrad login email',
+    ],
+    badge: 'Google Sign-In',
+  },
+  {
+    id: 'pb3',
+    title: 'Browse & Try Fabrics Virtually',
+    description: 'Explore fabric listings from verified Indian manufacturers. Use the AI-powered Virtual Drape Studio on any product page to see how the fabric looks draped on a model.',
+    icon: 'SparklesIcon',
+    href: '/marketplace',
+    hrefLabel: 'Open Marketplace',
+    tips: [
+      'Upload a clear front-facing photo for best Virtual Drape results',
+      'Try different fits: Relaxed, Regular, Tailored',
+      'Save try-on results to your profile for reference',
+      'Filter by fabric type, colour, and price range',
+    ],
+    badge: 'AI Feature',
+  },
+  {
+    id: 'pb4',
+    title: 'Place Your Order',
+    description: 'Add fabrics to cart, choose quantity, and checkout securely via Razorpay. Supports UPI, credit/debit cards, net banking, and wallets.',
+    icon: 'ShoppingCartIcon',
+    href: '/cart',
+    hrefLabel: 'View Cart',
+    tips: [
+      'Check the minimum order quantity on each listing',
+      'Razorpay supports all major Indian payment methods',
+      'Order confirmation is sent via email and SMS',
+    ],
+  },
+  {
+    id: 'pb5',
+    title: 'Track & Receive Your Order',
+    description: 'Monitor your shipment from your buyer dashboard. Get real-time tracking, estimated delivery, and courier details. Raise a dispute if there is any issue with your order.',
+    icon: 'TruckIcon',
+    href: '/buyer-dashboard?tab=tracking',
+    hrefLabel: 'Track Orders',
+    tips: [
+      'Disputes must be raised within 7 days of delivery',
+      'Refunds are processed within 5–7 business days',
+      'Contact seller directly via Inbox for quick resolution',
+    ],
   },
 ];
 
 const sellerSteps: TutorialStep[] = [
   {
     id: 's1',
-    title: 'Register as a Seller',
-    description: 'Complete your seller registration with business details, GSTIN, bank account, and identity verification. Our team reviews within 24–48 hours.',
+    title: 'Create a Separate Seller Account',
+    description: 'Seller accounts are completely separate from buyer accounts. Go to /seller-registration and use a different email address and mobile number from any buyer account you may have. Enter your name, business email, mobile, and password.',
     icon: 'BuildingOfficeIcon',
     href: '/seller-registration',
     hrefLabel: 'Register as Seller',
-    tips: ['Keep GSTIN certificate and cancelled cheque ready', 'Business name must match GST registration', 'Bank account must be in business name for payouts'],
+    tips: [
+      'Use a different email address from any buyer account — same email cannot be used for both roles',
+      'Use a different mobile number from any buyer account',
+      'Google sign-in is NOT available for sellers — use email and password only',
+      'Keep GSTIN certificate and cancelled cheque ready for the next step',
+    ],
     badge: 'Start Here',
   },
   {
     id: 's2',
-    title: 'Add Your Products',
-    description: 'Use the AI Catalog Assistant to upload fabric listings. Add photos, descriptions, MOQ, pricing, and variants. AI auto-fills many fields.',
-    icon: 'PlusCircleIcon',
-    href: '/seller-dashboard?tab=upload',
-    hrefLabel: 'Add Products',
-    tips: ['Upload 4–6 high-quality fabric photos per listing', 'AI assistant can parse WhatsApp catalog images', 'Set competitive MOQ to attract more buyers'],
-    badge: 'AI Powered',
+    title: 'Complete Seller Verification',
+    description: 'After creating your login, complete seller verification: submit GSTIN, bank account details, and identity documents. Our team reviews within 24–48 hours. You will receive an email once approved.',
+    icon: 'ShieldCheckIcon',
+    href: '/seller-registration?resume=1',
+    hrefLabel: 'Continue Verification',
+    tips: [
+      'Business name must match your GST registration exactly',
+      'Bank account must be in the business name for payouts',
+      'Upload clear scans of all documents',
+      'You can save progress and return later — your data is preserved',
+    ],
   },
   {
     id: 's3',
-    title: 'Manage Orders & Fulfillment',
-    description: 'Accept incoming orders, confirm payment capture, and dispatch via Shiprocket. Print shipping labels and track all shipments in one place.',
-    icon: 'ShoppingBagIcon',
-    href: '/seller-dashboard?tab=orders',
-    hrefLabel: 'View Orders',
-    tips: ['Accept orders within 24 hours to maintain seller rating', 'Shiprocket auto-selects the best courier', 'Dispatch within 2 business days of order confirmation'],
+    title: 'Add Products via CSV Bulk Import',
+    description: 'Upload 50+ fabric products at once using the CSV bulk import in your Seller Dashboard → Inventory. Download the template, fill in product name, SKU, price, available stock, MOQ, GSM, and category, then upload.',
+    icon: 'ArrowUpTrayIcon',
+    href: '/seller-dashboard?tab=inventory',
+    hrefLabel: 'Open Inventory',
+    tips: [
+      'Required CSV columns: name, sku, price, available, moq',
+      'Optional columns: gsm, category, description, work_type, unit, image_url',
+      'GSM (grams per square metre) helps buyers filter by fabric weight',
+      'MOQ is enforced at checkout — set it accurately',
+      'All products start as "draft" after import — publish when ready',
+    ],
+    badge: 'Bulk Import',
   },
   {
     id: 's4',
-    title: 'Track Earnings & Settlements',
-    description: 'View your Razorpay payouts, commission breakdown, tax summaries, and payout schedule. Settlements are T+7 days after order confirmation.',
-    icon: 'BanknotesIcon',
-    href: '/seller-dashboard?tab=settlement',
-    hrefLabel: 'View Settlements',
-    tips: ['Platform commission is 5% + GST (18% on commission)', 'TDS of 1% is deducted under Section 194H', 'Download tax summaries for your CA'],
+    title: 'Manage Orders & Fulfillment',
+    description: 'Accept incoming orders, confirm payment capture, and dispatch via Shiprocket. Print shipping labels and track all shipments from your seller dashboard.',
+    icon: 'ShoppingBagIcon',
+    href: '/seller-dashboard?tab=orders',
+    hrefLabel: 'View Orders',
+    tips: [
+      'Accept orders within 24 hours to maintain your seller rating',
+      'Shiprocket auto-selects the best courier for each shipment',
+      'Dispatch within 2 business days of order confirmation',
+      'Low-stock alerts appear automatically when inventory drops below MOQ',
+    ],
   },
   {
     id: 's5',
-    title: 'Respond to Buyer Requests',
-    description: 'Browse open sourcing requirements from buyers. Submit quotes directly and convert leads into orders without any cold outreach.',
-    icon: 'MegaphoneIcon',
-    href: '/seller-dashboard?tab=requests',
-    hrefLabel: 'View Buyer Requests',
-    tips: ['Respond to requests within 12 hours for best conversion', 'Include sample availability in your quote', 'Verified sellers get priority placement in search'],
+    title: 'Track Earnings & Request Payouts',
+    description: 'View your Razorpay payouts, commission breakdown, and tax summaries from the Settlement tab. Submit withdrawal requests specifying your payout amount and bank details — admin approves within 1–2 business days.',
+    icon: 'BanknotesIcon',
+    href: '/seller-dashboard?tab=settlement',
+    hrefLabel: 'View Settlements',
+    tips: [
+      'Platform commission is 5% + GST (18% on commission)',
+      'TDS of 1% is deducted under Section 194H',
+      'Settlements are T+7 days after order confirmation',
+      'Download tax summaries for your CA from the Billing tab',
+    ],
   },
   {
     id: 's6',
     title: 'Grow with Analytics',
-    description: 'Track your store performance, top-selling fabrics, buyer demographics, and revenue trends. Use insights to optimize pricing and inventory.',
+    description: 'Track your store performance, top-selling fabrics, buyer demographics, and revenue trends from the Analytics tab. Use insights to optimise pricing and inventory.',
     icon: 'ChartBarIcon',
     href: '/seller-dashboard?tab=analytics',
     hrefLabel: 'View Analytics',
-    tips: ['Check weekly performance every Monday', 'Products with 5+ photos get 3x more views', 'Competitive pricing within 10% of market rate drives sales'],
+    tips: [
+      'Check weekly performance every Monday morning',
+      'Products with 5+ photos get 3× more views',
+      'Competitive pricing within 10% of market rate drives more sales',
+      'Respond to buyer requests within 12 hours for best conversion',
+    ],
   },
 ];
 
 const faqs = [
-  { q: 'How long does seller verification take?', a: 'Typically 24–48 business hours after all documents are submitted. You\'ll receive an email notification once approved.' },
+  { q: 'Can the same account be used as both buyer and seller?', a: 'No. Buyer and seller accounts must use completely different email addresses and mobile numbers. The same account cannot hold both roles. If you want to buy and sell, you need two separate accounts with different credentials.' },
+  { q: 'Is Google sign-in available for sellers?', a: 'No. Google sign-in is only available for buyer accounts. Sellers must register and sign in using email and password.' },
+  { q: 'What is the difference between a Bulk Buyer and a Personal Buyer?', a: 'Bulk Buyers (shops and businesses) get access to B2B pricing, MOQ-based catalogue orders, and business KYC verification. Personal Buyers get a fast account with no business documents required, suitable for tailoring, events, or household purchases.' },
+  { q: 'How do I import products in bulk as a seller?', a: 'Go to Seller Dashboard → Inventory and click "Import CSV". Your CSV must include: name, sku, price, available (stock), and moq columns. Optional columns include gsm, category, description, work_type, unit, and image_url. All imported products start as drafts.' },
+  { q: 'How long does seller verification take?', a: 'Typically 24–48 business hours after all documents are submitted. You will receive an email notification once approved.' },
   { q: 'What payment methods are supported?', a: 'All major Indian payment methods via Razorpay: UPI, credit/debit cards, net banking, wallets, and EMI.' },
-  { q: 'How are disputes resolved?', a: 'Our team mediates between buyer and seller. Evidence is reviewed and a decision is made within 5 business days.' },
-  { q: 'Can I sell internationally?', a: 'Currently FabricTrad supports domestic Indian orders only. International shipping is on our roadmap.' },
-  { q: 'What is the minimum order quantity (MOQ)?', a: 'MOQ is set by each seller per product. It can range from 1 metre to bulk quantities. Check each listing for details.' },
-  { q: 'How does the Virtual Drape AI work?', a: 'Our AI uses GPT-4o Vision to composite your photo with the fabric texture, showing a realistic drape simulation. Results are saved to your profile.' },
+  { q: 'How are disputes resolved?', a: 'Our team mediates between buyer and seller. Evidence is reviewed and a decision is made within 5 business days. Disputes must be raised within 7 days of delivery.' },
+  { q: 'What is MOQ?', a: 'MOQ stands for Minimum Order Quantity. It is the smallest amount a seller will accept for a single order. It is set per product by the seller and enforced at checkout.' },
+  { q: 'How does the Virtual Drape AI work?', a: 'Our AI uses GPT-4o Vision to composite your photo with the fabric texture, showing a realistic drape simulation. Available on any product page — results are saved to your profile.' },
+  { q: 'Do I need to log in to read this guide?', a: 'No. This How-to-Use guide is fully public and accessible without any login. You only need an account to place orders or list products.' },
 ];
 
 export default function TutorialPage() {
   const [userType, setUserType] = useState<UserType>('buyer');
-  const [expandedStep, setExpandedStep] = useState<string | null>('b1');
+  const [buyerSubType, setBuyerSubType] = useState<BuyerSubType>('bulk');
+  const [expandedStep, setExpandedStep] = useState<string | null>('bb1');
   const [expandedFaq, setExpandedFaq] = useState<number | null>(null);
 
-  const steps = userType === 'buyer' ? buyerSteps : sellerSteps;
+  const steps = userType === 'seller'
+    ? sellerSteps
+    : buyerSubType === 'bulk'
+    ? bulkBuyerSteps
+    : personalBuyerSteps;
+
+  const handleUserTypeChange = (type: UserType) => {
+    setUserType(type);
+    if (type === 'buyer') {
+      setExpandedStep(buyerSubType === 'bulk' ? 'bb1' : 'pb1');
+    } else {
+      setExpandedStep('s1');
+    }
+  };
+
+  const handleBuyerSubTypeChange = (sub: BuyerSubType) => {
+    setBuyerSubType(sub);
+    setExpandedStep(sub === 'bulk' ? 'bb1' : 'pb1');
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -170,25 +327,35 @@ export default function TutorialPage() {
 
       <main className="mx-auto max-w-5xl px-4 py-10">
         {/* Hero */}
-        <div className="mb-10 text-center">
+        <div className="mb-8 text-center">
           <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-[#008060]/10 px-4 py-1.5 text-sm font-600 text-[#008060]">
             <Icon name="AcademicCapIcon" size={16} />
-            Getting Started Guide
+            Free Guide · No Login Required
           </div>
           <h1 className="text-3xl font-700 text-gray-900 sm:text-4xl">How to Use FabricTrad</h1>
           <p className="mt-3 text-base text-gray-500 max-w-xl mx-auto">
-            India&apos;s B2B fabric marketplace. Whether you&apos;re sourcing fabrics or selling them, this guide walks you through every step.
+            India&apos;s B2B fabric marketplace. Whether you&apos;re sourcing fabrics or selling them, this guide walks you through every step — from creating an account to placing your first order.
           </p>
         </div>
 
+        {/* Important Notice */}
+        <div className="mb-8 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+          <div className="flex items-start gap-3">
+            <Icon name="ExclamationTriangleIcon" size={18} className="mt-0.5 shrink-0 text-amber-600" />
+            <div className="text-sm text-amber-800">
+              <strong className="text-amber-900">Buyer and seller accounts are separate.</strong> The same email address or mobile number cannot be used for both a buyer and a seller account. Google sign-in is available for buyers only — sellers must use email and password.
+            </div>
+          </div>
+        </div>
+
         {/* User Type Toggle */}
-        <div className="mb-8 flex justify-center">
+        <div className="mb-6 flex justify-center">
           <div className="flex rounded-xl border border-gray-200 bg-white p-1 shadow-sm">
             {(['buyer', 'seller'] as const).map((type) => (
               <button
                 key={type}
                 type="button"
-                onClick={() => { setUserType(type); setExpandedStep(type === 'buyer' ? 'b1' : 's1'); }}
+                onClick={() => handleUserTypeChange(type)}
                 className={`flex items-center gap-2 rounded-lg px-6 py-2.5 text-sm font-600 transition ${
                   userType === type ? 'bg-[#008060] text-white shadow-sm' : 'text-gray-600 hover:text-gray-900'
                 }`}
@@ -200,42 +367,75 @@ export default function TutorialPage() {
           </div>
         </div>
 
-        {/* Video Guide Banner */}
-        <div className="mb-8 overflow-hidden rounded-2xl bg-gradient-to-r from-[#1a1f2e] to-[#2d3748] p-6 text-white">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="text-xs font-600 uppercase tracking-wider text-white/60">Video Tutorial</p>
-              <h2 className="mt-1 text-lg font-700">
-                {userType === 'buyer' ? 'Complete Buyer Walkthrough' : 'Seller Onboarding & First Sale'}
-              </h2>
-              <p className="mt-1 text-sm text-white/70">
-                {userType === 'buyer' ?'From registration to receiving your first fabric order — 8 min guide' :'Set up your store, list products, and get your first payout — 12 min guide'}
-              </p>
+        {/* Buyer Sub-type Toggle */}
+        {userType === 'buyer' && (
+          <div className="mb-6 flex justify-center">
+            <div className="flex rounded-xl border border-gray-200 bg-white p-1 shadow-sm">
+              <button
+                type="button"
+                onClick={() => handleBuyerSubTypeChange('bulk')}
+                className={`flex items-center gap-2 rounded-lg px-5 py-2 text-sm font-600 transition ${
+                  buyerSubType === 'bulk' ? 'bg-amber-500 text-white shadow-sm' : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                <Icon name="BuildingStorefrontIcon" size={15} />
+                Bulk Buyer (Shop / Business)
+              </button>
+              <button
+                type="button"
+                onClick={() => handleBuyerSubTypeChange('personal')}
+                className={`flex items-center gap-2 rounded-lg px-5 py-2 text-sm font-600 transition ${
+                  buyerSubType === 'personal' ? 'bg-[#008060] text-white shadow-sm' : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                <Icon name="UserIcon" size={15} />
+                Single / Personal Buyer
+              </button>
             </div>
-            <div className="flex shrink-0 items-center gap-3">
-              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-white/20 backdrop-blur">
-                <Icon name="PlayIcon" size={24} className="text-white ml-1" />
+          </div>
+        )}
+
+        {/* Section Description */}
+        <div className="mb-6 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+          {userType === 'buyer' && buyerSubType === 'bulk' && (
+            <div className="flex items-start gap-4">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-700">
+                <Icon name="BuildingStorefrontIcon" size={22} />
               </div>
               <div>
-                <p className="text-sm font-600">Watch on YouTube</p>
-                <p className="text-xs text-white/60">Opens in new tab</p>
+                <h2 className="text-base font-700 text-gray-900">Bulk Buyer — Shop / Business Guide</h2>
+                <p className="mt-1 text-sm text-gray-500">For shops, boutiques, garment manufacturers, and businesses ordering 50+ metres. Includes B2B pricing, MOQ-based orders, GSTIN verification, and analytics for data-driven reorders.</p>
               </div>
             </div>
-          </div>
-          <div className="mt-4 flex flex-wrap gap-2">
-            {(userType === 'buyer'
-              ? ['Account Setup', 'Browsing Fabrics', 'Virtual Drape AI', 'Checkout', 'Tracking']
-              : ['Seller Registration', 'Adding Products', 'Order Management', 'Settlements', 'Analytics']
-            ).map((chapter) => (
-              <span key={chapter} className="rounded-full bg-white/10 px-3 py-1 text-xs text-white/80">{chapter}</span>
-            ))}
-          </div>
+          )}
+          {userType === 'buyer' && buyerSubType === 'personal' && (
+            <div className="flex items-start gap-4">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700">
+                <Icon name="UserIcon" size={22} />
+              </div>
+              <div>
+                <h2 className="text-base font-700 text-gray-900">Single / Personal Buyer Guide</h2>
+                <p className="mt-1 text-sm text-gray-500">For individuals buying for tailoring, events, or household use. Fast account creation with no business documents. Google sign-in available. No minimum order quantity restrictions.</p>
+              </div>
+            </div>
+          )}
+          {userType === 'seller' && (
+            <div className="flex items-start gap-4">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-blue-100 text-blue-700">
+                <Icon name="BuildingOfficeIcon" size={22} />
+              </div>
+              <div>
+                <h2 className="text-base font-700 text-gray-900">Seller Guide</h2>
+                <p className="mt-1 text-sm text-gray-500">For fabric manufacturers, wholesalers, and distributors. Includes seller registration (separate from buyer accounts), CSV bulk product import, order management, settlements, and analytics.</p>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Step-by-Step Guide */}
         <div className="mb-10">
           <h2 className="mb-4 text-lg font-700 text-gray-900">
-            Step-by-Step {userType === 'buyer' ? 'Buyer' : 'Seller'} Guide
+            Step-by-Step Guide
           </h2>
           <div className="space-y-3">
             {steps.map((step, idx) => {
@@ -258,7 +458,7 @@ export default function TutorialPage() {
                       {idx + 1}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <p className="text-sm font-600 text-gray-900">{step.title}</p>
                         {step.badge && (
                           <span className="rounded-full bg-[#008060]/10 px-2 py-0.5 text-[10px] font-700 text-[#008060]">
@@ -305,21 +505,21 @@ export default function TutorialPage() {
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
             {(userType === 'buyer' ? [
               { label: 'Marketplace', href: '/marketplace', icon: 'ShoppingBagIcon', color: 'bg-blue-50 text-blue-700' },
-              { label: 'My Orders', href: '/buyer-dashboard?tab=orders', icon: 'ClipboardDocumentListIcon', color: 'bg-emerald-50 text-emerald-700' },
+              { label: 'Register as Buyer', href: '/buyer-registration', icon: 'UserPlusIcon', color: 'bg-emerald-50 text-emerald-700' },
+              { label: 'Sign In', href: '/login', icon: 'ArrowRightOnRectangleIcon', color: 'bg-gray-100 text-gray-700' },
               { label: 'Virtual Drape', href: '/marketplace', icon: 'SparklesIcon', color: 'bg-purple-50 text-purple-700' },
-              { label: 'Track Shipment', href: '/buyer-dashboard?tab=tracking', icon: 'TruckIcon', color: 'bg-amber-50 text-amber-700' },
-              { label: 'Wishlist', href: '/buyer-dashboard?tab=wishlist', icon: 'HeartIcon', color: 'bg-red-50 text-red-700' },
-              { label: 'Disputes', href: '/buyer-dashboard?tab=disputes', icon: 'FlagIcon', color: 'bg-orange-50 text-orange-700' },
-              { label: 'Profile', href: '/profile', icon: 'UserCircleIcon', color: 'bg-gray-100 text-gray-700' },
-              { label: 'Help', href: '/help', icon: 'QuestionMarkCircleIcon', color: 'bg-indigo-50 text-indigo-700' },
+              { label: 'My Orders', href: '/buyer-dashboard?tab=orders', icon: 'ClipboardDocumentListIcon', color: 'bg-amber-50 text-amber-700' },
+              { label: 'Analytics', href: '/buyer-dashboard?tab=analytics', icon: 'ChartBarIcon', color: 'bg-indigo-50 text-indigo-700' },
+              { label: 'Track Shipment', href: '/buyer-dashboard?tab=tracking', icon: 'TruckIcon', color: 'bg-orange-50 text-orange-700' },
+              { label: 'Help', href: '/help', icon: 'QuestionMarkCircleIcon', color: 'bg-gray-100 text-gray-700' },
             ] : [
+              { label: 'Register as Seller', href: '/seller-registration', icon: 'BuildingOfficeIcon', color: 'bg-blue-50 text-blue-700' },
               { label: 'Seller Dashboard', href: '/seller-dashboard', icon: 'HomeIcon', color: 'bg-emerald-50 text-emerald-700' },
-              { label: 'Add Product', href: '/seller-dashboard?tab=upload', icon: 'PlusCircleIcon', color: 'bg-blue-50 text-blue-700' },
-              { label: 'Orders', href: '/seller-dashboard?tab=orders', icon: 'ShoppingBagIcon', color: 'bg-amber-50 text-amber-700' },
-              { label: 'Settlements', href: '/seller-dashboard?tab=settlement', icon: 'BanknotesIcon', color: 'bg-purple-50 text-purple-700' },
-              { label: 'Analytics', href: '/seller-dashboard?tab=analytics', icon: 'ChartBarIcon', color: 'bg-indigo-50 text-indigo-700' },
-              { label: 'Buyer Requests', href: '/seller-dashboard?tab=requests', icon: 'MegaphoneIcon', color: 'bg-red-50 text-red-700' },
-              { label: 'Shipments', href: '/seller-dashboard?tab=fulfillment', icon: 'TruckIcon', color: 'bg-orange-50 text-orange-700' },
+              { label: 'Import CSV', href: '/seller-dashboard?tab=inventory', icon: 'ArrowUpTrayIcon', color: 'bg-amber-50 text-amber-700' },
+              { label: 'Add Product', href: '/seller-dashboard?tab=upload', icon: 'PlusCircleIcon', color: 'bg-purple-50 text-purple-700' },
+              { label: 'Orders', href: '/seller-dashboard?tab=orders', icon: 'ShoppingBagIcon', color: 'bg-indigo-50 text-indigo-700' },
+              { label: 'Settlements', href: '/seller-dashboard?tab=settlement', icon: 'BanknotesIcon', color: 'bg-red-50 text-red-700' },
+              { label: 'Analytics', href: '/seller-dashboard?tab=analytics', icon: 'ChartBarIcon', color: 'bg-orange-50 text-orange-700' },
               { label: 'Help', href: '/help', icon: 'QuestionMarkCircleIcon', color: 'bg-gray-100 text-gray-700' },
             ]).map((link) => (
               <Link
@@ -372,6 +572,7 @@ export default function TutorialPage() {
               Register as Seller
             </Link>
           </div>
+          <p className="mt-4 text-xs text-white/60">Buyer and seller accounts require separate email addresses</p>
         </div>
       </main>
     </div>

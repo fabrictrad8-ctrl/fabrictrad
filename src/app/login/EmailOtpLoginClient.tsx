@@ -73,16 +73,16 @@ function AuthVisual() {
         <span className="ft-auth-node n3" />
       </div>
 
-      <p className="ft-auth-eyebrow">One account for textile commerce</p>
-      <h1 className="ft-auth-title">Source, sell and run your textile business from one place.</h1>
+      <p className="ft-auth-eyebrow">India&apos;s fabric marketplace</p>
+      <h1 className="ft-auth-title">Source and sell premium fabrics across India.</h1>
       <p className="ft-auth-subtitle">
-        A single verified account opens the workspaces you are approved to use. Buyers get a search-first marketplace and order tracking; sellers get products, orders, payments, shipping and analytics without duplicate accounts.
+        Sign in to your FabricTrad account. Buyers and sellers use separate accounts — Google sign-in is available for buyers. Sellers sign in with email and password.
       </p>
 
       <div className="ft-auth-flow" aria-label="How sign in works">
-        <div className="ft-auth-flow-card"><strong>1</strong><span>Sign in with your registered account</span></div>
-        <div className="ft-auth-flow-card"><strong>2</strong><span>FabricTrad detects your approved workspaces</span></div>
-        <div className="ft-auth-flow-card"><strong>3</strong><span>Continue directly to buying or selling</span></div>
+        <div className="ft-auth-flow-card"><strong>1</strong><span>Sign in with your registered email and password</span></div>
+        <div className="ft-auth-flow-card"><strong>2</strong><span>FabricTrad opens your buyer or seller workspace</span></div>
+        <div className="ft-auth-flow-card"><strong>3</strong><span>Start browsing, ordering, or managing your store</span></div>
       </div>
     </section>
   );
