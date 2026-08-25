@@ -12,6 +12,7 @@ import {
   type AccountBulkOrder,
   useSellerBulkOrders,
 } from '@/lib/hooks/useAccountOrders';
+import { useOrderNotifications } from '@/lib/hooks/useOrderNotifications';
 
 type OrderTab = 'pending' | 'active' | 'shipping' | 'completed' | 'cancelled';
 type DeliveryDraft = {
@@ -52,6 +53,7 @@ function orderCode(order: AccountBulkOrder) {
 
 export default function SellerOrders() {
   const { orders, loading, error, refresh, updateOrder } = useSellerBulkOrders();
+  const { notifyBuyerOrderStatus } = useOrderNotifications();
   const [tab, setTab] = useState<OrderTab>('pending');
   const [delivery, setDelivery] = useState<Record<string, DeliveryDraft>>({});
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -70,6 +72,17 @@ export default function SellerOrders() {
     try {
       await updateOrder(order.id, patch);
       toast.success(success);
+      // Notify buyer on status changes
+      if (patch.status === 'confirmed' || patch.status === 'shipped' || patch.status === 'delivered') {
+        const orderRef = orderCode(order);
+        const amount = Number(order.net_total || order.gross_total || 0);
+        void notifyBuyerOrderStatus({
+          orderId: order.id,
+          orderRef,
+          status: patch.status as 'confirmed' | 'shipped' | 'delivered',
+          amount,
+        });
+      }
     } catch (actionError) {
       toast.error(actionError instanceof Error ? actionError.message : 'Order update failed.');
     } finally {
@@ -203,9 +216,7 @@ export default function SellerOrders() {
       }
       await updateOrder(order.id, { status: 'shipped' });
       toast.success(
-        draft.partner === 'shiprocket'
-          ? 'Shiprocket pickup created and order marked shipped.'
-          : 'Order marked shipped and buyer tracking updated.'
+        draft.partner === 'shiprocket' ?'Shiprocket pickup created and order marked shipped.' :'Order marked shipped and buyer tracking updated.'
       );
     } catch (shippingError) {
       toast.error(shippingError instanceof Error ? shippingError.message : 'Could not ship order.');
@@ -240,8 +251,7 @@ export default function SellerOrders() {
               onClick={() => setTab(item.key)}
               className={`shrink-0 rounded-xl px-4 py-2 text-xs font-700 ${
                 tab === item.key
-                  ? 'bg-secondary text-white'
-                  : 'border border-border bg-card text-muted-foreground hover:text-foreground'
+                  ? 'bg-secondary text-white' :'border border-border bg-card text-muted-foreground hover:text-foreground'
               }`}
             >
               {item.label} <span className="ml-1 opacity-80">{count}</span>

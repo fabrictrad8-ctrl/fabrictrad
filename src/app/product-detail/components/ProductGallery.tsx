@@ -17,7 +17,6 @@ const VIEW_LABELS: Record<CatalogMedia['viewType'], string> = {
 export default function ProductGallery() {
   const { product, loading } = useProduct();
   const [activeIndex, setActiveIndex] = useState(0);
-  const [zoom, setZoom] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
 
   const media = useMemo<CatalogMedia[]>(() => {
@@ -35,7 +34,6 @@ export default function ProductGallery() {
 
   useEffect(() => {
     setActiveIndex(0);
-    setZoom(false);
     setFullscreen(false);
   }, [product.id, product.selectedVariantId]);
 
@@ -54,43 +52,36 @@ export default function ProductGallery() {
 
   const showPrevious = () => {
     setActiveIndex((current) => (current - 1 + media.length) % media.length);
-    setZoom(false);
   };
   const showNext = () => {
     setActiveIndex((current) => (current + 1) % media.length);
-    setZoom(false);
   };
 
-  const mainMedia = (large = false) => (
-    <div className={`relative h-full w-full overflow-hidden bg-[#0f1319] ${active.type === 'image' ? 'cursor-zoom-in' : ''}`}>
+  const mainMedia = (isFullscreen = false) => (
+    <div className={`relative h-full w-full overflow-hidden bg-[#0f1319]`}>
       {active.type === 'video' ? (
         <video
           key={active.url}
           src={active.url}
           controls
-          autoPlay={fullscreen}
-          muted={!fullscreen}
+          autoPlay={isFullscreen}
+          muted={!isFullscreen}
           playsInline
           preload="metadata"
           className="h-full w-full object-contain"
           aria-label={active.alt}
         />
       ) : (
-        <button
-          type="button"
-          onClick={() => (large ? setZoom((current) => !current) : setFullscreen(true))}
-          className="relative h-full w-full"
-          aria-label={large && zoom ? `Zoom out of ${product.name}` : `Open ${product.name} detail view`}
-        >
+        <div className="relative h-full w-full">
           <AppImage
             src={active.url}
             alt={active.alt || product.alt}
             fill
-            priority={!large}
-            sizes={large ? '100vw' : '(max-width: 1024px) 100vw, 66vw'}
-            className={`object-contain transition-transform duration-500 ${large && zoom ? 'scale-150' : 'scale-100'}`}
+            priority={!isFullscreen}
+            sizes={isFullscreen ? '100vw' : '(max-width: 1024px) 100vw, 66vw'}
+            className="object-contain"
           />
-        </button>
+        </div>
       )}
 
       <div className="pointer-events-none absolute left-3 top-3 flex flex-wrap gap-2">
@@ -128,14 +119,14 @@ export default function ProductGallery() {
       <div className="pointer-events-none absolute bottom-3 left-3 rounded-lg bg-black/60 px-2.5 py-1 text-xs text-white">
         {activeIndex + 1} / {media.length}
       </div>
-      {active.type === 'image' && (
+      {active.type === 'image' && !isFullscreen && (
         <button
           type="button"
-          onClick={() => (large ? setZoom((current) => !current) : setFullscreen(true))}
+          onClick={() => setFullscreen(true)}
           className="absolute bottom-3 right-3 flex items-center gap-1.5 rounded-lg bg-black/60 px-2.5 py-1.5 text-xs text-white"
         >
           <Icon name="MagnifyingGlassPlusIcon" size={13} />
-          {large && zoom ? 'Zoom out' : 'View detail'}
+          View detail
         </button>
       )}
     </div>
@@ -154,7 +145,6 @@ export default function ProductGallery() {
                 type="button"
                 onClick={() => {
                   setActiveIndex(index);
-                  setZoom(false);
                 }}
                 className={`relative h-20 w-20 shrink-0 overflow-hidden rounded-xl border-2 bg-muted ${
                   activeIndex === index ? 'border-primary ring-2 ring-primary/10' : 'border-border hover:border-muted-foreground'
@@ -200,10 +190,7 @@ export default function ProductGallery() {
         >
           <button
             type="button"
-            onClick={() => {
-              setFullscreen(false);
-              setZoom(false);
-            }}
+            onClick={() => setFullscreen(false)}
             className="absolute right-4 top-4 z-10 flex h-11 w-11 items-center justify-center rounded-full bg-white/15 text-white backdrop-blur hover:bg-white/25"
             aria-label="Close product media viewer"
           >
