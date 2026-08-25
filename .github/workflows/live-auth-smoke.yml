@@ -100,7 +100,7 @@ jobs:
           expect_code 'Admin login' "$admin_login_status" '200'
           if grep -Eqi 'Application error|Internal Server Error|NEXT_NOT_FOUND' /tmp/home.html; then fail 'Home contains a framework/server error marker.'; fi
           if grep -Eqi 'Application error|Internal Server Error|NEXT_NOT_FOUND' /tmp/login.html; then fail 'Login contains a framework/server error marker.'; fi
-          expect_body 'Admin login' /tmp/admin-login.html 'Send administrator OTP'
+          expect_body 'Admin login' /tmp/admin-login.html 'Sign in with email OTP|Administrator access'
 
           www_status=$(curl --silent --show-error --location --connect-timeout 10 --max-time 30 \
             --output /tmp/www-home.html --write-out '%{http_code}' 'https://www.fabrictrad.com/' || true)
@@ -112,13 +112,9 @@ jobs:
           check_redirect 'Seller dashboard privacy' '/seller-dashboard' 'login'
           check_redirect 'Admin portal privacy' '/admin-portal' 'admin-login'
 
-          demo_get=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
-            --output /tmp/demo-get.json --write-out '%{http_code}' \
-            --cookie 'fabrictrad_demo_role=seller' "$base_url/api/auth/demo-session" || true)
-          expect_code 'Production demo-session GET' "$demo_get" '200'
-          expect_body 'Production demo-session GET' /tmp/demo-get.json '"role":null'
-          expect_body 'Production demo-session GET' /tmp/demo-get.json '"enabled":false'
-
+          # Synthetic demo sessions are intentionally unavailable in production.
+          demo_get=$(fetch_code GET "$base_url/api/auth/demo-session" /tmp/demo-get.json)
+          expect_code 'Production demo-session GET' "$demo_get" '404'
           demo_post=$(fetch_code POST "$base_url/api/auth/demo-session" /tmp/demo-post.json \
             --header 'Content-Type: application/json' --data '{}')
           expect_code 'Production demo-session POST' "$demo_post" '404'
@@ -143,6 +139,20 @@ jobs:
           cat /tmp/google-status.json || true
           echo
           expect_code 'Google OAuth readiness' "$google" '200'
+          if [ "$google" = '200' ] && ! grep -q '"configured":true' /tmp/google-status.json; then
+            fail 'Google OAuth endpoint is reachable but not configured.'
+          fi
+
+          razorpay=$(fetch_code GET "$base_url/api/razorpay/status" /tmp/razorpay-status.json)
+          echo 'Razorpay readiness response:'
+          cat /tmp/razorpay-status.json || true
+          echo
+          expect_code 'Razorpay provider authentication' "$razorpay" '200'
+          if [ "$razorpay" = '200' ]; then
+            grep -q '"configured":true' /tmp/razorpay-status.json || fail 'Razorpay credentials are not configured.'
+            grep -q '"authenticated":true' /tmp/razorpay-status.json || fail 'Razorpay credentials do not authenticate with Razorpay.'
+            grep -q '"mode":"live"' /tmp/razorpay-status.json || fail 'Razorpay is not in LIVE mode. Real customer checkout must remain blocked.'
+          fi
 
           payment_order=$(fetch_code POST "$base_url/api/razorpay/order" /tmp/payment-order.json \
             --header 'Content-Type: application/json' --data '{}')
@@ -161,13 +171,15 @@ jobs:
             --header 'Content-Type: application/json' --data '{}')
           expect_code 'Unauthenticated Shiprocket order' "$shipping_create" '401'
 
-          shipping=$(fetch_code GET "$base_url/api/shiprocket/status" /tmp/shiprocket-status.json)
-          expect_code 'Shiprocket readiness' "$shipping" '200'
-          echo 'Shiprocket readiness response:'
+          shipping=$(fetch_code GET "$base_url/api/shiprocket/status?verify=1" /tmp/shiprocket-status.json)
+          echo 'Shiprocket authenticated readiness response:'
           cat /tmp/shiprocket-status.json || true
           echo
-          if ! grep -q '"configured":true' /tmp/shiprocket-status.json; then
-            echo '::warning::Shiprocket credentials are not configured; automated dispatch remains unavailable.'
+          expect_code 'Shiprocket provider authentication' "$shipping" '200'
+          if [ "$shipping" = '200' ]; then
+            grep -q '"configured":true' /tmp/shiprocket-status.json || fail 'Shiprocket credentials are not configured.'
+            grep -q '"authenticated":true' /tmp/shiprocket-status.json || fail 'Shiprocket credentials do not authenticate with Shiprocket.'
+            grep -q '"webhookConfigured":true' /tmp/shiprocket-status.json || fail 'Shiprocket webhook token is not configured.'
           fi
 
           ai=$(fetch_code GET "$base_url/api/ai/drape-on" /tmp/ai-status.json)
@@ -175,8 +187,8 @@ jobs:
           echo 'AI Drape readiness response:'
           cat /tmp/ai-status.json || true
           echo
-          if ! grep -q '"configured":true' /tmp/ai-status.json; then
-            echo '::warning::AI Drape has no configured OpenAI or Gemini provider.'
+          if [ "$ai" = '200' ] && ! grep -q '"configured":true' /tmp/ai-status.json; then
+            fail 'AI Drape provider is not configured.'
           fi
 
           gst=$(fetch_code GET "$base_url/api/gstin/status" /tmp/gstin-status.json)
@@ -184,8 +196,8 @@ jobs:
           echo 'GSTIN readiness response:'
           cat /tmp/gstin-status.json || true
           echo
-          if ! grep -q '"providerConfigured":true' /tmp/gstin-status.json; then
-            echo '::warning::GSTIN verification is currently using the official-manual review path.'
+          if [ "$gst" = '200' ] && ! grep -q '"providerConfigured":true' /tmp/gstin-status.json; then
+            echo '::warning::GSTIN verification is using the official-manual review path.'
           fi
 
           echo "Production smoke completed with ${failures} failure(s)."
