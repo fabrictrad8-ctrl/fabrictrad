@@ -44,8 +44,9 @@ jobs:
           api="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts/${WORKER_NAME}"
           auth=(-H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}")
 
-          # Versions recorded by FabricTrad's own successful pre-rocket.new
-          # production deployment history, newest first.
+          # Versions recorded by FabricTrad's own pre-rocket.new production
+          # deployment history, newest first. Only encrypted binding references
+          # are inherited; historical application code is never deployed.
           historical_versions=(
             '9bdafdef-4dca-4c9d-9a76-bfb45ce44b3f'
             'bdda6baf-2f0b-45f9-b684-86eb20d51c51'
@@ -60,32 +61,14 @@ jobs:
           )
 
           curl --fail --silent --show-error "${auth[@]}" "${api}/deployments" > /tmp/deployments.json
-          active_version=$(node - <<'NODE'
-          const fs=require('node:fs');
-          const p=JSON.parse(fs.readFileSync('/tmp/deployments.json','utf8'));
-          const ds=p?.result?.deployments || [];
-          if (!ds.length) process.exit(2);
-          const versions=ds[0].versions || [];
-          versions.sort((a,b)=>(b.percentage||0)-(a.percentage||0));
-          if (!versions[0]?.version_id) process.exit(3);
-          process.stdout.write(versions[0].version_id);
-          NODE
-          )
+          active_version=$(node -e 'const fs=require("node:fs"); const p=JSON.parse(fs.readFileSync("/tmp/deployments.json","utf8")); const ds=p?.result?.deployments||[]; if(!ds.length) process.exit(2); const versions=ds[0].versions||[]; versions.sort((a,b)=>(b.percentage||0)-(a.percentage||0)); if(!versions[0]?.version_id) process.exit(3); process.stdout.write(versions[0].version_id);')
           echo "Current production version preserved at 100% during testing: ${active_version}"
 
-          # Save the latest/current version's binding inventory. Secret values are
-          # never requested or printed; only binding names and version references
-          # are used.
+          # Save current binding inventory and newest deployable current-code
+          # version. Secret values are never requested, printed or committed.
           curl --fail --silent --show-error "${auth[@]}" "${api}/settings" > /tmp/current-settings.json
           curl --fail --silent --show-error "${auth[@]}" "${api}/versions?per_page=100&deployable=true" > /tmp/versions.json
-          baseline_version=$(node - <<'NODE'
-          const fs=require('node:fs');
-          const p=JSON.parse(fs.readFileSync('/tmp/versions.json','utf8'));
-          const items=p?.result?.items || [];
-          if (!items[0]?.id) process.exit(2);
-          process.stdout.write(items[0].id);
-          NODE
-          )
+          baseline_version=$(node -e 'const fs=require("node:fs"); const p=JSON.parse(fs.readFileSync("/tmp/versions.json","utf8")); const items=p?.result?.items||[]; if(!items[0]?.id) process.exit(2); process.stdout.write(items[0].id);')
           echo "Current-code baseline version: ${baseline_version}"
 
           restore_active() {
@@ -96,7 +79,6 @@ jobs:
           for historical in "${historical_versions[@]}"; do
             echo "Testing historical encrypted Razorpay binding set from ${historical}"
 
-            # Confirm the historical version still exists before referencing it.
             historical_http=$(curl --silent --show-error --output /tmp/historical-version.json \
               --write-out '%{http_code}' "${auth[@]}" "${api}/versions/${historical}" || true)
             if [ "$historical_http" != '200' ]; then
@@ -104,35 +86,21 @@ jobs:
               continue
             fi
 
-            # Create settings containing current bindings from the current-code
-            # baseline, except Razorpay's three encrypted bindings which are
-            # inherited from the historical version. This preserves every current
-            # feature while transplanting only the old payment credentials.
-            HISTORICAL="$historical" BASELINE="$baseline_version" node - <<'NODE'
-            const fs=require('node:fs');
-            const p=JSON.parse(fs.readFileSync('/tmp/current-settings.json','utf8'));
-            const current=p.result || p;
-            const razorpay=new Set(['RAZORPAY_KEY_ID','RAZORPAY_KEY_SECRET','RAZORPAY_WEBHOOK_SECRET']);
-            const bindings=(current.bindings || [])
-              .filter((binding)=>binding && binding.name)
-              .map((binding)=>({
-                name: binding.name,
-                type: 'inherit',
-                version_id: razorpay.has(binding.name) ? process.env.HISTORICAL : process.env.BASELINE,
-              }));
-            for (const name of razorpay) {
-              if (!bindings.some((binding)=>binding.name===name)) {
-                bindings.push({name,type:'inherit',version_id:process.env.HISTORICAL});
-              }
-            }
-            const settings={
-              bindings,
-              annotations:{'workers/message':`FabricTrad Razorpay recovery candidate from ${process.env.HISTORICAL}`},
-            };
-            fs.writeFileSync('/tmp/candidate-settings.json',JSON.stringify(settings));
-            NODE
+            # Preserve every current binding except the Razorpay trio, which is
+            # inherited from this historical version. This creates a new version
+            # with current code plus only the historical encrypted Razorpay data.
+            HISTORICAL="$historical" BASELINE="$baseline_version" node -e '
+              const fs=require("node:fs");
+              const p=JSON.parse(fs.readFileSync("/tmp/current-settings.json","utf8"));
+              const current=p.result||p;
+              const razorpay=new Set(["RAZORPAY_KEY_ID","RAZORPAY_KEY_SECRET","RAZORPAY_WEBHOOK_SECRET"]);
+              const bindings=(current.bindings||[]).filter((b)=>b&&b.name).map((b)=>({name:b.name,type:"inherit",version_id:razorpay.has(b.name)?process.env.HISTORICAL:process.env.BASELINE}));
+              for(const name of razorpay){if(!bindings.some((b)=>b.name===name)) bindings.push({name,type:"inherit",version_id:process.env.HISTORICAL});}
+              const settings={bindings,annotations:{"workers/message":"FabricTrad Razorpay recovery candidate from "+process.env.HISTORICAL}};
+              fs.writeFileSync("/tmp/candidate-settings.json",JSON.stringify(settings));
+            '
 
-            before=$(curl --fail --silent --show-error "${auth[@]}" "${api}/versions?per_page=1&deployable=true" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const p=JSON.parse(s);process.stdout.write(p?.result?.items?.[0]?.id||'')})")
+            before=$(curl --fail --silent --show-error "${auth[@]}" "${api}/versions?per_page=1&deployable=true" | node -e 'let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{const p=JSON.parse(s); process.stdout.write(p?.result?.items?.[0]?.id||"");});')
 
             patch_http=$(curl --silent --show-error --output /tmp/patch-settings.json \
               --write-out '%{http_code}' -X PATCH "${auth[@]}" \
@@ -145,22 +113,14 @@ jobs:
 
             sleep 2
             curl --fail --silent --show-error "${auth[@]}" "${api}/versions?per_page=2&deployable=true" > /tmp/after-versions.json
-            candidate_version=$(BEFORE="$before" node - <<'NODE'
-            const fs=require('node:fs');
-            const p=JSON.parse(fs.readFileSync('/tmp/after-versions.json','utf8'));
-            const items=p?.result?.items || [];
-            const item=items.find((x)=>x?.id && x.id!==process.env.BEFORE) || items[0];
-            if (!item?.id || item.id===process.env.BEFORE) process.exit(2);
-            process.stdout.write(item.id);
-            NODE
-            ) || true
+            candidate_version=$(BEFORE="$before" node -e 'const fs=require("node:fs"); const p=JSON.parse(fs.readFileSync("/tmp/after-versions.json","utf8")); const items=p?.result?.items||[]; const item=items.find((x)=>x?.id&&x.id!==process.env.BEFORE)||items[0]; if(!item?.id||item.id===process.env.BEFORE) process.exit(2); process.stdout.write(item.id);' || true)
             if [ -z "${candidate_version:-}" ]; then
               echo "No candidate version was created for ${historical}; skipping."
               continue
             fi
 
-            # Candidate gets 0% normal traffic. The override header below is the
-            # only request routed to it during validation.
+            # Candidate receives 0% normal customer traffic. Only the version
+            # override probe below is routed to it during validation.
             if ! npx wrangler versions deploy "${active_version}@100%" "${candidate_version}@0%" \
               --config wrangler.jsonc -y >/dev/null; then
               echo "Could not stage candidate ${candidate_version}; skipping."
@@ -174,18 +134,11 @@ jobs:
               -H "Cloudflare-Workers-Version-Overrides: ${WORKER_NAME}=\"${candidate_version}\"" \
               "${BASE_URL}/api/razorpay/status" || true)
 
-            # Print only non-secret health data returned by FabricTrad.
             echo "Candidate ${candidate_version} status HTTP ${status_http}:"
             cat /tmp/razorpay-candidate.json || true
             echo
 
-            if [ "$status_http" = '200' ] && node - <<'NODE'
-            const fs=require('node:fs');
-            try {
-              const p=JSON.parse(fs.readFileSync('/tmp/razorpay-candidate.json','utf8'));
-              process.exit(p.authenticated===true && p.mode==='live' && p.productionReady===true ? 0 : 1);
-            } catch { process.exit(1); }
-            NODE
+            if [ "$status_http" = '200' ] && node -e 'const fs=require("node:fs"); try{const p=JSON.parse(fs.readFileSync("/tmp/razorpay-candidate.json","utf8")); process.exit(p.authenticated===true&&p.mode==="live"&&p.productionReady===true?0:1);}catch{process.exit(1);}'
             then
               echo "Recovered a genuinely authenticated Razorpay LIVE binding set from ${historical}."
               printf '%s' "$candidate_version" > /tmp/recovered-version.txt
@@ -199,7 +152,7 @@ jobs:
           done
 
           if [ ! -s /tmp/recovered-version.txt ]; then
-            echo '::error::No preserved pre-rocket Worker version contained a Razorpay credential that currently authenticates as LIVE. No existing app feature was rolled back.'
+            echo '::error::No preserved pre-rocket Worker version produced an authenticated Razorpay LIVE status. No existing app feature was rolled back.'
             exit 1
           fi
 
@@ -210,6 +163,7 @@ jobs:
           recovered=$(cat /tmp/recovered-version.txt)
           source_version=$(cat /tmp/recovered-source-version.txt)
 
+          healthy=false
           for attempt in $(seq 1 12); do
             razorpay_http=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
               --output /tmp/razorpay-final.json --write-out '%{http_code}' \
@@ -217,23 +171,17 @@ jobs:
             shiprocket_http=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
               --output /tmp/shiprocket-final.json --write-out '%{http_code}' \
               "${BASE_URL}/api/shiprocket/status?verify=1" || true)
-            if [ "$razorpay_http" = '200' ] && [ "$shiprocket_http" = '200' ] && node - <<'NODE'
-            const fs=require('node:fs');
-            const r=JSON.parse(fs.readFileSync('/tmp/razorpay-final.json','utf8'));
-            const s=JSON.parse(fs.readFileSync('/tmp/shiprocket-final.json','utf8'));
-            process.exit(r.authenticated===true && r.mode==='live' && r.productionReady===true && s.configured===true && s.authenticated===true && s.webhookConfigured===true ? 0 : 1);
-            NODE
-            then break; fi
+            if [ "$razorpay_http" = '200' ] && [ "$shiprocket_http" = '200' ] && node -e 'const fs=require("node:fs"); const r=JSON.parse(fs.readFileSync("/tmp/razorpay-final.json","utf8")); const s=JSON.parse(fs.readFileSync("/tmp/shiprocket-final.json","utf8")); process.exit(r.authenticated===true&&r.mode==="live"&&r.productionReady===true&&s.configured===true&&s.authenticated===true&&s.webhookConfigured===true?0:1);'
+            then
+              healthy=true
+              break
+            fi
             sleep 5
           done
-
-          node - <<'NODE'
-          const fs=require('node:fs');
-          const r=JSON.parse(fs.readFileSync('/tmp/razorpay-final.json','utf8'));
-          const s=JSON.parse(fs.readFileSync('/tmp/shiprocket-final.json','utf8'));
-          if (!(r.authenticated===true && r.mode==='live' && r.productionReady===true)) process.exit(1);
-          if (!(s.configured===true && s.authenticated===true && s.webhookConfigured===true)) process.exit(1);
-          NODE
+          if [ "$healthy" != 'true' ]; then
+            echo '::error::Combined Razorpay/Shiprocket production verification failed.'
+            exit 1
+          fi
 
           order_status=$(curl --silent --show-error --output /tmp/order-probe.json --write-out '%{http_code}' \
             -H 'Content-Type: application/json' --data '{}' "${BASE_URL}/api/razorpay/order" || true)
