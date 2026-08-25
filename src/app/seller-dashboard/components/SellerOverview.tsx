@@ -5,6 +5,7 @@ import Icon from '@/components/ui/AppIcon';
 import { useAuth } from '@/contexts/AuthContext';
 import { createClient } from '@/lib/supabase/client';
 import { formatMoney, useSellerBulkOrders } from '@/lib/hooks/useAccountOrders';
+import LowStockNotifications from '@/app/seller-dashboard/components/LowStockNotifications';
 
 type SellerTab = 'orders' | 'inventory' | 'upload' | 'courier' | 'earnings' | 'analytics' | 'profile' | 'billing';
 type Props = { onNavigate: (tab: SellerTab) => void };
@@ -175,6 +176,9 @@ export default function SellerOverview({ onNavigate }: Props) {
           {error}
         </div>
       )}
+
+      {/* Low Stock Notifications */}
+      <LowStockNotifications />
 
       {/* KPI cards */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">

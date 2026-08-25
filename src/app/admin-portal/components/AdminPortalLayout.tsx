@@ -24,9 +24,10 @@ import AdminErrorMonitor from '@/app/admin-portal/components/AdminErrorMonitor';
 import AdminFulfillmentAnalytics from '@/app/admin-portal/components/AdminFulfillmentAnalytics';
 import AdminSellerMetrics from '@/app/admin-portal/components/AdminSellerMetrics';
 import AdminDisputes from '@/app/admin-portal/components/AdminDisputes';
+import AdminPayoutRequests from '@/app/admin-portal/components/AdminPayoutRequests';
 
 type AdminTab =
-  | 'dashboard' |'orders' |'listings' |'customers' |'sellers' |'payments' |'disputes' |'reconciliation' |'fulfillment' |'seller-metrics' |'top-sellers' |'discounts' |'activity' |'errors' |'settings';
+  | 'dashboard' |'orders' |'listings' |'customers' |'sellers' |'payments' |'disputes' |'reconciliation' |'fulfillment' |'seller-metrics' |'top-sellers' |'discounts' |'activity' |'errors' |'settings' | 'payout-requests';
 
 type NavItem = {
   key: AdminTab;
@@ -61,6 +62,7 @@ const navGroups: NavGroup[] = [
     label: 'Finance',
     items: [
       { key: 'payments', label: 'Payments', icon: 'CreditCardIcon' },
+      { key: 'payout-requests', label: 'Payout Requests', icon: 'BanknotesIcon', badge: 0 },
       { key: 'disputes', label: 'Returns & disputes', icon: 'ChatBubbleLeftRightIcon' },
       { key: 'reconciliation', label: 'Reconciliation', icon: 'ArrowsRightLeftIcon' },
     ],
@@ -95,6 +97,7 @@ const tabTitles: Record<AdminTab, string> = {
   customers: 'Customers',
   sellers: 'Sellers',
   payments: 'Payments',
+  'payout-requests': 'Payout Requests',
   disputes: 'Returns & Disputes',
   reconciliation: 'Reconciliation',
   fulfillment: 'Fulfillment',
@@ -299,6 +302,7 @@ export default function AdminPortalLayout() {
             {activeTab === 'customers' && <AdminCustomers />}
             {activeTab === 'sellers' && <AdminSellers />}
             {activeTab === 'payments' && <AdminPayments />}
+            {activeTab === 'payout-requests' && <AdminPayoutRequests />}
             {activeTab === 'disputes' && <AdminDisputes />}
             {activeTab === 'reconciliation' && <AdminReconciliation />}
             {activeTab === 'fulfillment' && <AdminFulfillmentAnalytics />}

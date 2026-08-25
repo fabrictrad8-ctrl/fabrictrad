@@ -10,13 +10,14 @@ import ProfileMenu from '@/components/ProfileMenu';
 import BuyerOverview from '@/app/buyer-dashboard/components/BuyerOverview';
 import BuyerOrders from '@/app/buyer-dashboard/components/BuyerOrders';
 import BuyerTracking from '@/app/buyer-dashboard/components/BuyerTracking';
+import BuyerPayment from '@/app/buyer-dashboard/components/BuyerPayment';
 import DisputeMessaging from '@/app/buyer-dashboard/components/DisputeMessaging';
 import BuyerMessageCenter from '@/app/buyer-dashboard/components/BuyerMessageCenter';
 import NotificationPreferences from '@/app/components/NotificationPreferences';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCart } from '@/lib/hooks/useCart';
 
-type DashboardTab = 'overview' | 'orders' | 'tracking' | 'cart' | 'requirements' | 'disputes' | 'messages' | 'notifications' | 'account';
+type DashboardTab = 'overview' | 'orders' | 'tracking' | 'cart' | 'requirements' | 'disputes' | 'messages' | 'notifications' | 'account' | 'payments';
 type NavItem = { key: DashboardTab; label: string; icon: string; description: string };
 
 const navGroups: Array<{ label: string; items: NavItem[] }> = [
@@ -25,6 +26,7 @@ const navGroups: Array<{ label: string; items: NavItem[] }> = [
     items: [
       { key: 'overview', label: 'Your account', icon: 'HomeIcon', description: 'Orders and buying shortcuts' },
       { key: 'orders', label: 'Your orders', icon: 'ShoppingBagIcon', description: 'Payment, invoices and order status' },
+      { key: 'payments', label: 'Payments', icon: 'CreditCardIcon', description: 'Pay for orders and download invoices' },
       { key: 'tracking', label: 'Track packages', icon: 'TruckIcon', description: 'Shipment and delivery status' },
       { key: 'cart', label: 'Cart', icon: 'ShoppingCartIcon', description: 'Products to review before ordering' },
     ],
@@ -56,6 +58,7 @@ const money = (value: number) =>
 const _tabTitles: Record<DashboardTab, string> = {
   overview: 'Your Account',
   orders: 'Your Orders',
+  payments: 'Payments',
   tracking: 'Track Packages',
   cart: 'Cart',
   requirements: 'Sourcing Requests',
@@ -380,6 +383,7 @@ export default function ModernBuyerDashboardLayout() {
             {activeTab !== 'overview' && (
               <div className="rounded-xl border border-[#e1e3e5] bg-white p-5 shadow-sm sm:p-6">
                 {activeTab === 'orders' && <BuyerOrders />}
+                {activeTab === 'payments' && <BuyerPayment />}
                 {activeTab === 'tracking' && <BuyerTracking />}
                 {activeTab === 'cart' && (
                   <div>

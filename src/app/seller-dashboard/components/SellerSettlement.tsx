@@ -65,6 +65,29 @@ type CategoryStat = {
   color: string;
 };
 
+type WithdrawalForm = {
+  amount: string;
+  bankName: string;
+  accountNumber: string;
+  confirmAccountNumber: string;
+  ifscCode: string;
+  accountHolderName: string;
+  note: string;
+};
+
+type WithdrawalRequest = {
+  id: string;
+  amount: number;
+  bankName: string;
+  accountNumber: string;
+  ifscCode: string;
+  accountHolderName: string;
+  status: 'pending' | 'approved' | 'completed' | 'rejected';
+  submittedAt: string;
+  processedAt: string | null;
+  adminNote: string | null;
+};
+
 const CATEGORY_COLORS = ['#008060', '#f59e0b', '#6366f1', '#ec4899', '#14b8a6', '#f97316'];
 
 const money = (v: number) =>
@@ -215,10 +238,20 @@ export default function SellerSettlement() {
   const [payouts, setPayouts] = useState<PayoutRecord[]>([]);
   const [taxSummary, setTaxSummary] = useState<TaxSummary[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeView, setActiveView] = useState<'overview' | 'analytics' | 'history' | 'tax' | 'schedule'>('overview');
+  const [activeView, setActiveView] = useState<'overview' | 'analytics' | 'history' | 'tax' | 'schedule' | 'withdraw'>('overview');
   const [selectedPayout, setSelectedPayout] = useState<PayoutRecord | null>(null);
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [trendPeriod, setTrendPeriod] = useState<30 | 60 | 90>(30);
+
+  // Withdrawal state
+  const [withdrawalRequests, setWithdrawalRequests] = useState<WithdrawalRequest[]>([]);
+  const [withdrawalForm, setWithdrawalForm] = useState<WithdrawalForm>({
+    amount: '', bankName: '', accountNumber: '', confirmAccountNumber: '',
+    ifscCode: '', accountHolderName: '', note: '',
+  });
+  const [submittingWithdrawal, setSubmittingWithdrawal] = useState(false);
+  const [withdrawalError, setWithdrawalError] = useState('');
+  const [withdrawalSuccess, setWithdrawalSuccess] = useState('');
 
   const load = useCallback(async () => {
     if (!user?.id) return;
@@ -258,6 +291,29 @@ export default function SellerSettlement() {
       } else {
         setPayouts(buildMockPayouts(user.id));
       }
+
+      // Load withdrawal requests
+      const { data: withdrawals } = await supabase
+        .from('seller_payout_requests')
+        .select('id,amount,bank_name,account_number,ifsc_code,account_holder_name,status,submitted_at,processed_at,admin_note')
+        .eq('seller_id', user.id)
+        .order('submitted_at', { ascending: false })
+        .limit(20);
+
+      if (withdrawals) {
+        setWithdrawalRequests((withdrawals as unknown as Record<string, unknown>[]).map((w) => ({
+          id: String(w.id),
+          amount: Number(w.amount || 0),
+          bankName: String(w.bank_name || ''),
+          accountNumber: String(w.account_number || ''),
+          ifscCode: String(w.ifsc_code || ''),
+          accountHolderName: String(w.account_holder_name || ''),
+          status: (w.status as WithdrawalRequest['status']) || 'pending',
+          submittedAt: String(w.submitted_at || ''),
+          processedAt: w.processed_at ? String(w.processed_at) : null,
+          adminNote: w.admin_note ? String(w.admin_note) : null,
+        })));
+      }
     } catch {
       setPayouts(buildMockPayouts(user.id));
     }
@@ -266,6 +322,68 @@ export default function SellerSettlement() {
   }, [user?.id, supabase]);
 
   useEffect(() => { void load(); }, [load]);
+
+  const submitWithdrawal = async () => {
+    setWithdrawalError('');
+    setWithdrawalSuccess('');
+    const amount = Number(withdrawalForm.amount);
+    if (!amount || amount < 100) {
+      setWithdrawalError('Minimum withdrawal amount is ₹100.');
+      return;
+    }
+    if (!withdrawalForm.bankName.trim()) {
+      setWithdrawalError('Bank name is required.');
+      return;
+    }
+    if (!withdrawalForm.accountNumber.trim()) {
+      setWithdrawalError('Account number is required.');
+      return;
+    }
+    if (withdrawalForm.accountNumber !== withdrawalForm.confirmAccountNumber) {
+      setWithdrawalError('Account numbers do not match.');
+      return;
+    }
+    if (!withdrawalForm.ifscCode.trim() || withdrawalForm.ifscCode.length < 11) {
+      setWithdrawalError('Enter a valid 11-character IFSC code.');
+      return;
+    }
+    if (!withdrawalForm.accountHolderName.trim()) {
+      setWithdrawalError('Account holder name is required.');
+      return;
+    }
+
+    setSubmittingWithdrawal(true);
+    try {
+      const { data: seller } = await supabase
+        .from('seller_profiles')
+        .select('id')
+        .eq('user_id', user?.id)
+        .maybeSingle();
+
+      if (!seller?.id) throw new Error('Seller profile not found.');
+
+      const { error } = await supabase.from('seller_payout_requests').insert({
+        seller_id: seller.id,
+        amount,
+        bank_name: withdrawalForm.bankName.trim(),
+        account_number: withdrawalForm.accountNumber.trim(),
+        ifsc_code: withdrawalForm.ifscCode.trim().toUpperCase(),
+        account_holder_name: withdrawalForm.accountHolderName.trim(),
+        status: 'pending',
+        submitted_at: new Date().toISOString(),
+      });
+
+      if (error) throw error;
+
+      setWithdrawalSuccess('Withdrawal request submitted successfully! Admin will review within 1–2 business days.');
+      setWithdrawalForm({ amount: '', bankName: '', accountNumber: '', confirmAccountNumber: '', ifscCode: '', accountHolderName: '', note: '' });
+      void load();
+    } catch (err) {
+      setWithdrawalError(err instanceof Error ? err.message : 'Failed to submit withdrawal request.');
+    } finally {
+      setSubmittingWithdrawal(false);
+    }
+  };
 
   const stats = useMemo(() => {
     const settled = payouts.filter((p) => p.payoutStatus === 'settled');
@@ -366,7 +484,7 @@ export default function SellerSettlement() {
 
       {/* Tab Navigation */}
       <div className="flex gap-1 rounded-xl bg-gray-100 p-1 overflow-x-auto">
-        {(['overview', 'analytics', 'history', 'tax', 'schedule'] as const).map((view) => (
+        {(['overview', 'analytics', 'history', 'tax', 'schedule', 'withdraw'] as const).map((view) => (
           <button
             key={view}
             type="button"
@@ -375,7 +493,7 @@ export default function SellerSettlement() {
               activeView === view ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
             }`}
           >
-            {view === 'overview' ? 'Overview' : view === 'analytics' ? '📊 Analytics' : view === 'history' ? 'Payment History' : view === 'tax' ? 'Tax Summary' : 'Payout Schedule'}
+            {view === 'overview' ? 'Overview' : view === 'analytics' ? '📊 Analytics' : view === 'history' ? 'Payment History' : view === 'tax' ? 'Tax Summary' : view === 'schedule' ? 'Payout Schedule' : '💸 Withdraw'}
           </button>
         ))}
       </div>
@@ -730,6 +848,182 @@ export default function SellerSettlement() {
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Withdrawal Tab */}
+      {activeView === 'withdraw' && (
+        <div className="space-y-6">
+          {/* Withdrawal Request Form */}
+          <div className="rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
+            <h3 className="mb-1 text-base font-700 text-gray-900">Request Withdrawal</h3>
+            <p className="mb-5 text-sm text-gray-500">Submit a payout request to your bank account. Admin will review and process within 1–2 business days.</p>
+
+            {withdrawalSuccess && (
+              <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+                <div className="flex items-center gap-2 text-emerald-700">
+                  <Icon name="CheckCircleIcon" size={16} className="shrink-0" />
+                  <p className="text-sm font-600">{withdrawalSuccess}</p>
+                </div>
+              </div>
+            )}
+
+            {withdrawalError && (
+              <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-4">
+                <div className="flex items-center gap-2 text-red-700">
+                  <Icon name="ExclamationCircleIcon" size={16} className="shrink-0" />
+                  <p className="text-sm">{withdrawalError}</p>
+                </div>
+              </div>
+            )}
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="sm:col-span-2">
+                <label className="block text-sm font-600 text-gray-700 mb-1.5">
+                  Withdrawal Amount (₹) *
+                </label>
+                <input
+                  type="number"
+                  min="100"
+                  step="1"
+                  value={withdrawalForm.amount}
+                  onChange={(e) => setWithdrawalForm({ ...withdrawalForm, amount: e.target.value })}
+                  placeholder="Enter amount (min ₹100)"
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm focus:border-[#008060] focus:outline-none"
+                />
+                <p className="mt-1 text-xs text-gray-400">Available balance: {money(stats.totalSettled)}</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-600 text-gray-700 mb-1.5">Bank Name *</label>
+                <input
+                  type="text"
+                  value={withdrawalForm.bankName}
+                  onChange={(e) => setWithdrawalForm({ ...withdrawalForm, bankName: e.target.value })}
+                  placeholder="e.g. State Bank of India"
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm focus:border-[#008060] focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-600 text-gray-700 mb-1.5">Account Holder Name *</label>
+                <input
+                  type="text"
+                  value={withdrawalForm.accountHolderName}
+                  onChange={(e) => setWithdrawalForm({ ...withdrawalForm, accountHolderName: e.target.value })}
+                  placeholder="Name as on bank account"
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm focus:border-[#008060] focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-600 text-gray-700 mb-1.5">Account Number *</label>
+                <input
+                  type="text"
+                  value={withdrawalForm.accountNumber}
+                  onChange={(e) => setWithdrawalForm({ ...withdrawalForm, accountNumber: e.target.value })}
+                  placeholder="Enter account number"
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm focus:border-[#008060] focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-600 text-gray-700 mb-1.5">Confirm Account Number *</label>
+                <input
+                  type="text"
+                  value={withdrawalForm.confirmAccountNumber}
+                  onChange={(e) => setWithdrawalForm({ ...withdrawalForm, confirmAccountNumber: e.target.value })}
+                  placeholder="Re-enter account number"
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm focus:border-[#008060] focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-600 text-gray-700 mb-1.5">IFSC Code *</label>
+                <input
+                  type="text"
+                  value={withdrawalForm.ifscCode}
+                  onChange={(e) => setWithdrawalForm({ ...withdrawalForm, ifscCode: e.target.value.toUpperCase() })}
+                  placeholder="e.g. SBIN0001234"
+                  maxLength={11}
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm font-mono uppercase focus:border-[#008060] focus:outline-none"
+                />
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => void submitWithdrawal()}
+              disabled={submittingWithdrawal}
+              className="mt-5 w-full rounded-xl bg-[#008060] py-3 text-sm font-700 text-white hover:bg-[#006b52] transition disabled:opacity-60 flex items-center justify-center gap-2"
+            >
+              {submittingWithdrawal ? (
+                <>
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                  Submitting request…
+                </>
+              ) : (
+                <>
+                  <Icon name="BanknotesIcon" size={16} />
+                  Submit Withdrawal Request
+                </>
+              )}
+            </button>
+          </div>
+
+          {/* Past Withdrawal Requests */}
+          {withdrawalRequests.length > 0 && (
+            <div className="space-y-3">
+              <h3 className="text-base font-700 text-gray-900">Withdrawal History</h3>
+              {withdrawalRequests.map((req) => {
+                const statusMap = {
+                  pending: { label: 'Pending Review', color: 'text-amber-700', bg: 'bg-amber-50 border-amber-200', icon: 'ClockIcon' },
+                  approved: { label: 'Approved', color: 'text-blue-700', bg: 'bg-blue-50 border-blue-200', icon: 'CheckIcon' },
+                  completed: { label: 'Completed', color: 'text-emerald-700', bg: 'bg-emerald-50 border-emerald-200', icon: 'CheckCircleIcon' },
+                  rejected: { label: 'Rejected', color: 'text-red-700', bg: 'bg-red-50 border-red-200', icon: 'XCircleIcon' },
+                };
+                const cfg = statusMap[req.status] || statusMap.pending;
+                return (
+                  <div key={req.id} className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-700 text-gray-900">{money(req.amount)}</span>
+                          <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-600 ${cfg.bg} ${cfg.color}`}>
+                            <Icon name={cfg.icon as 'ClockIcon'} size={10} />
+                            {cfg.label}
+                          </span>
+                        </div>
+                        <p className="mt-0.5 text-xs text-gray-500">
+                          {req.bankName} · ••••{req.accountNumber.slice(-4)} · {req.ifscCode}
+                        </p>
+                        {req.adminNote && (
+                          <p className="mt-1 text-xs text-gray-400 italic">Note: {req.adminNote}</p>
+                        )}
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="text-xs text-gray-400">
+                          {new Date(req.submittedAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                        </p>
+                        {req.processedAt && (
+                          <p className="text-xs text-gray-400">
+                            Processed {new Date(req.processedAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {withdrawalRequests.length === 0 && !withdrawalSuccess && (
+            <div className="flex min-h-[200px] flex-col items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50">
+              <Icon name="BanknotesIcon" size={32} className="text-gray-300 mb-2" />
+              <p className="text-sm text-gray-500">No withdrawal requests yet</p>
             </div>
           )}
         </div>
