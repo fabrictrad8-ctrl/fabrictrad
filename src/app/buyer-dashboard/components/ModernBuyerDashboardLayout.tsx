@@ -11,11 +11,12 @@ import BuyerOverview from '@/app/buyer-dashboard/components/BuyerOverview';
 import BuyerOrders from '@/app/buyer-dashboard/components/BuyerOrders';
 import BuyerTracking from '@/app/buyer-dashboard/components/BuyerTracking';
 import DisputeMessaging from '@/app/buyer-dashboard/components/DisputeMessaging';
+import BuyerMessageCenter from '@/app/buyer-dashboard/components/BuyerMessageCenter';
 import NotificationPreferences from '@/app/components/NotificationPreferences';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCart } from '@/lib/hooks/useCart';
 
-type DashboardTab = 'overview' | 'orders' | 'tracking' | 'cart' | 'requirements' | 'disputes' | 'notifications' | 'account';
+type DashboardTab = 'overview' | 'orders' | 'tracking' | 'cart' | 'requirements' | 'disputes' | 'messages' | 'notifications' | 'account';
 type NavItem = { key: DashboardTab; label: string; icon: string; description: string };
 
 const navGroups: Array<{ label: string; items: NavItem[] }> = [
@@ -32,7 +33,8 @@ const navGroups: Array<{ label: string; items: NavItem[] }> = [
     label: 'Sourcing',
     items: [
       { key: 'requirements', label: 'Sourcing requests', icon: 'MegaphoneIcon', description: 'Post what you need' },
-      { key: 'disputes', label: 'Messages & disputes', icon: 'ChatBubbleLeftRightIcon', description: 'Seller and support conversations' },
+      { key: 'messages', label: 'Message center', icon: 'ChatBubbleLeftRightIcon', description: 'Direct seller conversations' },
+      { key: 'disputes', label: 'Disputes', icon: 'FlagIcon', description: 'Support cases and disputes' },
     ],
   },
   {
@@ -57,7 +59,8 @@ const _tabTitles: Record<DashboardTab, string> = {
   tracking: 'Track Packages',
   cart: 'Cart',
   requirements: 'Sourcing Requests',
-  disputes: 'Messages & Disputes',
+  disputes: 'Disputes',
+  messages: 'Message Center',
   notifications: 'Notifications',
   account: 'Profile & Addresses',
 };
@@ -424,6 +427,7 @@ export default function ModernBuyerDashboardLayout() {
                   </div>
                 )}
                 {activeTab === 'disputes' && <DisputeMessaging mode="buyer" />}
+                {activeTab === 'messages' && <BuyerMessageCenter mode="buyer" />}
                 {activeTab === 'notifications' && <NotificationPreferences mode="buyer" />}
                 {activeTab === 'requirements' && (
                   <div className="grid gap-5 lg:grid-cols-[1fr_320px]">
@@ -492,25 +496,20 @@ export default function ModernBuyerDashboardLayout() {
         {[
           { key: 'overview' as DashboardTab, label: 'Home', icon: 'HomeIcon' },
           { key: 'orders' as DashboardTab, label: 'Orders', icon: 'ShoppingBagIcon' },
+          { key: 'messages' as DashboardTab, label: 'Messages', icon: 'ChatBubbleLeftRightIcon' },
           { key: 'tracking' as DashboardTab, label: 'Track', icon: 'TruckIcon' },
-          { key: 'cart' as DashboardTab, label: 'Cart', icon: 'ShoppingCartIcon' },
           { key: 'account' as DashboardTab, label: 'Account', icon: 'UserCircleIcon' },
         ].map((item) => (
           <button
             key={item.key}
             type="button"
             onClick={() => navigateTo(item.key)}
-            className={`relative flex flex-col items-center gap-1 rounded-lg py-2 text-[10px] font-700 transition ${
+            className={`relative flex flex-col items-center gap-1 rounded-lg py-2 text-[10px] font-700 transition min-h-[48px] ${
               activeTab === item.key ? 'bg-[#febd69]/20 text-[#131921]' : 'text-muted-foreground'
             }`}
           >
             <Icon name={item.icon as 'HomeIcon'} size={18} />
             {item.label}
-            {item.key === 'cart' && lineCount > 0 && (
-              <span className="absolute right-[22%] top-1 grid h-4 min-w-4 place-items-center rounded-full bg-[#febd69] px-1 text-[9px] font-700 text-[#131921]">
-                {lineCount}
-              </span>
-            )}
           </button>
         ))}
       </nav>

@@ -1,0 +1,99 @@
+/* Mobile touch targets and viewport fixes for all dashboards */
+
+/* Minimum touch target size - 44px per WCAG */
+button, a, [role="button"] {
+  min-height: 44px;
+}
+
+/* Exception for inline icon-only buttons that are explicitly sized */
+button.min-h-auto, a.min-h-auto {
+  min-height: unset;
+}
+
+/* Prevent viewport zoom on input focus on iOS */
+@media screen and (max-width: 768px) {
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="number"],
+  input[type="tel"],
+  input[type="url"],
+  input[type="search"],
+  input[type="date"],
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* Sidebar collapse fix - ensure proper z-index stacking */
+.sidebar-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: rgba(0, 0, 0, 0.6);
+}
+
+.sidebar-panel {
+  position: fixed;
+  inset-y: 0;
+  left: 0;
+  z-index: 50;
+  width: min(88vw, 260px);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+}
+
+/* Chart responsiveness */
+.recharts-wrapper {
+  max-width: 100% !important;
+}
+
+.recharts-surface {
+  overflow: visible;
+}
+
+/* Modal touch targets */
+[role="dialog"] button,
+[role="dialog"] a {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* Prevent horizontal overflow on mobile */
+@media screen and (max-width: 640px) {
+  .overflow-x-auto {
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  /* Stack grid columns on mobile */
+  .mobile-stack {
+    grid-template-columns: 1fr !important;
+  }
+  
+  /* Ensure tables scroll horizontally */
+  table {
+    min-width: 600px;
+  }
+  
+  .table-wrapper {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* Fix layout stacking for dashboard content areas */
+@media screen and (max-width: 768px) {
+  .dashboard-content {
+    padding-bottom: 80px; /* Space for mobile bottom nav */
+  }
+}
+
+/* Notification badge animation */
+@keyframes badge-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+}
+
+.notification-badge {
+  animation: badge-pulse 2s ease-in-out infinite;
+}
