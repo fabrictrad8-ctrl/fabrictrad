@@ -14,12 +14,26 @@
   line-height: 18px;
   letter-spacing: 0;
   white-space: nowrap;
+  transition: color .18s ease, background-color .18s ease;
 }
 
 .ft-future-navlinks summary:hover,
 .ft-future-navlinks details[open] > summary {
   background: rgba(255,255,255,.07);
   color: #fff;
+}
+
+/* The public landing is light-only in the current commerce release. The
+   dropdown summary used to inherit the dark-navigation colour above, which is
+   why "How to use" appeared washed out beside the normal anchor links. */
+html:not(.dark) .ft-future-navlinks summary {
+  color: #475467;
+}
+
+html:not(.dark) .ft-future-navlinks summary:hover,
+html:not(.dark) .ft-future-navlinks details[open] > summary {
+  background: #f4f6f8;
+  color: #111827;
 }
 
 .ft-future-navlinks summary::-webkit-details-marker {
