@@ -35,7 +35,7 @@ export default function PreferenceControls({
           aria-label={`${t('preferences.language')}: ${selectedLanguage?.label || 'English'}`}
         >
           <Icon name="LanguageIcon" size={17} className="text-primary" />
-          {!compact && <span>{selectedLanguage?.label || 'English'}</span>}
+          <span>{compact ? language.toUpperCase() : selectedLanguage?.label || 'English'}</span>
           <Icon name="ChevronDownIcon" size={13} className={`text-muted-foreground transition ${languageOpen ? 'rotate-180' : ''}`} />
         </button>
         {languageOpen && (
