@@ -1,0 +1,41 @@
+name: Apply public How to use chooser
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/public-how-to-use-hotfix.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Apply public How to use flow
+        run: python scripts/apply-public-how-to-use-flow.py
+
+      - name: Validate source
+        run: |
+          npm install --no-audit --no-fund --package-lock=false --legacy-peer-deps
+          npm run type-check
+          npm run lint -- --quiet
+
+      - name: Commit public guide flow
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/app/how-to-use/page.tsx src/app/components/PublicAccessLanding.tsx src/components/Header.tsx src/middleware.ts
+          git diff --cached --quiet && exit 0
+          git commit -m "ui: make How to use a public buyer seller chooser"
+          git pull --rebase origin main
+          git push origin HEAD:main
