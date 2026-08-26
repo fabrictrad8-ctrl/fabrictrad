@@ -18,6 +18,7 @@ const PUBLIC_PATHS = new Set([
   '/auth/reset-password',
   '/help',
   '/how-to-use',
+  '/how-to-use/start',
   '/privacy',
   '/terms',
 ]);
