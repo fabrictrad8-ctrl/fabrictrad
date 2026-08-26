@@ -1,34 +1,31 @@
+'use client';
+
 import Link from 'next/link';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import Icon from '@/components/ui/AppIcon';
-
-const guideOptions = [
-  {
-    role: 'buyer',
-    eyebrow: 'For buyers',
-    title: 'How to buy on FabricTrad',
-    description:
-      'Learn how to set up buying, find fabrics, inspect listings, place an order, pay securely and track fulfilment.',
-    icon: 'ShoppingBagIcon',
-    href: '/how-to-use?role=buyer',
-    accent: 'orange',
-    bullets: ['Search and compare products', 'Order and payment flow', 'Shipment tracking'],
-  },
-  {
-    role: 'seller',
-    eyebrow: 'For sellers',
-    title: 'How to sell on FabricTrad',
-    description:
-      'Learn seller activation, business verification, catalogue creation, inventory, incoming orders and fulfilment.',
-    icon: 'BuildingStorefrontIcon',
-    href: '/how-to-use?role=seller',
-    accent: 'teal',
-    bullets: ['Business and GST verification', 'Products and inventory', 'Orders and fulfilment'],
-  },
-] as const;
+import { useAppPreferences } from '@/contexts/AppPreferencesContext';
+import { getHowToUseCopy } from '@/lib/howToUseTranslations';
 
 export default function HowToUseStartPage() {
+  const { language } = useAppPreferences();
+  const copy = getHowToUseCopy(language).start;
+
+  const guideOptions = [
+    {
+      role: 'buyer' as const,
+      ...copy.buyer,
+      icon: 'ShoppingBagIcon',
+      href: '/how-to-use?role=buyer',
+    },
+    {
+      role: 'seller' as const,
+      ...copy.seller,
+      icon: 'BuildingStorefrontIcon',
+      href: '/how-to-use?role=seller',
+    },
+  ];
+
   return (
     <main className="ft-storefront min-h-screen bg-slate-50">
       <Header />
@@ -37,16 +34,16 @@ export default function HowToUseStartPage() {
           <div className="mx-auto max-w-5xl text-center">
             <div className="mx-auto inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-850 text-emerald-700">
               <Icon name="LockOpenIcon" size={15} />
-              Public guides · no sign-in required
+              {copy.publicBadge}
             </div>
             <p className="mt-6 text-xs font-850 uppercase tracking-[0.18em] text-orange-700">
-              How to use FabricTrad
+              {copy.eyebrow}
             </p>
             <h1 className="mx-auto mt-3 max-w-4xl text-4xl font-900 tracking-[-0.045em] text-slate-950 sm:text-5xl">
-              Choose how you want to use FabricTrad.
+              {copy.title}
             </h1>
             <p className="mx-auto mt-4 max-w-2xl text-sm leading-7 text-slate-600 sm:text-base">
-              Select Buyer or Seller to watch the relevant guided walkthrough. You do not need an account and you do not need to log in to view either guide.
+              {copy.intro}
             </p>
           </div>
         </section>
@@ -100,7 +97,7 @@ export default function HowToUseStartPage() {
                       buyer ? 'bg-orange-700' : 'bg-teal-700'
                     }`}
                   >
-                    Watch {guide.role} guide
+                    {guide.button}
                     <Icon name="ArrowRightIcon" size={16} />
                   </span>
                 </Link>
@@ -110,15 +107,15 @@ export default function HowToUseStartPage() {
 
           <div className="mt-7 flex flex-wrap items-center justify-center gap-3 text-xs text-slate-500">
             <span className="inline-flex items-center gap-1.5">
-              <Icon name="EyeIcon" size={15} /> No account data is loaded
+              <Icon name="EyeIcon" size={15} /> {copy.noAccountData}
             </span>
             <span className="hidden h-1 w-1 rounded-full bg-slate-300 sm:block" />
             <span className="inline-flex items-center gap-1.5">
-              <Icon name="ShieldCheckIcon" size={15} /> Safe public preview
+              <Icon name="ShieldCheckIcon" size={15} /> {copy.safePreview}
             </span>
             <span className="hidden h-1 w-1 rounded-full bg-slate-300 sm:block" />
             <Link href="/help" className="font-800 text-orange-700 hover:text-orange-900">
-              Open help centre
+              {copy.helpCentre}
             </Link>
           </div>
         </section>
