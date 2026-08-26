@@ -3,35 +3,17 @@
 import Link from 'next/link';
 import AppLogo from '@/components/ui/AppLogo';
 import Icon from '@/components/ui/AppIcon';
+import PreferenceControls from '@/components/PreferenceControls';
+import { useAppPreferences } from '@/contexts/AppPreferencesContext';
+import { getPublicLandingCopy } from '@/lib/publicLandingTranslations';
 
-const capabilityCards = [
-  {
-    icon: 'MagnifyingGlassIcon',
-    title: 'Search-first buying',
-    copy: 'Compare verified sellers, stock, MOQ, price, variants and dispatch details from one marketplace.',
-    accent: 'orange',
-  },
-  {
-    icon: 'BuildingStorefrontIcon',
-    title: 'Merchant command centre',
-    copy: 'Run products, inventory, orders, payments, invoices, shipping and analytics without leaving FabricTrad.',
-    accent: 'teal',
-  },
-  {
-    icon: 'SparklesIcon',
-    title: 'AI textile workflows',
-    copy: 'Use AI-assisted catalogue tools and the seller-textile Virtual Drape experience where they add real value.',
-    accent: 'violet',
-  },
-];
-
-const trustItems = [
-  ['ShieldCheckIcon', 'Verified network', 'Seller verification and role-aware account access.'],
-  ['CreditCardIcon', 'Protected payments', 'Seller acceptance followed by server-verified Razorpay payment.'],
-  ['TruckIcon', 'Connected fulfilment', 'Paid-order shipping and tracking stay attached to the same order.'],
-] as const;
+const capabilityIcons = ['MagnifyingGlassIcon', 'BuildingStorefrontIcon', 'SparklesIcon'] as const;
+const trustIcons = ['ShieldCheckIcon', 'CreditCardIcon', 'TruckIcon'] as const;
 
 export default function PublicAccessLanding() {
+  const { language } = useAppPreferences();
+  const copy = getPublicLandingCopy(language);
+
   return (
     <main id="main-content" className="ft-future-landing min-h-screen overflow-hidden text-slate-900">
       <header className="ft-future-topbar">
@@ -42,32 +24,19 @@ export default function PublicAccessLanding() {
           </Link>
 
           <nav className="ft-future-navlinks" aria-label="Public navigation">
-            <a href="#platform">Platform</a>
-            <a href="#capabilities">Capabilities</a>
-            <details className="group relative">
-              <summary className="flex cursor-pointer list-none items-center gap-1 marker:content-none">
-                How to use <Icon name="ChevronDownIcon" size={13} className="transition group-open:rotate-180" />
-              </summary>
-              <div className="absolute left-1/2 top-[calc(100%+12px)] z-50 w-56 -translate-x-1/2 overflow-hidden rounded-2xl border border-slate-200 bg-white p-2 shadow-[0_22px_60px_rgba(15,23,42,0.16)]">
-                <Link href="/how-to-use?role=buyer" className="flex items-center gap-3 rounded-xl px-3 py-3 text-left hover:bg-orange-50">
-                  <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-orange-50 text-orange-700"><Icon name="ShoppingBagIcon" size={17} /></span>
-                  <span><strong className="block text-xs text-slate-900">Buyer walkthrough</strong><span className="mt-0.5 block text-[11px] text-slate-500">Interactive buying flow</span></span>
-                </Link>
-                <Link href="/how-to-use?role=seller" className="mt-1 flex items-center gap-3 rounded-xl px-3 py-3 text-left hover:bg-teal-50">
-                  <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-teal-50 text-teal-700"><Icon name="BuildingStorefrontIcon" size={17} /></span>
-                  <span><strong className="block text-xs text-slate-900">Seller walkthrough</strong><span className="mt-0.5 block text-[11px] text-slate-500">Interactive selling flow</span></span>
-                </Link>
-              </div>
-            </details>
-            <a href="#trust">Trust & safety</a>
+            <a href="#platform">{copy.navPlatform}</a>
+            <a href="#capabilities">{copy.navCapabilities}</a>
+            <Link href="/how-to-use/start">{copy.navHowToUse}</Link>
+            <a href="#trust">{copy.navTrust}</a>
           </nav>
 
           <div className="ml-auto flex items-center gap-2">
+            <PreferenceControls compact />
             <Link href="/login" className="ft-secondary-action inline-flex min-h-10 items-center justify-center rounded-xl px-4 text-sm font-800">
-              Sign in
+              {copy.signIn}
             </Link>
             <Link href="/register" className="ft-primary-action inline-flex min-h-10 items-center justify-center gap-2 rounded-xl px-4 text-sm font-800">
-              Join FabricTrad <Icon name="ArrowRightIcon" size={15} />
+              {copy.joinFabricTrad} <Icon name="ArrowRightIcon" size={15} />
             </Link>
           </div>
         </div>
@@ -77,31 +46,29 @@ export default function PublicAccessLanding() {
         <div className="relative z-10">
           <div className="ft-future-kicker">
             <span className="h-1.5 w-1.5 rounded-full bg-current shadow-[0_0_12px_currentColor]" />
-            India&apos;s textile commerce operating layer
+            {copy.kicker}
           </div>
 
           <h1>
-            Textile trade,<br />
-            <em>rebuilt for now.</em>
+            {copy.titleLead}<br />
+            <em>{copy.titleAccent}</em>
           </h1>
 
-          <p className="ft-future-hero-copy">
-            FabricTrad connects verified textile buyers and sellers around the same real commerce records. Search and source faster, manage catalogue and inventory, collect protected payments, generate documents and move paid orders into fulfilment without duplicate accounts or disconnected tools.
-          </p>
+          <p className="ft-future-hero-copy">{copy.heroCopy}</p>
 
           <div className="ft-future-hero-actions">
             <Link href="/login" className="ft-primary-action rounded-xl">
-              Enter FabricTrad <Icon name="ArrowRightIcon" size={17} />
+              {copy.enterFabricTrad} <Icon name="ArrowRightIcon" size={17} />
             </Link>
-            <Link href="/how-to-use?role=buyer" className="ft-secondary-action rounded-xl">
-              Watch how it works
+            <Link href="/how-to-use/start" className="ft-secondary-action rounded-xl">
+              {copy.watchHowItWorks}
             </Link>
           </div>
 
           <div className="ft-future-trustline">
-            <span><Icon name="ShieldCheckIcon" size={15} className="text-emerald-600" /> Verified seller access</span>
-            <span><Icon name="CreditCardIcon" size={15} className="text-orange-600" /> Protected payment flow</span>
-            <span><Icon name="DevicePhoneMobileIcon" size={15} className="text-teal-600" /> Phone, tablet and desktop</span>
+            <span><Icon name="ShieldCheckIcon" size={15} className="text-emerald-600" /> {copy.verifiedSellerAccess}</span>
+            <span><Icon name="CreditCardIcon" size={15} className="text-orange-600" /> {copy.protectedPaymentFlow}</span>
+            <span><Icon name="DevicePhoneMobileIcon" size={15} className="text-teal-600" /> {copy.deviceSupport}</span>
           </div>
         </div>
 
@@ -110,16 +77,16 @@ export default function PublicAccessLanding() {
             <div className="ft-future-core-inner" />
           </div>
           <div className="ft-future-float-card c1">
-            <strong><span className="dot" />Buyer marketplace</strong>
-            <p>Search, compare, request, pay and track.</p>
+            <strong><span className="dot" />{copy.buyerMarketplace}</strong>
+            <p>{copy.buyerMarketplaceCopy}</p>
           </div>
           <div className="ft-future-float-card c2">
-            <strong><span className="dot" />Seller operations</strong>
-            <p>Products, orders, money and fulfilment.</p>
+            <strong><span className="dot" />{copy.sellerOperations}</strong>
+            <p>{copy.sellerOperationsCopy}</p>
           </div>
           <div className="ft-future-float-card c3">
-            <strong><span className="dot" />AI Virtual Drape</strong>
-            <p>Preview the seller textile on your photo or an AI model.</p>
+            <strong><span className="dot" />{copy.aiVirtualDrape}</strong>
+            <p>{copy.aiVirtualDrapeCopy}</p>
           </div>
         </div>
       </section>
@@ -128,25 +95,25 @@ export default function PublicAccessLanding() {
         <div className="rounded-[30px] border border-slate-200 bg-white/80 p-6 shadow-[0_24px_80px_rgba(15,23,42,0.08)] backdrop-blur-xl sm:p-9">
           <div className="grid gap-8 lg:grid-cols-[0.8fr_1.2fr] lg:items-end">
             <div>
-              <p className="text-xs font-850 uppercase tracking-[0.16em] text-orange-700">One platform, two focused workspaces</p>
-              <h2 className="mt-3 text-3xl font-850 tracking-[-0.04em] text-slate-900 sm:text-5xl">Simple at the surface. Serious underneath.</h2>
-              <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-600">Buyers should feel like they are shopping, not operating an ERP. Sellers should feel like they are running a modern store, not navigating a buyer website.</p>
+              <p className="text-xs font-850 uppercase tracking-[0.16em] text-orange-700">{copy.workspacesKicker}</p>
+              <h2 className="mt-3 text-3xl font-850 tracking-[-0.04em] text-slate-900 sm:text-5xl">{copy.workspacesTitle}</h2>
+              <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-600">{copy.workspacesCopy}</p>
             </div>
             <div className="grid gap-3 sm:grid-cols-3">
               <div className="rounded-2xl border border-orange-200 bg-orange-50 p-4">
-                <p className="text-xs font-850 uppercase tracking-wider text-orange-700">Buyer</p>
-                <p className="mt-2 text-sm font-800 text-slate-900">Marketplace-first</p>
-                <p className="mt-1 text-xs leading-5 text-slate-600">Discovery, orders, payment and tracking.</p>
+                <p className="text-xs font-850 uppercase tracking-wider text-orange-700">{copy.buyer}</p>
+                <p className="mt-2 text-sm font-800 text-slate-900">{copy.marketplaceFirst}</p>
+                <p className="mt-1 text-xs leading-5 text-slate-600">{copy.buyerWorkspaceCopy}</p>
               </div>
               <div className="rounded-2xl border border-teal-200 bg-teal-50 p-4">
-                <p className="text-xs font-850 uppercase tracking-wider text-teal-700">Seller</p>
-                <p className="mt-2 text-sm font-800 text-slate-900">Operations-first</p>
-                <p className="mt-1 text-xs leading-5 text-slate-600">Catalogue, fulfilment, earnings and analytics.</p>
+                <p className="text-xs font-850 uppercase tracking-wider text-teal-700">{copy.seller}</p>
+                <p className="mt-2 text-sm font-800 text-slate-900">{copy.operationsFirst}</p>
+                <p className="mt-1 text-xs leading-5 text-slate-600">{copy.sellerWorkspaceCopy}</p>
               </div>
               <div className="rounded-2xl border border-violet-200 bg-violet-50 p-4">
-                <p className="text-xs font-850 uppercase tracking-wider text-violet-700">Admin</p>
-                <p className="mt-2 text-sm font-800 text-slate-900">Control-first</p>
-                <p className="mt-1 text-xs leading-5 text-slate-600">Verification, risk, transactions and operations.</p>
+                <p className="text-xs font-850 uppercase tracking-wider text-violet-700">{copy.admin}</p>
+                <p className="mt-2 text-sm font-800 text-slate-900">{copy.controlFirst}</p>
+                <p className="mt-1 text-xs leading-5 text-slate-600">{copy.adminWorkspaceCopy}</p>
               </div>
             </div>
           </div>
@@ -157,20 +124,20 @@ export default function PublicAccessLanding() {
         <article className="ft-future-panel large">
           <div>
             <div className="ft-future-panel-icon"><Icon name="ArrowsRightLeftIcon" size={22} /></div>
-            <p className="mt-6 text-xs font-850 uppercase tracking-[0.16em] text-orange-700">A connected order lifecycle</p>
-            <h2 className="mt-3 max-w-xl text-4xl leading-tight text-slate-900">From product discovery to paid fulfilment without losing context.</h2>
-            <p className="mt-4 max-w-xl text-sm text-slate-600">Every important step remains attached to the real order: seller acceptance, Razorpay capture, invoice generation, shipment creation, tracking and support.</p>
+            <p className="mt-6 text-xs font-850 uppercase tracking-[0.16em] text-orange-700">{copy.lifecycleKicker}</p>
+            <h2 className="mt-3 max-w-xl text-4xl leading-tight text-slate-900">{copy.lifecycleTitle}</h2>
+            <p className="mt-4 max-w-xl text-sm text-slate-600">{copy.lifecycleCopy}</p>
           </div>
           <div className="ft-future-steps">
-            <div className="ft-future-step"><b>01</b><span>Discover a live product or post a sourcing requirement.</span></div>
-            <div className="ft-future-step"><b>02</b><span>Seller confirms the order and stock before payment opens.</span></div>
-            <div className="ft-future-step"><b>03</b><span>Verified payment unlocks invoicing, earnings and fulfilment.</span></div>
+            <div className="ft-future-step"><b>01</b><span>{copy.lifecycleStepOne}</span></div>
+            <div className="ft-future-step"><b>02</b><span>{copy.lifecycleStepTwo}</span></div>
+            <div className="ft-future-step"><b>03</b><span>{copy.lifecycleStepThree}</span></div>
           </div>
         </article>
 
-        {capabilityCards.map((item) => (
+        {copy.capabilities.map((item, index) => (
           <article key={item.title} className="ft-future-panel">
-            <div className="ft-future-panel-icon"><Icon name={item.icon as 'SparklesIcon'} size={21} /></div>
+            <div className="ft-future-panel-icon"><Icon name={capabilityIcons[index] as 'SparklesIcon'} size={21} /></div>
             <h3 className="mt-5 text-xl text-slate-900">{item.title}</h3>
             <p className="mt-3 text-sm text-slate-600">{item.copy}</p>
           </article>
@@ -178,8 +145,8 @@ export default function PublicAccessLanding() {
 
         <article className="ft-future-panel">
           <div className="ft-future-panel-icon"><Icon name="LockClosedIcon" size={21} /></div>
-          <h3 className="mt-5 text-xl text-slate-900">Private commerce, public guidance</h3>
-          <p className="mt-3 text-sm text-slate-600">Live marketplace records and account data stay behind sign-in, while the Buyer and Seller interactive walkthroughs remain public so anyone can learn FabricTrad first.</p>
+          <h3 className="mt-5 text-xl text-slate-900">{copy.privateGuidanceTitle}</h3>
+          <p className="mt-3 text-sm text-slate-600">{copy.privateGuidanceCopy}</p>
         </article>
       </section>
 
@@ -187,16 +154,16 @@ export default function PublicAccessLanding() {
         <div className="rounded-[30px] border border-slate-200 bg-white p-6 shadow-[0_20px_70px_rgba(15,23,42,0.08)] sm:p-9">
           <div className="grid gap-8 lg:grid-cols-[1fr_auto] lg:items-end">
             <div>
-              <p className="text-xs font-850 uppercase tracking-[0.16em] text-orange-700">Built for trust at scale</p>
-              <h2 className="mt-3 max-w-3xl text-3xl font-850 tracking-[-0.035em] text-slate-900 sm:text-4xl">Clear commerce beats visual noise.</h2>
-              <p className="mt-4 max-w-3xl text-sm leading-7 text-slate-600">FabricTrad prioritises readable contrast, obvious next actions, role-specific navigation and responsive layouts while keeping advanced functionality available when it is useful.</p>
+              <p className="text-xs font-850 uppercase tracking-[0.16em] text-orange-700">{copy.trustKicker}</p>
+              <h2 className="mt-3 max-w-3xl text-3xl font-850 tracking-[-0.035em] text-slate-900 sm:text-4xl">{copy.trustTitle}</h2>
+              <p className="mt-4 max-w-3xl text-sm leading-7 text-slate-600">{copy.trustCopy}</p>
             </div>
             <div className="grid gap-3 sm:grid-cols-3 lg:min-w-[590px]">
-              {trustItems.map(([icon, title, copy]) => (
-                <div key={title} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                  <Icon name={icon} size={19} className="text-orange-600" />
-                  <p className="mt-3 text-sm font-800 text-slate-900">{title}</p>
-                  <p className="mt-2 text-xs leading-5 text-slate-600">{copy}</p>
+              {copy.trustItems.map((item, index) => (
+                <div key={item.title} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <Icon name={trustIcons[index]} size={19} className="text-orange-600" />
+                  <p className="mt-3 text-sm font-800 text-slate-900">{item.title}</p>
+                  <p className="mt-2 text-xs leading-5 text-slate-600">{item.copy}</p>
                 </div>
               ))}
             </div>
@@ -211,11 +178,11 @@ export default function PublicAccessLanding() {
             <span className="font-850 text-slate-900">FabricTrad</span>
           </div>
           <nav className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-slate-600" aria-label="Footer navigation">
-            <Link href="/how-to-use?role=buyer" className="hover:text-slate-950">How to use</Link>
-            <Link href="/help" className="hover:text-slate-950">Help</Link>
-            <Link href="/privacy" className="hover:text-slate-950">Privacy</Link>
-            <Link href="/terms" className="hover:text-slate-950">Terms</Link>
-            <Link href="/login" className="font-800 text-orange-700 hover:text-orange-900">Sign in</Link>
+            <Link href="/how-to-use/start" className="hover:text-slate-950">{copy.footerHowToUse}</Link>
+            <Link href="/help" className="hover:text-slate-950">{copy.footerHelp}</Link>
+            <Link href="/privacy" className="hover:text-slate-950">{copy.footerPrivacy}</Link>
+            <Link href="/terms" className="hover:text-slate-950">{copy.footerTerms}</Link>
+            <Link href="/login" className="font-800 text-orange-700 hover:text-orange-900">{copy.signIn}</Link>
           </nav>
         </div>
       </footer>
