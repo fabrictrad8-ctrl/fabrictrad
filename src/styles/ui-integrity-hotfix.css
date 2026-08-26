@@ -1,0 +1,270 @@
+/* Final UI integrity layer.
+   Keep this file last: it resolves contrast/collision regressions introduced by
+   earlier visual layers without changing commerce behaviour or page features. */
+
+/* -------------------------------------------------------------------------- */
+/* Shared interactive controls                                                 */
+/* -------------------------------------------------------------------------- */
+.ft-root :where(.ft-icon-button, .ft-cart-button, .ft-workspace-button) {
+  flex: 0 0 auto;
+}
+
+.ft-root .ft-icon-button,
+.ft-root .ft-cart-button {
+  min-width: 44px !important;
+  min-height: 44px !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.ft-root .ft-icon-button svg,
+.ft-root .ft-cart-button svg,
+.ft-root .ft-workspace-button svg {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  color: currentColor !important;
+  stroke: currentColor !important;
+}
+
+.ft-root :where(.ft-icon-button, .ft-cart-button, .ft-workspace-button):focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--primary) 28%, transparent) !important;
+  outline-offset: 2px !important;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Buyer header: light surface + dark controls                                 */
+/* A previous refinement layer assumed a dark buyer header and forced controls
+   to white. The production header is light, which made the cart glyph vanish. */
+/* -------------------------------------------------------------------------- */
+html:not(.dark) .ft-buyer-header {
+  background: rgba(255, 255, 255, 0.97) !important;
+  border-bottom-color: #dde2e8 !important;
+  color: #17202a !important;
+}
+
+html:not(.dark) .ft-buyer-header .ft-header-brand,
+html:not(.dark) .ft-buyer-header .ft-header-link {
+  color: #344054 !important;
+}
+
+html:not(.dark) .ft-buyer-header .ft-header-link {
+  border-color: transparent !important;
+  background: transparent !important;
+}
+
+html:not(.dark) .ft-buyer-header .ft-header-link:hover {
+  transform: none !important;
+  border-color: #e2e8f0 !important;
+  background: #f8fafc !important;
+  color: #111827 !important;
+}
+
+html:not(.dark) .ft-buyer-header .ft-header-link.is-current,
+html:not(.dark) .ft-buyer-header .ft-header-link[aria-current='page'] {
+  border-color: #fed7aa !important;
+  background: #fff7ed !important;
+  color: #9a3412 !important;
+  box-shadow: none !important;
+}
+
+html:not(.dark) .ft-buyer-header .ft-header-link.is-current:hover {
+  border-color: #fdba74 !important;
+  background: #ffedd5 !important;
+  color: #9a3412 !important;
+}
+
+html:not(.dark) .ft-buyer-header .ft-workspace-button,
+html:not(.dark) .ft-buyer-header .ft-icon-button,
+html:not(.dark) .ft-buyer-header .ft-cart-button,
+html:not(.dark) .ft-buyer-header .ft-header-orders-link,
+html:not(.dark) .ft-buyer-header .ft-header-profile button[aria-label='Open profile and workspace menu'] {
+  border: 1px solid #dce2e8 !important;
+  background: #ffffff !important;
+  color: #344054 !important;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04) !important;
+}
+
+html:not(.dark) .ft-buyer-header .ft-workspace-button:hover,
+html:not(.dark) .ft-buyer-header .ft-icon-button:hover,
+html:not(.dark) .ft-buyer-header .ft-cart-button:hover,
+html:not(.dark) .ft-buyer-header .ft-header-orders-link:hover,
+html:not(.dark) .ft-buyer-header .ft-header-profile button[aria-label='Open profile and workspace menu']:hover {
+  transform: none !important;
+  border-color: #cbd5e1 !important;
+  background: #f8fafc !important;
+  color: #111827 !important;
+}
+
+html:not(.dark) .ft-buyer-header .ft-workspace-dot {
+  background: var(--primary) !important;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 12%, transparent) !important;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Cart: explicit geometry keeps badge attached to the cart icon               */
+/* -------------------------------------------------------------------------- */
+.ft-cart-button {
+  position: relative !important;
+  display: inline-flex !important;
+  gap: 7px !important;
+  padding: 0 11px !important;
+  border-radius: 10px !important;
+  text-decoration: none !important;
+  line-height: 1 !important;
+  overflow: visible !important;
+}
+
+.ft-cart-button > span:first-child {
+  position: relative !important;
+  display: inline-flex !important;
+  width: 22px !important;
+  height: 22px !important;
+  align-items: center !important;
+  justify-content: center !important;
+  overflow: visible !important;
+}
+
+.ft-cart-button > span:first-child > svg {
+  width: 21px !important;
+  height: 21px !important;
+}
+
+.ft-cart-count {
+  position: absolute !important;
+  top: -9px !important;
+  right: -10px !important;
+  z-index: 2 !important;
+  display: inline-flex !important;
+  min-width: 17px !important;
+  height: 17px !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border: 2px solid #ffffff !important;
+  border-radius: 999px !important;
+  background: #f59e0b !important;
+  padding: 0 4px !important;
+  color: #111827 !important;
+  font-size: 10px !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.18) !important;
+  transform: none !important;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Header reflow / clipping safeguards                                         */
+/* -------------------------------------------------------------------------- */
+.ft-commerce-header,
+.ft-commerce-header .ft-header-inner,
+.ft-commerce-header .ft-header-actions {
+  overflow: visible !important;
+}
+
+.ft-commerce-header .ft-header-actions {
+  align-items: center !important;
+}
+
+.ft-commerce-header .ft-header-profile {
+  min-width: 0 !important;
+}
+
+.ft-commerce-header .ft-header-profile button[aria-label='Open profile and workspace menu'] {
+  max-width: min(290px, 26vw) !important;
+}
+
+.ft-commerce-header .ft-header-profile button[aria-label='Open profile and workspace menu'] :where(span, p) {
+  min-width: 0;
+}
+
+.ft-commerce-header .ft-header-profile button[aria-label='Open profile and workspace menu'] span:not(:first-child) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ft-buyer-header .ft-buyer-search {
+  min-height: 42px !important;
+  overflow: hidden !important;
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 10px !important;
+  background: #ffffff !important;
+}
+
+.ft-buyer-header .ft-buyer-search:focus-within {
+  border-color: #f97316 !important;
+  box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.12) !important;
+}
+
+.ft-buyer-header .ft-buyer-search input {
+  min-width: 0 !important;
+  color: #17202a !important;
+}
+
+.ft-buyer-header .ft-buyer-search-submit {
+  min-width: 44px !important;
+  min-height: 42px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border-left: 1px solid #e2e8f0 !important;
+  background: #fff7ed !important;
+  color: #c2410c !important;
+}
+
+.ft-buyer-header .ft-buyer-search-submit:hover {
+  background: #ffedd5 !important;
+  color: #9a3412 !important;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Sitewide defensive UI fixes                                                  */
+/* -------------------------------------------------------------------------- */
+.ft-root :where(img, video, canvas, svg) {
+  max-width: 100%;
+}
+
+.ft-root :where(h1, h2, h3, h4, p, a, button, td, th, label) {
+  overflow-wrap: break-word;
+}
+
+.ft-root :where([role='dialog']) {
+  max-width: calc(100vw - 24px);
+  max-height: calc(100svh - 24px);
+}
+
+.ft-root :where(button, a, input, select, textarea):disabled {
+  cursor: not-allowed;
+}
+
+@media (max-width: 1239px) {
+  .ft-commerce-header .ft-header-profile button[aria-label='Open profile and workspace menu'] {
+    max-width: 170px !important;
+  }
+
+  .ft-cart-button {
+    width: 44px !important;
+    padding-inline: 0 !important;
+  }
+
+  .ft-cart-button > span:last-child:not(.ft-cart-count) {
+    display: none !important;
+  }
+}
+
+@media (max-width: 899px) {
+  .ft-commerce-header .ft-header-profile button[aria-label='Open profile and workspace menu'] {
+    max-width: 54px !important;
+  }
+}
+
+@media (max-width: 767px) {
+  .ft-mobile-commerce-menu .ft-mobile-menu-link {
+    min-height: 44px !important;
+  }
+
+  .ft-mobile-commerce-menu .ft-mobile-menu-link svg {
+    flex: 0 0 auto;
+    color: currentColor !important;
+  }
+}
