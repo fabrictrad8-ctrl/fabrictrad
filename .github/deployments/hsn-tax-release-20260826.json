@@ -1,0 +1,5 @@
+{
+  "sourceCommit": "a7ef8a023058fb3997c4dcb290212230b4e9381e",
+  "purpose": "Deploy HSN validation and current GST calculation hardening to FabricTrad production",
+  "requestedAt": "2026-08-26T14:25:00Z"
+}
