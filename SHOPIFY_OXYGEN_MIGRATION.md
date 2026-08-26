@@ -9,6 +9,12 @@ Verified store target:
 - Primary domain configured in Shopify: `https://fabrictrad.com`
 - Currency: INR
 - Customer accounts: optional
+- Live Shopify theme: `FabricTrad Commerce`
+
+Shopify app installation audit (27 Aug 2026):
+- Hydrogen: **not installed**
+- Shiprocket: **not installed**
+- Razorpay Secure: **not installed**
 
 ## Architecture
 
@@ -20,7 +26,7 @@ Verified store target:
 
 ### Payments
 - Shopify Checkout is the order/payment boundary.
-- Use the official All-in-one Razorpay Payment Gateway app for Shopify rather than FabricTrad creating Razorpay orders directly.
+- Use Razorpay's supported Shopify payment app flow rather than FabricTrad creating Razorpay orders directly.
 - Razorpay's Shopify integration uses Shopify/OAuth onboarding; the production store must be activated in live mode before cutover.
 
 ### Shipping
@@ -60,10 +66,12 @@ Do **not** remove the current Cloudflare deployment or repoint production DNS un
 9. Mobile, tablet and desktop accessibility/performance checks.
 10. A rollback path to the current production build.
 
-## Current blocker to an Oxygen production deployment
+## Shopify-side prerequisites that cannot be performed through the connected API
 
-Shopify requires a Hydrogen storefront to be created/connected in the Shopify admin. The connected Shopify API available to this project does not expose the Hydrogen storefront creation or Oxygen deployment-token operation.
+The connected Shopify API can manage store data but does not expose app installation or Hydrogen storefront provisioning. Three owner-level Shopify Admin actions are therefore required before the final cutover can be automated:
 
-Shopify's supported flow is: Sales channels → Hydrogen → Create storefront → connect the GitHub repository. Shopify then creates the Oxygen deployment workflow and deployment credential automatically.
+1. Install **Hydrogen**, then create a storefront and connect the GitHub repository. Shopify creates the Oxygen deployment workflow/token.
+2. Install/activate the supported **Razorpay** Shopify payment app and complete its Shopify/Razorpay owner authorization. Keep it in test mode until the end-to-end checkout test passes, then switch it to live.
+3. Install **Shiprocket: eCommerce Shipping**, connect the Shiprocket account, and enable Shopify order/status sync.
 
-Until that storefront connection exists, this branch is deliberately non-destructive and does not disable Cloudflare production.
+Until those storefront/app connections exist, this branch is deliberately non-destructive and does not disable Cloudflare production.
