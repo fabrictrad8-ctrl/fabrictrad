@@ -7,6 +7,7 @@ import SellerCapabilityGuard from '@/components/SellerCapabilityGuard';
 import AppLogo from '@/components/ui/AppLogo';
 import Icon from '@/components/ui/AppIcon';
 import { normalizeGtin, validateGtin } from '@/lib/commerceIdentifiers';
+import { describeHsn, normalizeHsn, resolveIndiaGstRate, validateHsn } from '@/lib/indiaTax';
 
 type LimitMode = 'same_as_retail_store' | 'custom' | 'disabled';
 type SellerState = {
@@ -26,6 +27,7 @@ type Product = {
   unit: string;
   moq: number;
   available_quantity: number;
+  price_per_unit: number;
   gtin: string | null;
   gtin_status: string;
   hsn_code: string | null;
@@ -51,6 +53,7 @@ type Variant = {
   unit: string;
   moq: number;
   available_quantity: number;
+  price_per_unit: number;
   gtin: string | null;
   gtin_status: string;
   gst_rate: number | null;
@@ -190,6 +193,16 @@ export default function SellerProductRulesPage() {
     if (!selectedProduct) return;
     const gtin = normalizeGtin(form.gtin);
     if (gtin && !validateGtin(gtin)) return toast.error('The GTIN check digit is invalid.');
+    const hsn = normalizeHsn(form.hsnCode);
+    if (!selectedVariant && !validateHsn(hsn)) {
+      return toast.error('Enter a valid 4, 6 or 8 digit HSN before publishing this product.');
+    }
+    const taxUnitPrice = Number(selectedVariant?.price_per_unit ?? selectedProduct.price_per_unit ?? 0);
+    const resolvedGstRate = resolveIndiaGstRate({
+      hsnCode: hsn || selectedProduct.hsn_code,
+      unitPrice: taxUnitPrice,
+      storedRate: Number(form.gstRate || 0),
+    });
     if (!form.retailStoreMinQuantity || Number(form.retailStoreMinQuantity) < 0) {
       return toast.error('Enter the Retail Store minimum quantity.');
     }
@@ -210,11 +223,11 @@ export default function SellerProductRulesPage() {
           productId: selectedProduct.id,
           variantId: selectedVariant?.id || null,
           gtin,
-          hsnCode: form.hsnCode,
+          hsnCode: hsn,
           brandName: form.brandName,
           manufacturerName: form.manufacturerName,
           countryOfOrigin: form.countryOfOrigin,
-          gstRate: form.gstRate,
+          gstRate: resolvedGstRate,
           priceIncludesGst: form.priceIncludesGst,
           retailStoreMinQuantity: form.retailStoreMinQuantity,
           retailStoreMaxQuantity: form.retailStoreMaxQuantity,
@@ -325,14 +338,14 @@ export default function SellerProductRulesPage() {
                     <div className="flex items-start gap-3"><div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary"><Icon name="QrCodeIcon" size={20} /></div><div><h3 className="text-base font-800 text-foreground">Trade-item identity</h3><p className="mt-1 text-xs leading-5 text-muted-foreground">GTIN identifies the packaged trade item or variation. HSN identifies its tax classification. They are different identifiers.</p></div></div>
                     <div className="mt-5 grid gap-4 sm:grid-cols-2">
                       <label className="text-sm font-700 text-foreground">GTIN-8 / 12 / 13 / 14<input value={form.gtin} onChange={(event) => setForm({ ...form, gtin: normalizeGtin(event.target.value) })} className="input-base mt-1.5 w-full px-4 py-3 font-mono font-400" inputMode="numeric" maxLength={14} placeholder="8901234567890" /><span className={`mt-1.5 block text-xs ${!form.gtin || validateGtin(form.gtin) ? 'text-muted-foreground' : 'text-error'}`}>{!form.gtin ? 'Optional for loose/unbarcoded fabric.' : validateGtin(form.gtin) ? `Valid GTIN-${form.gtin.length} check digit; GS1 ownership pending confirmation.` : 'Invalid check digit.'}</span></label>
-                      {!selectedVariant && <label className="text-sm font-700 text-foreground">HSN code<input value={form.hsnCode} onChange={(event) => setForm({ ...form, hsnCode: event.target.value.replace(/\D/g, '').slice(0, 12) })} className="input-base mt-1.5 w-full px-4 py-3 font-mono font-400" inputMode="numeric" placeholder="Product-specific HSN" /><span className="mt-1.5 block text-xs text-muted-foreground">Use the correct classification for the actual textile/product.</span></label>}
+                      {!selectedVariant && <label className="text-sm font-700 text-foreground">HSN code<input value={form.hsnCode} onChange={(event) => setForm({ ...form, hsnCode: normalizeHsn(event.target.value) })} className="input-base mt-1.5 w-full px-4 py-3 font-mono font-400" inputMode="numeric" maxLength={8} placeholder="e.g. 62032990" /><span className={`mt-1.5 block text-xs ${!form.hsnCode || validateHsn(form.hsnCode) ? 'text-muted-foreground' : 'text-error'}`}>{!form.hsnCode ? 'Required for a live listing. Use 4, 6 or 8 digits.' : validateHsn(form.hsnCode) ? (describeHsn(form.hsnCode) || 'Valid HSN format. Confirm the classification matches the actual product.') : 'HSN must contain 4, 6 or 8 digits.'}</span></label>}
                     </div>
                     {!selectedVariant && <div className="mt-4 grid gap-4 sm:grid-cols-3"><label className="text-sm font-700 text-foreground">Brand<input value={form.brandName} onChange={(event) => setForm({ ...form, brandName: event.target.value })} className="input-base mt-1.5 w-full px-4 py-3 font-400" /></label><label className="text-sm font-700 text-foreground">Manufacturer<input value={form.manufacturerName} onChange={(event) => setForm({ ...form, manufacturerName: event.target.value })} className="input-base mt-1.5 w-full px-4 py-3 font-400" /></label><label className="text-sm font-700 text-foreground">Country of origin<input value={form.countryOfOrigin} onChange={(event) => setForm({ ...form, countryOfOrigin: event.target.value })} className="input-base mt-1.5 w-full px-4 py-3 font-400" /></label></div>}
                   </div>
 
                   <div className="rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-6">
                     <div className="flex items-start gap-3"><div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-secondary/10 text-secondary"><Icon name="ReceiptPercentIcon" size={20} /></div><div><h3 className="text-base font-800 text-foreground">Tax display</h3><p className="mt-1 text-xs leading-5 text-muted-foreground">The platform recalculates GST on the server. Entering a buyer GSTIN never changes the rate to zero.</p></div></div>
-                    <div className="mt-5 grid gap-4 sm:grid-cols-2"><label className="text-sm font-700 text-foreground">GST rate (%)<input type="number" min="0" max="100" step="0.01" value={form.gstRate} onChange={(event) => setForm({ ...form, gstRate: event.target.value })} className="input-base mt-1.5 w-full px-4 py-3 font-400" /></label><label className="flex min-h-12 items-center gap-3 rounded-xl border border-border p-3"><input type="checkbox" checked={form.priceIncludesGst} onChange={(event) => setForm({ ...form, priceIncludesGst: event.target.checked })} className="h-4 w-4" /><span><span className="block text-sm font-800 text-foreground">Displayed price includes GST</span><span className="block text-xs text-muted-foreground">Tax is extracted from the total instead of added on top.</span></span></label></div>
+                    <div className="mt-5 grid gap-4 sm:grid-cols-2"><label className="text-sm font-700 text-foreground">GST rate (%)<input type="number" value={resolveIndiaGstRate({ hsnCode: form.hsnCode || selectedProduct.hsn_code, unitPrice: Number(selectedVariant?.price_per_unit ?? selectedProduct.price_per_unit ?? 0), storedRate: Number(form.gstRate || 0) })} readOnly className="input-base mt-1.5 w-full bg-muted px-4 py-3 font-700" /><span className="mt-1.5 block text-xs text-muted-foreground">Calculated by FabricTrad from HSN and the current unit transaction value; sellers cannot zero GST by entering a buyer GSTIN.</span></label><label className="flex min-h-12 items-center gap-3 rounded-xl border border-border p-3"><input type="checkbox" checked={form.priceIncludesGst} onChange={(event) => setForm({ ...form, priceIncludesGst: event.target.checked })} className="h-4 w-4" /><span><span className="block text-sm font-800 text-foreground">Displayed price includes GST</span><span className="block text-xs text-muted-foreground">Tax is extracted from the total instead of added on top.</span></span></label></div>
                   </div>
 
                   <div className="rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-6">

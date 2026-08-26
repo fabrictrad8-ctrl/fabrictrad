@@ -7,6 +7,7 @@ import Icon from '@/components/ui/AppIcon';
 import { useAuth } from '@/contexts/AuthContext';
 import { createClient } from '@/lib/supabase/client';
 import { useProduct } from '@/lib/hooks/useProduct';
+import { describeHsn, indiaGstRuleText, resolveIndiaGstRate } from '@/lib/indiaTax';
 
 type BuyerType = 'retail_store' | 'end_user';
 type LimitMode = 'same_as_retail_store' | 'custom' | 'disabled';
@@ -336,9 +337,13 @@ export default function ProductInfoV2() {
     .sort((a, b) => Number(a.minimum_quantity) - Number(b.minimum_quantity))
     .at(-1);
   const price = Number(eligibleBreak?.price || catalogBasePrice);
-  const gstRate = Number(
+  const hsnCode = productPolicy?.hsn_code || '';
+  const storedGstRate = Number(
     effective?.gst_rate ?? productPolicy?.gst_rate ?? (product.gst === false ? 0 : 5)
   );
+  const gstRate = resolveIndiaGstRate({ hsnCode, unitPrice: price, storedRate: storedGstRate });
+  const hsnDescription = describeHsn(hsnCode);
+  const gstRuleText = indiaGstRuleText(hsnCode, price);
   const priceIncludesGst = Boolean(
     effective?.price_includes_gst ?? productPolicy?.price_includes_gst ?? false
   );
@@ -514,7 +519,7 @@ export default function ProductInfoV2() {
         <div className="mt-4 grid grid-cols-2 gap-3 text-xs">
           <div className="rounded-xl border border-border bg-card p-3">
             <p className="text-muted-foreground">GTIN</p>
-            <p className="mt-1 font-800 text-foreground">{effective?.gtin || 'Not assigned'}</p>
+            <p className="mt-1 font-800 text-foreground">{effective?.gtin || 'Not provided'}</p>
             {effective?.gtin && (
               <p className="mt-1 text-[10px] text-muted-foreground">
                 {effective.gtin_status.replaceAll('_', ' ')}
@@ -524,8 +529,14 @@ export default function ProductInfoV2() {
           <div className="rounded-xl border border-border bg-card p-3">
             <p className="text-muted-foreground">HSN / GST</p>
             <p className="mt-1 font-800 text-foreground">
-              {productPolicy?.hsn_code || 'HSN pending'} · {gstRate}% GST
+              {hsnCode ? `HSN ${hsnCode}` : 'HSN required'} · {gstRate}% GST
             </p>
+            {hsnDescription && (
+              <p className="mt-1 text-[10px] leading-4 text-muted-foreground">{hsnDescription}</p>
+            )}
+            {gstRuleText && (
+              <p className="mt-1 text-[10px] leading-4 text-muted-foreground">{gstRuleText}</p>
+            )}
             <p className="mt-1 text-[10px] text-muted-foreground">
               {priceIncludesGst ? 'Included in displayed price' : 'Added to displayed price'}
             </p>

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { normalizeGtin, validateGtin } from '@/lib/commerceIdentifiers';
+import { normalizeHsn, validateHsn } from '@/lib/indiaTax';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -65,14 +66,14 @@ export async function GET() {
       supabase
         .from('seller_products')
         .select(
-          'id,name,sku,status,approval_status,sale_channel,unit,moq,available_quantity,gtin,gtin_status,gtin_verified_at,hsn_code,brand_name,manufacturer_name,country_of_origin,gst_rate,price_includes_gst,retail_store_min_quantity,retail_store_max_quantity,end_user_enabled,end_user_limit_mode,end_user_min_quantity,end_user_max_quantity,updated_at'
+          'id,name,sku,status,approval_status,sale_channel,unit,moq,available_quantity,price_per_unit,gtin,gtin_status,gtin_verified_at,hsn_code,brand_name,manufacturer_name,country_of_origin,gst_rate,price_includes_gst,retail_store_min_quantity,retail_store_max_quantity,end_user_enabled,end_user_limit_mode,end_user_min_quantity,end_user_max_quantity,updated_at'
         )
         .eq('seller_id', seller.id)
         .order('updated_at', { ascending: false }),
       supabase
         .from('seller_product_variants')
         .select(
-          'id,product_id,variant_code,color_name,design_name,status,unit,moq,available_quantity,gtin,gtin_status,gtin_verified_at,gst_rate,price_includes_gst,retail_store_min_quantity,retail_store_max_quantity,end_user_enabled,end_user_limit_mode,end_user_min_quantity,end_user_max_quantity,updated_at'
+          'id,product_id,variant_code,color_name,design_name,status,unit,moq,available_quantity,price_per_unit,gtin,gtin_status,gtin_verified_at,gst_rate,price_includes_gst,retail_store_min_quantity,retail_store_max_quantity,end_user_enabled,end_user_limit_mode,end_user_min_quantity,end_user_max_quantity,updated_at'
         )
         .eq('seller_id', seller.id)
         .order('updated_at', { ascending: false }),
@@ -109,6 +110,10 @@ export async function PUT(request: NextRequest) {
   const productId = clean(input.productId, 64);
   const variantId = clean(input.variantId, 64);
   if (!productId) return json({ error: 'Choose a product.' }, 400);
+  const hsnCode = normalizeHsn(input.hsnCode);
+  if (!variantId && hsnCode && !validateHsn(hsnCode)) {
+    return json({ error: 'HSN must contain 4, 6 or 8 digits.' }, 400);
+  }
 
   const gtin = normalizeGtin(input.gtin);
   if (gtin && !validateGtin(gtin)) {
@@ -177,7 +182,7 @@ export async function PUT(request: NextRequest) {
 
   const productValues = {
     ...commonValues,
-    hsn_code: clean(input.hsnCode, 12).replace(/\D/g, '') || null,
+    hsn_code: hsnCode || null,
     brand_name: clean(input.brandName, 160) || null,
     manufacturer_name: clean(input.manufacturerName, 200) || null,
     country_of_origin: clean(input.countryOfOrigin, 120) || 'India',
