@@ -18,6 +18,7 @@ import '../styles/fabrictrad-light-commerce.css';
 import '../styles/commerce-ux-final.css';
 import '../styles/human-ui-refinement.css';
 import '../styles/public-nav-consistency.css';
+import '../styles/ui-integrity-hotfix.css';
 import { AuthProvider } from '@/contexts/AuthContext';
 import AppClientEnhancements from '@/components/AppClientEnhancements';
 import RouteExperienceEnhancer from '@/components/RouteExperienceEnhancer';
@@ -26,7 +27,7 @@ import PublicHowToUseNavigation from '@/components/PublicHowToUseNavigation';
 import SitewideLanguageControl from '@/components/SitewideLanguageControl';
 import { AppPreferencesProvider } from '@/contexts/AppPreferencesContext';
 
-const PRODUCTION_UI_RELEASE = 'fabrictrad-commerce-ux-2026-08-26-public-guides-i18n';
+const PRODUCTION_UI_RELEASE = 'fabrictrad-commerce-ux-2026-08-26-cart-ui-integrity';
 
 export const viewport: Viewport = {
   width: 'device-width',
