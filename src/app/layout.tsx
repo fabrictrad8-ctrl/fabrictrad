@@ -23,9 +23,10 @@ import AppClientEnhancements from '@/components/AppClientEnhancements';
 import RouteExperienceEnhancer from '@/components/RouteExperienceEnhancer';
 import PageContinuity from '@/components/PageContinuity';
 import PublicHowToUseNavigation from '@/components/PublicHowToUseNavigation';
+import SitewideLanguageControl from '@/components/SitewideLanguageControl';
 import { AppPreferencesProvider } from '@/contexts/AppPreferencesContext';
 
-const PRODUCTION_UI_RELEASE = 'fabrictrad-commerce-ux-2026-08-26-public-guides';
+const PRODUCTION_UI_RELEASE = 'fabrictrad-commerce-ux-2026-08-26-public-guides-i18n';
 
 export const viewport: Viewport = {
   width: 'device-width',
@@ -78,6 +79,7 @@ export default function RootLayout({
             <AppClientEnhancements />
             <PageContinuity />
             <PublicHowToUseNavigation />
+            <SitewideLanguageControl />
             {children}
           </AppPreferencesProvider>
         </AuthProvider>
