@@ -5,6 +5,8 @@ on:
     branches: [main]
     paths:
       - .github/workflows/public-how-to-use-hotfix.yml
+      - scripts/apply-public-how-to-use-flow.py
+  workflow_dispatch:
 
 permissions:
   contents: write
