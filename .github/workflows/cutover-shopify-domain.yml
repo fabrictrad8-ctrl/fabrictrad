@@ -1,0 +1,286 @@
+name: Cut over FabricTrad domains to Shopify
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/cutover-shopify-domain.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fabrictrad-shopify-domain-cutover
+  cancel-in-progress: false
+
+jobs:
+  cutover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: aa4ff7a482130e543f176e2d73c93f45
+      ZONE_NAME: fabrictrad.com
+      WORKER_NAME: fabrictrad
+      SHOPIFY_APEX_IPV4: 23.227.38.65
+      SHOPIFY_APEX_IPV6: '2620:0127:f00f:5::'
+      SHOPIFY_WWW_CNAME: shops.myshopify.com
+    steps:
+      - name: Require Cloudflare credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          [ -n "${CLOUDFLARE_API_TOKEN:-}" ] || { echo '::error::CLOUDFLARE_API_TOKEN is not configured.'; exit 1; }
+          [ -n "${CLOUDFLARE_ACCOUNT_ID:-}" ] || { echo '::error::CLOUDFLARE_ACCOUNT_ID is not configured.'; exit 1; }
+
+      - name: Resolve Cloudflare zone
+        id: zone
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error \
+            --header "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            "https://api.cloudflare.com/client/v4/zones?name=${ZONE_NAME}&status=active" > /tmp/zones.json
+          zone_id=$(node - <<'NODE'
+          const fs = require('node:fs');
+          const body = JSON.parse(fs.readFileSync('/tmp/zones.json','utf8'));
+          const zone = Array.isArray(body.result) ? body.result.find(z => z.name === 'fabrictrad.com') : null;
+          if (!body.success || !zone?.id) {
+            console.error(JSON.stringify(body, null, 2));
+            process.exit(1);
+          }
+          process.stdout.write(zone.id);
+          NODE
+          )
+          echo "zone_id=${zone_id}" >> "$GITHUB_OUTPUT"
+          echo "Resolved ${ZONE_NAME} as ${zone_id}."
+
+      - name: Prove DNS write permission before changing production
+        shell: bash
+        env:
+          ZONE_ID: ${{ steps.zone.outputs.zone_id }}
+        run: |
+          set -euo pipefail
+          probe="_ft-shopify-cutover-${GITHUB_RUN_ID}.${ZONE_NAME}"
+          payload=$(node -e "console.log(JSON.stringify({type:'TXT',name:process.argv[1],content:'shopify-cutover-probe',ttl:60,proxied:false}))" "$probe")
+          status=$(curl --silent --show-error --output /tmp/probe-create.json --write-out '%{http_code}' \
+            --request POST \
+            --header "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            --header 'Content-Type: application/json' \
+            --data "$payload" \
+            "https://api.cloudflare.com/client/v4/zones/${ZONE_ID}/dns_records")
+          probe_id=$(node - /tmp/probe-create.json "$status" <<'NODE'
+          const fs = require('node:fs');
+          const [file,status] = process.argv.slice(2);
+          const body = JSON.parse(fs.readFileSync(file,'utf8'));
+          if (status !== '200' || body.success !== true || !body.result?.id) {
+            console.error(JSON.stringify(body,null,2));
+            console.error(`DNS write preflight failed with HTTP ${status}. No production routing was changed.`);
+            process.exit(1);
+          }
+          process.stdout.write(body.result.id);
+          NODE
+          )
+          curl --fail --silent --show-error \
+            --request DELETE \
+            --header "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            "https://api.cloudflare.com/client/v4/zones/${ZONE_ID}/dns_records/${probe_id}" > /tmp/probe-delete.json
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const body = JSON.parse(fs.readFileSync('/tmp/probe-delete.json','utf8'));
+          if (body.success !== true) {
+            console.error(JSON.stringify(body,null,2));
+            process.exit(1);
+          }
+          console.log('DNS write preflight passed; temporary record removed.');
+          NODE
+
+      - name: Detach legacy Worker custom domains
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error \
+            --header "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/domains?service=${WORKER_NAME}" > /tmp/worker-domains.json
+          node - <<'NODE' > /tmp/domain-ids.tsv
+          const fs = require('node:fs');
+          const body = JSON.parse(fs.readFileSync('/tmp/worker-domains.json','utf8'));
+          if (body.success !== true) {
+            console.error(JSON.stringify(body,null,2));
+            process.exit(1);
+          }
+          const wanted = new Set(['fabrictrad.com','www.fabrictrad.com']);
+          for (const d of body.result || []) {
+            if (d.service === 'fabrictrad' && wanted.has(d.hostname)) console.log(`${d.id}\t${d.hostname}`);
+          }
+          NODE
+          if [ ! -s /tmp/domain-ids.tsv ]; then
+            echo 'No legacy FabricTrad Worker custom domains are attached; continuing with Shopify DNS normalization.'
+          else
+            while IFS=$'\t' read -r domain_id hostname; do
+              echo "Detaching legacy Worker custom domain ${hostname} (${domain_id})..."
+              status=$(curl --silent --show-error --output "/tmp/detach-${domain_id}.json" --write-out '%{http_code}' \
+                --request DELETE \
+                --header "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+                "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/domains/${domain_id}")
+              node - "/tmp/detach-${domain_id}.json" "$hostname" "$status" <<'NODE'
+          const fs = require('node:fs');
+          const [file,hostname,status] = process.argv.slice(2);
+          const body = JSON.parse(fs.readFileSync(file,'utf8'));
+          if (status !== '200' || body.success !== true) {
+            console.error(JSON.stringify(body,null,2));
+            console.error(`Failed detaching ${hostname} (HTTP ${status}).`);
+            process.exit(1);
+          }
+          console.log(`${hostname} detached from the legacy Worker.`);
+          NODE
+            done < /tmp/domain-ids.tsv
+          fi
+
+      - name: Replace storefront DNS with Shopify DNS-only records
+        shell: bash
+        env:
+          ZONE_ID: ${{ steps.zone.outputs.zone_id }}
+        run: |
+          set -euo pipefail
+
+          list_records() {
+            local name="$1"
+            curl --fail --silent --show-error \
+              --header "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+              "https://api.cloudflare.com/client/v4/zones/${ZONE_ID}/dns_records?name=${name}&per_page=100"
+          }
+
+          delete_conflicts() {
+            local name="$1"
+            local keep_type="$2"
+            local keep_content="$3"
+            list_records "$name" > /tmp/records.json
+            node - "$keep_type" "$keep_content" <<'NODE' > /tmp/conflicts.tsv
+          const fs = require('node:fs');
+          const [keepType,keepContent] = process.argv.slice(2);
+          const body = JSON.parse(fs.readFileSync('/tmp/records.json','utf8'));
+          if (body.success !== true) process.exit(1);
+          for (const r of body.result || []) {
+            if (!['A','AAAA','CNAME'].includes(r.type)) continue;
+            if (r.type === keepType && String(r.content).replace(/\.$/,'') === String(keepContent).replace(/\.$/,'')) continue;
+            console.log(`${r.id}\t${r.type}\t${r.name}\t${r.content}`);
+          }
+          NODE
+            if [ -s /tmp/conflicts.tsv ]; then
+              while IFS=$'\t' read -r id type rname content; do
+                echo "Removing conflicting ${type} ${rname} -> ${content}"
+                curl --fail --silent --show-error --request DELETE \
+                  --header "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+                  "https://api.cloudflare.com/client/v4/zones/${ZONE_ID}/dns_records/${id}" > /dev/null
+              done < /tmp/conflicts.tsv
+            fi
+          }
+
+          upsert_record() {
+            local type="$1" name="$2" content="$3"
+            curl --fail --silent --show-error \
+              --header "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+              "https://api.cloudflare.com/client/v4/zones/${ZONE_ID}/dns_records?type=${type}&name=${name}&per_page=100" > /tmp/existing.json
+            existing_id=$(node - "$content" <<'NODE'
+          const fs=require('node:fs');
+          const content=process.argv[2].replace(/\.$/,'');
+          const body=JSON.parse(fs.readFileSync('/tmp/existing.json','utf8'));
+          if(body.success!==true)process.exit(1);
+          const row=(body.result||[]).find(r=>String(r.content).replace(/\.$/,'')===content);
+          if(row?.id)process.stdout.write(row.id);
+          NODE
+            )
+            payload=$(node -e "console.log(JSON.stringify({type:process.argv[1],name:process.argv[2],content:process.argv[3],ttl:60,proxied:false}))" "$type" "$name" "$content")
+            if [ -n "$existing_id" ]; then
+              endpoint="https://api.cloudflare.com/client/v4/zones/${ZONE_ID}/dns_records/${existing_id}"
+              method=PUT
+            else
+              endpoint="https://api.cloudflare.com/client/v4/zones/${ZONE_ID}/dns_records"
+              method=POST
+            fi
+            status=$(curl --silent --show-error --output /tmp/upsert.json --write-out '%{http_code}' \
+              --request "$method" \
+              --header "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+              --header 'Content-Type: application/json' \
+              --data "$payload" "$endpoint")
+            node - /tmp/upsert.json "$type" "$name" "$content" "$status" <<'NODE'
+          const fs=require('node:fs');
+          const [file,type,name,content,status]=process.argv.slice(2);
+          const body=JSON.parse(fs.readFileSync(file,'utf8'));
+          if(!['200','201'].includes(status)||body.success!==true){console.error(JSON.stringify(body,null,2));process.exit(1)}
+          console.log(`Shopify DNS ready: ${type} ${name} -> ${content} (proxied=false)`);
+          NODE
+          }
+
+          delete_conflicts "fabrictrad.com" A "${SHOPIFY_APEX_IPV4}"
+          delete_conflicts "fabrictrad.com" AAAA "${SHOPIFY_APEX_IPV6}"
+          delete_conflicts "www.fabrictrad.com" CNAME "${SHOPIFY_WWW_CNAME}"
+
+          upsert_record A fabrictrad.com "${SHOPIFY_APEX_IPV4}"
+          upsert_record AAAA fabrictrad.com "${SHOPIFY_APEX_IPV6}"
+          upsert_record CNAME www.fabrictrad.com "${SHOPIFY_WWW_CNAME}"
+
+      - name: Verify legacy Worker is no longer authoritative
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error \
+            --header "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/domains?service=${WORKER_NAME}" > /tmp/domains-after.json
+          node - <<'NODE'
+          const fs=require('node:fs');
+          const body=JSON.parse(fs.readFileSync('/tmp/domains-after.json','utf8'));
+          const bad=(body.result||[]).filter(d=>d.service==='fabrictrad'&&['fabrictrad.com','www.fabrictrad.com'].includes(d.hostname));
+          if(bad.length){console.error('Legacy Worker domains still attached:',bad);process.exit(1)}
+          console.log('Legacy Worker no longer owns fabrictrad.com or www.fabrictrad.com.');
+          NODE
+
+      - name: Verify Shopify DNS publicly
+        shell: bash
+        run: |
+          set -euo pipefail
+          ok=false
+          for attempt in $(seq 1 30); do
+            curl --fail --silent --show-error --header 'accept: application/dns-json' \
+              'https://cloudflare-dns.com/dns-query?name=fabrictrad.com&type=A' > /tmp/apex-a.json
+            curl --fail --silent --show-error --header 'accept: application/dns-json' \
+              'https://cloudflare-dns.com/dns-query?name=www.fabrictrad.com&type=CNAME' > /tmp/www-cname.json
+            if node - <<'NODE'
+          const fs=require('node:fs');
+          const a=JSON.parse(fs.readFileSync('/tmp/apex-a.json','utf8'));
+          const c=JSON.parse(fs.readFileSync('/tmp/www-cname.json','utf8'));
+          const av=(a.Answer||[]).map(x=>String(x.data).replace(/\.$/,''));
+          const cv=(c.Answer||[]).map(x=>String(x.data).replace(/\.$/,''));
+          process.exit(av.includes('23.227.38.65')&&cv.includes('shops.myshopify.com')?0:1);
+          NODE
+            then ok=true; break; fi
+            sleep 5
+          done
+          [ "$ok" = true ] || { echo '::error::Shopify DNS records did not become publicly visible in time.'; cat /tmp/apex-a.json; cat /tmp/www-cname.json; exit 1; }
+          echo 'Public DNS now points FabricTrad to Shopify.'
+
+      - name: Verify old buyer spinner is gone from public HTML
+        shell: bash
+        run: |
+          set -euo pipefail
+          ok=false
+          for attempt in $(seq 1 36); do
+            status=$(curl --location --silent --show-error --connect-timeout 10 --max-time 30 \
+              --output /tmp/buyer.html --write-out '%{http_code}' \
+              "https://fabrictrad.com/pages/buyer-dashboard?shopify_cutover=${GITHUB_RUN_ID}-${attempt}" || true)
+            if [ "$status" = '200' ] && grep -qi 'FabricTrad' /tmp/buyer.html && ! grep -q 'Preparing your buyer workspace' /tmp/buyer.html; then
+              ok=true
+              break
+            fi
+            echo "Attempt ${attempt}: HTTP ${status}; waiting for Shopify cutover..."
+            sleep 10
+          done
+          if [ "$ok" != true ]; then
+            echo '::error::Public buyer route did not converge to the Shopify storefront.'
+            head -c 2000 /tmp/buyer.html || true
+            exit 1
+          fi
+          echo 'fabrictrad.com buyer route is now served by Shopify without the legacy workspace spinner.'
