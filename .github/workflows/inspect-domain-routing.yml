@@ -1,0 +1,104 @@
+name: Inspect FabricTrad domain routing
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/inspect-domain-routing.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: aa4ff7a482130e543f176e2d73c93f45
+      ZONE_NAME: fabrictrad.com
+      WORKER_NAME: fabrictrad
+    steps:
+      - name: Resolve zone and inspect API-visible DNS
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            "https://api.cloudflare.com/client/v4/zones?name=${ZONE_NAME}" > /tmp/zones.json
+          zone_id=$(node - <<'NODE'
+          const fs=require('node:fs');
+          const b=JSON.parse(fs.readFileSync('/tmp/zones.json','utf8'));
+          const z=(b.result||[]).find(x=>x.name==='fabrictrad.com');
+          if(!z?.id)process.exit(1);process.stdout.write(z.id);
+          NODE
+          )
+          echo "ZONE_ID=${zone_id}" >> "$GITHUB_ENV"
+          status=$(curl --silent --show-error --output /tmp/dns.json --write-out '%{http_code}' \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            "https://api.cloudflare.com/client/v4/zones/${zone_id}/dns_records?per_page=100")
+          echo "Cloudflare DNS API HTTP ${status}"
+          if [ "$status" = 200 ]; then
+            node - <<'NODE'
+          const fs=require('node:fs');
+          const b=JSON.parse(fs.readFileSync('/tmp/dns.json','utf8'));
+          for(const r of b.result||[]){
+            if(['fabrictrad.com','www.fabrictrad.com'].includes(r.name))
+              console.log(`DNS_API ${r.type} ${r.name} -> ${r.content} proxied=${r.proxied} ttl=${r.ttl} id=${r.id}`);
+          }
+          NODE
+          else
+            cat /tmp/dns.json
+          fi
+
+      - name: Inspect legacy Worker custom domains
+        shell: bash
+        run: |
+          set -euo pipefail
+          status=$(curl --silent --show-error --output /tmp/domains.json --write-out '%{http_code}' \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/domains?service=${WORKER_NAME}")
+          echo "Worker domains API HTTP ${status}"
+          cat /tmp/domains.json
+
+      - name: Inspect public DNS over HTTPS
+        shell: bash
+        run: |
+          set -euo pipefail
+          for host in fabrictrad.com www.fabrictrad.com; do
+            for type in A AAAA CNAME; do
+              curl --fail --silent --show-error -H 'accept: application/dns-json' \
+                "https://cloudflare-dns.com/dns-query?name=${host}&type=${type}" > /tmp/q.json
+              node - /tmp/q.json "$host" "$type" <<'NODE'
+          const fs=require('node:fs');
+          const [file,host,type]=process.argv.slice(2);
+          const b=JSON.parse(fs.readFileSync(file,'utf8'));
+          console.log(`PUBLIC_DNS ${host} ${type}: ${(b.Answer||[]).map(x=>x.data).join(' | ')||'none'}`);
+          NODE
+            done
+          done
+
+      - name: Compare public apex, www, Worker and Shopify origin
+        shell: bash
+        run: |
+          set -euo pipefail
+          urls=(
+            'https://fabrictrad.com/pages/buyer-dashboard?routing_audit=1'
+            'https://www.fabrictrad.com/pages/buyer-dashboard?routing_audit=1'
+            'https://fabrictrad.fabrictrad8.workers.dev/pages/buyer-dashboard?routing_audit=1'
+            'https://3v0ipk-yh.myshopify.com/pages/buyer-dashboard?routing_audit=1'
+          )
+          n=0
+          for url in "${urls[@]}"; do
+            n=$((n+1))
+            headers="/tmp/h-${n}.txt"; body="/tmp/b-${n}.html"
+            code=$(curl --location --silent --show-error --connect-timeout 10 --max-time 30 \
+              -D "$headers" -o "$body" -w '%{http_code}' "$url" || true)
+            echo "===== ${url} HTTP ${code} ====="
+            grep -iE '^(server:|cf-ray:|x-powered-by:|x-shopid:|x-sorting-hat|location:|via:|cache-control:|content-type:)' "$headers" | tail -20 || true
+            if grep -q 'Preparing your buyer workspace' "$body"; then echo 'BODY_SPINNER=yes'; else echo 'BODY_SPINNER=no'; fi
+            if grep -qi 'cdn.shopify.com' "$body"; then echo 'BODY_SHOPIFY=yes'; else echo 'BODY_SHOPIFY=no'; fi
+            if grep -qi '_next/static' "$body"; then echo 'BODY_NEXTJS=yes'; else echo 'BODY_NEXTJS=no'; fi
+            grep -o -m1 -E '<title>[^<]+' "$body" || true
+          done
