@@ -1,0 +1,105 @@
+name: Reattach FabricTrad domains to Aug-26 Worker
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/reattach-aug26-worker-domains.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fabrictrad-aug26-domain-restore
+  cancel-in-progress: false
+
+jobs:
+  reattach:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: aa4ff7a482130e543f176e2d73c93f45
+      WORKER_NAME: fabrictrad
+      ZONE_NAME: fabrictrad.com
+    steps:
+      - name: Require Cloudflare credential
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${CLOUDFLARE_API_TOKEN:-}" || exit 1
+
+      - name: Attach apex and www directly as Worker Custom Domains
+        shell: bash
+        run: |
+          set -euo pipefail
+          for hostname in fabrictrad.com www.fabrictrad.com; do
+            payload=$(node -e "console.log(JSON.stringify({hostname:process.argv[1],service:process.argv[2],zone_name:process.argv[3]}))" "$hostname" "$WORKER_NAME" "$ZONE_NAME")
+            status=$(curl --silent --show-error --output "/tmp/domain-${hostname}.json" --write-out '%{http_code}' \
+              --request PUT \
+              --header "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+              --header 'Content-Type: application/json' \
+              --data "$payload" \
+              "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/domains")
+            node - "/tmp/domain-${hostname}.json" "$hostname" "$status" <<'NODE'
+          const fs=require('node:fs');
+          const [file,hostname,status]=process.argv.slice(2);
+          const body=JSON.parse(fs.readFileSync(file,'utf8'));
+          if(status!=='200'||body.success!==true){
+            console.error(`Custom-domain attach failed for ${hostname} (HTTP ${status})`);
+            console.error(JSON.stringify(body,null,2));
+            process.exit(1);
+          }
+          console.log(`${hostname} attached to FabricTrad Worker.`);
+          NODE
+          done
+
+      - name: Confirm Worker owns both domains
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error \
+            --header "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/domains?service=${WORKER_NAME}" > /tmp/domains.json
+          node - <<'NODE'
+          const fs=require('node:fs');
+          const body=JSON.parse(fs.readFileSync('/tmp/domains.json','utf8'));
+          if(body.success!==true){console.error(JSON.stringify(body,null,2));process.exit(1)}
+          const rows=body.result||[];
+          for(const h of ['fabrictrad.com','www.fabrictrad.com']){
+            if(!rows.some(x=>x.hostname===h&&x.service==='fabrictrad')){
+              console.error(`Worker domain missing: ${h}`); process.exit(1);
+            }
+          }
+          console.log('Both domains are owned by Worker fabrictrad.');
+          NODE
+
+      - name: Verify historical FabricTrad is live
+        shell: bash
+        run: |
+          set -euo pipefail
+          ok=false
+          for attempt in $(seq 1 60); do
+            home=$(curl --location --silent --show-error --connect-timeout 10 --max-time 25 --output /tmp/home.html --write-out '%{http_code}' https://fabrictrad.com/ || true)
+            login=$(curl --location --silent --show-error --connect-timeout 10 --max-time 25 --output /tmp/login.html --write-out '%{http_code}' https://fabrictrad.com/login || true)
+            www=$(curl --location --silent --show-error --connect-timeout 10 --max-time 25 --output /tmp/www.html --write-out '%{http_code}' https://www.fabrictrad.com/ || true)
+            if [ "$home" = 200 ] && [ "$login" = 200 ] && [ "$www" = 200 ] && \
+               grep -q 'Textile trade' /tmp/home.html && grep -q 'Welcome back' /tmp/login.html && \
+               ! grep -qi 'cdn.shopify.com' /tmp/login.html; then
+              ok=true; break
+            fi
+            sleep 5
+          done
+          [ "$ok" = true ] || { echo '::error::Historical FabricTrad did not become authoritative.'; exit 1; }
+          echo 'PASS: Aug-26 FabricTrad app is authoritative on apex and www.'
+
+      - name: Verify key historical routes
+        shell: bash
+        run: |
+          set -euo pipefail
+          for path in /login /buyer-registration /seller-registration /marketplace /buyer-dashboard /seller-dashboard /admin-login; do
+            code=$(curl --location --silent --show-error --connect-timeout 10 --max-time 25 --output /tmp/route.html --write-out '%{http_code}' "https://fabrictrad.com${path}" || true)
+            test "$code" = 200 || { echo "::error::${path} returned ${code}"; exit 1; }
+          done
+          echo 'PASS: historical role and marketplace routes are reachable.'
