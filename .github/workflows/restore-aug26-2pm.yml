@@ -1,0 +1,216 @@
+name: Restore FabricTrad to 26 Aug 2026 2pm IST
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/restore-aug26-2pm.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fabrictrad-aug26-restore
+  cancel-in-progress: false
+
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      RESTORE_COMMIT: 658e8248619aadf208cdb7f007826b57a43406f6
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: aa4ff7a482130e543f176e2d73c93f45
+      NEXT_PUBLIC_SUPABASE_URL: https://rdhfwlzhcvwjhkxhhpoo.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: sb_publishable_Un2-RQfjGbIiXF3Mb2oGIA_p-Z1kMls
+      NEXT_PUBLIC_SITE_URL: https://fabrictrad.com
+      NEXT_PUBLIC_ENABLE_GOOGLE_AUTH: 'true'
+      ADMIN_EMAIL: fabrictrad8@gmail.com
+      OPENAI_DRAPE_IMAGE_MODEL: gpt-image-2
+      OPENAI_DRAPE_IMAGE_SIZE: 1024x1536
+      OPENAI_DRAPE_IMAGE_QUALITY: medium
+      OPENAI_CATALOG_MODEL: gpt-4.1-mini
+      AI_DRAPE_DAILY_LIMIT: '10'
+      AI_DRAPE_DEMO_DAILY_LIMIT: '2'
+      AI_DRAPE_FALLBACK_DAILY_LIMIT: '3'
+      WORKER_NAME: fabrictrad
+      ZONE_NAME: fabrictrad.com
+
+    steps:
+      - name: Require Cloudflare credential
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${CLOUDFLARE_API_TOKEN:-}" || { echo '::error::CLOUDFLARE_API_TOKEN is unavailable.'; exit 1; }
+
+      - name: Checkout exact Aug-26 production source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RESTORE_COMMIT }}
+          fetch-depth: 1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund --package-lock=false --legacy-peer-deps
+
+      - name: Verify historical source
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run type-check
+          npm run lint -- --quiet
+
+      - name: Build historical production Worker
+        run: npm run build:sites
+
+      - name: Verify Cloudflare authentication
+        run: npx wrangler whoami
+
+      - name: Deploy exact historical application to fabrictrad Worker
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx wrangler deploy --config wrangler.jsonc --keep-vars 2>&1 | tee /tmp/restore-deploy.log
+
+      - name: Confirm Worker script exists after deploy
+        shell: bash
+        run: |
+          set -euo pipefail
+          status=$(curl --silent --show-error --output /tmp/worker.json --write-out '%{http_code}' \
+            --header "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts/${WORKER_NAME}")
+          test "$status" = '200' || { cat /tmp/worker.json; exit 1; }
+          echo "Historical build is deployed to Worker ${WORKER_NAME}."
+
+      - name: Resolve FabricTrad Cloudflare zone
+        id: zone
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error \
+            --header "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            "https://api.cloudflare.com/client/v4/zones?name=${ZONE_NAME}&status=active" > /tmp/zones.json
+          zone_id=$(node - <<'NODE'
+          const fs=require('node:fs');
+          const body=JSON.parse(fs.readFileSync('/tmp/zones.json','utf8'));
+          const zone=(body.result||[]).find(z=>z.name==='fabrictrad.com');
+          if(body.success!==true||!zone?.id){console.error(JSON.stringify(body,null,2));process.exit(1)}
+          process.stdout.write(zone.id);
+          NODE
+          )
+          echo "zone_id=${zone_id}" >> "$GITHUB_OUTPUT"
+
+      - name: Remove Shopify storefront DNS records only
+        env:
+          ZONE_ID: ${{ steps.zone.outputs.zone_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for hostname in fabrictrad.com www.fabrictrad.com; do
+            curl --fail --silent --show-error \
+              --header "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+              "https://api.cloudflare.com/client/v4/zones/${ZONE_ID}/dns_records?name=${hostname}&per_page=100" > /tmp/records.json
+            node - <<'NODE' > /tmp/delete.tsv
+          const fs=require('node:fs');
+          const body=JSON.parse(fs.readFileSync('/tmp/records.json','utf8'));
+          if(body.success!==true)process.exit(1);
+          for(const r of body.result||[]){
+            if(['A','AAAA','CNAME'].includes(r.type)) console.log(`${r.id}\t${r.type}\t${r.name}\t${r.content}`);
+          }
+          NODE
+            if [ -s /tmp/delete.tsv ]; then
+              while IFS=$'\t' read -r id type name content; do
+                echo "Removing storefront DNS ${type} ${name} -> ${content}"
+                curl --fail --silent --show-error --request DELETE \
+                  --header "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+                  "https://api.cloudflare.com/client/v4/zones/${ZONE_ID}/dns_records/${id}" > /tmp/delete-result.json
+                node - <<'NODE'
+          const fs=require('node:fs');
+          const body=JSON.parse(fs.readFileSync('/tmp/delete-result.json','utf8'));
+          if(body.success!==true){console.error(JSON.stringify(body,null,2));process.exit(1)}
+          NODE
+              done < /tmp/delete.tsv
+            fi
+          done
+
+      - name: Reattach apex and www to historical FabricTrad Worker
+        shell: bash
+        run: |
+          set -euo pipefail
+          for hostname in fabrictrad.com www.fabrictrad.com; do
+            payload=$(node -e "console.log(JSON.stringify({hostname:process.argv[1],service:process.argv[2],zone_name:process.argv[3]}))" "$hostname" "$WORKER_NAME" "$ZONE_NAME")
+            status=$(curl --silent --show-error --output "/tmp/domain-${hostname}.json" --write-out '%{http_code}' \
+              --request PUT \
+              --header "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+              --header 'Content-Type: application/json' \
+              --data "$payload" \
+              "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/domains")
+            node - "/tmp/domain-${hostname}.json" "$hostname" "$status" <<'NODE'
+          const fs=require('node:fs');
+          const [file,hostname,status]=process.argv.slice(2);
+          const body=JSON.parse(fs.readFileSync(file,'utf8'));
+          if(status!=='200'||body.success!==true){console.error(JSON.stringify(body,null,2));console.error(`Failed to attach ${hostname} to FabricTrad Worker.`);process.exit(1)}
+          console.log(`${hostname} attached to ${body.result?.service||'fabrictrad'}.`);
+          NODE
+          done
+
+      - name: Verify both custom domains are attached to Worker
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error \
+            --header "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/domains?service=${WORKER_NAME}" > /tmp/domains.json
+          node - <<'NODE'
+          const fs=require('node:fs');
+          const body=JSON.parse(fs.readFileSync('/tmp/domains.json','utf8'));
+          const domains=body.result||[];
+          for(const hostname of ['fabrictrad.com','www.fabrictrad.com']){
+            if(!domains.some(d=>d.hostname===hostname&&d.service==='fabrictrad')){
+              console.error(`Missing restored Worker custom domain ${hostname}`);process.exit(1);
+            }
+          }
+          console.log('Both FabricTrad domains are attached to the historical Worker.');
+          NODE
+
+      - name: Verify restored public website
+        shell: bash
+        run: |
+          set -euo pipefail
+          restored=false
+          for attempt in $(seq 1 60); do
+            home_code=$(curl --location --silent --show-error --connect-timeout 10 --max-time 30 \
+              --output /tmp/home.html --write-out '%{http_code}' https://fabrictrad.com/ || true)
+            login_code=$(curl --location --silent --show-error --connect-timeout 10 --max-time 30 \
+              --output /tmp/login.html --write-out '%{http_code}' https://fabrictrad.com/login || true)
+            if [ "$home_code" = '200' ] && [ "$login_code" = '200' ] && \
+               grep -q 'Textile trade' /tmp/home.html && grep -q 'Welcome back' /tmp/login.html && \
+               ! grep -qi 'cdn.shopify.com' /tmp/login.html; then
+              restored=true
+              break
+            fi
+            sleep 5
+          done
+          if [ "$restored" != 'true' ]; then
+            echo '::error::fabrictrad.com did not return the Aug-26 application in time.'
+            echo "Home HTTP: ${home_code:-unknown}; Login HTTP: ${login_code:-unknown}"
+            head -c 1000 /tmp/home.html || true
+            exit 1
+          fi
+          echo 'PASS: fabrictrad.com is serving the Aug-26 FabricTrad application again.'
+
+      - name: Verify key historical routes
+        shell: bash
+        run: |
+          set -euo pipefail
+          for path in /login /buyer-registration /seller-registration /marketplace; do
+            code=$(curl --location --silent --show-error --connect-timeout 10 --max-time 30 \
+              --output /tmp/route.html --write-out '%{http_code}' "https://fabrictrad.com${path}" || true)
+            test "$code" = '200' || { echo "::error::${path} returned ${code}"; exit 1; }
+          done
+          echo 'Historical account and marketplace routes are reachable.'
