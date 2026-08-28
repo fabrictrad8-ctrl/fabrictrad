@@ -8,12 +8,14 @@ on:
       - '.github/workflows/integration-readiness.yml'
       - '.github/workflows/flagship-virtual-drape-live.yml'
       - 'src/app/api/ai/drape-on/**'
+      - 'supabase/migrations/**'
   push:
     branches: [main]
     paths:
       - '.github/workflows/integration-readiness.yml'
       - '.github/workflows/flagship-virtual-drape-live.yml'
       - 'src/app/api/ai/drape-on/**'
+      - 'supabase/migrations/**'
   schedule:
     - cron: '43 */6 * * *'
 
@@ -35,6 +37,7 @@ jobs:
         env:
           STOREFRONT_ROOT: https://fabrictrad.com
           STOREFRONT_WWW: https://www.fabrictrad.com
+          SHOPIFY_DOMAIN: 3v0ipk-yh.myshopify.com
           SUPABASE_FUNCTIONS: https://rdhfwlzhcvwjhkxhhpoo.supabase.co/functions/v1
         run: |
           set -euo pipefail
@@ -68,6 +71,28 @@ jobs:
             fi
           }
 
+          probe_invalid_shopify_hmac() {
+            local name="$1"
+            local function_name="$2"
+            local topic="$3"
+            local output="$4"
+            local status
+            status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+              --output "$output" --write-out '%{http_code}' \
+              --header 'Content-Type: application/json' \
+              --header "x-shopify-shop-domain: ${SHOPIFY_DOMAIN}" \
+              --header "x-shopify-topic: ${topic}" \
+              --header 'x-shopify-webhook-id: integration-readiness-invalid-hmac' \
+              --header 'x-shopify-hmac-sha256: invalid-signature' \
+              --data '{}' "$SUPABASE_FUNCTIONS/$function_name" || true)
+            echo "${name}: HTTP ${status} (expected 401)"
+            if [ "$status" != '401' ]; then
+              head -c 1200 "$output" || true
+              echo
+              fail "${name} did not reject an invalid Shopify HMAC with HTTP 401."
+            fi
+          }
+
           apex_headers=/tmp/apex.headers
           apex_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
             --dump-header "$apex_headers" --output /dev/null --write-out '%{http_code}' \
@@ -90,6 +115,18 @@ jobs:
           for fn in ai-drape marketplace-admin-data marketplace-admin-action marketplace-order-resolution shopify-seller-partial-refund shopify-product-sync; do
             probe_exact "Unauthenticated ${fn}" POST "$SUPABASE_FUNCTIONS/$fn" 401 "/tmp/${fn}.json"
           done
+
+          probe_invalid_shopify_hmac \
+            'Order/payment Shopify webhook HMAC gate' \
+            'shopify-marketplace-webhook' \
+            'orders/create' \
+            /tmp/order-webhook.json
+
+          probe_invalid_shopify_hmac \
+            'Catalog/inventory Shopify webhook HMAC gate' \
+            'shopify-catalog-webhook' \
+            'products/update' \
+            /tmp/catalog-webhook.json
 
           probe_exact 'Retired legacy administrator OTP endpoint' POST "$SUPABASE_FUNCTIONS/generate-admin-otp" 410 /tmp/legacy-admin-otp.json
           grep -qi 'retired' /tmp/legacy-admin-otp.json || fail 'Retired administrator OTP endpoint did not return its retirement contract.'
