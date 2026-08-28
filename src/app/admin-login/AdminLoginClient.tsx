@@ -6,7 +6,6 @@ import AppLogo from '@/components/ui/AppLogo';
 import Icon from '@/components/ui/AppIcon';
 import { useAuth } from '@/contexts/AuthContext';
 
-type AdminRole = 'admin_staff' | 'super_admin';
 type OtpResponse = { error?: string; destination?: string; method?: string; retryAfter?: number };
 type AdminLoginClientProps = { configuredEmail: string };
 
@@ -14,10 +13,9 @@ const MIN_EMAIL_OTP_LENGTH = 6;
 const MAX_EMAIL_OTP_LENGTH = 10;
 const EMAIL_OTP_PATTERN = /^\d{6,10}$/;
 const normalizeEmail = (value: string) => value.trim().toLowerCase();
-const isAdminRole = (role: unknown): role is AdminRole => role === 'admin_staff' || role === 'super_admin';
 
 export default function AdminLoginClient({ configuredEmail }: AdminLoginClientProps) {
-  const { user, profile, loading, verifyEmailOtp, signOut } = useAuth();
+  const { loading, verifyEmailOtp, signOut } = useAuth();
   const [email, setEmail] = useState('');
   const [otp, setOtp] = useState('');
   const [codeSent, setCodeSent] = useState(false);
@@ -31,14 +29,8 @@ export default function AdminLoginClient({ configuredEmail }: AdminLoginClientPr
   const emailAllowed = normalizedEmail === authorisedEmail;
   const otpReady = EMAIL_OTP_PATTERN.test(otp);
 
-  useEffect(() => {
-    if (loading || !user || !profile) return;
-    const signedInEmail = normalizeEmail(user.email || '');
-    const authorised = signedInEmail === authorisedEmail && profile.is_active === true && isAdminRole(profile.role);
-    if (authorised) { window.location.replace('/admin-portal'); return; }
-    if (isAdminRole(profile.role) && signedInEmail !== authorisedEmail) void signOut().catch(() => undefined);
-  }, [authorisedEmail, loading, profile, signOut, user]);
-
+  // Existing valid Admin OTP sessions are redirected by server middleware before this
+  // component is rendered. This screen never upgrades an arbitrary existing session.
   useEffect(() => {
     if (resendSeconds <= 0) return;
     const timer = window.setInterval(() => setResendSeconds((current) => Math.max(0, current - 1)), 1000);
