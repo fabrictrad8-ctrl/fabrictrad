@@ -11,7 +11,6 @@ const EXPIRED_COOKIE = {
 };
 
 const expireKnownAuthCookies = (request: NextRequest, response: NextResponse) => {
-  response.cookies.set('fabrictrad_demo_role', '', { ...EXPIRED_COOKIE, httpOnly: true });
   response.cookies.set('fabrictrad_oauth_role', '', EXPIRED_COOKIE);
   response.cookies.set('fabrictrad_buyer_type', '', EXPIRED_COOKIE);
 
