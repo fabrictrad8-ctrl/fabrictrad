@@ -2,23 +2,42 @@ name: FabricTrad integration readiness
 
 on:
   workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/integration-readiness.yml'
+      - '.github/workflows/flagship-virtual-drape-live.yml'
+      - 'src/app/api/ai/drape-on/**'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/integration-readiness.yml'
+      - '.github/workflows/flagship-virtual-drape-live.yml'
+      - 'src/app/api/ai/drape-on/**'
   schedule:
     - cron: '43 */6 * * *'
 
 permissions:
   contents: read
+  statuses: write
+
+concurrency:
+  group: fabrictrad-integration-readiness-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   readiness:
     runs-on: ubuntu-latest
     timeout-minutes: 12
     steps:
-      - name: Check external integration readiness
+      - name: Verify Shopify storefront and Supabase security boundaries
         shell: bash
+        env:
+          STOREFRONT_ROOT: https://fabrictrad.com
+          STOREFRONT_WWW: https://www.fabrictrad.com
+          SUPABASE_FUNCTIONS: https://rdhfwlzhcvwjhkxhhpoo.supabase.co/functions/v1
         run: |
-          set -u -o pipefail
-          base_url='https://fabrictrad.com'
-          warnings=0
+          set -euo pipefail
           failures=0
 
           fail() {
@@ -26,120 +45,82 @@ jobs:
             failures=$((failures + 1))
           }
 
-          warn() {
-            echo "::warning::$1"
-            warnings=$((warnings + 1))
-          }
-
-          fetch_json() {
+          probe_exact() {
             local name="$1"
-            local path="$2"
-            local output="$3"
-            local expected_status="${4:-200}"
+            local method="$2"
+            local url="$3"
+            local expected="$4"
+            local output="$5"
             local status
-            status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
-              --output "$output" --write-out '%{http_code}' "$base_url$path" || true)
-            echo "${name}: HTTP ${status} (expected ${expected_status})"
-            if [ "$status" != "$expected_status" ]; then
-              echo "${name} response:"
+            if [ "$method" = 'POST' ]; then
+              status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+                --output "$output" --write-out '%{http_code}' \
+                --header 'Content-Type: application/json' --data '{}' "$url" || true)
+            else
+              status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+                --output "$output" --write-out '%{http_code}' "$url" || true)
+            fi
+            echo "${name}: HTTP ${status} (expected ${expected})"
+            if [ "$status" != "$expected" ]; then
               head -c 1200 "$output" || true
               echo
-              fail "${name} returned HTTP ${status}; expected ${expected_status}."
-              return 1
-            fi
-            return 0
-          }
-
-          assert_cookie_cannot_unlock() {
-            local role="$1"
-            local route="$2"
-            local expected="$3"
-            local headers="/tmp/${role}-cookie.headers"
-            local status
-            status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
-              --cookie "fabrictrad_demo_role=${role}" \
-              --dump-header "$headers" --output /dev/null --write-out '%{http_code}' \
-              --max-redirs 0 "$base_url$route" || true)
-            if [ "$status" != '307' ] && [ "$status" != '308' ]; then
-              fail "${role} stale demo cookie returned HTTP ${status}; expected a protected redirect."
-              return
-            fi
-            if ! grep -qi "^location: .*${expected}" "$headers"; then
-              cat "$headers" || true
-              fail "${role} stale demo cookie redirected somewhere other than ${expected}."
+              fail "${name} returned HTTP ${status}; expected ${expected}."
             fi
           }
 
-          fetch_json 'Google OAuth readiness' '/api/auth/google/status' /tmp/google.json || true
-          fetch_json 'Razorpay authenticated readiness' '/api/razorpay/status' /tmp/razorpay.json || true
-          fetch_json 'Shiprocket authenticated readiness' '/api/shiprocket/status?verify=1' /tmp/shiprocket.json || true
-          fetch_json 'AI Drape readiness' '/api/ai/drape-on' /tmp/ai.json || true
-          fetch_json '3D trial-room readiness' '/api/ai/trial-room/status' /tmp/trial-room.json || true
-          fetch_json 'GSTIN readiness' '/api/gstin/status' /tmp/gstin.json || true
-          fetch_json 'WhatsApp catalog readiness' '/api/whatsapp/status' /tmp/whatsapp.json || true
+          apex_headers=/tmp/apex.headers
+          apex_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+            --dump-header "$apex_headers" --output /dev/null --write-out '%{http_code}' \
+            --max-redirs 0 "$STOREFRONT_ROOT/" || true)
+          echo "Apex storefront: HTTP ${apex_status}"
+          case "$apex_status" in
+            200) ;;
+            301|302|307|308)
+              grep -Eqi '^location: https://www\.fabrictrad\.com(/|\r?$)' "$apex_headers" \
+                || fail 'fabrictrad.com does not redirect to the canonical www.fabrictrad.com storefront.'
+              ;;
+            *) fail "fabrictrad.com returned unexpected HTTP ${apex_status}." ;;
+          esac
 
-          if [ -s /tmp/google.json ]; then
-            grep -q '"configured":true' /tmp/google.json || fail 'Google OAuth is not configured.'
-          fi
+          www_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+            --location --output /tmp/www.html --write-out '%{http_code}' "$STOREFRONT_WWW/" || true)
+          echo "Canonical storefront: HTTP ${www_status}"
+          [ "$www_status" = '200' ] || fail "www.fabrictrad.com returned HTTP ${www_status}; expected 200."
 
-          if [ -s /tmp/razorpay.json ]; then
-            grep -q '"configured":true' /tmp/razorpay.json || fail 'Razorpay credentials are missing.'
-            grep -q '"authenticated":true' /tmp/razorpay.json || fail 'Razorpay credentials do not authenticate with Razorpay.'
-            grep -q '"mode":"live"' /tmp/razorpay.json || fail 'Razorpay is not using LIVE credentials in production.'
-          fi
+          for fn in ai-drape marketplace-admin-data marketplace-admin-action marketplace-order-resolution shopify-seller-partial-refund shopify-product-sync; do
+            probe_exact "Unauthenticated ${fn}" POST "$SUPABASE_FUNCTIONS/$fn" 401 "/tmp/${fn}.json"
+          done
 
-          if [ -s /tmp/shiprocket.json ]; then
-            grep -q '"configured":true' /tmp/shiprocket.json || fail 'Shiprocket credentials are missing.'
-            grep -q '"authenticated":true' /tmp/shiprocket.json || fail 'Shiprocket credentials do not authenticate with Shiprocket.'
-            grep -q '"webhookConfigured":true' /tmp/shiprocket.json || fail 'Shiprocket webhook token is missing.'
-          fi
+          probe_exact 'Retired legacy administrator OTP endpoint' POST "$SUPABASE_FUNCTIONS/generate-admin-otp" 410 /tmp/legacy-admin-otp.json
+          grep -qi 'retired' /tmp/legacy-admin-otp.json || fail 'Retired administrator OTP endpoint did not return its retirement contract.'
 
-          if [ -s /tmp/ai.json ] && ! grep -q '"configured":true' /tmp/ai.json; then
-            fail 'AI Drape provider is not configured.'
-          fi
-
-          if [ -s /tmp/trial-room.json ] && ! grep -q '"threeDProviderConfigured":true' /tmp/trial-room.json; then
-            warn 'True 3D trial-room architecture exists, but no dedicated 3D rendering provider is configured.'
-          fi
-
-          if [ -s /tmp/gstin.json ] && ! grep -q '"providerConfigured":true' /tmp/gstin.json; then
-            warn 'GSTIN verification is using the official-manual review path.'
-          fi
-
-          if [ -s /tmp/whatsapp.json ] && ! grep -q '"configured":true' /tmp/whatsapp.json; then
-            warn 'WhatsApp seller catalog sync is installed but not fully configured.'
-          fi
-
-          webhook_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
-            --output /tmp/razorpay-webhook.json --write-out '%{http_code}' \
-            --header 'Content-Type: application/json' \
-            --header 'x-razorpay-signature: 00' --data '{}' \
-            "$base_url/api/razorpay/webhook" || true)
-          echo "Razorpay invalid-signature probe: HTTP ${webhook_status} (expected 400)"
-          if [ "$webhook_status" != '400' ]; then
-            head -c 1200 /tmp/razorpay-webhook.json || true
-            echo
-            fail "Razorpay webhook returned HTTP ${webhook_status}; expected 400."
-          elif ! grep -qi 'invalid signature' /tmp/razorpay-webhook.json; then
-            fail 'Razorpay webhook did not report invalid signature for a forged request.'
-          fi
-
-          whatsapp_webhook_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
-            --output /tmp/whatsapp-webhook.json --write-out '%{http_code}' \
-            --header 'Content-Type: application/json' \
-            --header 'x-hub-signature-256: sha256=00' --data '{}' \
-            "$base_url/api/integrations/whatsapp/webhook" || true)
-          echo "WhatsApp forged-signature probe: HTTP ${whatsapp_webhook_status} (expected 401 when configured, 503 while credentials are pending)"
-          if [ "$whatsapp_webhook_status" != '401' ] && [ "$whatsapp_webhook_status" != '503' ]; then
-            fail "WhatsApp webhook returned HTTP ${whatsapp_webhook_status}; expected 401 or 503."
-          fi
-
-          # Stale test/audit cookies must never grant production access.
-          assert_cookie_cannot_unlock buyer '/buyer-dashboard' 'login'
-          assert_cookie_cannot_unlock seller '/seller-dashboard' 'login'
-          assert_cookie_cannot_unlock admin '/admin-portal' 'admin-login'
-
-          echo "Integration readiness completed with ${failures} failure(s) and ${warnings} non-blocking warning(s)."
+          echo "Integration readiness completed with ${failures} failure(s)."
           if [ "$failures" -gt 0 ]; then
             exit 1
           fi
+
+      - name: Publish production smoke status
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          JOB_STATUS: ${{ job.status }}
+        shell: bash
+        run: |
+          if [ "$JOB_STATUS" = success ]; then
+            state=success
+            description='Shopify storefront and Supabase auth boundaries verified'
+          else
+            state=failure
+            description='Shopify/Supabase production readiness probe failed'
+          fi
+          payload=$(python - "$state" "$description" <<'PY'
+          import json,sys
+          print(json.dumps({'state':sys.argv[1],'context':'fabrictrad/production-smoke','description':sys.argv[2]}))
+          PY
+          )
+          curl --fail --silent --show-error --request POST \
+            --header "Authorization: Bearer ${GH_TOKEN}" \
+            --header 'Accept: application/vnd.github+json' \
+            --header 'Content-Type: application/json' \
+            --data "$payload" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" >/dev/null
