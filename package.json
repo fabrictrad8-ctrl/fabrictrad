@@ -52,7 +52,7 @@
     "format:check": "prettier --check \"src/**/*.{ts,tsx,css,md,json}\"",
     "serve": "next start -p ${PORT:-3000}",
     "type-check": "tsc --noEmit",
-    "verify:oauth-recovery": "node scripts/verify-oauth-recovery.mjs",
+    "verify:oauth-recovery": "node scripts/verify-oauth-recovery-current.mjs",
     "verify:public-home": "node scripts/verify-public-home-privacy.mjs",
     "verify:database-security": "node scripts/verify-database-security.mjs",
     "verify:seller-onboarding": "node scripts/verify-seller-onboarding.mjs",
