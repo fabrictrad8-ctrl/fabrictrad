@@ -66,6 +66,7 @@ jobs:
           grep -Fq 'isOtpAuthenticatedAccessToken' src/middleware.ts
           grep -Fq "const isAdminApi = pathname.startsWith('/api/admin')" src/middleware.ts
           grep -Fq "'/api/admin/:path*'" src/middleware.ts
+          ! grep -R --line-number --fixed-strings 'ADMIN_PASSWORD' src scripts .env.example 2>/dev/null
 
           # Production storefront ownership belongs to Shopify, not the legacy Worker.
           if grep -Fq '"custom_domain"' wrangler.jsonc; then
@@ -79,11 +80,13 @@ jobs:
           test ! -e .github/workflows/promote-cloudflare-razorpay-live.yml
           test ! -e .github/workflows/razorpay-hotfix-deploy.yml
           test ! -e .github/workflows/restore-historical-razorpay-live.yml
+          test ! -e .github/workflows/cutover-shopify-domain.yml
+          ! node -e "const p=require('./package.json'); const bad=['build:sites','deploy:sites','preview:sites'].filter(k=>p.scripts?.[k]); if(bad.length){console.error('Retired Cloudflare scripts still exposed:',bad);process.exit(1)}"
 
           # Synthetic demo APIs and role cookies must stay out of production authorization.
           test ! -e src/app/api/auth/demo-session/route.ts
-          ! grep -R --line-number --fixed-strings 'fabrictrad_demo_role' src middleware.ts tests 2>/dev/null
-          ! grep -R --line-number --fixed-strings 'FABRICTRAD_ENABLE_AUDIT_ADMIN' src middleware.ts 2>/dev/null
+          ! grep -R --line-number --fixed-strings 'fabrictrad_demo_role' src tests 2>/dev/null
+          ! grep -R --line-number --fixed-strings 'FABRICTRAD_ENABLE_AUDIT_ADMIN' src tests 2>/dev/null
 
       - name: Production source build
         run: npm run build
