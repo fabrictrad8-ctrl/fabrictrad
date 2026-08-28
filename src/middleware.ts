@@ -50,7 +50,7 @@ const redirect = (request: NextRequest, pathname: string) => {
   return NextResponse.redirect(url);
 };
 
-const adminApiError = (error: string, status: 401 | 403) =>
+const adminApiError = (error: string, status: 401 | 403 | 503) =>
   NextResponse.json(
     { error },
     { status, headers: { 'Cache-Control': 'no-store, max-age=0' } }
@@ -74,9 +74,16 @@ export async function middleware(request: NextRequest) {
   }
 
   const demoCookieValue = request.cookies.get(DEMO_COOKIE_NAME)?.value;
+
+  // Demo/audit cookie bypasses are development aids only. A production hostname must
+  // never gain buyer, seller or administrator authorization from a client cookie.
+  const localBypassAllowed = localRequest(request);
   const demoAccountsEnabled =
-    localRequest(request) || process.env.FABRICTRAD_ENABLE_DEMO_ACCOUNTS === 'true';
-  const auditAdminEnabled = process.env.FABRICTRAD_ENABLE_AUDIT_ADMIN === 'true';
+    localBypassAllowed ||
+    (process.env.NODE_ENV !== 'production' &&
+      process.env.FABRICTRAD_ENABLE_DEMO_ACCOUNTS === 'true');
+  const auditAdminEnabled =
+    localBypassAllowed && process.env.FABRICTRAD_ENABLE_AUDIT_ADMIN === 'true';
   const isAuditAdmin = auditAdminEnabled && demoCookieValue === 'admin';
   const demoRole =
     demoAccountsEnabled && (demoCookieValue === 'buyer' || demoCookieValue === 'seller')
@@ -95,10 +102,17 @@ export async function middleware(request: NextRequest) {
     const canBuy = true;
     const canSell = demoRole === 'seller';
     if (isAdminApi) return adminApiError('Administrator access required.', 403);
-    if (AUTH_ENTRY_PATHS.has(pathname) && !isBuyerRegistrationResume) return redirect(request, '/marketplace');
+    if (AUTH_ENTRY_PATHS.has(pathname) && !isBuyerRegistrationResume) {
+      return redirect(request, '/marketplace');
+    }
     if (pathname.startsWith('/admin-portal')) return redirect(request, '/marketplace');
-    if (pathname.startsWith('/seller-dashboard') && !canSell) return redirect(request, '/seller-registration');
-    if ((pathname.startsWith('/buyer-dashboard') || pathname.startsWith('/buyer-requirements')) && !canBuy) {
+    if (pathname.startsWith('/seller-dashboard') && !canSell) {
+      return redirect(request, '/seller-registration');
+    }
+    if (
+      (pathname.startsWith('/buyer-dashboard') || pathname.startsWith('/buyer-requirements')) &&
+      !canBuy
+    ) {
       return redirect(request, '/marketplace');
     }
     return NextResponse.next({ request });
@@ -114,7 +128,9 @@ export async function middleware(request: NextRequest) {
         setAll(cookiesToSet) {
           cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
           response = NextResponse.next({ request });
-          cookiesToSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options));
+          cookiesToSet.forEach(({ name, value, options }) =>
+            response.cookies.set(name, value, options)
+          );
         },
       },
     }
@@ -143,13 +159,42 @@ export async function middleware(request: NextRequest) {
   }
 
   const normalizedEmail = user.email?.trim().toLowerCase() || '';
-  const { data: profile } = await supabase
+  const { data: profile, error: profileError } = await supabase
     .from('user_profiles')
     .select('role,is_active,can_buy,can_sell')
     .eq('id', user.id)
     .maybeSingle();
 
-  if (profile?.is_active === false) {
+  // Authorization is database-backed. Never fall back to user_metadata because users
+  // can edit their own metadata. If the canonical profile cannot be read, fail closed.
+  if (profileError) {
+    return adminApiError('Account authorization is temporarily unavailable.', 503);
+  }
+
+  if (!profile) {
+    if (isAdminApi) {
+      return adminApiError('Administrator profile is not configured.', 403);
+    }
+
+    if (normalizedEmail === configuredAdminEmail()) {
+      if (pathname === '/admin-login') return response;
+      const adminLoginUrl = request.nextUrl.clone();
+      adminLoginUrl.pathname = '/admin-login';
+      adminLoginUrl.search = '';
+      adminLoginUrl.searchParams.set('error', 'admin_profile_required');
+      return withRefreshedCookies(NextResponse.redirect(adminLoginUrl), response);
+    }
+
+    if (isBuyerRegistrationResume) return response;
+
+    const registrationUrl = request.nextUrl.clone();
+    registrationUrl.pathname = '/buyer-registration';
+    registrationUrl.search = '';
+    registrationUrl.searchParams.set('resume', '1');
+    return withRefreshedCookies(NextResponse.redirect(registrationUrl), response);
+  }
+
+  if (profile.is_active === false) {
     if (isAdminApi) return adminApiError('Administrator account is inactive.', 403);
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = normalizedEmail === configuredAdminEmail() ? '/admin-login' : '/login';
@@ -158,14 +203,14 @@ export async function middleware(request: NextRequest) {
     return withRefreshedCookies(NextResponse.redirect(loginUrl), response);
   }
 
-  const role = profile?.role || user.app_metadata?.role || user.user_metadata?.role || 'buyer';
+  const role = profile.role;
   const hasAdminRole = role === 'admin_staff' || role === 'super_admin';
   const isAdmin =
     normalizedEmail === configuredAdminEmail() &&
-    profile?.is_active === true &&
+    profile.is_active === true &&
     hasAdminRole;
-  const canBuy = !hasAdminRole && (profile?.can_buy ?? true);
-  const canSell = !hasAdminRole && (profile?.can_sell ?? role === 'seller');
+  const canBuy = !hasAdminRole && profile.can_buy === true;
+  const canSell = !hasAdminRole && profile.can_sell === true;
 
   if (isAdminApi && !isAdmin) {
     return adminApiError('This account is not authorised for FabricTrad administration.', 403);
@@ -180,15 +225,17 @@ export async function middleware(request: NextRequest) {
     return withRefreshedCookies(redirect(request, destination), response);
   }
   if (pathname.startsWith('/admin-portal') && !isAdmin) {
-    const destination = normalizedEmail === configuredAdminEmail()
-      ? '/admin-login'
-      : '/marketplace';
+    const destination =
+      normalizedEmail === configuredAdminEmail() ? '/admin-login' : '/marketplace';
     return withRefreshedCookies(redirect(request, destination), response);
   }
   if (pathname.startsWith('/seller-dashboard') && !canSell) {
     return withRefreshedCookies(redirect(request, '/seller-registration'), response);
   }
-  if ((pathname.startsWith('/buyer-dashboard') || pathname.startsWith('/buyer-requirements')) && !canBuy) {
+  if (
+    (pathname.startsWith('/buyer-dashboard') || pathname.startsWith('/buyer-requirements')) &&
+    !canBuy
+  ) {
     return withRefreshedCookies(redirect(request, '/marketplace'), response);
   }
   return response;
