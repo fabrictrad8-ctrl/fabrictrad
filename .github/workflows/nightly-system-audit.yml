@@ -24,7 +24,6 @@ jobs:
       NEXT_PUBLIC_SITE_URL: http://127.0.0.1:3000
       NEXT_PUBLIC_ENABLE_GOOGLE_AUTH: 'false'
       ADMIN_EMAIL: fabrictrad8@gmail.com
-      FABRICTRAD_ENABLE_AUDIT_ADMIN: 'true'
       OPENAI_DRAPE_IMAGE_MODEL: gpt-image-2
       OPENAI_DRAPE_IMAGE_SIZE: 1024x1536
       OPENAI_DRAPE_IMAGE_QUALITY: medium
@@ -66,7 +65,7 @@ jobs:
       - name: Verify seller onboarding and approval safeguards
         run: node scripts/verify-seller-onboarding.mjs
 
-      - name: Verify mobile persistence and WhatsApp ingestion
+      - name: Verify mobile persistence and messaging ingestion
         run: node scripts/verify-mobile-whatsapp.mjs
 
       - name: Verify database security migrations
@@ -78,7 +77,7 @@ jobs:
       - name: Install Chromium runtime
         run: npx playwright install --with-deps chromium
 
-      - name: Run full-role browser QA
+      - name: Run authorization and recovery browser QA
         run: npx playwright test tests/e2e/sitewide-role-visual.spec.ts tests/e2e/oauth-recovery.spec.ts
 
       - name: Upload browser QA report
