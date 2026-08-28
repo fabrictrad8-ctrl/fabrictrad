@@ -1,6 +1,7 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { isOtpAuthenticatedAccessToken } from '@/lib/adminSession';
 
 const DEFAULT_ADMIN_EMAIL = 'fabrictrad8@gmail.com';
 const configuredAdminEmail = () =>
@@ -91,6 +92,7 @@ export async function middleware(request: NextRequest) {
     }
   );
 
+  // getUser() validates the session with Supabase before any decoded JWT claim is trusted.
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -135,7 +137,7 @@ export async function middleware(request: NextRequest) {
     if (isAdminApi) return adminApiError('Administrator profile is not configured.', 403);
 
     if (normalizedEmail === configuredAdminEmail()) {
-      if (pathname === '/admin-login') return response;
+      await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined);
       const adminLoginUrl = request.nextUrl.clone();
       adminLoginUrl.pathname = '/admin-login';
       adminLoginUrl.search = '';
@@ -162,7 +164,34 @@ export async function middleware(request: NextRequest) {
 
   const role = profile.role;
   const hasAdminRole = role === 'admin_staff' || role === 'super_admin';
-  const isAdmin = normalizedEmail === configuredAdminEmail() && hasAdminRole;
+  const isAdminIdentity = normalizedEmail === configuredAdminEmail() && hasAdminRole;
+  let isAdmin = false;
+
+  if (isAdminIdentity) {
+    // A matching email + role is not enough. FabricTrad administration is OTP-only.
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    isAdmin = isOtpAuthenticatedAccessToken(session?.access_token);
+
+    if (!isAdmin) {
+      if (isAdminApi) {
+        return adminApiError('Administrator email OTP verification is required.', 403);
+      }
+
+      // Clear password/OAuth/recovery-created sessions so the dedicated OTP screen
+      // always starts from a clean state and cannot loop back into the portal.
+      await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined);
+      if (pathname === '/admin-login') return response;
+
+      const adminLoginUrl = request.nextUrl.clone();
+      adminLoginUrl.pathname = '/admin-login';
+      adminLoginUrl.search = '';
+      adminLoginUrl.searchParams.set('reason', 'admin_otp_required');
+      return withRefreshedCookies(NextResponse.redirect(adminLoginUrl), response);
+    }
+  }
+
   const canBuy = !hasAdminRole && profile.can_buy === true;
   const canSell = !hasAdminRole && profile.can_sell === true;
 
