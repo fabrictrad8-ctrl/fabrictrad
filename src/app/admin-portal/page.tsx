@@ -2,6 +2,7 @@ import React, { Suspense } from 'react';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { isConfiguredAdminEmail } from '@/lib/adminAccess';
+import { isOtpAuthenticatedAccessToken } from '@/lib/adminSession';
 import AdminPortalLayout from '@/app/admin-portal/components/AdminPortalLayout';
 
 function AdminLoading() {
@@ -20,22 +21,26 @@ export default async function AdminPortalPage() {
 
   if (!user) redirect('/admin-login');
 
-  const { data: profile, error: profileError } = await supabase
-    .from('user_profiles')
-    .select('role, is_active')
-    .eq('id', user.id)
-    .maybeSingle();
+  const [{ data: profile, error: profileError }, { data: sessionData }] = await Promise.all([
+    supabase
+      .from('user_profiles')
+      .select('role, is_active')
+      .eq('id', user.id)
+      .maybeSingle(),
+    supabase.auth.getSession(),
+  ]);
 
   if (profileError) redirect('/admin-login?error=authorization_unavailable');
 
   const authorisedAdministrator =
     isConfiguredAdminEmail(user.email) &&
     profile?.is_active === true &&
-    (profile.role === 'super_admin' || profile.role === 'admin_staff');
+    (profile.role === 'super_admin' || profile.role === 'admin_staff') &&
+    isOtpAuthenticatedAccessToken(sessionData.session?.access_token);
 
   if (!authorisedAdministrator) {
-    await supabase.auth.signOut().catch(() => undefined);
-    redirect('/admin-login?error=not_authorised');
+    await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined);
+    redirect('/admin-login?reason=admin_otp_required');
   }
 
   return (
