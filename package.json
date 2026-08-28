@@ -56,11 +56,7 @@
     "verify:public-home": "node scripts/verify-public-home-privacy.mjs",
     "verify:database-security": "node scripts/verify-database-security.mjs",
     "verify:seller-onboarding": "node scripts/verify-seller-onboarding.mjs",
-    "verify:razorpay": "node scripts/verify-razorpay-config.mjs",
     "check": "npm run verify:oauth-recovery && npm run verify:public-home && npm run verify:database-security && npm run verify:seller-onboarding && npm run type-check && npm run lint && npm run build",
-    "build:sites": "opennextjs-cloudflare build --config wrangler.jsonc && node scripts/patch-opennext-worker.mjs",
-    "deploy:sites": "opennextjs-cloudflare deploy --config wrangler.jsonc",
-    "preview:sites": "opennextjs-cloudflare preview --config wrangler.jsonc",
     "admin:provision": "node scripts/provision-admin.mjs"
   },
   "dependencies": {
@@ -81,10 +77,9 @@
     "three": "^0.180.0"
   },
   "devDependencies": {
-    "@eslint/eslintrc": "^3",
-    "@eslint/js": "^9.0.0",
+    "@dhiwise/component-tagger": "^1.0.15",
+    "@heroicons/react": "^2.2.0",
     "@netlify/plugin-nextjs": "^5.11.1",
-    "@opennextjs/cloudflare": "^1.20.1",
     "@playwright/test": "1.61.1",
     "@types/node": "^20",
     "@types/react": "19.0.3",
@@ -101,16 +96,13 @@
     "prettier": "^3.5.3",
     "tailwindcss": "3.4.6",
     "tailwindcss-animate": "^1.0.7",
-    "typescript": "^5",
-    "wrangler": "^4.113.0"
+    "typescript": "^5"
   },
   "overrides": {
-    "postcss": "^8.5.19",
-    "esbuild": "^0.28.1"
+    "postcss": "^8.5.19"
   },
   "allowScripts": {
     "sharp@0.34.5": true,
-    "unrs-resolver@1.11.1": true,
-    "esbuild@0.28.1": true
+    "unrs-resolver@1.11.1": true
   }
 }
