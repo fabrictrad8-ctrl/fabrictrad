@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { type AccountRole } from '@/lib/accountProvisioning';
 import { provisionAuthenticatedAccountWithRecovery } from '@/lib/server/accountProvisioningRecovery';
 import { normalizeEmail } from '@/lib/authValidation';
+import { isConfiguredAdminEmail } from '@/lib/adminAccess';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -56,6 +57,19 @@ export async function POST(request: NextRequest) {
   const email = typeof body.email === 'string' ? normalizeEmail(body.email) : '';
   const password = typeof body.password === 'string' ? body.password : '';
   if (!email || !password) return respond({ error: 'Enter your registered email and password.' }, 400);
+
+  // FabricTrad administration is email-OTP only. Refuse a password attempt before
+  // Supabase can create any administrator password session.
+  if (isConfiguredAdminEmail(email)) {
+    return respond(
+      {
+        error: 'Administrator access requires the dedicated email OTP sign-in.',
+        code: 'admin_otp_required',
+        destination: '/admin-login',
+      },
+      403
+    );
+  }
 
   const supabase = await createClient();
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
@@ -133,6 +147,19 @@ export async function POST(request: NextRequest) {
         return setupRequired(role === 'seller' ? 'seller' : requestedRole);
       }
     }
+  }
+
+  // A corrupted canonical role must not turn password login into an Admin path.
+  if (role === 'admin_staff' || role === 'super_admin') {
+    await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined);
+    return respond(
+      {
+        error: 'Administrator access requires the dedicated email OTP sign-in.',
+        code: 'admin_otp_required',
+        destination: '/admin-login',
+      },
+      403
+    );
   }
 
   return respond({
