@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { isConfiguredAdminEmail } from '@/lib/adminAccess';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -31,25 +32,21 @@ const cityFromAddress = (value: unknown) => {
   return [address.city, address.state].map(textValue).filter(Boolean).join(', ');
 };
 
-async function requireAdministrator(request: NextRequest) {
-  const auditAdmin =
-    process.env.FABRICTRAD_ENABLE_AUDIT_ADMIN === 'true' &&
-    request.cookies.get('fabrictrad_demo_role')?.value === 'admin';
-  if (auditAdmin) return true;
-
+async function requireAdministrator() {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return false;
+  if (!user || !isConfiguredAdminEmail(user.email)) return false;
 
   const admin = createAdminClient();
-  const { data: profile } = await admin
+  const { data: profile, error } = await admin
     .from('user_profiles')
     .select('role,is_active')
     .eq('id', user.id)
     .maybeSingle();
 
+  if (error) return false;
   return (
     profile?.is_active === true &&
     (profile.role === 'super_admin' || profile.role === 'admin_staff')
@@ -79,7 +76,7 @@ type SellerMetric = {
 };
 
 export async function GET(request: NextRequest) {
-  if (!(await requireAdministrator(request))) {
+  if (!(await requireAdministrator())) {
     return json({ error: 'Administrator access required.' }, 403);
   }
 
