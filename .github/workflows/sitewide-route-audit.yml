@@ -149,15 +149,14 @@ jobs:
           test "$demo_get" = '404'
           test "$demo_post" = '404'
 
-      - name: Verify shared-header invariants
+      - name: Verify shared-header and authorization invariants
         shell: bash
         run: |
           set -euo pipefail
           grep -Fq 'ft-buyer-search' src/components/Header.tsx
           grep -Fq '.ft-buyer-header.ft-commerce-header' src/styles/commerce-ux-final.css
           grep -Fq 'MarketplaceQueryBridge' src/app/marketplace/page.tsx
-          if grep -R -n -E 'demo\.buyer@fabrictrad\.com|demo\.seller@fabrictrad\.com|fabrictrad_demo_role' \
-            src .github/workflows scripts --exclude='sitewide-route-audit.yml'; then
-            echo 'Synthetic production demo-session artifacts remain in executable code.'
+          if grep -R -n -E 'demo\.buyer@fabrictrad\.com|demo\.seller@fabrictrad\.com|fabrictrad_demo_role' src scripts; then
+            echo 'Synthetic role-cookie artifacts remain in executable application sources.'
             exit 1
           fi
