@@ -1,11 +1,9 @@
 import React, { Suspense } from 'react';
-import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { isConfiguredAdminEmail } from '@/lib/adminAccess';
+import { isOtpAuthenticatedAccessToken } from '@/lib/adminSession';
 import AdminPortalLayout from '@/app/admin-portal/components/AdminPortalLayout';
-
-const DEMO_COOKIE_NAME = 'fabrictrad_demo_role';
 
 function AdminLoading() {
   return (
@@ -16,34 +14,33 @@ function AdminLoading() {
 }
 
 export default async function AdminPortalPage() {
-  const cookieStore = await cookies();
-  const isAuditAdmin =
-    process.env.FABRICTRAD_ENABLE_AUDIT_ADMIN === 'true' &&
-    cookieStore.get(DEMO_COOKIE_NAME)?.value === 'admin';
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  if (!isAuditAdmin) {
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+  if (!user) redirect('/admin-login');
 
-    if (!user) redirect('/admin-login');
-
-    const { data: profile } = await supabase
+  const [{ data: profile, error: profileError }, { data: sessionData }] = await Promise.all([
+    supabase
       .from('user_profiles')
       .select('role, is_active')
       .eq('id', user.id)
-      .maybeSingle();
+      .maybeSingle(),
+    supabase.auth.getSession(),
+  ]);
 
-    const authorisedAdministrator =
-      isConfiguredAdminEmail(user.email) &&
-      profile?.is_active === true &&
-      (profile.role === 'super_admin' || profile.role === 'admin_staff');
+  if (profileError) redirect('/admin-login?error=authorization_unavailable');
 
-    if (!authorisedAdministrator) {
-      await supabase.auth.signOut();
-      redirect('/admin-login?error=not_authorised');
-    }
+  const authorisedAdministrator =
+    isConfiguredAdminEmail(user.email) &&
+    profile?.is_active === true &&
+    (profile.role === 'super_admin' || profile.role === 'admin_staff') &&
+    isOtpAuthenticatedAccessToken(sessionData.session?.access_token);
+
+  if (!authorisedAdministrator) {
+    await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined);
+    redirect('/admin-login?reason=admin_otp_required');
   }
 
   return (

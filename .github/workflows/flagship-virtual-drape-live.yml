@@ -1,15 +1,20 @@
-# Production flagship monitor: own photo OR AI model + live seller textile -> OpenAI GPT Image -> returned drape.
-name: Flagship Virtual Drape live E2E
+# FabricTrad's live Shopify storefront calls the authenticated Supabase ai-drape Edge Function.
+# This monitor verifies the production security boundary and repository cutover contract without
+# fabricating a buyer session or consuming paid image-generation quota.
+name: Flagship Virtual Drape security contract
 
 on:
   workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/flagship-virtual-drape-live.yml'
+      - 'src/app/api/ai/drape-on/**'
   push:
     branches: [main]
     paths:
       - '.github/workflows/flagship-virtual-drape-live.yml'
       - 'src/app/api/ai/drape-on/**'
-      - 'src/app/product-detail/components/FlagshipVirtualDrapeStudio.tsx'
-      - 'src/lib/drapeProductStyle.ts'
   schedule:
     - cron: '17 2 * * *'
 
@@ -18,125 +23,57 @@ permissions:
   statuses: write
 
 concurrency:
-  group: fabrictrad-flagship-virtual-drape-live
+  group: fabrictrad-flagship-virtual-drape-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  verify-live-drape:
+  verify-drape-contract:
     runs-on: ubuntu-latest
-    timeout-minutes: 18
+    timeout-minutes: 10
     steps:
-      - name: Verify live OpenAI readiness
+      - uses: actions/checkout@v4
+
+      - name: Verify repository cutover contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          route='src/app/api/ai/drape-on/route.ts'
+          test -f "$route"
+          grep -q "EDGE_FUNCTION = 'ai-drape'" "$route"
+          grep -q 'Buyer authentication is required' "$route"
+          grep -q '/functions/v1/' "$route"
+          if grep -q 'fabrictrad_demo_role' "$route"; then
+            echo '::error::Legacy demo-cookie authentication is present in the AI Drape route.'
+            exit 1
+          fi
+          if grep -q 'DEMO_COOKIE_NAME' "$route"; then
+            echo '::error::Legacy demo-cookie constant is present in the AI Drape route.'
+            exit 1
+          fi
+
+      - name: Verify live AI Drape rejects unauthenticated generation
+        shell: bash
+        run: |
+          set -euo pipefail
+          endpoint='https://rdhfwlzhcvwjhkxhhpoo.supabase.co/functions/v1/ai-drape'
+          http=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+            --output /tmp/ai-drape.json --write-out '%{http_code}' \
+            --header 'Content-Type: application/json' \
+            --data '{"subjectMode":"ai_model","modelGender":"woman","garmentId":"kurta"}' \
+            "$endpoint" || true)
+          echo "AI Drape unauthenticated probe: HTTP ${http}"
+          cat /tmp/ai-drape.json || true
+          [ "$http" = '401' ]
+
+      - name: Verify canonical Shopify storefront is reachable
         shell: bash
         run: |
           set -euo pipefail
           http=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
-            --output /tmp/status.json --write-out '%{http_code}' \
-            https://fabrictrad.com/api/ai/drape-on)
-          echo "Readiness HTTP ${http}"
-          cat /tmp/status.json
-          [ "$http" = 200 ]
-          python - <<'PY'
-          import json
-          p=json.load(open('/tmp/status.json'))
-          assert p.get('configured') is True, p
-          assert p.get('mode') == 'real_ai_image_try_on', p
-          assert p.get('usesListingMedia') is True, p
-          assert p.get('provider') == 'OpenAI GPT Image', p
-          assert p.get('apiUsed') == 'OpenAI Images API', p
-          assert p.get('credentialConfigured') is True, p
-          assert p.get('credentialLocation') == 'server_only', p
-          assert p.get('model') == 'gpt-image-2', p
-          modes=set(p.get('subjectModes') or [])
-          assert {'own_photo','ai_model'}.issubset(modes), modes
-          PY
-
-      - name: Generate live own-photo virtual try-on
-        shell: bash
-        run: |
-          set -euo pipefail
-          cat >/tmp/request-own.json <<'JSON'
-          {
-            "productId":"5414877f-663f-4bbb-acd9-ad4c2a60580e",
-            "subjectMode":"own_photo",
-            "modelImage":"https://images.unsplash.com/photo-1529139574466-a303027c1d8b?fm=jpg&w=768&q=85",
-            "garmentId":"shirt",
-            "fit":"regular",
-            "styleName":"FabricTrad flagship own-photo OpenAI virtual drape verification"
-          }
-          JSON
-
-          http=$(curl --silent --show-error --connect-timeout 15 --max-time 300 \
-            --output /tmp/result-own.json --write-out '%{http_code}' \
-            --header 'Content-Type: application/json' \
-            --header 'Cookie: fabrictrad_demo_role=buyer' \
-            --data @/tmp/request-own.json \
-            https://fabrictrad.com/api/ai/drape-on || true)
-          echo "Own-photo generation HTTP ${http}"
-          [ "$http" = 200 ] || { cat /tmp/result-own.json || true; exit 1; }
-
-          python - <<'PY'
-          import base64,json
-          p=json.load(open('/tmp/result-own.json'))
-          assert p.get('provider') == 'OpenAI', p
-          assert p.get('apiUsed') == 'OpenAI Images API', p
-          assert p.get('model') == 'gpt-image-2', p
-          assert p.get('subjectMode') == 'own_photo', p
-          req=str(p.get('providerRequestId') or '')
-          assert req.startswith('req_'), req
-          fabric=p.get('fabricReference') or {}
-          assert fabric.get('name') == 'hahaha', fabric
-          assert int(fabric.get('imageCount') or 0) >= 1, fabric
-          image=str(p.get('image') or '')
-          assert image.startswith('data:image/jpeg;base64,'), image[:40]
-          raw=base64.b64decode(image.split(',',1)[1])
-          assert len(raw) > 50000, len(raw)
-          print(json.dumps({'mode':'own_photo','requestId':req,'imageBytes':len(raw)}, indent=2))
-          PY
-
-      - name: Generate live AI woman model drape
-        shell: bash
-        run: |
-          set -euo pipefail
-          cat >/tmp/request-model.json <<'JSON'
-          {
-            "productId":"5414877f-663f-4bbb-acd9-ad4c2a60580e",
-            "subjectMode":"ai_model",
-            "modelGender":"woman",
-            "garmentId":"shirt",
-            "fit":"regular",
-            "styleName":"FabricTrad flagship AI model OpenAI virtual drape verification"
-          }
-          JSON
-
-          http=$(curl --silent --show-error --connect-timeout 15 --max-time 300 \
-            --output /tmp/result-model.json --write-out '%{http_code}' \
-            --header 'Content-Type: application/json' \
-            --header 'Cookie: fabrictrad_demo_role=buyer' \
-            --data @/tmp/request-model.json \
-            https://fabrictrad.com/api/ai/drape-on || true)
-          echo "AI-model generation HTTP ${http}"
-          [ "$http" = 200 ] || { cat /tmp/result-model.json || true; exit 1; }
-
-          python - <<'PY'
-          import base64,json
-          p=json.load(open('/tmp/result-model.json'))
-          assert p.get('provider') == 'OpenAI', p
-          assert p.get('apiUsed') == 'OpenAI Images API', p
-          assert p.get('model') == 'gpt-image-2', p
-          assert p.get('subjectMode') == 'ai_model', p
-          assert p.get('modelGender') == 'woman', p
-          req=str(p.get('providerRequestId') or '')
-          assert req.startswith('req_'), req
-          fabric=p.get('fabricReference') or {}
-          assert fabric.get('name') == 'hahaha', fabric
-          assert int(fabric.get('imageCount') or 0) >= 1, fabric
-          image=str(p.get('image') or '')
-          assert image.startswith('data:image/jpeg;base64,'), image[:40]
-          raw=base64.b64decode(image.split(',',1)[1])
-          assert len(raw) > 50000, len(raw)
-          print(json.dumps({'mode':'ai_model','gender':'woman','requestId':req,'imageBytes':len(raw)}, indent=2))
-          PY
+            --location --output /tmp/storefront.html --write-out '%{http_code}' \
+            https://www.fabrictrad.com/ || true)
+          echo "Storefront HTTP ${http}"
+          [ "$http" = '200' ]
 
       - name: Publish flagship status
         if: always()
@@ -147,10 +84,10 @@ jobs:
         run: |
           if [ "$JOB_STATUS" = success ]; then
             state=success
-            description='Own-photo + AI-model seller-textile OpenAI drape flows verified live'
+            description='Authenticated Supabase AI Drape cutover contract verified'
           else
             state=failure
-            description='Flagship live Virtual Drape E2E failed'
+            description='AI Drape security/cutover contract failed'
           fi
           payload=$(python - "$state" "$description" <<'PY'
           import json,sys

@@ -51,47 +51,44 @@ jobs:
           npm run verify:seller-onboarding
           node scripts/verify-marketplace-integrity.mjs
 
-      - name: Security architecture assertions
+      - name: Security and deployment architecture assertions
         shell: bash
         run: |
           set -euo pipefail
 
-          # Admin authentication must remain isolated from buyer/seller OAuth.
+          # Admin authentication is isolated from buyer/seller password and OAuth flows.
           grep -Fq 'configuredEmail={configuredAdminEmail()}' src/app/admin-login/page.tsx
           grep -Fq 'emailAllowed = normalizedEmail === authorisedEmail' src/app/admin-login/AdminLoginClient.tsx
           grep -Fq 'shouldCreateUser: false' src/app/api/auth/admin-otp/request/route.ts
           grep -Fq 'admin_otp_required' src/app/auth/callback/route.ts
-          grep -Fq 'await supabase.auth.signOut().catch' src/app/auth/callback/route.ts
+          grep -Fq 'isConfiguredAdminEmail(email)' src/app/api/auth/password-login/route.ts
+          grep -Fq "return decisiveMethod === 'otp'" src/lib/adminSession.ts
+          grep -Fq 'isOtpAuthenticatedAccessToken' src/middleware.ts
           grep -Fq "const isAdminApi = pathname.startsWith('/api/admin')" src/middleware.ts
           grep -Fq "'/api/admin/:path*'" src/middleware.ts
+          ! grep -R --line-number --fixed-strings 'ADMIN_PASSWORD' src scripts .env.example 2>/dev/null
 
-          # Razorpay credentials must be centralized and production must fail closed on non-live keys.
-          grep -Fq 'getRazorpayCredentials' src/app/api/razorpay/order/route.ts
-          grep -Fq 'getRazorpayCredentials' src/app/api/razorpay/verify/route.ts
-          grep -Fq "keyId.startsWith('rzp_live_')" src/lib/razorpayCredentials.ts
-          grep -Fq 'allowTestInProduction' src/app/api/razorpay/status/route.ts
-          grep -Fq 'productionReady' src/app/api/razorpay/status/route.ts
-          grep -Fq 'assertRazorpayPaymentMatches' src/app/api/razorpay/verify/route.ts
-          grep -Fq 'verifyCheckoutSignature' src/app/api/razorpay/verify/route.ts
-          grep -Fq 'Webhook amount does not match' src/app/api/razorpay/webhook/route.ts
-          grep -Fq "eventType === 'refund.processed'" src/app/api/razorpay/webhook/route.ts
-          grep -Fq 'webhook_dead_letter_queue' src/app/api/razorpay/webhook/route.ts
+          # Production storefront ownership belongs to Shopify, not the legacy Worker.
+          if grep -Fq '"custom_domain"' wrangler.jsonc; then
+            echo '::error::wrangler.jsonc must not claim FabricTrad production custom domains.'
+            exit 1
+          fi
+          test ! -e .github/workflows/reattach-aug26-worker-domains.yml
+          test ! -e .github/workflows/force-deploy-current-worker.yml
+          test ! -e .github/workflows/live-domain-repair.yml
+          test ! -e .github/workflows/ui-production-release.yml
+          test ! -e .github/workflows/promote-cloudflare-razorpay-live.yml
+          test ! -e .github/workflows/razorpay-hotfix-deploy.yml
+          test ! -e .github/workflows/restore-historical-razorpay-live.yml
+          test ! -e .github/workflows/cutover-shopify-domain.yml
+          ! node -e "const p=require('./package.json'); const bad=['build:sites','deploy:sites','preview:sites'].filter(k=>p.scripts?.[k]); if(bad.length){console.error('Retired Cloudflare scripts still exposed:',bad);process.exit(1)}"
 
-          # Shiprocket must use server-only credentials and support authenticated readiness checks.
-          grep -Fq 'getShiprocketCredentials' src/app/api/shiprocket/status/route.ts
-          grep -Fq "searchParams.get('verify') === '1'" src/app/api/shiprocket/status/route.ts
-          grep -Fq 'getShiprocketCredentials' src/app/api/shiprocket/create-order/route.ts
-          grep -Fq 'getShiprocketWebhookToken' src/app/api/shiprocket/webhook/route.ts
-
-          # Production Worker must be attached to both public hostnames.
-          grep -Fq '"pattern": "fabrictrad.com"' wrangler.jsonc
-          grep -Fq '"pattern": "www.fabrictrad.com"' wrangler.jsonc
-          test "$(grep -Fc '"custom_domain": true' wrangler.jsonc)" -ge 2
-
-          # Synthetic demo APIs must stay removed from the production route tree.
+          # Synthetic demo APIs and role cookies must stay out of production authorization.
           test ! -e src/app/api/auth/demo-session/route.ts
+          ! grep -R --line-number --fixed-strings 'fabrictrad_demo_role' src tests 2>/dev/null
+          ! grep -R --line-number --fixed-strings 'FABRICTRAD_ENABLE_AUDIT_ADMIN' src tests 2>/dev/null
 
-      - name: Production build
+      - name: Production source build
         run: npm run build
 
       - name: Runtime authorization smoke tests
@@ -133,26 +130,22 @@ jobs:
           test "$admin_otp_rejected" = '403'
           grep -qi 'not authorised' /tmp/admin-otp-rejected.json
 
+          admin_password_rejected=$(curl --silent --output /tmp/admin-password-rejected.json --write-out '%{http_code}' \
+            --header 'Content-Type: application/json' \
+            --data '{"email":"fabrictrad8@gmail.com","password":"NeverUsePasswordsForAdmin123!"}' \
+            http://127.0.0.1:3000/api/auth/password-login)
+          test "$admin_password_rejected" = '403'
+          grep -q 'admin_otp_required' /tmp/admin-password-rejected.json
+
           admin_api=$(curl --silent --output /tmp/admin-api.json --write-out '%{http_code}' \
             http://127.0.0.1:3000/api/admin/overview)
           test "$admin_api" = '401'
 
-          payment_order=$(curl --silent --output /tmp/payment-order.json --write-out '%{http_code}' \
-            --header 'Content-Type: application/json' --data '{}' \
-            http://127.0.0.1:3000/api/razorpay/order)
-          payment_verify=$(curl --silent --output /tmp/payment-verify.json --write-out '%{http_code}' \
-            --header 'Content-Type: application/json' --data '{}' \
-            http://127.0.0.1:3000/api/razorpay/verify)
           shipping_create=$(curl --silent --output /tmp/shipping-create.json --write-out '%{http_code}' \
             --header 'Content-Type: application/json' --data '{}' \
             http://127.0.0.1:3000/api/shiprocket/create-order)
-          test "$payment_order" = '401'
-          test "$payment_verify" = '401'
           test "$shipping_create" = '401'
 
           demo_get=$(curl --silent --output /dev/null --write-out '%{http_code}' \
             http://127.0.0.1:3000/api/auth/demo-session)
           test "$demo_get" = '404'
-
-      - name: OpenNext Cloudflare compatibility build
-        run: npm run build:sites
