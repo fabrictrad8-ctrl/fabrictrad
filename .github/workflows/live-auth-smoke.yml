@@ -1,4 +1,4 @@
-name: Live production system smoke tests
+name: Live Shopify production smoke tests
 
 on:
   push:
@@ -7,11 +7,9 @@ on:
   pull_request:
     paths:
       - '.github/workflows/live-auth-smoke.yml'
-      - 'src/app/api/auth/**'
-      - 'src/app/api/razorpay/**'
-      - 'src/app/api/shiprocket/**'
-      - 'src/app/api/ai/**'
       - 'src/middleware.ts'
+      - 'src/app/auth/**'
+      - 'src/app/api/auth/**'
   workflow_dispatch:
   schedule:
     - cron: '17 */6 * * *'
@@ -23,15 +21,15 @@ permissions:
 jobs:
   production-smoke:
     runs-on: ubuntu-latest
-    timeout-minutes: 18
+    timeout-minutes: 12
     steps:
-      - name: Verify production domains and critical systems
+      - name: Verify Shopify storefront, account entry points and checkout shell
         id: smoke
         continue-on-error: true
         shell: bash
         run: |
           set -u -o pipefail
-          base_url='https://fabrictrad.com'
+          base_url='https://www.fabrictrad.com'
           failures=0
 
           fail() {
@@ -39,168 +37,73 @@ jobs:
             failures=$((failures + 1))
           }
 
-          expect_code() {
-            local name="$1"
-            local actual="$2"
-            local expected="$3"
-            echo "${name}: HTTP ${actual} (expected ${expected})"
-            if [ "$actual" != "$expected" ]; then
-              fail "${name} returned HTTP ${actual}; expected ${expected}."
-            fi
-          }
-
-          expect_body() {
-            local name="$1"
-            local file="$2"
-            local pattern="$3"
-            if ! grep -Eqi "$pattern" "$file"; then
-              echo "${name} response body:"
-              head -c 1200 "$file" || true
-              echo
-              fail "${name} response did not contain the expected marker: ${pattern}"
-            fi
-          }
-
-          fetch_code() {
-            local method="$1"
-            local url="$2"
-            local output="$3"
-            shift 3
-            curl --silent --show-error --connect-timeout 10 --max-time 30 \
-              --request "$method" --output "$output" --write-out '%{http_code}' "$@" "$url" || true
-          }
-
-          check_redirect() {
+          fetch_page() {
             local name="$1"
             local route="$2"
-            local expected_location="$3"
             local safe_name
             safe_name=$(echo "$name" | sed 's#[^a-zA-Z0-9]#-#g')
-            local code
-            code=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
-              --dump-header "/tmp/${safe_name}.headers" --output /dev/null \
-              --write-out '%{http_code}' --max-redirs 0 "$base_url$route" || true)
-            echo "${name}: HTTP ${code}, expected redirect containing ${expected_location}"
-            if [ "$code" != '307' ] && [ "$code" != '308' ]; then
-              cat "/tmp/${safe_name}.headers" || true
-              fail "${name} returned HTTP ${code}; expected 307/308."
+            local output="/tmp/${safe_name}.html"
+            local status
+            status=$(curl --silent --show-error --location --connect-timeout 10 --max-time 30 \
+              --output "$output" --write-out '%{http_code}' "$base_url$route" || true)
+            echo "${name}: HTTP ${status}"
+            if [ "$status" != '200' ]; then
+              fail "${name} returned HTTP ${status}; expected 200."
               return
             fi
-            if ! grep -qi "^location: .*${expected_location}" "/tmp/${safe_name}.headers"; then
-              cat "/tmp/${safe_name}.headers" || true
-              fail "${name} redirected somewhere other than ${expected_location}."
+            if grep -Eqi '<title>404 Not Found</title>|This page could not be found|Application error|Internal Server Error|NEXT_NOT_FOUND' "$output"; then
+              fail "${name} rendered an error or not-found page."
             fi
           }
 
-          home_status=$(fetch_code GET "$base_url/" /tmp/home.html)
-          login_status=$(fetch_code GET "$base_url/login" /tmp/login.html)
-          admin_login_status=$(fetch_code GET "$base_url/admin-login" /tmp/admin-login.html)
-          expect_code 'Home' "$home_status" '200'
-          expect_code 'Login' "$login_status" '200'
-          expect_code 'Admin login' "$admin_login_status" '200'
-          if grep -Eqi 'Application error|Internal Server Error|NEXT_NOT_FOUND' /tmp/home.html; then fail 'Home contains a framework/server error marker.'; fi
-          if grep -Eqi 'Application error|Internal Server Error|NEXT_NOT_FOUND' /tmp/login.html; then fail 'Login contains a framework/server error marker.'; fi
-          expect_body 'Admin login' /tmp/admin-login.html 'Sign in with email OTP|Administrator access'
-
-          www_status=$(curl --silent --show-error --location --connect-timeout 10 --max-time 30 \
-            --output /tmp/www-home.html --write-out '%{http_code}' 'https://www.fabrictrad.com/' || true)
-          expect_code 'www canonical domain' "$www_status" '200'
-          if grep -Eqi 'Application error|Internal Server Error|NEXT_NOT_FOUND' /tmp/www-home.html; then fail 'www home contains a framework/server error marker.'; fi
-
-          check_redirect 'Marketplace privacy' '/marketplace' 'login'
-          check_redirect 'Buyer dashboard privacy' '/buyer-dashboard' 'login'
-          check_redirect 'Seller dashboard privacy' '/seller-dashboard' 'login'
-          check_redirect 'Admin portal privacy' '/admin-portal' 'admin-login'
-
-          # Synthetic demo sessions are intentionally unavailable in production.
-          demo_get=$(fetch_code GET "$base_url/api/auth/demo-session" /tmp/demo-get.json)
-          expect_code 'Production demo-session GET' "$demo_get" '404'
-          demo_post=$(fetch_code POST "$base_url/api/auth/demo-session" /tmp/demo-post.json \
-            --header 'Content-Type: application/json' --data '{}')
-          expect_code 'Production demo-session POST' "$demo_post" '404'
-
-          invalid_reset=$(fetch_code POST "$base_url/api/auth/email-otp/request" /tmp/invalid-reset.json \
-            --header 'Content-Type: application/json' --data '{}')
-          expect_code 'Invalid email OTP request' "$invalid_reset" '400'
-          expect_body 'Invalid email OTP request' /tmp/invalid-reset.json 'Email is required'
-
-          session_destination=$(fetch_code GET "$base_url/api/auth/session-destination" /tmp/session-destination.json)
-          expect_code 'Unauthenticated session destination' "$session_destination" '401'
-
-          draft=$(fetch_code GET "$base_url/api/account/onboarding-draft?flow=buyer" /tmp/draft.json)
-          expect_code 'Unauthenticated onboarding draft' "$draft" '401'
-
-          deletion=$(fetch_code POST "$base_url/api/account/delete/request" /tmp/delete-account.json \
-            --header 'Content-Type: application/json' --data '{}')
-          expect_code 'Unauthenticated account deletion' "$deletion" '401'
-
-          google=$(fetch_code GET "$base_url/api/auth/google/status" /tmp/google-status.json)
-          echo 'Google auth status response:'
-          cat /tmp/google-status.json || true
-          echo
-          expect_code 'Google OAuth readiness' "$google" '200'
-          if [ "$google" = '200' ] && ! grep -q '"configured":true' /tmp/google-status.json; then
-            fail 'Google OAuth endpoint is reachable but not configured.'
+          # fabrictrad.com is intentionally non-canonical; Shopify owns the canonical www host.
+          non_www_location=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+            --dump-header /tmp/non-www.headers --output /dev/null --write-out '%{http_code}' \
+            --max-redirs 0 'https://fabrictrad.com/' || true)
+          echo "Non-www canonical redirect: HTTP ${non_www_location}"
+          if [ "$non_www_location" != '301' ] && [ "$non_www_location" != '302' ] && [ "$non_www_location" != '307' ] && [ "$non_www_location" != '308' ]; then
+            fail "fabrictrad.com did not redirect to the canonical Shopify host."
+          elif ! grep -Eqi '^location: https://www\.fabrictrad\.com/?' /tmp/non-www.headers; then
+            cat /tmp/non-www.headers || true
+            fail 'fabrictrad.com redirected somewhere other than www.fabrictrad.com.'
           fi
 
-          razorpay=$(fetch_code GET "$base_url/api/razorpay/status" /tmp/razorpay-status.json)
-          echo 'Razorpay readiness response:'
-          cat /tmp/razorpay-status.json || true
-          echo
-          expect_code 'Razorpay provider authentication' "$razorpay" '200'
-          if [ "$razorpay" = '200' ]; then
-            grep -q '"configured":true' /tmp/razorpay-status.json || fail 'Razorpay credentials are not configured.'
-            grep -q '"authenticated":true' /tmp/razorpay-status.json || fail 'Razorpay credentials do not authenticate with Razorpay.'
-            grep -q '"mode":"live"' /tmp/razorpay-status.json || fail 'Razorpay is not in LIVE mode. Real customer checkout must remain blocked.'
+          fetch_page 'Home' '/'
+          fetch_page 'Login' '/pages/login'
+          fetch_page 'Registration' '/pages/register'
+          fetch_page 'Buyer registration' '/pages/buyer-registration'
+          fetch_page 'Seller registration' '/pages/seller-registration'
+          fetch_page 'How to use' '/pages/how-to-use'
+
+          # These are real Shopify pages. Authentication/authorization is enforced by the
+          # FabricTrad theme + Supabase session layer; the old Next.js root routes are retired.
+          fetch_page 'Buyer workspace shell' '/pages/buyer-dashboard'
+          fetch_page 'Seller workspace shell' '/pages/seller-portal'
+          fetch_page 'Admin workspace shell' '/pages/fabrictrad-admin'
+
+          # Checkout and payments are Shopify-owned in production. Razorpay is configured as
+          # a Shopify payment provider, so this smoke test deliberately does not probe the
+          # retired /api/razorpay/* Next.js endpoints on the Shopify storefront domain.
+          cart_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+            --output /tmp/cart.json --write-out '%{http_code}' "$base_url/cart.js" || true)
+          echo "Shopify cart API: HTTP ${cart_status}"
+          if [ "$cart_status" != '200' ]; then
+            fail "Shopify cart API returned HTTP ${cart_status}; expected 200."
+          elif ! grep -Eq '^\{' /tmp/cart.json; then
+            fail 'Shopify cart API did not return JSON.'
           fi
 
-          payment_order=$(fetch_code POST "$base_url/api/razorpay/order" /tmp/payment-order.json \
-            --header 'Content-Type: application/json' --data '{}')
-          expect_code 'Unauthenticated Razorpay order' "$payment_order" '401'
-
-          payment_verify=$(fetch_code POST "$base_url/api/razorpay/verify" /tmp/payment-verify.json \
-            --header 'Content-Type: application/json' --data '{}')
-          expect_code 'Unauthenticated Razorpay verification' "$payment_verify" '401'
-
-          webhook=$(fetch_code POST "$base_url/api/razorpay/webhook" /tmp/razorpay-webhook.json \
-            --header 'Content-Type: application/json' --header 'x-razorpay-signature: 00' --data '{}')
-          expect_code 'Invalid Razorpay webhook signature' "$webhook" '400'
-          expect_body 'Invalid Razorpay webhook signature' /tmp/razorpay-webhook.json 'invalid signature'
-
-          shipping_create=$(fetch_code POST "$base_url/api/shiprocket/create-order" /tmp/shiprocket-create.json \
-            --header 'Content-Type: application/json' --data '{}')
-          expect_code 'Unauthenticated Shiprocket order' "$shipping_create" '401'
-
-          shipping=$(fetch_code GET "$base_url/api/shiprocket/status?verify=1" /tmp/shiprocket-status.json)
-          echo 'Shiprocket authenticated readiness response:'
-          cat /tmp/shiprocket-status.json || true
-          echo
-          expect_code 'Shiprocket provider authentication' "$shipping" '200'
-          if [ "$shipping" = '200' ]; then
-            grep -q '"configured":true' /tmp/shiprocket-status.json || fail 'Shiprocket credentials are not configured.'
-            grep -q '"authenticated":true' /tmp/shiprocket-status.json || fail 'Shiprocket credentials do not authenticate with Shiprocket.'
-            grep -q '"webhookConfigured":true' /tmp/shiprocket-status.json || fail 'Shiprocket webhook token is not configured.'
+          checkout_status=$(curl --silent --show-error --location --connect-timeout 10 --max-time 30 \
+            --output /tmp/checkout.html --write-out '%{http_code}' "$base_url/checkout" || true)
+          echo "Shopify checkout entry: HTTP ${checkout_status}"
+          if [ "$checkout_status" != '200' ]; then
+            fail "Shopify checkout entry returned HTTP ${checkout_status}; expected a reachable Shopify checkout/cart response."
+          fi
+          if grep -Eqi '<title>404 Not Found</title>|Internal Server Error' /tmp/checkout.html; then
+            fail 'Shopify checkout entry rendered an error page.'
           fi
 
-          ai=$(fetch_code GET "$base_url/api/ai/drape-on" /tmp/ai-status.json)
-          expect_code 'AI Drape readiness' "$ai" '200'
-          echo 'AI Drape readiness response:'
-          cat /tmp/ai-status.json || true
-          echo
-          if [ "$ai" = '200' ] && ! grep -q '"configured":true' /tmp/ai-status.json; then
-            fail 'AI Drape provider is not configured.'
-          fi
-
-          gst=$(fetch_code GET "$base_url/api/gstin/status" /tmp/gstin-status.json)
-          expect_code 'GSTIN readiness' "$gst" '200'
-          echo 'GSTIN readiness response:'
-          cat /tmp/gstin-status.json || true
-          echo
-          if [ "$gst" = '200' ] && ! grep -q '"providerConfigured":true' /tmp/gstin-status.json; then
-            echo '::warning::GSTIN verification is using the official-manual review path.'
-          fi
-
-          echo "Production smoke completed with ${failures} failure(s)."
+          echo "Shopify production smoke completed with ${failures} failure(s)."
           test "$failures" -eq 0
 
       - name: Publish verification status on the commit
@@ -214,31 +117,22 @@ jobs:
           set -u -o pipefail
           if [ "$SMOKE_OUTCOME" = "success" ]; then
             state=success
-            description='Production system smoke checks passed'
+            description='Shopify production smoke checks passed'
           else
             state=failure
-            description='A production system smoke check failed'
+            description='A Shopify production smoke check failed'
           fi
           payload=$(printf '{"state":"%s","context":"fabrictrad/production-smoke","description":"%s"}' "$state" "$description")
-          published=false
-          for attempt in 1 2 3 4 5; do
-            http_code=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
-              --output /tmp/status-publish.json --write-out '%{http_code}' \
-              --request POST \
-              --header "Authorization: Bearer $GH_TOKEN" \
-              --header 'Accept: application/vnd.github+json' \
-              --header 'X-GitHub-Api-Version: 2022-11-28' \
-              --data "$payload" \
-              "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" || true)
-            if [ "$http_code" = '201' ]; then
-              published=true
-              break
-            fi
-            echo "GitHub status API attempt ${attempt}/5 returned HTTP ${http_code}."
-            sleep $((attempt * 2))
-          done
-          if [ "$published" != 'true' ]; then
-            echo '::warning::Production smoke completed, but GitHub status publication was unavailable. The smoke result above remains authoritative.'
+          http_code=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+            --output /tmp/status-publish.json --write-out '%{http_code}' \
+            --request POST \
+            --header "Authorization: Bearer $GH_TOKEN" \
+            --header 'Accept: application/vnd.github+json' \
+            --header 'X-GitHub-Api-Version: 2022-11-28' \
+            --data "$payload" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" || true)
+          if [ "$http_code" != '201' ]; then
+            echo "::warning::Could not publish production-smoke commit status (HTTP ${http_code})."
           fi
 
       - name: Fail when production verification failed
