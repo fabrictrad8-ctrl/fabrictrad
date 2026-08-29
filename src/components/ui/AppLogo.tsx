@@ -14,8 +14,10 @@ interface AppLogoProps {
   onClick?: () => void; // Click handler
 }
 
+const BRAND_LOGO_SRC = '/assets/images/app_logo.png?v=fabrictrad-brand-20260829-2';
+
 const AppLogo = memo(function AppLogo({
-  src = '/assets/images/fabrictrad-symbol.webp',
+  src = BRAND_LOGO_SRC,
   iconName = 'SparklesIcon',
   size = 64,
   className = '',
@@ -49,6 +51,8 @@ const AppLogo = memo(function AppLogo({
     }
   };
 
+  const isLocalBrandAsset = src.startsWith('/assets/images/app_logo.png');
+
   return (
     <div
       className={containerClassName}
@@ -62,7 +66,7 @@ const AppLogo = memo(function AppLogo({
           height={size}
           className="flex-shrink-0 object-contain"
           priority={true}
-          unoptimized={src.endsWith('.svg')}
+          unoptimized={isLocalBrandAsset || src.endsWith('.svg')}
         />
       ) : (
         <AppIcon name={iconName} size={size} className="flex-shrink-0" />
