@@ -1,4 +1,5 @@
 name: Reattach FabricTrad domains to Aug-26 Worker
+# Re-triggered on 2026-08-29 to return production from Shopify to the historical Cloudflare Worker.
 
 on:
   push:
