@@ -1,9 +1,13 @@
 'use client';
 
+/* eslint-disable @next/next/no-img-element */
+
 import React, { memo, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import AppImage from './AppImage';
+
+type LogoVariant = 'horizontal' | 'full' | 'icon';
 
 interface AppLogoProps {
   src?: string;
@@ -11,80 +15,33 @@ interface AppLogoProps {
   size?: number;
   className?: string;
   onClick?: () => void;
+  variant?: LogoVariant;
 }
 
-interface BrandMarkProps {
-  size: number;
-}
-
-/**
- * FabricTrad's default mark is deliberately inline SVG instead of a public image
- * asset. This keeps the primary navigation brand visible even if a static asset
- * is stale, missing, incorrectly encoded, or cached by the edge.
- *
- * The mark combines a fabric roll/bolt with an upward trade arrow.
- */
-function BrandMark({ size }: BrandMarkProps) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 48 48"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      role="img"
-      aria-label="FabricTrad"
-      data-fabrictrad-brand-mark="fabric-roll-trade-arrow"
-      className="block shrink-0"
-    >
-      <rect x="1" y="1" width="46" height="46" rx="13" fill="#FFF7ED" stroke="#FED7AA" strokeWidth="1.5" />
-
-      {/* Fabric bolt */}
-      <path
-        d="M13.5 28.5V18.75C13.5 15.57 16.07 13 19.25 13H29.5"
-        stroke="#17324D"
-        strokeWidth="3"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M19 34.5C22.31 34.5 25 31.81 25 28.5C25 25.19 22.31 22.5 19 22.5C15.69 22.5 13 25.19 13 28.5C13 31.81 15.69 34.5 19 34.5Z"
-        fill="white"
-        stroke="#17324D"
-        strokeWidth="3"
-      />
-      <circle cx="19" cy="28.5" r="2.25" fill="#F97316" />
-      <path
-        d="M24.75 28.5H29.5C33.09 28.5 36 25.59 36 22V17"
-        stroke="#17324D"
-        strokeWidth="3"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-
-      {/* Trade / growth arrow */}
-      <path
-        d="M29.75 18.25L36 12L41 17"
-        stroke="#F97316"
-        strokeWidth="3"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M36 12V21.25"
-        stroke="#F97316"
-        strokeWidth="3"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
+const OFFICIAL_LOGOS: Record<LogoVariant, { src: string; width: number; height: number }> = {
+  horizontal: {
+    src: 'https://cdn.shopify.com/s/files/1/0841/4966/6010/files/fabrictrad-logo-horizontal.png?v=1788032519',
+    width: 984,
+    height: 220,
+  },
+  full: {
+    src: 'https://cdn.shopify.com/s/files/1/0841/4966/6010/files/fabrictrad-logo-full.png?v=1788032530',
+    width: 789,
+    height: 608,
+  },
+  icon: {
+    src: 'https://cdn.shopify.com/s/files/1/0841/4966/6010/files/fabrictrad-app-icon-512.png?v=1788032540',
+    width: 512,
+    height: 512,
+  },
+};
 
 const AppLogo = memo(function AppLogo({
   src,
   size = 64,
   className = '',
   onClick,
+  variant = 'horizontal',
 }: AppLogoProps) {
   const router = useRouter();
   const { user, profile } = useAuth();
@@ -114,10 +71,15 @@ const AppLogo = memo(function AppLogo({
     }
   };
 
+  const official = OFFICIAL_LOGOS[variant];
+  const renderedWidth = Math.max(1, Math.round((size * official.width) / official.height));
+
   return (
     <div
       className={containerClassName}
       onClick={onClick || authenticatedHome ? handleClick : undefined}
+      data-fabrictrad-brand-logo="official-uploaded-logo"
+      data-fabrictrad-logo-variant={variant}
     >
       {src ? (
         <AppImage
@@ -130,8 +92,27 @@ const AppLogo = memo(function AppLogo({
           unoptimized={src.startsWith('/assets/') || src.endsWith('.svg')}
         />
       ) : (
-        <BrandMark size={size} />
+        <img
+          src={official.src}
+          alt="FabricTrad — Textile Trading Platform"
+          width={renderedWidth}
+          height={size}
+          loading="eager"
+          decoding="async"
+          className="block max-w-none shrink-0 object-contain"
+          style={{ width: `${renderedWidth}px`, height: `${size}px` }}
+        />
       )}
+      <style>{`
+        .ft-header-brand > [data-fabrictrad-brand-logo='official-uploaded-logo'] + span,
+        .ft-future-brand > [data-fabrictrad-brand-logo='official-uploaded-logo'] + span,
+        .ft-future-footer [data-fabrictrad-brand-logo='official-uploaded-logo'] + span {
+          display: none !important;
+        }
+        .ft-mobile-commerce-menu [data-fabrictrad-brand-logo='official-uploaded-logo'] + div > p:first-child {
+          display: none !important;
+        }
+      `}</style>
     </div>
   );
 });

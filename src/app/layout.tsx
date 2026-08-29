@@ -27,7 +27,11 @@ import PublicHowToUseNavigation from '@/components/PublicHowToUseNavigation';
 import SitewideLanguageControl from '@/components/SitewideLanguageControl';
 import { AppPreferencesProvider } from '@/contexts/AppPreferencesContext';
 
-const PRODUCTION_UI_RELEASE = 'fabrictrad-brand-logo-2026-08-29';
+const PRODUCTION_UI_RELEASE = 'fabrictrad-official-logo-2026-08-30';
+const BRAND_ICON_192 = 'https://cdn.shopify.com/s/files/1/0841/4966/6010/files/fabrictrad-app-icon-192.png?v=1788032573';
+const BRAND_ICON_512 = 'https://cdn.shopify.com/s/files/1/0841/4966/6010/files/fabrictrad-app-icon-512.png?v=1788032540';
+const BRAND_APPLE_ICON = 'https://cdn.shopify.com/s/files/1/0841/4966/6010/files/fabrictrad-apple-touch-icon.png?v=1788032584';
+const BRAND_SOCIAL_PREVIEW = 'https://cdn.shopify.com/s/files/1/0841/4966/6010/files/fabrictrad-social-preview.jpg?v=1788032550';
 
 export const viewport: Viewport = {
   width: 'device-width',
@@ -55,11 +59,10 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: [
-      { url: '/favicon.ico', type: 'image/x-icon' },
-      { url: '/icon-192.png', sizes: '192x192', type: 'image/png' },
-      { url: '/icon-512.png', sizes: '512x512', type: 'image/png' },
+      { url: BRAND_ICON_192, sizes: '192x192', type: 'image/png' },
+      { url: BRAND_ICON_512, sizes: '512x512', type: 'image/png' },
     ],
-    apple: [{ url: '/apple-touch-icon.png', sizes: '180x180', type: 'image/png' }],
+    apple: [{ url: BRAND_APPLE_ICON, sizes: '180x180', type: 'image/png' }],
   },
   openGraph: {
     type: 'website',
@@ -69,7 +72,7 @@ export const metadata: Metadata = {
       'FabricTrad connects verified textile sellers with business and retail buyers for sourcing, catalogues, payments, orders and fulfilment.',
     images: [
       {
-        url: '/assets/images/fabrictrad-og.jpg',
+        url: BRAND_SOCIAL_PREVIEW,
         width: 1200,
         height: 630,
         alt: 'FabricTrad textile trading platform',
@@ -81,7 +84,7 @@ export const metadata: Metadata = {
     title: "FabricTrad — India's Textile Commerce Platform",
     description:
       'FabricTrad connects verified textile sellers with business and retail buyers for sourcing, catalogues, payments, orders and fulfilment.',
-    images: ['/assets/images/fabrictrad-og.jpg'],
+    images: [BRAND_SOCIAL_PREVIEW],
   },
 };
 
