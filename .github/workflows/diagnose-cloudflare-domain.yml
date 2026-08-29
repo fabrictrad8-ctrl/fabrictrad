@@ -1,0 +1,84 @@
+name: Diagnose FabricTrad Cloudflare Domain
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/diagnose-cloudflare-domain.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_DNS_API_TOKEN: ${{ secrets.CLOUDFLARE_DNS_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: aa4ff7a482130e543f176e2d73c93f45
+      WORKER_NAME: fabrictrad
+      ZONE_NAME: fabrictrad.com
+    steps:
+      - name: Inspect Cloudflare zone
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error \
+            --header "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            "https://api.cloudflare.com/client/v4/zones?name=${ZONE_NAME}" > /tmp/zone.json
+          node - <<'NODE'
+          const fs=require('node:fs');
+          const body=JSON.parse(fs.readFileSync('/tmp/zone.json','utf8'));
+          const z=(body.result||[]).find(x=>x.name==='fabrictrad.com');
+          if(!z){console.error('ZONE_NOT_FOUND');process.exit(1)}
+          console.log(JSON.stringify({id:z.id,name:z.name,status:z.status,paused:z.paused,type:z.type,name_servers:z.name_servers,original_name_servers:z.original_name_servers},null,2));
+          fs.writeFileSync('/tmp/zone-id',z.id);
+          NODE
+
+      - name: Inspect apex and www DNS records
+        shell: bash
+        run: |
+          set -euo pipefail
+          ZONE_ID=$(cat /tmp/zone-id)
+          curl --fail --silent --show-error \
+            --header "Authorization: Bearer ${CLOUDFLARE_DNS_API_TOKEN}" \
+            "https://api.cloudflare.com/client/v4/zones/${ZONE_ID}/dns_records?per_page=5000" > /tmp/dns.json
+          node - <<'NODE'
+          const fs=require('node:fs');
+          const body=JSON.parse(fs.readFileSync('/tmp/dns.json','utf8'));
+          const wanted=new Set(['fabrictrad.com','www.fabrictrad.com']);
+          const rows=(body.result||[]).filter(r=>wanted.has(r.name)).map(r=>({id:r.id,type:r.type,name:r.name,content:r.content,proxied:r.proxied,ttl:r.ttl}));
+          console.log(JSON.stringify(rows,null,2));
+          NODE
+
+      - name: Inspect Worker custom domains
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error \
+            --header "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/domains?service=${WORKER_NAME}" > /tmp/domains.json
+          node - <<'NODE'
+          const fs=require('node:fs');
+          const body=JSON.parse(fs.readFileSync('/tmp/domains.json','utf8'));
+          console.log(JSON.stringify((body.result||[]).map(d=>({hostname:d.hostname,service:d.service,environment:d.environment,zone_id:d.zone_id,zone_name:d.zone_name})),null,2));
+          NODE
+
+      - name: Check public DNS through Google DNS-over-HTTPS
+        shell: bash
+        run: |
+          set -euo pipefail
+          for host in fabrictrad.com www.fabrictrad.com; do
+            echo "===== ${host} A ====="
+            curl --fail --silent --show-error "https://dns.google/resolve?name=${host}&type=A" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const x=JSON.parse(s);console.log(JSON.stringify({Status:x.Status,AD:x.AD,Comment:x.Comment,Answer:x.Answer,Authority:x.Authority},null,2))})"
+            echo "===== ${host} AAAA ====="
+            curl --fail --silent --show-error "https://dns.google/resolve?name=${host}&type=AAAA" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const x=JSON.parse(s);console.log(JSON.stringify({Status:x.Status,AD:x.AD,Comment:x.Comment,Answer:x.Answer,Authority:x.Authority},null,2))})"
+          done
+
+      - name: Check authoritative NS publicly
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error "https://dns.google/resolve?name=fabrictrad.com&type=NS" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const x=JSON.parse(s);console.log(JSON.stringify({Status:x.Status,Answer:x.Answer,Authority:x.Authority},null,2))})"
