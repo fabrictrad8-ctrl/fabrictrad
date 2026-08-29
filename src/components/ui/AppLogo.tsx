@@ -34,6 +34,7 @@ function BrandMark({ size }: BrandMarkProps) {
       xmlns="http://www.w3.org/2000/svg"
       role="img"
       aria-label="FabricTrad"
+      data-fabrictrad-brand-mark="fabric-roll-trade-arrow"
       className="block shrink-0"
     >
       <rect x="1" y="1" width="46" height="46" rx="13" fill="#FFF7ED" stroke="#FED7AA" strokeWidth="1.5" />

@@ -64,33 +64,41 @@ jobs:
         shell: bash
         run: bash scripts/deploy-cloudflare-worker-version.sh wrangler.jsonc
 
-      - name: Verify new public UI is live
+      - name: Verify new public UI and FabricTrad logo are live
         id: smoke
         shell: bash
         run: |
           set -euo pipefail
           live=false
-          for attempt in $(seq 1 36); do
-            home_code=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+          for attempt in $(seq 1 12); do
+            cache_bust="${GITHUB_SHA}-${attempt}"
+            home_code=$(curl --silent --show-error --connect-timeout 5 --max-time 15 \
+              -H 'Cache-Control: no-cache' \
               --output /tmp/fabrictrad-home.html --write-out '%{http_code}' \
-              https://fabrictrad.com/ || true)
-            login_code=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+              "https://fabrictrad.com/?release=${cache_bust}" || true)
+            login_code=$(curl --silent --show-error --connect-timeout 5 --max-time 15 \
+              -H 'Cache-Control: no-cache' \
               --output /tmp/fabrictrad-login.html --write-out '%{http_code}' \
-              https://fabrictrad.com/login || true)
-            howto_code=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+              "https://fabrictrad.com/login?release=${cache_bust}" || true)
+            howto_code=$(curl --silent --show-error --connect-timeout 5 --max-time 15 \
+              -H 'Cache-Control: no-cache' \
               --output /tmp/fabrictrad-howto.html --write-out '%{http_code}' \
-              https://fabrictrad.com/how-to-use || true)
+              "https://fabrictrad.com/how-to-use/start?release=${cache_bust}" || true)
+
+            echo "UI smoke attempt ${attempt}: home=${home_code} login=${login_code} how-to-use=${howto_code}"
+
             if [ "$home_code" = '200' ] && [ "$login_code" = '200' ] && [ "$howto_code" = '200' ] && \
-               grep -q 'Textile trade' /tmp/fabrictrad-home.html && \
-               grep -q 'Welcome back' /tmp/fabrictrad-login.html && \
-               grep -q 'Choose how you use FabricTrad' /tmp/fabrictrad-howto.html; then
+               grep -Fq 'Textile trade' /tmp/fabrictrad-home.html && \
+               grep -Fq 'data-fabrictrad-brand-mark="fabric-roll-trade-arrow"' /tmp/fabrictrad-home.html && \
+               grep -Fq 'Welcome back' /tmp/fabrictrad-login.html && \
+               grep -Fq 'Choose how you want to use FabricTrad.' /tmp/fabrictrad-howto.html; then
               live=true
               break
             fi
-            sleep 10
+            sleep 5
           done
           if [ "$live" != 'true' ]; then
-            echo '::error::The newly promoted landing/login/how-to-use release did not become visible on fabrictrad.com.'
+            echo '::error::The newly promoted UI or FabricTrad brand mark did not become visible on fabrictrad.com.'
             exit 1
           fi
 
