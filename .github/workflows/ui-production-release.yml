@@ -64,53 +64,107 @@ jobs:
         shell: bash
         run: bash scripts/deploy-cloudflare-worker-version.sh wrangler.jsonc
 
-      - name: Verify new public UI and official FabricTrad logo are live
+      - name: Install Chromium for live visual verification
+        run: npx playwright install --with-deps chromium
+
+      - name: Verify live production routes and logo asset
         id: smoke
         shell: bash
         run: |
           set -euo pipefail
           LOGO_URL='https://cdn.shopify.com/s/files/1/0841/4966/6010/files/fabrictrad-logo-horizontal.png?v=1788032519'
-          live=false
-          for attempt in $(seq 1 12); do
-            cache_bust="${GITHUB_SHA}-${attempt}"
-            home_code=$(curl --silent --show-error --connect-timeout 5 --max-time 15 \
-              -H 'Cache-Control: no-cache' \
-              --output /tmp/fabrictrad-home.html --write-out '%{http_code}' \
-              "https://fabrictrad.com/?release=${cache_bust}" || true)
-            login_code=$(curl --silent --show-error --connect-timeout 5 --max-time 15 \
-              -H 'Cache-Control: no-cache' \
-              --output /tmp/fabrictrad-login.html --write-out '%{http_code}' \
-              "https://fabrictrad.com/login?release=${cache_bust}" || true)
-            howto_code=$(curl --silent --show-error --connect-timeout 5 --max-time 15 \
-              -H 'Cache-Control: no-cache' \
-              --output /tmp/fabrictrad-howto.html --write-out '%{http_code}' \
-              "https://fabrictrad.com/how-to-use/start?release=${cache_bust}" || true)
-            logo_code=$(curl --silent --show-error --connect-timeout 5 --max-time 15 \
-              --output /tmp/fabrictrad-logo.png --write-out '%{http_code}' \
-              "$LOGO_URL" || true)
+          cache_bust="${GITHUB_SHA}-live"
 
-            echo "UI smoke attempt ${attempt}: home=${home_code} login=${login_code} how-to-use=${howto_code} logo=${logo_code}"
+          home_code=$(curl --silent --show-error --connect-timeout 5 --max-time 20 \
+            -H 'Cache-Control: no-cache' \
+            --output /tmp/fabrictrad-home.html --write-out '%{http_code}' \
+            "https://fabrictrad.com/?release=${cache_bust}" || true)
+          login_code=$(curl --silent --show-error --connect-timeout 5 --max-time 20 \
+            -H 'Cache-Control: no-cache' \
+            --output /tmp/fabrictrad-login.html --write-out '%{http_code}' \
+            "https://fabrictrad.com/login?release=${cache_bust}" || true)
+          howto_code=$(curl --silent --show-error --connect-timeout 5 --max-time 20 \
+            -H 'Cache-Control: no-cache' \
+            --output /tmp/fabrictrad-howto.html --write-out '%{http_code}' \
+            "https://fabrictrad.com/how-to-use/start?release=${cache_bust}" || true)
+          logo_code=$(curl --silent --show-error --connect-timeout 5 --max-time 20 \
+            --output /tmp/fabrictrad-logo.png --write-out '%{http_code}' \
+            "$LOGO_URL" || true)
 
-            if [ "$home_code" = '200' ] && [ "$login_code" = '200' ] && [ "$howto_code" = '200' ] && [ "$logo_code" = '200' ] && \
-               grep -Fq 'fabrictrad-official-logo-2026-08-30' /tmp/fabrictrad-home.html && \
-               grep -Eq '<img[^>]+fabrictrad-logo-horizontal\.png' /tmp/fabrictrad-home.html && \
-               grep -Fq 'fabrictrad-official-logo-2026-08-30' /tmp/fabrictrad-login.html && \
-               grep -Fq 'fabrictrad-official-logo-2026-08-30' /tmp/fabrictrad-howto.html && \
-               file /tmp/fabrictrad-logo.png | grep -Fq 'PNG image data'; then
-              live=true
-              break
-            fi
-            sleep 5
-          done
-          if [ "$live" != 'true' ]; then
-            echo '--- homepage brand diagnostics ---'
-            grep -o 'fabrictrad-official-logo-[^"< ]*' /tmp/fabrictrad-home.html | head -n 5 || true
-            grep -o '<img[^>]*fabrictrad-logo-horizontal.png[^>]*>' /tmp/fabrictrad-home.html | head -n 3 || true
-            file /tmp/fabrictrad-logo.png || true
-            echo '::error::The official uploaded FabricTrad logo did not become visible on fabrictrad.com.'
-            exit 1
-          fi
-          echo 'Official FabricTrad logo verified on live production HTML and the exact logo asset returns a valid PNG.'
+          echo "Live HTTP: home=${home_code} login=${login_code} how-to-use=${howto_code} logo=${logo_code}"
+          test "$home_code" = '200'
+          test "$login_code" = '200'
+          test "$howto_code" = '200'
+          test "$logo_code" = '200'
+          grep -Fq 'fabrictrad-official-logo-2026-08-30' /tmp/fabrictrad-home.html
+          file /tmp/fabrictrad-logo.png | grep -Fq 'PNG image data, 984 x 220'
+
+      - name: Verify the visible top-left logo in a real browser
+        id: browser_logo
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p test-results/live-brand
+          node --input-type=module <<'NODE'
+          import { chromium } from '@playwright/test';
+          import fs from 'node:fs';
+
+          const expected = 'fabrictrad-logo-horizontal.png';
+          const browser = await chromium.launch({ headless: true });
+          const page = await browser.newPage({
+            viewport: { width: 1440, height: 900 },
+            deviceScaleFactor: 1,
+          });
+
+          try {
+            await page.goto(`https://fabrictrad.com/?brand-check=${Date.now()}`, {
+              waitUntil: 'domcontentloaded',
+              timeout: 30000,
+            });
+            await page.waitForTimeout(2500);
+
+            const logo = page.locator(`header img[src*="${expected}"]`).first();
+            await logo.waitFor({ state: 'visible', timeout: 20000 });
+
+            const details = await logo.evaluate((img) => ({
+              src: img.currentSrc || img.src,
+              naturalWidth: img.naturalWidth,
+              naturalHeight: img.naturalHeight,
+              complete: img.complete,
+              alt: img.alt,
+            }));
+            const box = await logo.boundingBox();
+
+            if (!details.complete || details.naturalWidth !== 984 || details.naturalHeight !== 220) {
+              throw new Error(`Official logo image did not load correctly: ${JSON.stringify(details)}`);
+            }
+            if (!details.src.includes(expected)) {
+              throw new Error(`Visible header logo uses the wrong asset: ${details.src}`);
+            }
+            if (!box || box.width < 120 || box.height < 25) {
+              throw new Error(`Visible header logo is missing or too small: ${JSON.stringify(box)}`);
+            }
+
+            const header = page.locator('header').first();
+            await header.screenshot({ path: 'test-results/live-brand/fabrictrad-live-header.png' });
+            fs.writeFileSync(
+              'test-results/live-brand/verification.json',
+              JSON.stringify({ url: page.url(), details, box }, null, 2) + '\n',
+            );
+            console.log('VISIBLE OFFICIAL FABRICTRAD LOGO VERIFIED', JSON.stringify({ details, box }));
+          } finally {
+            await browser.close();
+          }
+          NODE
+
+      - name: Upload live FabricTrad brand proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fabrictrad-live-brand-proof
+          path: test-results/live-brand
+          retention-days: 14
+          if-no-files-found: warn
 
       - name: Record UI release result
         if: always()
@@ -123,6 +177,7 @@ jobs:
           CLOUDFLARE_OUTCOME: ${{ steps.cloudflare.outcome }}
           DEPLOY_OUTCOME: ${{ steps.deploy.outcome }}
           SMOKE_OUTCOME: ${{ steps.smoke.outcome }}
+          BROWSER_LOGO_OUTCOME: ${{ steps.browser_logo.outcome }}
         run: |
           set -euo pipefail
           node - <<'NODE'
@@ -136,6 +191,7 @@ jobs:
             cloudflareAuthentication: process.env.CLOUDFLARE_OUTCOME || 'skipped',
             workerDeployment: process.env.DEPLOY_OUTCOME || 'skipped',
             publicUiSmoke: process.env.SMOKE_OUTCOME || 'skipped',
+            visibleOfficialLogo: process.env.BROWSER_LOGO_OUTCOME || 'skipped',
           };
           fs.mkdirSync('.github/deployments', { recursive: true });
           fs.writeFileSync('.github/deployments/ui-release-status.json', JSON.stringify(payload, null, 2) + '\n');
