@@ -1,5 +1,5 @@
 name: Reattach FabricTrad domains to Aug-26 Worker
-# Re-triggered on 2026-08-29 to return production from Shopify to the historical Cloudflare Worker.
+# Production rollback path from Shopify DNS back to the existing historical Cloudflare Worker.
 
 on:
   push:
@@ -21,25 +21,27 @@ jobs:
     timeout-minutes: 15
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_DNS_API_TOKEN: ${{ secrets.CLOUDFLARE_DNS_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: aa4ff7a482130e543f176e2d73c93f45
       WORKER_NAME: fabrictrad
       ZONE_NAME: fabrictrad.com
     steps:
-      - name: Require Cloudflare credential
+      - name: Require Cloudflare credentials
         shell: bash
         run: |
           set -euo pipefail
-          test -n "${CLOUDFLARE_API_TOKEN:-}" || exit 1
+          test -n "${CLOUDFLARE_API_TOKEN:-}" || { echo '::error::CLOUDFLARE_API_TOKEN is missing.'; exit 1; }
+          test -n "${CLOUDFLARE_DNS_API_TOKEN:-}" || { echo '::error::Add GitHub Actions secret CLOUDFLARE_DNS_API_TOKEN with Zone:DNS:Edit and Zone:Zone:Read for fabrictrad.com.'; exit 1; }
 
       - name: Resolve Cloudflare zone
         id: zone
         shell: bash
         run: |
           set -euo pipefail
-          zone_status=$(curl --silent --show-error --output /tmp/zones.json --write-out '%{http_code}' \
-            --header "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+          status=$(curl --silent --show-error --output /tmp/zones.json --write-out '%{http_code}' \
+            --header "Authorization: Bearer ${CLOUDFLARE_DNS_API_TOKEN}" \
             "https://api.cloudflare.com/client/v4/zones?name=${ZONE_NAME}")
-          test "$zone_status" = 200 || { cat /tmp/zones.json; exit 1; }
+          test "$status" = 200 || { cat /tmp/zones.json; exit 1; }
           ZONE_ID=$(node - <<'NODE'
           const fs=require('node:fs');
           const body=JSON.parse(fs.readFileSync('/tmp/zones.json','utf8'));
@@ -49,76 +51,86 @@ jobs:
           NODE
           )
           echo "zone_id=${ZONE_ID}" >> "$GITHUB_OUTPUT"
-          echo "Resolved Cloudflare zone ${ZONE_ID}."
 
-      - name: Route apex and www through FabricTrad Worker
+      - name: Remove Shopify-facing web DNS records only
         shell: bash
         env:
           ZONE_ID: ${{ steps.zone.outputs.zone_id }}
         run: |
           set -euo pipefail
           curl --fail --silent --show-error \
-            --header "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
-            "https://api.cloudflare.com/client/v4/zones/${ZONE_ID}/workers/routes" > /tmp/routes-before.json
-
-          for pattern in 'fabrictrad.com/*' 'www.fabrictrad.com/*'; do
-            route_id=$(node - /tmp/routes-before.json "$pattern" <<'NODE'
+            --header "Authorization: Bearer ${CLOUDFLARE_DNS_API_TOKEN}" \
+            "https://api.cloudflare.com/client/v4/zones/${ZONE_ID}/dns_records?per_page=5000" > /tmp/dns.json
+          node - <<'NODE' > /tmp/delete-ids.txt
           const fs=require('node:fs');
-          const [file,pattern]=process.argv.slice(2);
-          const body=JSON.parse(fs.readFileSync(file,'utf8'));
-          const match=(body.result||[]).find(x=>x.pattern===pattern);
-          if(match?.id) process.stdout.write(match.id);
+          const body=JSON.parse(fs.readFileSync('/tmp/dns.json','utf8'));
+          const names=new Set(['fabrictrad.com','www.fabrictrad.com']);
+          const webTypes=new Set(['A','AAAA','CNAME']);
+          for(const r of body.result||[]){
+            if(names.has(r.name)&&webTypes.has(r.type)){
+              console.error(`Removing web DNS ${r.type} ${r.name} -> ${r.content}`);
+              console.log(r.id);
+            }
+          }
           NODE
-            )
-            payload=$(node -e "console.log(JSON.stringify({pattern:process.argv[1],script:process.argv[2]}))" "$pattern" "$WORKER_NAME")
-            if [ -n "$route_id" ]; then
-              endpoint="https://api.cloudflare.com/client/v4/zones/${ZONE_ID}/workers/routes/${route_id}"
-              method=PUT
-            else
-              endpoint="https://api.cloudflare.com/client/v4/zones/${ZONE_ID}/workers/routes"
-              method=POST
-            fi
-            status=$(curl --silent --show-error --output /tmp/route-result.json --write-out '%{http_code}' \
-              --request "$method" \
+          while IFS= read -r id; do
+            [ -n "$id" ] || continue
+            status=$(curl --silent --show-error --output /tmp/delete.json --write-out '%{http_code}' \
+              --request DELETE \
+              --header "Authorization: Bearer ${CLOUDFLARE_DNS_API_TOKEN}" \
+              "https://api.cloudflare.com/client/v4/zones/${ZONE_ID}/dns_records/${id}")
+            node - /tmp/delete.json "$status" <<'NODE'
+          const fs=require('node:fs');
+          const [file,status]=process.argv.slice(2);
+          const body=JSON.parse(fs.readFileSync(file,'utf8'));
+          if(status!=='200'||body.success!==true){console.error(JSON.stringify(body,null,2));process.exit(1)}
+          NODE
+          done < /tmp/delete-ids.txt
+
+      - name: Attach apex and www as Worker Custom Domains
+        shell: bash
+        run: |
+          set -euo pipefail
+          for hostname in fabrictrad.com www.fabrictrad.com; do
+            payload=$(node -e "console.log(JSON.stringify({hostname:process.argv[1],service:process.argv[2],zone_name:process.argv[3]}))" "$hostname" "$WORKER_NAME" "$ZONE_NAME")
+            status=$(curl --silent --show-error --output "/tmp/domain-${hostname}.json" --write-out '%{http_code}' \
+              --request PUT \
               --header "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
               --header 'Content-Type: application/json' \
               --data "$payload" \
-              "$endpoint")
-            node - /tmp/route-result.json "$pattern" "$status" <<'NODE'
+              "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/domains")
+            node - "/tmp/domain-${hostname}.json" "$hostname" "$status" <<'NODE'
           const fs=require('node:fs');
-          const [file,pattern,status]=process.argv.slice(2);
+          const [file,hostname,status]=process.argv.slice(2);
           const body=JSON.parse(fs.readFileSync(file,'utf8'));
           if(status!=='200'||body.success!==true){
-            console.error(`Worker route attach failed for ${pattern} (HTTP ${status})`);
+            console.error(`Custom-domain attach failed for ${hostname} (HTTP ${status})`);
             console.error(JSON.stringify(body,null,2));
             process.exit(1);
           }
-          console.log(`${pattern} -> ${body.result?.script || 'unknown'}`);
+          console.log(`${hostname} attached to Worker fabrictrad.`);
           NODE
           done
 
-      - name: Confirm Worker owns both routes
+      - name: Confirm Worker owns both domains
         shell: bash
-        env:
-          ZONE_ID: ${{ steps.zone.outputs.zone_id }}
         run: |
           set -euo pipefail
           curl --fail --silent --show-error \
             --header "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
-            "https://api.cloudflare.com/client/v4/zones/${ZONE_ID}/workers/routes" > /tmp/routes.json
+            "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/domains?service=${WORKER_NAME}" > /tmp/domains.json
           node - <<'NODE'
           const fs=require('node:fs');
-          const body=JSON.parse(fs.readFileSync('/tmp/routes.json','utf8'));
-          if(body.success!==true){console.error(JSON.stringify(body,null,2));process.exit(1)}
+          const body=JSON.parse(fs.readFileSync('/tmp/domains.json','utf8'));
           const rows=body.result||[];
-          for(const pattern of ['fabrictrad.com/*','www.fabrictrad.com/*']){
-            const match=rows.find(x=>x.pattern===pattern&&x.script==='fabrictrad');
-            if(!match){console.error(`Worker route missing: ${pattern}`);process.exit(1)}
-            console.log(`${pattern} is routed to fabrictrad.`);
+          for(const hostname of ['fabrictrad.com','www.fabrictrad.com']){
+            if(!rows.some(x=>x.hostname===hostname&&x.service==='fabrictrad')){
+              console.error(`Worker Custom Domain missing: ${hostname}`); process.exit(1);
+            }
           }
           NODE
 
-      - name: Verify historical FabricTrad is live
+      - name: Verify historical FabricTrad is authoritative
         shell: bash
         run: |
           set -euo pipefail
@@ -135,9 +147,9 @@ jobs:
             sleep 5
           done
           [ "$ok" = true ] || { echo '::error::Historical FabricTrad did not become authoritative.'; exit 1; }
-          echo 'PASS: Aug-26 FabricTrad app is authoritative on apex and www.'
+          echo 'PASS: Cloudflare Worker is authoritative on apex and www.'
 
-      - name: Verify key historical routes
+      - name: Verify historical routes
         shell: bash
         run: |
           set -euo pipefail
