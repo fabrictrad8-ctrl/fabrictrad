@@ -21,17 +21,15 @@ jobs:
     timeout-minutes: 15
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-      CLOUDFLARE_DNS_API_TOKEN: ${{ secrets.CLOUDFLARE_DNS_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: aa4ff7a482130e543f176e2d73c93f45
       WORKER_NAME: fabrictrad
       ZONE_NAME: fabrictrad.com
     steps:
-      - name: Require Cloudflare credentials
+      - name: Require Cloudflare credential
         shell: bash
         run: |
           set -euo pipefail
           test -n "${CLOUDFLARE_API_TOKEN:-}" || { echo '::error::CLOUDFLARE_API_TOKEN is missing.'; exit 1; }
-          test -n "${CLOUDFLARE_DNS_API_TOKEN:-}" || { echo '::error::Add GitHub Actions secret CLOUDFLARE_DNS_API_TOKEN with Zone:DNS:Edit and Zone:Zone:Read for fabrictrad.com.'; exit 1; }
 
       - name: Resolve Cloudflare zone
         id: zone
@@ -39,7 +37,7 @@ jobs:
         run: |
           set -euo pipefail
           status=$(curl --silent --show-error --output /tmp/zones.json --write-out '%{http_code}' \
-            --header "Authorization: Bearer ${CLOUDFLARE_DNS_API_TOKEN}" \
+            --header "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
             "https://api.cloudflare.com/client/v4/zones?name=${ZONE_NAME}")
           test "$status" = 200 || { cat /tmp/zones.json; exit 1; }
           ZONE_ID=$(node - <<'NODE'
@@ -59,7 +57,7 @@ jobs:
         run: |
           set -euo pipefail
           curl --fail --silent --show-error \
-            --header "Authorization: Bearer ${CLOUDFLARE_DNS_API_TOKEN}" \
+            --header "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
             "https://api.cloudflare.com/client/v4/zones/${ZONE_ID}/dns_records?per_page=5000" > /tmp/dns.json
           node - <<'NODE' > /tmp/delete-ids.txt
           const fs=require('node:fs');
@@ -77,7 +75,7 @@ jobs:
             [ -n "$id" ] || continue
             status=$(curl --silent --show-error --output /tmp/delete.json --write-out '%{http_code}' \
               --request DELETE \
-              --header "Authorization: Bearer ${CLOUDFLARE_DNS_API_TOKEN}" \
+              --header "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
               "https://api.cloudflare.com/client/v4/zones/${ZONE_ID}/dns_records/${id}")
             node - /tmp/delete.json "$status" <<'NODE'
           const fs=require('node:fs');
