@@ -31,6 +31,58 @@ jobs:
           set -euo pipefail
           test -n "${CLOUDFLARE_API_TOKEN:-}" || exit 1
 
+      - name: Remove conflicting Shopify web DNS records only
+        shell: bash
+        run: |
+          set -euo pipefail
+          zone_status=$(curl --silent --show-error --output /tmp/zones.json --write-out '%{http_code}' \
+            --header "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            "https://api.cloudflare.com/client/v4/zones?name=${ZONE_NAME}")
+          test "$zone_status" = 200 || { cat /tmp/zones.json; exit 1; }
+          ZONE_ID=$(node - <<'NODE'
+          const fs=require('node:fs');
+          const body=JSON.parse(fs.readFileSync('/tmp/zones.json','utf8'));
+          const zone=(body.result||[]).find(x=>x.name==='fabrictrad.com');
+          if(!zone?.id) process.exit(1);
+          process.stdout.write(zone.id);
+          NODE
+          )
+          echo "Resolved Cloudflare zone ${ZONE_ID}."
+
+          curl --fail --silent --show-error \
+            --header "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            "https://api.cloudflare.com/client/v4/zones/${ZONE_ID}/dns_records?per_page=5000" > /tmp/dns-records.json
+
+          node - <<'NODE' > /tmp/delete-records.txt
+          const fs=require('node:fs');
+          const body=JSON.parse(fs.readFileSync('/tmp/dns-records.json','utf8'));
+          const names=new Set(['fabrictrad.com','www.fabrictrad.com']);
+          const webTypes=new Set(['A','AAAA','CNAME']);
+          for(const r of body.result||[]){
+            if(names.has(r.name)&&webTypes.has(r.type)){
+              console.error(`Removing conflicting web DNS: ${r.type} ${r.name} -> ${r.content}`);
+              console.log(r.id);
+            }
+          }
+          NODE
+
+          if [ -s /tmp/delete-records.txt ]; then
+            while IFS= read -r record_id; do
+              status=$(curl --silent --show-error --output /tmp/delete.json --write-out '%{http_code}' \
+                --request DELETE \
+                --header "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+                "https://api.cloudflare.com/client/v4/zones/${ZONE_ID}/dns_records/${record_id}")
+              node - /tmp/delete.json "$status" <<'NODE'
+          const fs=require('node:fs');
+          const [file,status]=process.argv.slice(2);
+          const body=JSON.parse(fs.readFileSync(file,'utf8'));
+          if(status!=='200'||body.success!==true){console.error(JSON.stringify(body,null,2));process.exit(1)}
+          NODE
+            done < /tmp/delete-records.txt
+          else
+            echo 'No conflicting A/AAAA/CNAME records found.'
+          fi
+
       - name: Attach apex and www directly as Worker Custom Domains
         shell: bash
         run: |
