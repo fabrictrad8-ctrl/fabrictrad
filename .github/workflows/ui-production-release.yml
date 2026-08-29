@@ -64,7 +64,7 @@ jobs:
         shell: bash
         run: bash scripts/deploy-cloudflare-worker-version.sh wrangler.jsonc
 
-      - name: Verify new public UI and FabricTrad logo are live
+      - name: Verify new public UI and official FabricTrad logo are live
         id: smoke
         shell: bash
         run: |
@@ -88,19 +88,25 @@ jobs:
             echo "UI smoke attempt ${attempt}: home=${home_code} login=${login_code} how-to-use=${howto_code}"
 
             if [ "$home_code" = '200' ] && [ "$login_code" = '200' ] && [ "$howto_code" = '200' ] && \
-               grep -Fq 'Textile trade' /tmp/fabrictrad-home.html && \
-               grep -Fq 'data-fabrictrad-brand-mark="fabric-roll-trade-arrow"' /tmp/fabrictrad-home.html && \
-               grep -Fq 'Welcome back' /tmp/fabrictrad-login.html && \
-               grep -Fq 'Choose how you want to use FabricTrad.' /tmp/fabrictrad-howto.html; then
+               grep -Fq 'fabrictrad-official-logo-2026-08-30' /tmp/fabrictrad-home.html && \
+               grep -Fq 'fabrictrad-logo-horizontal.png' /tmp/fabrictrad-home.html && \
+               grep -Fq 'official-uploaded-logo' /tmp/fabrictrad-home.html && \
+               grep -Fq 'fabrictrad-official-logo-2026-08-30' /tmp/fabrictrad-login.html && \
+               grep -Fq 'fabrictrad-official-logo-2026-08-30' /tmp/fabrictrad-howto.html; then
               live=true
               break
             fi
             sleep 5
           done
           if [ "$live" != 'true' ]; then
-            echo '::error::The newly promoted UI or FabricTrad brand mark did not become visible on fabrictrad.com.'
+            echo '--- homepage brand diagnostics ---'
+            grep -o 'fabrictrad-official-logo-[^"< ]*' /tmp/fabrictrad-home.html | head -n 5 || true
+            grep -o 'fabrictrad-logo-horizontal.png[^"< ]*' /tmp/fabrictrad-home.html | head -n 5 || true
+            grep -o 'official-uploaded-logo' /tmp/fabrictrad-home.html | head -n 5 || true
+            echo '::error::The official uploaded FabricTrad logo did not become visible on fabrictrad.com.'
             exit 1
           fi
+          echo 'Official FabricTrad logo verified on live production HTML.'
 
       - name: Record UI release result
         if: always()
