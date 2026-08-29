@@ -27,7 +27,7 @@ import PublicHowToUseNavigation from '@/components/PublicHowToUseNavigation';
 import SitewideLanguageControl from '@/components/SitewideLanguageControl';
 import { AppPreferencesProvider } from '@/contexts/AppPreferencesContext';
 
-const PRODUCTION_UI_RELEASE = 'fabrictrad-commerce-ux-2026-08-26-cart-ui-integrity';
+const PRODUCTION_UI_RELEASE = 'fabrictrad-brand-logo-2026-08-29';
 
 export const viewport: Viewport = {
   width: 'device-width',
@@ -54,7 +54,34 @@ export const metadata: Metadata = {
     telephone: false,
   },
   icons: {
-    icon: [{ url: '/favicon.ico', type: 'image/x-icon' }],
+    icon: [
+      { url: '/favicon.ico', type: 'image/x-icon' },
+      { url: '/icon-192.png', sizes: '192x192', type: 'image/png' },
+      { url: '/icon-512.png', sizes: '512x512', type: 'image/png' },
+    ],
+    apple: [{ url: '/apple-touch-icon.png', sizes: '180x180', type: 'image/png' }],
+  },
+  openGraph: {
+    type: 'website',
+    siteName: 'FabricTrad',
+    title: "FabricTrad — India's Textile Commerce Platform",
+    description:
+      'FabricTrad connects verified textile sellers with business and retail buyers for sourcing, catalogues, payments, orders and fulfilment.',
+    images: [
+      {
+        url: '/assets/images/fabrictrad-og.jpg',
+        width: 1200,
+        height: 630,
+        alt: 'FabricTrad textile trading platform',
+      },
+    ],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: "FabricTrad — India's Textile Commerce Platform",
+    description:
+      'FabricTrad connects verified textile sellers with business and retail buyers for sourcing, catalogues, payments, orders and fulfilment.',
+    images: ['/assets/images/fabrictrad-og.jpg'],
   },
 };
 
