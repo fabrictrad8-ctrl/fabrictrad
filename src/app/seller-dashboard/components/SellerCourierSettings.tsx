@@ -55,6 +55,22 @@ type ShiprocketStatus = {
   source?: 'vault' | 'environment';
 };
 
+type ManualCourierForm = {
+  courierName: string;
+  awbNumber: string;
+  trackingUrl: string;
+  estimatedDelivery: string;
+};
+
+const EMPTY_FORM: ManualCourierForm = {
+  courierName: '',
+  awbNumber: '',
+  trackingUrl: '',
+  estimatedDelivery: '',
+};
+
+const orderKey = (order: OrderOption) => `${order.kind}:${order.id}`;
+
 export default function SellerCourierSettings() {
   const { user } = useAuth();
   const { orders: bulkOrders, loading: bulkLoading, refresh: refreshBulk } = useSellerBulkOrders();
@@ -62,14 +78,9 @@ export default function SellerCourierSettings() {
   const [catalogOrders, setCatalogOrders] = useState<CatalogOrder[]>([]);
   const [shipments, setShipments] = useState<ShipmentRow[]>([]);
   const [shiprocket, setShiprocket] = useState<ShiprocketStatus>({});
-  const [selectedCourier, setSelectedCourier] = useState<CourierType>('shiprocket');
   const [activeKey, setActiveKey] = useState('');
-  const [form, setForm] = useState({
-    courierName: '',
-    awbNumber: '',
-    trackingUrl: '',
-    estimatedDelivery: '',
-  });
+  const [courierByOrder, setCourierByOrder] = useState<Record<string, CourierType>>({});
+  const [manualByOrder, setManualByOrder] = useState<Record<string, ManualCourierForm>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -161,7 +172,8 @@ export default function SellerCourierSettings() {
   }, [bulkOrders, catalogOrders]);
 
   const selectedOrder =
-    orders.find((order) => `${order.kind}:${order.id}` === activeKey) || orders[0] || null;
+    orders.find((order) => orderKey(order) === activeKey) || orders[0] || null;
+  const selectedKey = selectedOrder ? orderKey(selectedOrder) : '';
   const selectedShipment = selectedOrder
     ? shipments.find((shipment) =>
         selectedOrder.kind === 'catalog'
@@ -170,30 +182,53 @@ export default function SellerCourierSettings() {
       ) || null
     : null;
 
+  const selectedCourier: CourierType = selectedShipment
+    ? selectedShipment.courier_type === 'shiprocket'
+      ? 'shiprocket'
+      : 'local'
+    : courierByOrder[selectedKey] || (shiprocket.configured ? 'shiprocket' : 'local');
+  const form = manualByOrder[selectedKey] || EMPTY_FORM;
+
   useEffect(() => {
     if (!selectedOrder) return;
-    const key = `${selectedOrder.kind}:${selectedOrder.id}`;
-    if (!activeKey) setActiveKey(key);
+    if (!activeKey) setActiveKey(orderKey(selectedOrder));
   }, [activeKey, selectedOrder]);
 
   useEffect(() => {
-    if (selectedShipment) {
-      setSelectedCourier(selectedShipment.courier_type === 'shiprocket' ? 'shiprocket' : 'local');
-      setForm({
+    if (!selectedShipment || !selectedKey) return;
+    setCourierByOrder((current) => ({
+      ...current,
+      [selectedKey]: selectedShipment.courier_type === 'shiprocket' ? 'shiprocket' : 'local',
+    }));
+    setManualByOrder((current) => ({
+      ...current,
+      [selectedKey]: {
         courierName: selectedShipment.courier_name || '',
         awbNumber: selectedShipment.awb_number || '',
         trackingUrl: selectedShipment.tracking_url || '',
         estimatedDelivery: selectedShipment.estimated_delivery || '',
-      });
-    } else {
-      setForm({ courierName: '', awbNumber: '', trackingUrl: '', estimatedDelivery: '' });
-    }
-  }, [selectedShipment]);
+      },
+    }));
+  }, [selectedKey, selectedShipment]);
+
+  const chooseCourier = (courier: CourierType) => {
+    if (!selectedKey || selectedShipment) return;
+    setCourierByOrder((current) => ({ ...current, [selectedKey]: courier }));
+  };
+
+  const updateForm = (patch: Partial<ManualCourierForm>) => {
+    if (!selectedKey || selectedShipment) return;
+    setManualByOrder((current) => ({
+      ...current,
+      [selectedKey]: { ...(current[selectedKey] || EMPTY_FORM), ...patch },
+    }));
+  };
 
   const createShiprocket = async () => {
     if (!selectedOrder) return;
     if (!shiprocket.configured) {
-      return toast.error('Automatic shipping is not configured on the live server yet.');
+      chooseCourier('local');
+      return toast.error('Shiprocket is not connected. Choose your own / third-party courier for this order.');
     }
 
     setSaving(true);
@@ -213,7 +248,7 @@ export default function SellerCourierSettings() {
         error?: string;
       };
       if (!response.ok || !payload.success) {
-        throw new Error(payload.error || 'Automatic courier booking failed.');
+        throw new Error(payload.error || 'Shiprocket booking failed.');
       }
       toast.success(
         payload.existing
@@ -224,7 +259,7 @@ export default function SellerCourierSettings() {
       );
       await Promise.all([load(), refreshBulk()]);
     } catch (caught) {
-      toast.error(caught instanceof Error ? caught.message : 'Automatic courier booking failed.');
+      toast.error(caught instanceof Error ? caught.message : 'Shiprocket booking failed.');
     } finally {
       setSaving(false);
     }
@@ -261,7 +296,7 @@ export default function SellerCourierSettings() {
         .from('seller_shipments')
         .upsert(payload, { onConflict: conflict });
       if (saveError) throw saveError;
-      toast.success('Courier details saved. The buyer can now track the shipment.');
+      toast.success('Third-party courier details saved. The buyer can now track this order.');
       await load();
     } catch (caught) {
       toast.error(caught instanceof Error ? caught.message : 'Shipment details could not be saved.');
@@ -277,9 +312,9 @@ export default function SellerCourierSettings() {
       <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="ft-route-kicker">Fulfilment</p>
-          <h1 className="mt-1 text-2xl font-800 text-foreground">Shipping automation</h1>
+          <h1 className="mt-1 text-2xl font-800 text-foreground">Order-by-order shipping</h1>
           <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
-            FabricTrad reuses the seller pickup profile and buyer delivery profile automatically. No address, phone, email, GSTIN or product details need to be re-entered in the courier panel.
+            Choose Shiprocket or your own third-party courier separately for every paid order. There is no marketplace-wide shipping-method switch.
           </p>
         </div>
         <button
@@ -304,12 +339,12 @@ export default function SellerCourierSettings() {
           <p className="text-[11px] font-800 uppercase tracking-wide text-primary">Buyer delivery</p>
           <p className="mt-2 text-sm font-800 text-foreground">From the paid order</p>
           <p className="mt-1 text-xs leading-5 text-muted-foreground">
-            Delivery/billing address, email, mobile, company and verified buyer GSTIN are resolved from the buyer account.
+            Delivery address, email, mobile, company and verified buyer GSTIN come from that specific order/profile.
           </p>
         </div>
         <div className="rounded-2xl border border-border bg-card p-4">
           <div className="flex items-center justify-between gap-2">
-            <p className="text-[11px] font-800 uppercase tracking-wide text-muted-foreground">Courier gateway</p>
+            <p className="text-[11px] font-800 uppercase tracking-wide text-muted-foreground">Shiprocket connection</p>
             <span
               className={`rounded-full px-2 py-0.5 text-[10px] font-800 ${
                 shiprocket.configured ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning'
@@ -318,9 +353,9 @@ export default function SellerCourierSettings() {
               {shiprocket.configured ? 'connected' : 'setup required'}
             </span>
           </div>
-          <p className="mt-2 text-sm font-800 text-foreground">Shiprocket API</p>
+          <p className="mt-2 text-sm font-800 text-foreground">Connection only, not a default</p>
           <p className="mt-1 text-xs leading-5 text-muted-foreground">
-            Credentials remain server-only. Tracking webhook: {shiprocket.webhookConfigured ? 'ready' : 'not confirmed'}.
+            A connected Shiprocket account only makes the option available. The seller still chooses the method on each order.
           </p>
         </div>
       </section>
@@ -338,7 +373,7 @@ export default function SellerCourierSettings() {
               Paid orders ready to pack & ship
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
-              Payment must be captured before shipping unlocks. Pack the order, then one click handles the courier workflow.
+              Select an order first. Its shipping choice and courier details stay attached only to that order.
             </p>
           </div>
           <span className="ft-orange-chip">{orders.length} ready</span>
@@ -351,13 +386,14 @@ export default function SellerCourierSettings() {
         ) : orders.length ? (
           <div className="space-y-2">
             {orders.map((order) => {
-              const key = `${order.kind}:${order.id}`;
+              const key = orderKey(order);
               const shipment = shipments.find((item) =>
                 order.kind === 'catalog'
                   ? item.catalog_order_id === order.id
                   : item.bulk_order_id === order.id
               );
-              const selected = selectedOrder && `${selectedOrder.kind}:${selectedOrder.id}` === key;
+              const selected = selectedKey === key;
+              const draftCourier = courierByOrder[key];
               return (
                 <button
                   key={key}
@@ -376,11 +412,15 @@ export default function SellerCourierSettings() {
                         <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-800 uppercase">
                           {order.kind}
                         </span>
-                        {shipment && (
+                        {shipment ? (
                           <span className="rounded-full bg-success/10 px-2 py-0.5 text-[10px] font-800 text-success">
-                            shipment created
+                            {shipment.courier_type === 'shiprocket' ? 'Shiprocket booked' : 'Third-party booked'}
                           </span>
-                        )}
+                        ) : draftCourier ? (
+                          <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-800 text-primary">
+                            {draftCourier === 'shiprocket' ? 'Shiprocket selected' : 'Third-party selected'}
+                          </span>
+                        ) : null}
                       </div>
                       <p className="mt-1 truncate text-xs text-muted-foreground">
                         {order.product} · {order.buyer}
@@ -397,7 +437,7 @@ export default function SellerCourierSettings() {
             <Icon name="TruckIcon" size={28} className="mx-auto text-muted-foreground" />
             <p className="mt-2 text-sm font-800">No paid orders ready to ship</p>
             <p className="mt-1 text-xs text-muted-foreground">
-              Accepted orders appear here automatically after Razorpay confirms full payment.
+              Fully paid orders appear here automatically after Razorpay confirms payment.
             </p>
           </div>
         )}
@@ -430,7 +470,10 @@ export default function SellerCourierSettings() {
               <div className="flex items-start gap-3">
                 <Icon name="CheckCircleIcon" size={20} className="mt-0.5 text-success" />
                 <div>
-                  <p className="text-sm font-800 text-foreground">Shipment created</p>
+                  <p className="text-sm font-800 text-foreground">Shipment created for this order</p>
+                  <p className="mt-1 text-xs font-700 text-foreground">
+                    Method: {selectedShipment.courier_type === 'shiprocket' ? 'Shiprocket' : 'Own / third-party courier'}
+                  </p>
                   <p className="mt-1 text-xs text-muted-foreground">
                     {selectedShipment.courier_name || 'Courier'} · {selectedShipment.awb_number || 'AWB pending'}
                   </p>
@@ -463,57 +506,77 @@ export default function SellerCourierSettings() {
                   </a>
                 )}
               </div>
+              <p className="rounded-xl border border-border bg-card/70 p-3 text-[11px] leading-5 text-muted-foreground">
+                This shipping method belongs only to this order. Once a shipment/AWB has been created, FabricTrad keeps the method locked here to prevent duplicate courier bookings or pickups.
+              </p>
             </div>
           ) : (
             <>
+              <div className="mb-3">
+                <p className="text-sm font-800 text-foreground">Shipping method for this order</p>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                  This selection applies only to {selectedOrder.kind === 'catalog' ? 'FT-CAT' : 'FT-BULK'}-{selectedOrder.id.slice(0, 8).toUpperCase()}. Every other order can use a different method.
+                </p>
+              </div>
+
               <div className="mb-5 grid gap-3 sm:grid-cols-2">
-                <button type="button" onClick={() => setSelectedCourier('shiprocket')} className={`rounded-xl border-2 p-4 text-left ${selectedCourier === 'shiprocket' ? 'border-primary bg-primary/5' : 'border-border'}`}>
+                <button
+                  type="button"
+                  onClick={() => chooseCourier('shiprocket')}
+                  disabled={!shiprocket.configured}
+                  className={`rounded-xl border-2 p-4 text-left transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                    selectedCourier === 'shiprocket' ? 'border-primary bg-primary/5' : 'border-border'
+                  }`}
+                >
                   <div className="flex items-center gap-2">
                     <Icon name="BoltIcon" size={18} className="text-primary" />
-                    <span className="text-sm font-800">Automatic courier</span>
+                    <span className="text-sm font-800">Shiprocket</span>
                     <span className={`ml-auto rounded-full px-2 py-0.5 text-[10px] font-800 ${shiprocket.configured ? 'bg-success/10 text-success' : 'bg-error/10 text-error'}`}>
-                      {shiprocket.configured ? 'connected' : 'not connected'}
+                      {shiprocket.configured ? 'available' : 'not connected'}
                     </span>
                   </div>
                   <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                    FabricTrad finds a prepaid serviceable courier and sends the saved seller + buyer details automatically.
+                    FabricTrad books the courier, stores the Shiprocket order/shipment IDs, AWB, pickup and tracking for this order.
                   </p>
                 </button>
 
-                <button type="button" onClick={() => setSelectedCourier('local')} className={`rounded-xl border-2 p-4 text-left ${selectedCourier === 'local' ? 'border-secondary bg-secondary/5' : 'border-border'}`}>
+                <button
+                  type="button"
+                  onClick={() => chooseCourier('local')}
+                  className={`rounded-xl border-2 p-4 text-left transition ${
+                    selectedCourier === 'local' ? 'border-secondary bg-secondary/5' : 'border-border'
+                  }`}
+                >
                   <div className="flex items-center gap-2">
                     <Icon name="MapPinIcon" size={18} className="text-secondary" />
-                    <span className="text-sm font-800">Manual / local transporter</span>
+                    <span className="text-sm font-800">Own / third-party courier</span>
                   </div>
                   <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                    Keep this fallback for transporters or local couriers not connected through Shiprocket.
+                    Use Blue Dart, DTDC, Delhivery, a local transporter or any other courier and enter its tracking details for this order.
                   </p>
                 </button>
               </div>
 
               {selectedCourier === 'shiprocket' ? (
                 <div className="rounded-xl border border-primary/20 bg-primary/5 p-4">
-                  <p className="text-sm font-800 text-foreground">Pack first, then auto-book</p>
+                  <p className="text-sm font-800 text-foreground">Ship this order with Shiprocket</p>
                   <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                    One click checks seller-to-buyer serviceability, selects a courier, creates/registers this seller pickup location, sends buyer details/GSTIN/HSN, requests pickup and stores AWB, tracking, label and manifest when returned.
+                    FabricTrad uses the seller pickup profile and this buyer order's delivery details, then stores courier, AWB, tracking, label and manifest against this order.
                   </p>
-                  <div className="mt-3 rounded-xl border border-border bg-card/70 p-3 text-xs leading-5 text-muted-foreground">
-                    <strong className="text-foreground">You do not enter addresses here.</strong> FabricTrad uses Business settings for pickup and the paid buyer order/profile for delivery. If something is missing, booking stops safely and tells you exactly what profile needs updating.
-                  </div>
                   <button type="button" onClick={() => void createShiprocket()} disabled={saving || !shiprocket.configured} className="btn-primary mt-4 inline-flex min-h-12 items-center gap-2 rounded-xl px-5 py-3 text-sm disabled:opacity-50">
                     <Icon name="TruckIcon" size={16} />
-                    {saving ? 'Finding courier & booking…' : 'Ready to ship · auto-book courier'}
+                    {saving ? 'Finding courier & booking…' : 'Book this order with Shiprocket'}
                   </button>
                 </div>
               ) : (
                 <div className="grid gap-3 rounded-xl border border-border p-4 sm:grid-cols-2">
-                  <label className="text-xs font-700">Courier / transporter *<input value={form.courierName} onChange={(event) => setForm({ ...form, courierName: event.target.value })} className="input-base mt-1.5 w-full rounded-xl px-3 py-2.5 text-sm" placeholder="Local transporter, Blue Dart…" /></label>
-                  <label className="text-xs font-700">AWB / tracking number *<input value={form.awbNumber} onChange={(event) => setForm({ ...form, awbNumber: event.target.value })} className="input-base mt-1.5 w-full rounded-xl px-3 py-2.5 text-sm" /></label>
-                  <label className="text-xs font-700">Tracking URL<input type="url" value={form.trackingUrl} onChange={(event) => setForm({ ...form, trackingUrl: event.target.value })} className="input-base mt-1.5 w-full rounded-xl px-3 py-2.5 text-sm" placeholder="https://…" /></label>
-                  <label className="text-xs font-700">Estimated delivery<input type="date" value={form.estimatedDelivery} onChange={(event) => setForm({ ...form, estimatedDelivery: event.target.value })} className="input-base mt-1.5 w-full rounded-xl px-3 py-2.5 text-sm" /></label>
+                  <label className="text-xs font-700">Courier / transporter *<input value={form.courierName} onChange={(event) => updateForm({ courierName: event.target.value })} className="input-base mt-1.5 w-full rounded-xl px-3 py-2.5 text-sm" placeholder="Blue Dart, DTDC, local transporter…" /></label>
+                  <label className="text-xs font-700">AWB / tracking number *<input value={form.awbNumber} onChange={(event) => updateForm({ awbNumber: event.target.value })} className="input-base mt-1.5 w-full rounded-xl px-3 py-2.5 text-sm" /></label>
+                  <label className="text-xs font-700">Tracking URL<input type="url" value={form.trackingUrl} onChange={(event) => updateForm({ trackingUrl: event.target.value })} className="input-base mt-1.5 w-full rounded-xl px-3 py-2.5 text-sm" placeholder="https://…" /></label>
+                  <label className="text-xs font-700">Estimated delivery<input type="date" value={form.estimatedDelivery} onChange={(event) => updateForm({ estimatedDelivery: event.target.value })} className="input-base mt-1.5 w-full rounded-xl px-3 py-2.5 text-sm" /></label>
                   <button type="button" onClick={() => void saveLocal()} disabled={saving} className="btn-primary sm:col-span-2 flex min-h-12 items-center justify-center gap-2 rounded-xl py-3 text-sm disabled:opacity-50">
                     <Icon name="CloudArrowUpIcon" size={16} />
-                    {saving ? 'Saving…' : 'Save shipment & notify buyer'}
+                    {saving ? 'Saving…' : 'Save this order shipment & notify buyer'}
                   </button>
                 </div>
               )}
