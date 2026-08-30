@@ -11,6 +11,7 @@ import {
 
 type OrderKind = 'catalog' | 'bulk';
 type ViewerRole = 'buyer' | 'seller';
+type ShipmentMethod = 'shiprocket' | 'third_party';
 
 type PaymentRecord = {
   id: string;
@@ -80,7 +81,7 @@ export default function OrderLifecyclePanel({
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [shiprocketConfigured, setShiprocketConfigured] = useState<boolean | null>(null);
-  const [showManualShipment, setShowManualShipment] = useState(false);
+  const [shipmentMethod, setShipmentMethod] = useState<ShipmentMethod>('shiprocket');
   const [courierName, setCourierName] = useState('');
   const [awbNumber, setAwbNumber] = useState('');
   const [trackingUrl, setTrackingUrl] = useState('');
@@ -122,6 +123,7 @@ export default function OrderLifecyclePanel({
       const nextShipment = (shipmentResult.data || null) as ShipmentRecord | null;
       setShipment(nextShipment);
       if (nextShipment) {
+        setShipmentMethod(nextShipment.courier_type === 'shiprocket' ? 'shiprocket' : 'third_party');
         setCourierName(nextShipment.courier_name || '');
         setAwbNumber(nextShipment.awb_number || '');
         setTrackingUrl(nextShipment.tracking_url || '');
@@ -157,6 +159,12 @@ export default function OrderLifecyclePanel({
     };
   }, [orderKind, viewerRole]);
 
+  useEffect(() => {
+    if (!shipment && shiprocketConfigured === false) {
+      setShipmentMethod('third_party');
+    }
+  }, [shipment, shiprocketConfigured]);
+
   const issueInvoice = async () => {
     setBusy(true);
     try {
@@ -184,6 +192,11 @@ export default function OrderLifecyclePanel({
   };
 
   const bookShiprocket = async () => {
+    if (shiprocketConfigured !== true) {
+      toast.error('Shiprocket is not connected. Choose your own / third-party courier for this order.');
+      setShipmentMethod('third_party');
+      return;
+    }
     setBusy(true);
     try {
       const response = await fetch('/api/shiprocket/create-order', {
@@ -213,7 +226,7 @@ export default function OrderLifecyclePanel({
       await onChanged?.();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Shipment could not be booked.');
-      setShowManualShipment(true);
+      setShipmentMethod('third_party');
     } finally {
       setBusy(false);
     }
@@ -248,7 +261,7 @@ export default function OrderLifecyclePanel({
         { onConflict: 'catalog_order_id' }
       );
       if (error) throw error;
-      toast.success('Shipment details saved and the buyer was notified.');
+      toast.success('Third-party courier details saved. The buyer can now track this order.');
       await load();
       await onChanged?.();
     } catch (error) {
@@ -349,6 +362,9 @@ export default function OrderLifecyclePanel({
         {shipment ? (
           <div className="mt-2 space-y-1 text-xs">
             <p className="font-800 text-foreground">{human(shipment.status)}</p>
+            <p className="font-700 text-foreground">
+              {shipment.courier_type === 'shiprocket' ? 'Shiprocket' : 'Own / third-party courier'}
+            </p>
             <p className="text-muted-foreground">
               {shipment.courier_name || (shipment.courier_type === 'shiprocket' ? 'Shiprocket' : 'Courier')} · {shipment.awb_number || 'AWB pending'}
             </p>
@@ -365,38 +381,83 @@ export default function OrderLifecyclePanel({
                 Track shipment
               </a>
             )}
+            <p className="pt-1 text-[10px] leading-4 text-muted-foreground">
+              Shipping method is stored against this order only.
+            </p>
           </div>
         ) : canAddCatalogShipment ? (
           <div className="mt-2 space-y-3">
-            {shiprocketConfigured !== false && (
+            <div>
+              <p className="text-xs font-800 text-foreground">Shipping method for this order</p>
+              <p className="mt-1 text-[10px] leading-4 text-muted-foreground">
+                Choose independently for this order. Your other orders are not changed.
+              </p>
+            </div>
+
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
               <button
                 type="button"
                 disabled={busy || shiprocketConfigured === null}
-                onClick={() => void bookShiprocket()}
-                className="flex w-full items-center justify-center gap-2 rounded-lg bg-success px-3 py-2.5 text-xs font-800 text-white disabled:opacity-50"
+                onClick={() => setShipmentMethod('shiprocket')}
+                className={`rounded-lg border p-2.5 text-left transition disabled:opacity-50 ${
+                  shipmentMethod === 'shiprocket'
+                    ? 'border-success/50 bg-success/10'
+                    : 'border-border bg-card hover:border-success/30'
+                }`}
               >
-                <Icon name="TruckIcon" size={14} />
-                {busy ? 'Booking shipment…' : shiprocketConfigured === null ? 'Checking Shiprocket…' : 'Book shipping with Shiprocket'}
+                <div className="flex items-center gap-1.5">
+                  <Icon name="TruckIcon" size={14} className="text-success" />
+                  <span className="text-xs font-800">Shiprocket</span>
+                </div>
+                <p className="mt-1 text-[10px] leading-4 text-muted-foreground">
+                  Auto-book courier, AWB, pickup and tracking.
+                </p>
               </button>
-            )}
-            {shiprocketConfigured === false && (
-              <p className="rounded-lg border border-warning/20 bg-warning/10 p-2 text-[11px] leading-4 text-warning">
-                Shiprocket is not configured on this deployment. Add courier details manually below.
-              </p>
-            )}
-            <button
-              type="button"
-              onClick={() => setShowManualShipment((value) => !value)}
-              className="text-xs font-800 text-primary underline"
-            >
-              {showManualShipment ? 'Hide manual courier entry' : 'Use another courier / enter AWB manually'}
-            </button>
-            {(showManualShipment || shiprocketConfigured === false) && (
+
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => setShipmentMethod('third_party')}
+                className={`rounded-lg border p-2.5 text-left transition disabled:opacity-50 ${
+                  shipmentMethod === 'third_party'
+                    ? 'border-primary/50 bg-primary/10'
+                    : 'border-border bg-card hover:border-primary/30'
+                }`}
+              >
+                <div className="flex items-center gap-1.5">
+                  <Icon name="MapPinIcon" size={14} className="text-primary" />
+                  <span className="text-xs font-800">Own / third-party courier</span>
+                </div>
+                <p className="mt-1 text-[10px] leading-4 text-muted-foreground">
+                  Enter the courier, AWB and tracking details yourself.
+                </p>
+              </button>
+            </div>
+
+            {shipmentMethod === 'shiprocket' ? (
+              <div className="space-y-2 border-t border-border pt-3">
+                {shiprocketConfigured === false ? (
+                  <p className="rounded-lg border border-warning/20 bg-warning/10 p-2 text-[11px] leading-4 text-warning">
+                    Shiprocket is not connected on this deployment. Choose your own / third-party courier for this order.
+                  </p>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={busy || shiprocketConfigured !== true}
+                    onClick={() => void bookShiprocket()}
+                    className="flex w-full items-center justify-center gap-2 rounded-lg bg-success px-3 py-2.5 text-xs font-800 text-white disabled:opacity-50"
+                  >
+                    <Icon name="TruckIcon" size={14} />
+                    {busy ? 'Booking shipment…' : 'Book this order with Shiprocket'}
+                  </button>
+                )}
+              </div>
+            ) : (
               <div className="grid gap-2 border-t border-border pt-3">
                 <input
                   value={courierName}
                   onChange={(event) => setCourierName(event.target.value)}
-                  placeholder="Courier name"
+                  placeholder="Courier / transporter name"
                   className="input-base rounded-lg px-2.5 py-2 text-xs"
                 />
                 <input
@@ -422,9 +483,9 @@ export default function OrderLifecyclePanel({
                   type="button"
                   disabled={busy}
                   onClick={() => void saveCatalogShipment()}
-                  className="rounded-lg border border-success/30 bg-success/10 px-3 py-2 text-xs font-800 text-success disabled:opacity-50"
+                  className="rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-xs font-800 text-primary disabled:opacity-50"
                 >
-                  Save manual shipment
+                  Save third-party shipment & notify buyer
                 </button>
               </div>
             )}
