@@ -113,10 +113,12 @@ export async function POST(request: NextRequest) {
     return json({ error: 'Razorpay payment identity does not match this checkout.' }, 409);
   }
   if (providerStatus !== 'captured' && provider.captured !== true) {
+    const authorized = providerStatus === 'authorized';
     await admin
       .from('bespoke_payments')
       .update({
-        status: providerStatus === 'authorized' ? 'authorized' : 'initiated',
+        razorpay_payment_id: authorized ? paymentId : ledger.razorpay_payment_id,
+        status: authorized ? 'authorized' : 'initiated',
         provider_status: providerStatus || 'unknown',
         provider_payload: provider,
         updated_at: new Date().toISOString(),
