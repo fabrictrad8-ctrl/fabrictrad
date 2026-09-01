@@ -13,6 +13,7 @@ import AdminDashboard from '@/app/admin-portal/components/AdminDashboard';
 import AdminCustomers from '@/app/admin-portal/components/AdminCustomers';
 import AdminSellers from '@/app/admin-portal/components/AdminSellers';
 import AdminOrders from '@/app/admin-portal/components/AdminOrders';
+import AdminBespokeOrders from '@/app/admin-portal/components/AdminBespokeOrders';
 import AdminDiscounts from '@/app/admin-portal/components/AdminDiscounts';
 import AdminActivityFeed from '@/app/admin-portal/components/AdminActivityFeed';
 import AdminListings from '@/app/admin-portal/components/AdminListings';
@@ -28,6 +29,7 @@ import AdminDisputes from '@/app/admin-portal/components/AdminDisputes';
 type AdminTab =
   | 'dashboard'
   | 'orders'
+  | 'bespoke'
   | 'listings'
   | 'customers'
   | 'sellers'
@@ -66,6 +68,7 @@ const navGroups: NavGroup[] = [
     label: 'Commerce',
     items: [
       { key: 'orders', label: 'Orders', icon: 'ShoppingBagIcon', description: 'Payment and fulfillment state' },
+      { key: 'bespoke', label: 'Custom orders', icon: 'ScissorsIcon', description: 'Tailoring, trials and approvals' },
       { key: 'listings', label: 'Products', icon: 'TagIcon', description: 'Listings, inventory and GTIN' },
       { key: 'customers', label: 'Customers', icon: 'UsersIcon', description: 'Buyer and business accounts' },
       { key: 'sellers', label: 'Sellers', icon: 'BuildingStorefrontIcon', description: 'Verification and eligibility' },
@@ -238,6 +241,7 @@ export default function AdminPortalLayout() {
           <div className="mx-auto max-w-[1500px]">
             {activeTab === 'dashboard' && <AdminDashboard />}
             {activeTab === 'orders' && <AdminOrders />}
+            {activeTab === 'bespoke' && <AdminBespokeOrders />}
             {activeTab === 'listings' && <AdminListings />}
             {activeTab === 'customers' && <AdminCustomers />}
             {activeTab === 'sellers' && <AdminSellers />}
@@ -259,9 +263,9 @@ export default function AdminPortalLayout() {
         {[
           { key: 'dashboard' as AdminTab, label: 'Home', icon: 'HomeIcon' },
           { key: 'orders' as AdminTab, label: 'Orders', icon: 'ShoppingBagIcon' },
+          { key: 'bespoke' as AdminTab, label: 'Custom', icon: 'ScissorsIcon' },
           { key: 'listings' as AdminTab, label: 'Products', icon: 'TagIcon' },
           { key: 'customers' as AdminTab, label: 'Customers', icon: 'UsersIcon' },
-          { key: 'sellers' as AdminTab, label: 'Sellers', icon: 'BuildingStorefrontIcon' },
         ].map((item) => (
           <button key={item.key} type="button" onClick={() => navigateTo(item.key)} className={`flex flex-col items-center gap-1 rounded-lg py-2 text-[10px] font-800 ${activeTab === item.key ? 'bg-primary/10 text-primary' : 'text-muted-foreground'}`}>
             <Icon name={item.icon as 'HomeIcon'} size={18} />
