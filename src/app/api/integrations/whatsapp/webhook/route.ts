@@ -2,6 +2,7 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import { after, NextRequest, NextResponse } from 'next/server';
 import { parseCatalogMessage } from '@/lib/catalogAssistant';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { handleBuyerWhatsAppMessage } from '@/lib/whatsappBuyerAutomation';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -142,7 +143,7 @@ async function acknowledgeSeller(to: string, text: string) {
   }).catch(() => undefined);
 }
 
-async function ingestMessage(message: MetaMessage) {
+async function ingestSellerMessage(message: MetaMessage) {
   const waMessageId = String(message.id || '').trim();
   const fromRaw = String(message.from || '').trim();
   const fromPhone = normalizePhone(fromRaw);
@@ -178,8 +179,8 @@ async function ingestMessage(message: MetaMessage) {
     .maybeSingle();
   if (sellerError || !seller?.id) return;
 
-  const messageText = extractText(message).slice(0, 12_000);
-  const parsedDraft = messageText ? parseCatalogMessage(messageText) : null;
+  const text = extractText(message).slice(0, 12_000);
+  const parsedDraft = text ? parseCatalogMessage(text) : null;
   const media = extractMedia(message);
   let mediaStoragePath: string | null = null;
   let mediaMimeType: string | null = media?.mime || null;
@@ -206,7 +207,7 @@ async function ingestMessage(message: MetaMessage) {
 
   const status = parsedDraft
     ? 'parsed'
-    : messageText || mediaStoragePath
+    : text || mediaStoragePath
       ? 'needs_review'
       : processingError
         ? 'failed'
@@ -218,7 +219,7 @@ async function ingestMessage(message: MetaMessage) {
     wa_message_id: waMessageId,
     from_phone: fromPhone,
     message_type: message.type || 'unknown',
-    message_text: messageText || null,
+    message_text: text || null,
     media_id: media?.id || null,
     media_storage_path: mediaStoragePath,
     media_mime_type: mediaMimeType,
@@ -236,6 +237,11 @@ async function ingestMessage(message: MetaMessage) {
       ? `Received ${parsedDraft.name}. FabricTrad has organised the details and synced them to your seller dashboard as a private WhatsApp catalogue draft.`
       : 'Received. The message or media is now visible in your FabricTrad seller dashboard for review.'
   );
+}
+
+async function processMessage(message: MetaMessage) {
+  const buyerResult = await handleBuyerWhatsAppMessage(message);
+  if (!buyerResult.handled) await ingestSellerMessage(message);
 }
 
 export async function GET(request: NextRequest) {
@@ -277,8 +283,8 @@ export async function POST(request: NextRequest) {
   after(async () => {
     await Promise.all(
       messages.map((message) =>
-        ingestMessage(message).catch((error) => {
-          console.error('WhatsApp seller ingestion failed', {
+        processMessage(message).catch((error) => {
+          console.error('WhatsApp message processing failed', {
             messageId: message.id || null,
             code: error instanceof Error ? error.message : 'unknown',
           });
@@ -287,7 +293,7 @@ export async function POST(request: NextRequest) {
     );
   });
 
-  // Acknowledge immediately. Meta can retry slow/non-2xx webhook deliveries,
-  // while Next.js `after()` keeps the background processing alive separately.
+  // Acknowledge immediately. Meta retries slow/non-2xx deliveries, while
+  // Next.js `after()` keeps verified message processing alive separately.
   return json({ received: true });
 }
