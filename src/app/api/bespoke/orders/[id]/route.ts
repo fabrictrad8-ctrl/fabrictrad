@@ -20,6 +20,8 @@ type BuyerAction =
   | 'review'
   | 'customer_service';
 
+type AppointmentType = 'physical_measurement' | 'design_approval' | 'trial_fitting' | 'alteration';
+
 type PatchBody = {
   action?: BuyerAction | 'admin_update';
   productId?: string | null;
@@ -28,7 +30,7 @@ type PatchBody = {
   fabricSelection?: Record<string, unknown>;
   customization?: Record<string, unknown>;
   measurement?: Record<string, unknown>;
-  appointmentType?: 'physical_measurement' | 'design_approval' | 'trial_fitting' | 'alteration';
+  appointmentType?: AppointmentType;
   requestedAt?: string;
   locationType?: 'store' | 'customer_address' | 'video_call' | 'other';
   locationDetails?: Record<string, unknown>;
@@ -48,7 +50,7 @@ type PatchBody = {
   stitchingStatus?: 'not_started' | 'queued' | 'in_progress' | 'completed';
   embroideryStatus?: 'not_required' | 'queued' | 'in_progress' | 'completed';
   humanActionRequired?: boolean;
-  humanActionReason?: 'physical_measurement' | 'design_approval' | 'trial_fitting' | 'alteration' | 'customer_service' | null;
+  humanActionReason?: AppointmentType | 'customer_service' | null;
 };
 
 const BUYER_ACTION_BY_STAGE: Partial<Record<BespokeStage, BuyerAction[]>> = {
@@ -59,9 +61,17 @@ const BUYER_ACTION_BY_STAGE: Partial<Record<BespokeStage, BuyerAction[]>> = {
   customization: ['customization'],
   measurement: ['measurement'],
   appointment: ['appointment'],
+  trial: ['appointment'],
+  alteration: ['appointment'],
   final_approval: ['final_approval'],
   delivery_or_pickup: ['delivery'],
   review: ['review'],
+};
+
+const APPOINTMENT_TYPES_BY_STAGE: Partial<Record<BespokeStage, AppointmentType[]>> = {
+  appointment: ['physical_measurement', 'design_approval'],
+  trial: ['trial_fitting'],
+  alteration: ['alteration'],
 };
 
 const json = (body: Record<string, unknown>, status = 200) =>
@@ -208,7 +218,27 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     if (!Number.isFinite(requestedAt.getTime()) || requestedAt.getTime() < Date.now() - 60_000) {
       return json({ error: 'Choose a valid future appointment time.' }, 400);
     }
-    const appointmentType = body.appointmentType || 'design_approval';
+
+    const allowedAppointmentTypes = APPOINTMENT_TYPES_BY_STAGE[currentStage] || [];
+    const defaultType: AppointmentType =
+      currentStage === 'trial'
+        ? 'trial_fitting'
+        : currentStage === 'alteration'
+          ? 'alteration'
+          : String((safeObject(order.measurement) as Record<string, unknown>).mode || '') === 'physical'
+            ? 'physical_measurement'
+            : 'design_approval';
+    const appointmentType = body.appointmentType || defaultType;
+    if (!allowedAppointmentTypes.includes(appointmentType)) {
+      return json(
+        {
+          error: `A ${appointmentType.replaceAll('_', ' ')} appointment is not valid during the ${currentStage.replaceAll('_', ' ')} stage.`,
+          code: 'INVALID_APPOINTMENT_TYPE',
+        },
+        409
+      );
+    }
+
     const { data: createdAppointment, error: appointmentError } = await admin
       .from('bespoke_appointments')
       .insert({
@@ -223,7 +253,10 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       .single();
     if (appointmentError) return json({ error: appointmentError.message }, 500);
     appointment = createdAppointment;
-    updates.stage = 'appointment';
+    // Initial measurement/design appointment, trial fitting and alteration are
+    // separate human checkpoints. Preserve the corresponding stage so the
+    // staff completion action advances the state machine correctly.
+    updates.stage = currentStage;
     updates.human_action_required = true;
     updates.human_action_reason = appointmentType;
     await admin.from('bespoke_follow_up_jobs').insert({
