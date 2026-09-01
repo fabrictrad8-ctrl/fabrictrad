@@ -1,5 +1,5 @@
 // OpenNext generates this module before Wrangler bundles the worker.
-// @ts-ignore -- generated build artifact
+// @ts-expect-error -- generated build artifact is absent during static type-checking
 import openNextWorker from './.open-next/worker.js';
 import { processDueBespokeFollowUps } from './src/lib/bespokeFollowUps';
 
@@ -7,7 +7,7 @@ type ExecutionContextLike = {
   waitUntil(promise: Promise<unknown>): void;
 };
 
-export default {
+const fabricTradWorker = {
   fetch: openNextWorker.fetch,
   async scheduled(_controller: unknown, _env: unknown, context: ExecutionContextLike) {
     context.waitUntil(
@@ -20,6 +20,8 @@ export default {
   },
 };
 
+export default fabricTradWorker;
+
 // Required by OpenNext's queue/cache implementation when those bindings are used.
-// @ts-ignore -- generated build artifact
+// @ts-expect-error -- generated build artifact is absent during static type-checking
 export { DOQueueHandler, DOShardedTagCache } from './.open-next/worker.js';
