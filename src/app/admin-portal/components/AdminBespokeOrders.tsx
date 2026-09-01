@@ -145,7 +145,7 @@ export default function AdminBespokeOrders() {
   const updateDraft = (id: string, patch: Partial<QuoteDraft>) =>
     setQuoteDrafts((current) => ({
       ...current,
-      [id]: { total: '', advance: '0', notes: '', ...current[id], ...patch },
+      [id]: { ...(current[id] ?? { total: '', advance: '0', notes: '' }), ...patch },
     }));
 
   return (
