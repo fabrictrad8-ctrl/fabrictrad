@@ -81,7 +81,9 @@ jobs:
           grep -Fq 'getShiprocketCredentials' src/app/api/shiprocket/status/route.ts
           grep -Fq "request.nextUrl.searchParams.get('verify') === '1'" src/app/api/shiprocket/status/route.ts
           grep -Fq 'getShiprocketCredentials' src/app/api/shiprocket/create-order/route.ts
-          grep -Fq 'getShiprocketWebhookToken' src/app/api/shiprocket/webhook/route.ts
+          grep -Fq 'loadExpectedWebhookToken' src/app/api/shiprocket/webhook/route.ts
+          grep -Fq 'SHIPROCKET_WEBHOOK_TOKEN' src/app/api/shiprocket/webhook/route.ts
+          grep -Fq 'get_server_shiprocket_webhook_token' src/app/api/shiprocket/webhook/route.ts
 
           # Production Worker must be attached to both public hostnames.
           grep -Fq '"pattern": "fabrictrad.com"' wrangler.jsonc
