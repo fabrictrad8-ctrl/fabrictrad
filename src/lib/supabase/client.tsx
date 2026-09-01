@@ -1,6 +1,9 @@
 import { createBrowserClient } from '@supabase/ssr';
 
 const PFX = 'sb_';
+const LOCAL_AUDIT_ROLE_COOKIE = 'fabrictrad_demo_role';
+
+type LocalAuditRole = 'buyer' | 'seller' | 'admin';
 
 const isBrowser = () => typeof window !== 'undefined' && typeof document !== 'undefined';
 const isSecureContextForCookies = () =>
@@ -65,8 +68,68 @@ const deleteCookie = (name: string) => {
   document.cookie = `${name}=; Max-Age=0; Path=/; SameSite=Lax${isSecureContextForCookies() ? '; Secure' : ''}`;
 };
 
-const buildClient = () =>
-  createBrowserClient(
+const getLocalAuditRole = (): LocalAuditRole | null => {
+  if (!isBrowser()) return null;
+  const hostname = window.location.hostname;
+  if (!['localhost', '127.0.0.1', '::1'].includes(hostname)) return null;
+  const role = fromCookies().find((cookie) => cookie.name === LOCAL_AUDIT_ROLE_COOKIE)?.value;
+  return role === 'buyer' || role === 'seller' || role === 'admin' ? role : null;
+};
+
+const installLocalAuditAuth = <T extends ReturnType<typeof createBrowserClient>>(client: T): T => {
+  const auditRole = getLocalAuditRole();
+  if (!auditRole) return client;
+
+  // Browser QA runs against a production build with intentionally inert Supabase
+  // credentials. Keep the test identity strictly localhost-only and cookie-gated;
+  // production hosts can never enter this branch.
+  const accountRole = auditRole === 'admin' ? 'admin_staff' : auditRole;
+  const now = new Date().toISOString();
+  const auditUser = {
+    id: `00000000-0000-4000-8000-${auditRole === 'buyer' ? '000000000001' : auditRole === 'seller' ? '000000000002' : '000000000003'}`,
+    aud: 'authenticated',
+    role: 'authenticated',
+    email: `qa-${auditRole}@localhost.invalid`,
+    email_confirmed_at: now,
+    phone: '',
+    confirmed_at: now,
+    last_sign_in_at: now,
+    app_metadata: { provider: 'email', providers: ['email'], role: accountRole },
+    user_metadata: { full_name: `QA ${auditRole}`, role: accountRole },
+    identities: [],
+    created_at: now,
+    updated_at: now,
+  };
+  const auditSession = {
+    access_token: `local-audit-${auditRole}`,
+    refresh_token: `local-audit-refresh-${auditRole}`,
+    expires_in: 3600,
+    expires_at: Math.floor(Date.now() / 1000) + 3600,
+    token_type: 'bearer',
+    user: auditUser,
+  };
+
+  const auth = client.auth as any;
+  auth.getSession = async () => ({ data: { session: auditSession }, error: null });
+  auth.getUser = async () => ({ data: { user: auditUser }, error: null });
+  auth.onAuthStateChange = (callback: (event: string, session: typeof auditSession) => void) => {
+    queueMicrotask(() => callback('INITIAL_SESSION', auditSession));
+    return {
+      data: {
+        subscription: {
+          id: `local-audit-${auditRole}`,
+          callback,
+          unsubscribe: () => undefined,
+        },
+      },
+    };
+  };
+
+  return client;
+};
+
+const buildClient = () => {
+  const client = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
@@ -99,6 +162,9 @@ const buildClient = () =>
       },
     }
   );
+
+  return installLocalAuditAuth(client);
+};
 
 type BrowserClient = ReturnType<typeof buildClient>;
 let _browserClient: BrowserClient | null = null;
