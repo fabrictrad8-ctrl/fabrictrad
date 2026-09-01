@@ -8,18 +8,20 @@ export const runtime = 'nodejs';
 
 type RouteContext = { params: Promise<{ id: string }> };
 
+type BuyerAction =
+  | 'select_product'
+  | 'reference_image'
+  | 'fabric'
+  | 'customization'
+  | 'measurement'
+  | 'appointment'
+  | 'final_approval'
+  | 'delivery'
+  | 'review'
+  | 'customer_service';
+
 type PatchBody = {
-  action?:
-    | 'select_product'
-    | 'reference_image'
-    | 'fabric'
-    | 'customization'
-    | 'measurement'
-    | 'appointment'
-    | 'delivery'
-    | 'review'
-    | 'customer_service'
-    | 'admin_update';
+  action?: BuyerAction | 'admin_update';
   productId?: string | null;
   referenceImagePath?: string | null;
   referenceImageMeta?: Record<string, unknown>;
@@ -47,6 +49,19 @@ type PatchBody = {
   embroideryStatus?: 'not_required' | 'queued' | 'in_progress' | 'completed';
   humanActionRequired?: boolean;
   humanActionReason?: 'physical_measurement' | 'design_approval' | 'trial_fitting' | 'alteration' | 'customer_service' | null;
+};
+
+const BUYER_ACTION_BY_STAGE: Partial<Record<BespokeStage, BuyerAction[]>> = {
+  catalogue: ['select_product'],
+  product: ['select_product'],
+  reference_image: ['reference_image'],
+  fabric: ['fabric'],
+  customization: ['customization'],
+  measurement: ['measurement'],
+  appointment: ['appointment'],
+  final_approval: ['final_approval'],
+  delivery_or_pickup: ['delivery'],
+  review: ['review'],
 };
 
 const json = (body: Record<string, unknown>, status = 200) =>
@@ -108,13 +123,32 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
   if (orderError) return json({ error: 'Custom order could not be loaded.' }, 503);
   if (!order) return json({ error: 'Custom order not found.' }, 404);
 
+  const currentStage = String(order.stage) as BespokeStage;
+  if (!isAdmin && body.action !== 'customer_service') {
+    const allowed = BUYER_ACTION_BY_STAGE[currentStage] || [];
+    if (!body.action || !allowed.includes(body.action as BuyerAction)) {
+      return json(
+        {
+          error: `This action is not available while the order is at “${currentStage.replaceAll('_', ' ')}”. Refresh the order status first.`,
+          code: 'INVALID_STAGE_ACTION',
+        },
+        409
+      );
+    }
+  }
+
   const now = new Date().toISOString();
   const updates: Record<string, unknown> = { updated_at: now };
   let appointment: Record<string, unknown> | null = null;
 
   if (body.action === 'admin_update') {
     if (!isAdmin) return json({ error: 'Admin access required.' }, 403);
-    if (body.stage && isBespokeStage(body.stage)) updates.stage = body.stage;
+    if (body.stage && isBespokeStage(body.stage)) {
+      if (body.stage === 'advance_or_full_payment' && safeMoney(body.quotedAmount ?? order.quoted_amount) <= 0) {
+        return json({ error: 'Set a positive quotation before opening payment.' }, 400);
+      }
+      updates.stage = body.stage;
+    }
     if (body.quotation) updates.quotation = safeObject(body.quotation);
     if (body.quotedAmount !== undefined) updates.quoted_amount = safeMoney(body.quotedAmount);
     if (body.advanceAmount !== undefined) updates.advance_amount = safeMoney(body.advanceAmount);
@@ -126,7 +160,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     if (body.embroideryStatus) updates.embroidery_status = body.embroideryStatus;
     if (typeof body.humanActionRequired === 'boolean') updates.human_action_required = body.humanActionRequired;
     if (body.humanActionReason !== undefined) updates.human_action_reason = body.humanActionReason;
-    if (body.stage === 'final_approval') updates.final_approved_at = now;
+    if (body.stage === 'final_approval') updates.final_approved_at = null;
     if (body.stage === 'completed') updates.completed_at = now;
   } else if (body.action === 'select_product') {
     if (!body.productId) return json({ error: 'Choose a catalogue product.' }, 400);
@@ -141,16 +175,13 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     updates.product_id = product.id;
     updates.stage = 'reference_image';
   } else if (body.action === 'reference_image') {
-    if (!body.referenceImagePath && order.stage === 'reference_image') {
-      // Reference images are optional; a customer can explicitly continue without one.
+    if (!body.referenceImagePath) {
       updates.reference_image_path = null;
       updates.reference_image_meta = safeObject(body.referenceImageMeta);
     } else {
-      const path = String(body.referenceImagePath || '');
-      if (path && !path.startsWith(`${access.user.id}/`)) {
-        return json({ error: 'Reference image path is invalid.' }, 400);
-      }
-      updates.reference_image_path = path || null;
+      const path = String(body.referenceImagePath);
+      if (!path.startsWith(`${access.user.id}/`)) return json({ error: 'Reference image path is invalid.' }, 400);
+      updates.reference_image_path = path;
       updates.reference_image_meta = safeObject(body.referenceImageMeta);
     }
     updates.stage = 'fabric';
@@ -203,11 +234,22 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       due_at: new Date(Math.max(Date.now(), requestedAt.getTime() - 24 * 60 * 60 * 1000)).toISOString(),
       payload: { appointment_id: createdAppointment.id, appointment_type: appointmentType },
     });
+  } else if (body.action === 'final_approval') {
+    const quoted = safeMoney(order.quoted_amount);
+    const paid = safeMoney(order.paid_amount);
+    const balance = Math.max(0, Math.round((quoted - paid) * 100) / 100);
+    updates.final_approved_at = now;
+    updates.human_action_required = false;
+    updates.human_action_reason = null;
+    updates.balance_amount = balance;
+    updates.stage = balance >= 0.01 ? 'balance_payment' : 'delivery_or_pickup';
   } else if (body.action === 'delivery') {
     if (!body.deliveryMode) return json({ error: 'Choose delivery or pickup.' }, 400);
     updates.delivery_mode = body.deliveryMode;
     updates.delivery_details = safeObject(body.deliveryDetails);
-    updates.stage = 'review';
+    // Selecting fulfilment does not mean the item has been delivered. Staff or
+    // the shipping webhook moves the order to review after actual handover.
+    updates.stage = 'delivery_or_pickup';
   } else if (body.action === 'review') {
     const rating = Math.round(Number(body.reviewRating));
     if (!Number.isInteger(rating) || rating < 1 || rating > 5) return json({ error: 'Review rating must be from 1 to 5.' }, 400);
