@@ -222,11 +222,14 @@ export default function RetailBuyerAccountStart() {
             </div>
 
             <button type="submit" disabled={submitting} className="btn-primary w-full py-3 text-sm disabled:opacity-50">
-              {submitting ? 'Creating your account…' : 'Create account & reserve store name'}
+              {submitting ? 'Creating your account…' : 'Create account & continue KYC'}
             </button>
           </form>
 
           <p className="mt-5 text-center text-xs text-muted-foreground">
+            Your unique store name is reserved as part of this step before KYC continues.
+          </p>
+          <p className="mt-2 text-center text-xs text-muted-foreground">
             Already have a FabricTrad login?{' '}
             <Link href="/login?next=%2Fbuyer-registration%3Ftype%3Dretail_store%26resume%3D1" className="font-800 text-primary hover:underline">
               Sign in and continue
