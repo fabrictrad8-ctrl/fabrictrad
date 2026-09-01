@@ -1,4 +1,5 @@
 import { Suspense } from 'react';
+import BespokeStageAppointmentPanel from './BespokeStageAppointmentPanel';
 import CustomOrderClient from './CustomOrderClient';
 
 export const dynamic = 'force-dynamic';
@@ -14,6 +15,7 @@ export default function CustomOrderPage() {
         }
       >
         <CustomOrderClient />
+        <BespokeStageAppointmentPanel />
       </Suspense>
     </main>
   );
