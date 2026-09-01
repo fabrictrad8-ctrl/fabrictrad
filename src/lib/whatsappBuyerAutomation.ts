@@ -23,6 +23,8 @@ type UserProfile = {
   full_name?: string | null;
 };
 
+type AppointmentType = 'physical_measurement' | 'design_approval' | 'trial_fitting' | 'alteration';
+
 const normalizePhone = (value: unknown) => {
   const digits = typeof value === 'string' ? value.replace(/\D/g, '') : '';
   const lastTen = digits.slice(-10);
@@ -73,7 +75,12 @@ const menu = () =>
     'You can also send a product/SKU, reference image, fabric choice or customization details when I ask for them.',
   ].join('\n');
 
-export async function sendBuyerWhatsAppText(toRaw: string, text: string, orderId?: string | null, userId?: string | null) {
+export async function sendBuyerWhatsAppText(
+  toRaw: string,
+  text: string,
+  orderId?: string | null,
+  userId?: string | null
+) {
   const token = process.env.WHATSAPP_ACCESS_TOKEN;
   const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
   if (!token || !phoneNumberId) return { sent: false, reason: 'not_configured' } as const;
@@ -95,21 +102,24 @@ export async function sendBuyerWhatsAppText(toRaw: string, text: string, orderId
     signal: AbortSignal.timeout(15_000),
   }).catch(() => null);
   if (!response?.ok) return { sent: false, reason: `provider_${response?.status || 0}` } as const;
+
   const payload = (await response.json().catch(() => ({}))) as { messages?: Array<{ id?: string }> };
   const outboundId = String(payload.messages?.[0]?.id || '').trim();
-
   if (outboundId) {
     const admin = createAdminClient();
-    await admin.from('whatsapp_buyer_messages').insert({
-      wa_message_id: outboundId,
-      whatsapp_phone: normalizePhone(toRaw) || toRaw.replace(/\D/g, '').slice(-15),
-      user_id: userId || null,
-      bespoke_order_id: orderId || null,
-      direction: 'outbound',
-      message_type: 'text',
-      message_text: text.slice(0, 12_000),
-      processing_status: 'processed',
-    }).then(() => undefined, () => undefined);
+    await admin
+      .from('whatsapp_buyer_messages')
+      .insert({
+        wa_message_id: outboundId,
+        whatsapp_phone: normalizePhone(toRaw) || toRaw.replace(/\D/g, '').slice(-15),
+        user_id: userId || null,
+        bespoke_order_id: orderId || null,
+        direction: 'outbound',
+        message_type: 'text',
+        message_text: text.slice(0, 12_000),
+        processing_status: 'processed',
+      })
+      .then(() => undefined, () => undefined);
   }
   return { sent: true, id: outboundId || null } as const;
 }
@@ -117,13 +127,20 @@ export async function sendBuyerWhatsAppText(toRaw: string, text: string, orderId
 async function downloadImage(mediaId: string) {
   const token = process.env.WHATSAPP_ACCESS_TOKEN;
   if (!token) throw new Error('whatsapp_access_token_missing');
-  const metadataResponse = await fetch(`https://graph.facebook.com/${GRAPH_VERSION}/${encodeURIComponent(mediaId)}`, {
-    headers: { Authorization: `Bearer ${token}` },
-    cache: 'no-store',
-    signal: AbortSignal.timeout(15_000),
-  });
+  const metadataResponse = await fetch(
+    `https://graph.facebook.com/${GRAPH_VERSION}/${encodeURIComponent(mediaId)}`,
+    {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: 'no-store',
+      signal: AbortSignal.timeout(15_000),
+    }
+  );
   if (!metadataResponse.ok) throw new Error(`media_metadata_${metadataResponse.status}`);
-  const metadata = (await metadataResponse.json()) as { url?: string; mime_type?: string; file_size?: number };
+  const metadata = (await metadataResponse.json()) as {
+    url?: string;
+    mime_type?: string;
+    file_size?: number;
+  };
   if (!metadata.url) throw new Error('media_url_missing');
   if (Number(metadata.file_size || 0) > MAX_MEDIA_BYTES) throw new Error('media_too_large');
 
@@ -181,7 +198,12 @@ async function attachStoreName(input: {
 
   const [{ data: buyer }, { data: primary }] = await Promise.all([
     input.admin.from('buyer_profiles').select('id').eq('user_id', input.profile.id).maybeSingle(),
-    input.admin.from('buyer_stores').select('id').eq('user_id', input.profile.id).eq('is_primary', true).maybeSingle(),
+    input.admin
+      .from('buyer_stores')
+      .select('id')
+      .eq('user_id', input.profile.id)
+      .eq('is_primary', true)
+      .maybeSingle(),
   ]);
   const { data: created, error } = await input.admin
     .from('buyer_stores')
@@ -199,7 +221,10 @@ async function attachStoreName(input: {
     .single();
   if (error) {
     if (error.code === '23505') {
-      return { ok: false as const, message: 'That store name was just claimed by another account. Reply with another STORE: name.' };
+      return {
+        ok: false as const,
+        message: 'That store name was just claimed by another account. Reply with another STORE: name.',
+      };
     }
     throw error;
   }
@@ -211,8 +236,6 @@ const parseAppointmentIso = (text: string) => {
   if (!match) return null;
   const hour = Number(match[2]);
   if (hour < 0 || hour > 23) return null;
-  // Treat explicit WhatsApp appointment times as India time. Converting +05:30
-  // to UTC here avoids server-location dependent Date parsing.
   const iso = `${match[1]}T${String(hour).padStart(2, '0')}:${match[3]}:00+05:30`;
   const date = new Date(iso);
   return Number.isFinite(date.getTime()) && date.getTime() > Date.now() ? date : null;
@@ -229,11 +252,75 @@ async function orderSummary(order: Record<string, unknown> | null) {
     quote > 0 ? `Quotation: ₹${quote.toFixed(2)}` : null,
     paid > 0 ? `Paid: ₹${paid.toFixed(2)}` : null,
     quote > 0 ? `Balance: ₹${balance.toFixed(2)}` : null,
-    order.human_action_required ? `Human action: ${String(order.human_action_reason || 'required').replaceAll('_', ' ')}` : null,
-  ].filter(Boolean).join('\n');
+    order.human_action_required
+      ? `Human action: ${String(order.human_action_reason || 'required').replaceAll('_', ' ')}`
+      : null,
+  ]
+    .filter(Boolean)
+    .join('\n');
 }
 
-export async function handleBuyerWhatsAppMessage(message: MetaMessage): Promise<{ handled: boolean }> {
+async function createAppointment(input: {
+  admin: ReturnType<typeof createAdminClient>;
+  orderId: string;
+  userId: string;
+  whatsappPhone: string;
+  requested: Date;
+  appointmentType: AppointmentType;
+  requestedText: string;
+}) {
+  const { data: existing } = await input.admin
+    .from('bespoke_appointments')
+    .select('id,requested_at,status')
+    .eq('bespoke_order_id', input.orderId)
+    .eq('appointment_type', input.appointmentType)
+    .in('status', ['requested', 'confirmed', 'reschedule_requested'])
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (existing?.id) {
+    return { id: existing.id, requestedAt: new Date(existing.requested_at), reused: true };
+  }
+
+  const { data: appointment, error } = await input.admin
+    .from('bespoke_appointments')
+    .insert({
+      bespoke_order_id: input.orderId,
+      user_id: input.userId,
+      appointment_type: input.appointmentType,
+      requested_at: input.requested.toISOString(),
+      location_type: 'store',
+      location_details: { source: 'whatsapp', requested_text: input.requestedText },
+    })
+    .select('id,requested_at')
+    .single();
+  if (error) throw error;
+
+  await input.admin.from('bespoke_follow_up_jobs').insert({
+    bespoke_order_id: input.orderId,
+    user_id: input.userId,
+    whatsapp_phone: input.whatsappPhone,
+    job_type: 'appointment_reminder',
+    due_at: new Date(
+      Math.max(Date.now(), input.requested.getTime() - 24 * 60 * 60 * 1000)
+    ).toISOString(),
+    payload: { appointment_id: appointment.id, appointment_type: input.appointmentType },
+  });
+  return { id: appointment.id, requestedAt: new Date(appointment.requested_at), reused: false };
+}
+
+const appointmentTypeForStage = (
+  stage: string,
+  humanReason: unknown
+): AppointmentType => {
+  if (stage === 'trial') return 'trial_fitting';
+  if (stage === 'alteration') return 'alteration';
+  return humanReason === 'physical_measurement' ? 'physical_measurement' : 'design_approval';
+};
+
+export async function handleBuyerWhatsAppMessage(
+  message: MetaMessage
+): Promise<{ handled: boolean }> {
   const waMessageId = String(message.id || '').trim();
   const fromRaw = String(message.from || '').replace(/\D/g, '');
   const phone = normalizePhone(fromRaw);
@@ -241,7 +328,6 @@ export async function handleBuyerWhatsAppMessage(message: MetaMessage): Promise<
 
   const admin = createAdminClient();
   const text = messageText(message).slice(0, 12_000);
-  const lower = text.toLowerCase();
   const { data: already } = await admin
     .from('whatsapp_buyer_messages')
     .select('id')
@@ -261,15 +347,16 @@ export async function handleBuyerWhatsAppMessage(message: MetaMessage): Promise<
   ]);
   const typedProfile = (profile || null) as UserProfile | null;
 
-  // A seller can explicitly leave a buyer conversation and return to the
-  // pre-existing WhatsApp catalogue ingestion flow.
   if (/^(sell|seller|upload product|catalog upload)\b/i.test(text) && typedProfile?.can_sell === true) {
     if (session) await admin.from('whatsapp_buyer_sessions').delete().eq('whatsapp_phone', phone);
     return { handled: false };
   }
 
   const parsedSellerDraft = text ? parseCatalogMessage(text) : null;
-  const obviousBuyerIntent = /\b(buy|order|custom|stitch|tailor|catalogue|catalog|fabric|measurement|appointment|store\s*(?:name)?\s*[:=]|status|human|help)\b/i.test(text);
+  const obviousBuyerIntent =
+    /\b(buy|order|custom|stitch|tailor|catalogue|catalog|fabric|measurement|appointment|store\s*(?:name)?\s*[:=]|status|human|help)\b/i.test(
+      text
+    );
   if (!session && typedProfile?.can_sell === true && parsedSellerDraft && !obviousBuyerIntent) {
     return { handled: false };
   }
@@ -290,7 +377,10 @@ export async function handleBuyerWhatsAppMessage(message: MetaMessage): Promise<
   if (!typedProfile || typedProfile.can_buy === false) {
     const context = {
       ...(session?.context && typeof session.context === 'object' ? session.context : {}),
-      requested_store_name: requestedStoreName || (session?.context as Record<string, unknown> | null)?.requested_store_name || null,
+      requested_store_name:
+        requestedStoreName ||
+        (session?.context as Record<string, unknown> | null)?.requested_store_name ||
+        null,
       from_raw: fromRaw,
     };
     await admin.from('whatsapp_buyer_sessions').upsert({
@@ -301,7 +391,10 @@ export async function handleBuyerWhatsAppMessage(message: MetaMessage): Promise<
       last_inbound_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     });
-    await admin.from('whatsapp_buyer_messages').update({ processing_status: 'processed' }).eq('wa_message_id', waMessageId);
+    await admin
+      .from('whatsapp_buyer_messages')
+      .update({ processing_status: 'processed' })
+      .eq('wa_message_id', waMessageId);
     await sendBuyerWhatsAppText(
       fromRaw,
       `${requestedStoreName ? `I saved “${requestedStoreName}” as your requested store name.\n\n` : ''}To attach WhatsApp orders securely, sign in or create a FabricTrad buyer account with this same mobile number (${phone}).\n${SITE_URL}/buyer-registration?type=retail_store\n\nAfter that, send HI here again and I will continue automatically.`,
@@ -313,10 +406,23 @@ export async function handleBuyerWhatsAppMessage(message: MetaMessage): Promise<
 
   let storeId: string | null = session?.buyer_store_id || null;
   if (requestedStoreName) {
-    const storeResult = await attachStoreName({ admin, profile: typedProfile, phone, requestedName: requestedStoreName });
+    const storeResult = await attachStoreName({
+      admin,
+      profile: typedProfile,
+      phone,
+      requestedName: requestedStoreName,
+    });
     if (!storeResult.ok) {
-      await admin.from('whatsapp_buyer_messages').update({ processing_status: 'processed' }).eq('wa_message_id', waMessageId);
-      await sendBuyerWhatsAppText(fromRaw, storeResult.message, session?.active_order_id || null, typedProfile.id);
+      await admin
+        .from('whatsapp_buyer_messages')
+        .update({ processing_status: 'processed' })
+        .eq('wa_message_id', waMessageId);
+      await sendBuyerWhatsAppText(
+        fromRaw,
+        storeResult.message,
+        session?.active_order_id || null,
+        typedProfile.id
+      );
       return { handled: true };
     }
     storeId = storeResult.store.id;
@@ -343,11 +449,26 @@ export async function handleBuyerWhatsAppMessage(message: MetaMessage): Promise<
     activeOrder = (data || null) as Record<string, unknown> | null;
   }
 
-  if (/^(new|new order|start over|catalogue|catalog)$/i.test(text) || (!activeOrder && !requestedStoreName)) {
-    const { data: buyer } = await admin.from('buyer_profiles').select('id').eq('user_id', typedProfile.id).maybeSingle();
+  if (
+    /^(new|new order|start over|catalogue|catalog)$/i.test(text) ||
+    (!activeOrder && !requestedStoreName)
+  ) {
+    const { data: buyer } = await admin
+      .from('buyer_profiles')
+      .select('id')
+      .eq('user_id', typedProfile.id)
+      .maybeSingle();
     if (!buyer?.id) {
-      await sendBuyerWhatsAppText(fromRaw, `Your buyer profile is still being prepared. Complete it here: ${SITE_URL}/buyer-registration?resume=1`, null, typedProfile.id);
-      await admin.from('whatsapp_buyer_messages').update({ processing_status: 'processed' }).eq('wa_message_id', waMessageId);
+      await sendBuyerWhatsAppText(
+        fromRaw,
+        `Your buyer profile is still being prepared. Complete it here: ${SITE_URL}/buyer-registration?resume=1`,
+        null,
+        typedProfile.id
+      );
+      await admin
+        .from('whatsapp_buyer_messages')
+        .update({ processing_status: 'processed' })
+        .eq('wa_message_id', waMessageId);
       return { handled: true };
     }
     const { data: created, error: createError } = await admin
@@ -382,42 +503,79 @@ export async function handleBuyerWhatsAppMessage(message: MetaMessage): Promise<
 
   if (requestedStoreName && !/\b(catalogue|catalog|product|order|custom)\b/i.test(text)) {
     await admin.from('whatsapp_buyer_sessions').upsert(sessionValues);
-    await admin.from('whatsapp_buyer_messages').update({ processing_status: 'processed', bespoke_order_id: activeOrderId }).eq('wa_message_id', waMessageId);
-    await sendBuyerWhatsAppText(fromRaw, `Store saved. Reply CATALOGUE to begin a custom order.\n\n${menu()}`, activeOrderId, typedProfile.id);
+    await admin
+      .from('whatsapp_buyer_messages')
+      .update({ processing_status: 'processed', bespoke_order_id: activeOrderId })
+      .eq('wa_message_id', waMessageId);
+    await sendBuyerWhatsAppText(
+      fromRaw,
+      `Store saved. Reply CATALOGUE to begin a custom order.\n\n${menu()}`,
+      activeOrderId,
+      typedProfile.id
+    );
     return { handled: true };
   }
 
   if (/^(hi|hello|hey|menu|start)$/i.test(text)) {
     await admin.from('whatsapp_buyer_sessions').upsert(sessionValues);
-    await admin.from('whatsapp_buyer_messages').update({ processing_status: 'processed', bespoke_order_id: activeOrderId }).eq('wa_message_id', waMessageId);
+    await admin
+      .from('whatsapp_buyer_messages')
+      .update({ processing_status: 'processed', bespoke_order_id: activeOrderId })
+      .eq('wa_message_id', waMessageId);
     await sendBuyerWhatsAppText(fromRaw, menu(), activeOrderId, typedProfile.id);
     return { handled: true };
   }
 
   if (/^status\b/i.test(text)) {
     await admin.from('whatsapp_buyer_sessions').upsert(sessionValues);
-    await admin.from('whatsapp_buyer_messages').update({ processing_status: 'processed', bespoke_order_id: activeOrderId }).eq('wa_message_id', waMessageId);
-    await sendBuyerWhatsAppText(fromRaw, await orderSummary(activeOrder), activeOrderId, typedProfile.id);
+    await admin
+      .from('whatsapp_buyer_messages')
+      .update({ processing_status: 'processed', bespoke_order_id: activeOrderId })
+      .eq('wa_message_id', waMessageId);
+    await sendBuyerWhatsAppText(
+      fromRaw,
+      await orderSummary(activeOrder),
+      activeOrderId,
+      typedProfile.id
+    );
     return { handled: true };
   }
 
   if (/^(human|help|support|agent)\b/i.test(text)) {
     if (activeOrderId) {
-      await admin.from('bespoke_orders').update({
-        human_action_required: true,
-        human_action_reason: 'customer_service',
-        updated_at: new Date().toISOString(),
-      }).eq('id', activeOrderId);
+      await admin
+        .from('bespoke_orders')
+        .update({
+          human_action_required: true,
+          human_action_reason: 'customer_service',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', activeOrderId);
     }
-    await admin.from('whatsapp_buyer_sessions').upsert({ ...sessionValues, human_handoff_required: true, human_handoff_reason: 'customer_service' });
-    await admin.from('whatsapp_buyer_messages').update({ processing_status: 'needs_human', bespoke_order_id: activeOrderId }).eq('wa_message_id', waMessageId);
-    await sendBuyerWhatsAppText(fromRaw, 'Customer-service handoff requested. Your digital order context is saved, so you will not need to repeat the details.', activeOrderId, typedProfile.id);
+    await admin.from('whatsapp_buyer_sessions').upsert({
+      ...sessionValues,
+      human_handoff_required: true,
+      human_handoff_reason: 'customer_service',
+    });
+    await admin
+      .from('whatsapp_buyer_messages')
+      .update({ processing_status: 'needs_human', bespoke_order_id: activeOrderId })
+      .eq('wa_message_id', waMessageId);
+    await sendBuyerWhatsAppText(
+      fromRaw,
+      'Customer-service handoff requested. Your digital order context is saved, so you will not need to repeat the details.',
+      activeOrderId,
+      typedProfile.id
+    );
     return { handled: true };
   }
 
   if (!activeOrderId) {
     await admin.from('whatsapp_buyer_sessions').upsert(sessionValues);
-    await admin.from('whatsapp_buyer_messages').update({ processing_status: 'processed' }).eq('wa_message_id', waMessageId);
+    await admin
+      .from('whatsapp_buyer_messages')
+      .update({ processing_status: 'processed' })
+      .eq('wa_message_id', waMessageId);
     await sendBuyerWhatsAppText(fromRaw, menu(), null, typedProfile.id);
     return { handled: true };
   }
@@ -433,7 +591,11 @@ export async function handleBuyerWhatsAppMessage(message: MetaMessage): Promise<
       responseText = `Browse the live FabricTrad catalogue here: ${SITE_URL}/marketplace\n\nThen reply PRODUCT: followed by the product name or SKU. You can also continue on ${SITE_URL}/custom-order?order=${activeOrderId}`;
       nextStage = 'product';
     } else if (productText) {
-      const safe = productText.replace(/[%_,()]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 100);
+      const safe = productText
+        .replace(/[%_,()]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 100);
       const { data: products } = await admin
         .from('seller_products')
         .select('id,name,sku,fabric_name,price_per_unit,unit')
@@ -442,11 +604,20 @@ export async function handleBuyerWhatsAppMessage(message: MetaMessage): Promise<
         .or(`sku.ilike.%${safe}%,name.ilike.%${safe}%`)
         .limit(3);
       if (products?.length === 1) {
-        await admin.from('bespoke_orders').update({ product_id: products[0].id, stage: 'reference_image', updated_at: new Date().toISOString() }).eq('id', activeOrderId);
+        await admin
+          .from('bespoke_orders')
+          .update({
+            product_id: products[0].id,
+            stage: 'reference_image',
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', activeOrderId);
         nextStage = 'reference_image';
         responseText = `Selected: ${products[0].name} (${products[0].sku}).\nNow send a reference image for the design, or reply SKIP if you do not have one.`;
       } else if ((products?.length || 0) > 1) {
-        responseText = `I found several matches:\n${products?.map((item, index) => `${index + 1}. ${item.name} — ${item.sku}`).join('\n')}\nReply PRODUCT: exact SKU.`;
+        responseText = `I found several matches:\n${products
+          ?.map((item, index) => `${index + 1}. ${item.name} — ${item.sku}`)
+          .join('\n')}\nReply PRODUCT: exact SKU.`;
       } else {
         responseText = `I could not match that product safely. Browse ${SITE_URL}/marketplace and reply with the exact SKU.`;
       }
@@ -457,144 +628,271 @@ export async function handleBuyerWhatsAppMessage(message: MetaMessage): Promise<
       try {
         const downloaded = await downloadImage(media.id);
         const path = `${typedProfile.id}/whatsapp/${activeOrderId}/${waMessageId}.${extensionFor(downloaded.mime)}`;
-        const { error: uploadError } = await admin.storage.from('buyer-reference-images').upload(path, downloaded.buffer, {
-          contentType: downloaded.mime,
-          cacheControl: '3600',
-          upsert: true,
-        });
+        const { error: uploadError } = await admin.storage
+          .from('buyer-reference-images')
+          .upload(path, downloaded.buffer, {
+            contentType: downloaded.mime,
+            cacheControl: '3600',
+            upsert: true,
+          });
         if (uploadError) throw uploadError;
-        await admin.from('bespoke_orders').update({
-          reference_image_path: path,
-          reference_image_meta: { source: 'whatsapp', wa_message_id: waMessageId, media_id: media.id, mime_type: downloaded.mime },
-          stage: 'fabric',
-          updated_at: new Date().toISOString(),
-        }).eq('id', activeOrderId);
-        await admin.from('whatsapp_buyer_messages').update({ media_storage_path: path }).eq('wa_message_id', waMessageId);
+        await admin
+          .from('bespoke_orders')
+          .update({
+            reference_image_path: path,
+            reference_image_meta: {
+              source: 'whatsapp',
+              wa_message_id: waMessageId,
+              media_id: media.id,
+              mime_type: downloaded.mime,
+            },
+            stage: 'fabric',
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', activeOrderId);
+        await admin
+          .from('whatsapp_buyer_messages')
+          .update({ media_storage_path: path })
+          .eq('wa_message_id', waMessageId);
         nextStage = 'fabric';
-        responseText = 'Reference image saved privately. Now describe your fabric choice, e.g. “FABRIC: navy linen, 180 GSM”.';
+        responseText =
+          'Reference image saved privately. Now describe your fabric choice, e.g. “FABRIC: navy linen, 180 GSM”.';
       } catch {
-        responseText = 'I could not save that image. Please resend a JPG/PNG/WebP image under 10 MB, or reply SKIP.';
+        responseText =
+          'I could not save that image. Please resend a JPG/PNG/WebP image under 10 MB, or reply SKIP.';
       }
     } else if (/^skip\b/i.test(text)) {
-      await admin.from('bespoke_orders').update({ stage: 'fabric', updated_at: new Date().toISOString() }).eq('id', activeOrderId);
+      await admin
+        .from('bespoke_orders')
+        .update({ stage: 'fabric', updated_at: new Date().toISOString() })
+        .eq('id', activeOrderId);
       nextStage = 'fabric';
-      responseText = 'No reference image added. Describe your fabric choice, e.g. “FABRIC: navy linen, 180 GSM”.';
+      responseText =
+        'No reference image added. Describe your fabric choice, e.g. “FABRIC: navy linen, 180 GSM”.';
     } else {
       responseText = 'Please send the design/reference image now, or reply SKIP.';
     }
   } else if (stage === 'fabric') {
     const value = text.replace(/^fabric\s*[:\-]?\s*/i, '').trim();
-    if (value.length < 2) responseText = 'Describe the fabric, colour, GSM/weight or finish you want.';
-    else {
-      await admin.from('bespoke_orders').update({ fabric_selection: { description: value, source: 'whatsapp' }, stage: 'customization', updated_at: new Date().toISOString() }).eq('id', activeOrderId);
+    if (value.length < 2) {
+      responseText = 'Describe the fabric, colour, GSM/weight or finish you want.';
+    } else {
+      await admin
+        .from('bespoke_orders')
+        .update({
+          fabric_selection: { description: value, source: 'whatsapp' },
+          stage: 'customization',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', activeOrderId);
       nextStage = 'customization';
-      responseText = 'Fabric preference saved. Now send customization details: garment/style, fit, collar/neck, sleeves, pockets, lining, buttons, embroidery placement, initials, etc.';
+      responseText =
+        'Fabric preference saved. Now send customization details: garment/style, fit, collar/neck, sleeves, pockets, lining, buttons, embroidery placement, initials, etc.';
     }
   } else if (stage === 'customization') {
     const value = text.replace(/^(custom|customization)\s*[:\-]?\s*/i, '').trim();
-    if (value.length < 3) responseText = 'Please describe at least one customization detail.';
-    else {
-      await admin.from('bespoke_orders').update({ customization: { description: value, source: 'whatsapp' }, stage: 'measurement', updated_at: new Date().toISOString() }).eq('id', activeOrderId);
+    if (value.length < 3) {
+      responseText = 'Please describe at least one customization detail.';
+    } else {
+      await admin
+        .from('bespoke_orders')
+        .update({
+          customization: { description: value, source: 'whatsapp' },
+          stage: 'measurement',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', activeOrderId);
       nextStage = 'measurement';
-      responseText = 'Customization saved. For measurement, reply PHYSICAL to book an in-person measurement, or SAVED: followed by your existing measurements.';
+      responseText =
+        'Customization saved. For measurement, reply PHYSICAL to book an in-person measurement, or SAVED: followed by your existing measurements.';
     }
   } else if (stage === 'measurement') {
     if (/\bphysical\b/i.test(text)) {
-      await admin.from('bespoke_orders').update({ measurement: { mode: 'physical', source: 'whatsapp' }, stage: 'appointment', human_action_required: true, human_action_reason: 'physical_measurement', updated_at: new Date().toISOString() }).eq('id', activeOrderId);
+      await admin
+        .from('bespoke_orders')
+        .update({
+          measurement: { mode: 'physical', source: 'whatsapp' },
+          stage: 'appointment',
+          human_action_required: true,
+          human_action_reason: 'physical_measurement',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', activeOrderId);
       nextStage = 'appointment';
       needsHuman = true;
       humanReason = 'physical_measurement';
       responseText = `Physical measurement selected. Reply APPOINTMENT YYYY-MM-DD HH:MM (India time), e.g. APPOINTMENT 2026-09-05 15:00, or book on ${SITE_URL}/custom-order?order=${activeOrderId}#appointment`;
-    } else if (/^saved\s*:/i.test(text) || /\b(chest|waist|hip|shoulder|inseam|length)\b/i.test(text)) {
-      await admin.from('bespoke_orders').update({ measurement: { mode: 'saved', description: text.replace(/^saved\s*:/i, '').trim(), source: 'whatsapp' }, stage: 'appointment', updated_at: new Date().toISOString() }).eq('id', activeOrderId);
+    } else if (
+      /^saved\s*:/i.test(text) ||
+      /\b(chest|waist|hip|shoulder|inseam|length)\b/i.test(text)
+    ) {
+      await admin
+        .from('bespoke_orders')
+        .update({
+          measurement: {
+            mode: 'saved',
+            description: text.replace(/^saved\s*:/i, '').trim(),
+            source: 'whatsapp',
+          },
+          stage: 'appointment',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', activeOrderId);
       nextStage = 'appointment';
       responseText = `Saved measurements recorded. A design-approval appointment is next. Reply APPOINTMENT YYYY-MM-DD HH:MM (India time), or choose it on ${SITE_URL}/custom-order?order=${activeOrderId}#appointment`;
-    } else responseText = 'Reply PHYSICAL for in-person measurement, or SAVED: followed by your measurements.';
-  } else if (stage === 'appointment') {
+    } else {
+      responseText = 'Reply PHYSICAL for in-person measurement, or SAVED: followed by your measurements.';
+    }
+  } else if (stage === 'appointment' || stage === 'trial' || stage === 'alteration') {
     const requested = parseAppointmentIso(text);
+    const appointmentType = appointmentTypeForStage(stage, humanReason);
     if (requested) {
-      const appointmentType = humanReason === 'physical_measurement' ? 'physical_measurement' : 'design_approval';
-      const { data: appointment, error } = await admin.from('bespoke_appointments').insert({
-        bespoke_order_id: activeOrderId,
-        user_id: typedProfile.id,
-        appointment_type: appointmentType,
-        requested_at: requested.toISOString(),
-        location_type: 'store',
-        location_details: { source: 'whatsapp', requested_text: text },
-      }).select('id').single();
-      if (error) throw error;
-      await admin.from('bespoke_orders').update({ human_action_required: true, human_action_reason: appointmentType, updated_at: new Date().toISOString() }).eq('id', activeOrderId);
-      await admin.from('bespoke_follow_up_jobs').insert({
-        bespoke_order_id: activeOrderId,
-        user_id: typedProfile.id,
-        whatsapp_phone: fromRaw,
-        job_type: 'appointment_reminder',
-        due_at: new Date(Math.max(Date.now(), requested.getTime() - 24 * 60 * 60 * 1000)).toISOString(),
-        payload: { appointment_id: appointment.id },
+      const appointment = await createAppointment({
+        admin,
+        orderId: activeOrderId,
+        userId: typedProfile.id,
+        whatsappPhone: fromRaw,
+        requested,
+        appointmentType,
+        requestedText: text,
       });
+      await admin
+        .from('bespoke_orders')
+        .update({
+          human_action_required: true,
+          human_action_reason: appointmentType,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', activeOrderId);
       needsHuman = true;
       humanReason = appointmentType;
-      responseText = `Appointment requested for ${requested.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' })}. Staff only need to intervene for the ${appointmentType.replaceAll('_', ' ')} itself. Your full digital brief is already attached.`;
+      responseText = `${appointment.reused ? 'Existing' : 'New'} ${appointmentType.replaceAll('_', ' ')} appointment ${appointment.reused ? 'kept for' : 'requested for'} ${appointment.requestedAt.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' })}. Your full digital order brief is attached for staff.`;
     } else {
-      responseText = `Reply APPOINTMENT YYYY-MM-DD HH:MM (India time), or choose a slot on ${SITE_URL}/custom-order?order=${activeOrderId}#appointment`;
+      const label = appointmentType.replaceAll('_', ' ');
+      responseText = `A ${label} appointment is required. Reply APPOINTMENT YYYY-MM-DD HH:MM (India time), e.g. APPOINTMENT 2026-09-05 15:00, or manage it on ${SITE_URL}/custom-order?order=${activeOrderId}#appointment`;
     }
   } else if (stage === 'quotation') {
     const quote = Number(activeOrder?.quoted_amount || 0);
-    responseText = quote > 0
-      ? `Your quotation is ₹${quote.toFixed(2)}. ${Number(activeOrder?.advance_amount || 0) > 0 ? `Advance available: ₹${Number(activeOrder?.advance_amount).toFixed(2)}. ` : ''}Reply ADVANCE or FULL, then pay securely on ${SITE_URL}/custom-order?order=${activeOrderId}&pay=1`
-      : 'Your design/measurement details are complete. The quotation is being generated from the approved brief.';
+    responseText =
+      quote > 0
+        ? `Your quotation is ₹${quote.toFixed(2)}. ${Number(activeOrder?.advance_amount || 0) > 0 ? `Advance available: ₹${Number(activeOrder?.advance_amount).toFixed(2)}. ` : ''}Reply ADVANCE or FULL, then pay securely on ${SITE_URL}/custom-order?order=${activeOrderId}&pay=1`
+        : 'Your design/measurement details are complete. The quotation is being generated from the approved brief.';
   } else if (stage === 'advance_or_full_payment') {
     if (/\badvance\b/i.test(text) && Number(activeOrder?.advance_amount || 0) > 0) {
-      await admin.from('bespoke_orders').update({ payment_choice: 'advance', updated_at: new Date().toISOString() }).eq('id', activeOrderId);
+      await admin
+        .from('bespoke_orders')
+        .update({ payment_choice: 'advance', updated_at: new Date().toISOString() })
+        .eq('id', activeOrderId);
       responseText = `Advance selected. Pay securely through FabricTrad Razorpay checkout: ${SITE_URL}/custom-order?order=${activeOrderId}&pay=1&choice=advance`;
     } else if (/\bfull\b/i.test(text)) {
-      await admin.from('bespoke_orders').update({ payment_choice: 'full', updated_at: new Date().toISOString() }).eq('id', activeOrderId);
+      await admin
+        .from('bespoke_orders')
+        .update({ payment_choice: 'full', updated_at: new Date().toISOString() })
+        .eq('id', activeOrderId);
       responseText = `Full payment selected. Pay securely through FabricTrad Razorpay checkout: ${SITE_URL}/custom-order?order=${activeOrderId}&pay=1&choice=full`;
-    } else responseText = `Reply ${Number(activeOrder?.advance_amount || 0) > 0 ? 'ADVANCE or ' : ''}FULL. Payment is completed only on FabricTrad secure checkout.`;
+    } else {
+      responseText = `Reply ${Number(activeOrder?.advance_amount || 0) > 0 ? 'ADVANCE or ' : ''}FULL. Payment is completed only on FabricTrad secure checkout.`;
+    }
   } else if (stage === 'stitching') {
     responseText = `Stitching status: ${String(activeOrder?.stitching_status || 'queued').replaceAll('_', ' ')}. You will receive the next update automatically.`;
   } else if (stage === 'embroidery') {
     responseText = `Embroidery status: ${String(activeOrder?.embroidery_status || 'not required').replaceAll('_', ' ')}. You will receive the next update automatically.`;
-  } else if (stage === 'trial') {
-    responseText = `A physical trial/fitting is required. Book or manage it here: ${SITE_URL}/custom-order?order=${activeOrderId}#appointment`;
-  } else if (stage === 'alteration') {
-    responseText = `Alteration is a physical handoff. Your fitting notes stay attached to the order. Track the next approval here: ${SITE_URL}/custom-order?order=${activeOrderId}`;
   } else if (stage === 'final_approval') {
     if (/\bapprove(?:d)?\b/i.test(text)) {
-      await admin.from('bespoke_orders').update({ stage: 'balance_payment', final_approved_at: new Date().toISOString(), human_action_required: false, human_action_reason: null, updated_at: new Date().toISOString() }).eq('id', activeOrderId);
-      nextStage = 'balance_payment';
+      const quote = Math.max(0, Number(activeOrder?.quoted_amount || 0));
+      const paid = Math.max(0, Number(activeOrder?.paid_amount || 0));
+      const balance = Math.max(0, Math.round((quote - paid) * 100) / 100);
+      const approvedStage = balance >= 0.01 ? 'balance_payment' : 'delivery_or_pickup';
+      await admin
+        .from('bespoke_orders')
+        .update({
+          stage: approvedStage,
+          balance_amount: balance,
+          final_approved_at: new Date().toISOString(),
+          human_action_required: false,
+          human_action_reason: null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', activeOrderId);
+      nextStage = approvedStage;
       needsHuman = false;
       humanReason = null;
-      responseText = `Final approval recorded. ${Number(activeOrder?.balance_amount || 0) > 0 ? `Balance due: ₹${Number(activeOrder?.balance_amount).toFixed(2)}. Pay at ${SITE_URL}/custom-order?order=${activeOrderId}&pay=1` : 'No balance is due; delivery/pickup can now be arranged.'}`;
-    } else responseText = 'If the finished piece is approved, reply APPROVE. If something needs attention, reply HUMAN with the issue.';
+      responseText =
+        balance >= 0.01
+          ? `Final approval recorded. Balance due: ₹${balance.toFixed(2)}. Pay securely at ${SITE_URL}/custom-order?order=${activeOrderId}&pay=1`
+          : 'Final approval recorded. Payment is complete, so reply DELIVERY or PICKUP to choose the fulfilment method.';
+    } else {
+      responseText =
+        'If the finished piece is approved, reply APPROVE. If something needs attention, reply HUMAN with the issue.';
+    }
   } else if (stage === 'balance_payment') {
-    const balance = Math.max(0, Number(activeOrder?.quoted_amount || 0) - Number(activeOrder?.paid_amount || 0));
-    responseText = balance > 0
-      ? `Balance due: ₹${balance.toFixed(2)}. Pay securely here: ${SITE_URL}/custom-order?order=${activeOrderId}&pay=1&choice=full`
-      : 'Payment is complete. Delivery/pickup is being unlocked.';
+    const balance = Math.max(
+      0,
+      Number(activeOrder?.quoted_amount || 0) - Number(activeOrder?.paid_amount || 0)
+    );
+    responseText =
+      balance > 0
+        ? `Balance due: ₹${balance.toFixed(2)}. Pay securely here: ${SITE_URL}/custom-order?order=${activeOrderId}&pay=1&choice=full`
+        : 'Payment is complete. Delivery/pickup is being unlocked.';
   } else if (stage === 'delivery_or_pickup') {
     if (/\bpick\s*up|pickup\b/i.test(text)) {
-      await admin.from('bespoke_orders').update({ delivery_mode: 'pickup', delivery_details: { source: 'whatsapp' }, stage: 'review', updated_at: new Date().toISOString() }).eq('id', activeOrderId);
-      nextStage = 'review';
-      responseText = 'Pickup selected. We will send the confirmed pickup instructions automatically. After receiving the order, reply REVIEW 1-5 followed by any comments.';
+      await admin
+        .from('bespoke_orders')
+        .update({
+          delivery_mode: 'pickup',
+          delivery_details: { source: 'whatsapp' },
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', activeOrderId);
+      responseText =
+        'Pickup preference saved. FabricTrad will send the confirmed pickup instructions. Review unlocks only after staff records the actual handover.';
     } else if (/\bdeliver(?:y)?\b/i.test(text)) {
-      await admin.from('bespoke_orders').update({ delivery_mode: 'delivery', delivery_details: { source: 'whatsapp', use_profile_address: true }, stage: 'review', updated_at: new Date().toISOString() }).eq('id', activeOrderId);
-      nextStage = 'review';
-      responseText = 'Delivery selected using your FabricTrad delivery profile. Shipment updates will be automated. After receiving it, reply REVIEW 1-5 followed by comments.';
-    } else responseText = 'Reply DELIVERY to use your FabricTrad address or PICKUP to collect the finished order.';
+      await admin
+        .from('bespoke_orders')
+        .update({
+          delivery_mode: 'delivery',
+          delivery_details: { source: 'whatsapp', use_profile_address: true },
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', activeOrderId);
+      responseText =
+        'Delivery preference saved using your FabricTrad delivery profile. Shipment updates will be automated, and review unlocks only after confirmed handover.';
+    } else {
+      responseText = 'Reply DELIVERY to use your FabricTrad address or PICKUP to collect the finished order.';
+    }
   } else if (stage === 'review') {
     const match = text.match(/(?:review\s*)?([1-5])(?:\s*[-:]?\s*(.*))?/i);
     if (match) {
       const rating = Number(match[1]);
       const review = String(match[2] || '').trim().slice(0, 2000) || null;
       const dueAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
-      await admin.from('bespoke_orders').update({ review_rating: rating, review_text: review, stage: 'follow_up', follow_up_due_at: dueAt, updated_at: new Date().toISOString() }).eq('id', activeOrderId);
-      await admin.from('bespoke_follow_up_jobs').insert({ bespoke_order_id: activeOrderId, user_id: typedProfile.id, whatsapp_phone: fromRaw, job_type: 'post_delivery_follow_up', due_at: dueAt, payload: { review_rating: rating } });
+      await admin
+        .from('bespoke_orders')
+        .update({
+          review_rating: rating,
+          review_text: review,
+          stage: 'follow_up',
+          follow_up_due_at: dueAt,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', activeOrderId);
+      await admin.from('bespoke_follow_up_jobs').insert({
+        bespoke_order_id: activeOrderId,
+        user_id: typedProfile.id,
+        whatsapp_phone: fromRaw,
+        job_type: 'post_delivery_follow_up',
+        due_at: dueAt,
+        payload: { review_rating: rating },
+      });
       nextStage = 'follow_up';
       responseText = `Thank you — ${rating}/5 review saved. FabricTrad will follow up automatically in about a week, and you can reply HUMAN anytime if you need service.`;
-    } else responseText = 'Reply REVIEW 1-5 followed by optional comments, e.g. REVIEW 5 Perfect fit.';
+    } else {
+      responseText =
+        'Reply REVIEW 1-5 followed by optional comments, e.g. REVIEW 5 Perfect fit.';
+    }
   } else if (stage === 'follow_up') {
-    responseText = 'Your order is in automated follow-up. Reply NEW ORDER anytime to start another, or HUMAN for customer service.';
+    responseText =
+      'Your order is in automated follow-up. Reply NEW ORDER anytime to start another, or HUMAN for customer service.';
   } else if (stage === 'completed') {
     responseText = 'This custom order is complete. Reply NEW ORDER to start another.';
   } else {
@@ -609,10 +907,13 @@ export async function handleBuyerWhatsAppMessage(message: MetaMessage): Promise<
     human_handoff_reason: humanReason,
     last_outbound_at: new Date().toISOString(),
   });
-  await admin.from('whatsapp_buyer_messages').update({
-    processing_status: needsHuman ? 'needs_human' : 'processed',
-    bespoke_order_id: activeOrderId,
-  }).eq('wa_message_id', waMessageId);
+  await admin
+    .from('whatsapp_buyer_messages')
+    .update({
+      processing_status: needsHuman ? 'needs_human' : 'processed',
+      bespoke_order_id: activeOrderId,
+    })
+    .eq('wa_message_id', waMessageId);
   await sendBuyerWhatsAppText(fromRaw, responseText || menu(), activeOrderId, typedProfile.id);
   return { handled: true };
 }
