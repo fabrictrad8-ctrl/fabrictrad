@@ -100,14 +100,26 @@ export async function POST(request: NextRequest) {
 
   const { data: activePayment } = await admin
     .from('bespoke_payments')
-    .select('id,razorpay_order_id,payment_purpose,amount,currency,status,created_at')
+    .select('id,razorpay_order_id,razorpay_payment_id,payment_purpose,amount,currency,status,created_at')
     .eq('bespoke_order_id', orderId)
-    .eq('status', 'initiated')
+    .in('status', ['initiated', 'authorized'])
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
 
   if (activePayment?.id) {
+    if (activePayment.status === 'authorized') {
+      return json(
+        {
+          error:
+            'Razorpay has authorized the active payment and capture is still pending. FabricTrad will not open a second checkout until that payment is resolved.',
+          code: 'PAYMENT_CAPTURE_PENDING',
+          razorpayPaymentId: activePayment.razorpay_payment_id || null,
+        },
+        409
+      );
+    }
+
     const sameIntent =
       activePayment.payment_purpose === purpose &&
       activePayment.currency === 'INR' &&
@@ -199,8 +211,6 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // Reserve the one-active-payment slot before contacting Razorpay. This makes
-  // concurrent double-clicks converge on one FabricTrad payment session.
   const reservationId = `pending_${randomUUID()}`;
   const { data: reservation, error: reservationError } = await admin
     .from('bespoke_payments')
