@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import Icon from '@/components/ui/AppIcon';
 import { useAuth } from '@/contexts/AuthContext';
 import AuthenticatedBuyerRegistrationResume from './AuthenticatedBuyerRegistrationResume';
+import BuyerStoreClaimGate from './BuyerStoreClaimGate';
 import PersonalBuyerQuickSignup from './PersonalBuyerQuickSignup';
 import RetailBuyerAccountStart from './RetailBuyerAccountStart';
 
@@ -24,15 +25,16 @@ const options: Array<{
     title: 'Retail Store',
     subtitle: 'I am buying for my shop or business',
     description:
-      'Create the login first, then complete GST and business KYC without risking your progress.',
+      'Create the login and reserve a unique FabricTrad store identity first, then complete GST and business KYC without risking your progress.',
     icon: 'BuildingStorefrontIcon',
     features: [
-      'Secure account created before KYC begins',
+      'Unique store name reserved before KYC continues',
+      'Instagram-style available-name suggestions if your choice is taken',
       'GSTIN verification when the shop is GST registered',
       'PAN or voluntary Aadhaar Offline e-KYC plus business proof',
       'Can activate selling on the same account after seller verification',
     ],
-    notice: 'Account first · KYC second',
+    notice: 'Account + store name first · KYC second',
   },
   {
     value: 'end_user',
@@ -112,6 +114,20 @@ export default function BuyerRegistrationEntry() {
   }
 
   if (buyerType) {
+    const registrationFlow = isAuthenticatedAccount ? (
+      buyerType === 'retail_store' ? (
+        <BuyerStoreClaimGate>
+          <AuthenticatedBuyerRegistrationResume buyerType={buyerType} />
+        </BuyerStoreClaimGate>
+      ) : (
+        <AuthenticatedBuyerRegistrationResume buyerType={buyerType} />
+      )
+    ) : buyerType === 'end_user' ? (
+      <PersonalBuyerQuickSignup />
+    ) : (
+      <RetailBuyerAccountStart />
+    );
+
     return (
       <div>
         <div className="mx-auto max-w-3xl px-4 pt-8">
@@ -127,7 +143,7 @@ export default function BuyerRegistrationEntry() {
                 <p className="text-xs font-800 uppercase tracking-[0.13em] text-primary">Buyer type</p>
                 <p className="text-sm font-800 text-foreground">
                   {buyerType === 'retail_store'
-                    ? 'Retail Store · account first, business KYC second'
+                    ? 'Retail Store · unique store identity, then business KYC'
                     : 'Personal Buyer · fast signup, no business KYC'}
                 </p>
               </div>
@@ -142,13 +158,7 @@ export default function BuyerRegistrationEntry() {
           </div>
         </div>
 
-        {isAuthenticatedAccount ? (
-          <AuthenticatedBuyerRegistrationResume buyerType={buyerType} />
-        ) : buyerType === 'end_user' ? (
-          <PersonalBuyerQuickSignup />
-        ) : (
-          <RetailBuyerAccountStart />
-        )}
+        {registrationFlow}
       </div>
     );
   }
@@ -166,7 +176,7 @@ export default function BuyerRegistrationEntry() {
           <p className="mx-auto mt-3 max-w-2xl text-sm leading-6 text-muted-foreground sm:text-base">
             {isAuthenticatedAccount
               ? 'Your login is already secured. Choose what you need and FabricTrad will update this account instead of creating another one.'
-              : 'Personal buyers get a fast account with no business documents. Retail stores create the login first and complete business verification afterward.'}
+              : 'Personal buyers get a fast account with no business documents. Retail stores create the login and unique store identity first, then complete business verification.'}
           </p>
         </div>
 
