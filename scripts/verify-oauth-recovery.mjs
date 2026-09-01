@@ -10,8 +10,7 @@ const callback = read('src/app/auth/callback/route.ts');
 const endpoint = read('src/app/api/auth/provision-account/route.ts');
 const migration = read('supabase/migrations/20260731090000_oauth_account_recovery.sql');
 const recoveryUi = read('src/app/auth/setup/AccountSetupClient.tsx');
-const passwordResetRequest = read('src/app/api/auth/email-otp/request/route.ts');
-const passwordResetPage = read('src/app/auth/reset-password/page.tsx');
+const passwordResetRequest = read('src/app/api/auth/password-reset-otp/request/route.ts');
 const accountLogin = read('src/app/login/EmailOtpLoginClient.tsx');
 const accountHome = read('src/app/account/page.tsx');
 const workspaceStatus = read('src/app/api/account/workspace-status/route.ts');
@@ -57,22 +56,26 @@ assert(
   provisioning.includes("client.rpc('ensure_current_account_profile'"),
   'OAuth provisioning must call the authenticated recovery RPC.'
 );
-assert(callback.includes('ensureAuthenticatedAccountProvisioned'), 'OAuth callback must use authenticated provisioning.');
+assert(callback.includes('provisionAuthenticatedAccountWithRecovery'), 'OAuth callback must use authenticated provisioning with scoped recovery.');
 assert(callback.includes('/auth/setup'), 'OAuth callback must preserve the session through a recovery screen.');
 assert(endpoint.includes('profile_setup_failed'), 'Provisioning endpoint needs a stable recovery error code.');
 assert(migration.includes('security definer'), 'Recovery function must be SECURITY DEFINER.');
 assert(migration.includes('grant execute') && migration.includes('to authenticated'), 'Only authenticated users may call recovery.');
 assert(recoveryUi.includes('Session preserved') && recoveryUi.includes('aria-live'), 'Recovery UI must preserve and announce session status.');
 
-// Buyer and seller password recovery must be a recovery flow, never passwordless login.
-assert(passwordResetRequest.includes('resetPasswordForEmail'), 'Forgot password must use Supabase password recovery.');
-assert(passwordResetRequest.includes('/auth/reset-password'), 'Recovery email must return to the new-password screen.');
-assert(!passwordResetRequest.includes('signInWithOtp'), 'Forgot password must never send a passwordless sign-in email.');
+// Buyer and seller password recovery uses a non-enumerating Supabase email OTP,
+// verifies that OTP on the client, and only then allows the signed-in recovery
+// session to update the password. It must never create accounts or require an
+// application-side SMTP/admin key.
+assert(passwordResetRequest.includes('signInWithOtp'), 'Forgot password must request a Supabase email OTP.');
+assert(passwordResetRequest.includes('shouldCreateUser: false'), 'Password recovery must never create a new account.');
 assert(!passwordResetRequest.includes('auth.admin.generateLink'), 'Password recovery must not require a privileged Supabase key.');
 assert(!passwordResetRequest.includes('SMTP_PASS'), 'Password recovery must not require a Cloudflare SMTP secret.');
-assert(passwordResetRequest.includes("method: 'password_recovery'"), 'Recovery endpoint must identify the correct email purpose.');
-assert(passwordResetPage.includes('updatePassword(password)'), 'Recovery screen must save the new password through Supabase Auth.');
-assert(accountLogin.includes('Send password reset email'), 'Account login must request a recovery email.');
+assert(passwordResetRequest.includes("method: 'email_otp'"), 'Recovery endpoint must identify the email OTP purpose.');
+assert(accountLogin.includes("fetch('/api/auth/password-reset-otp/request'"), 'Account login must request the password-reset OTP endpoint.');
+assert(accountLogin.includes('verifyEmailOtp(normalizedEmail, otp)'), 'Recovery must verify the OTP against the requested email.');
+assert(accountLogin.includes('updatePassword(newPassword)'), 'Recovery must update the password only after OTP verification.');
+assert(accountLogin.includes('Send OTP to email'), 'Account login must expose the email OTP recovery action.');
 assert(accountLogin.includes('One account for textile commerce'), 'Sign-in must present one unified buyer and seller account.');
 assert(
   accountLogin.includes("role === 'admin_staff' || role === 'super_admin'") &&
