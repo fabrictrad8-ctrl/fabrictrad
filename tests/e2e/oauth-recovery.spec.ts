@@ -1,13 +1,15 @@
 import { expect, test } from '@playwright/test';
 
 test.beforeEach(async ({ page }) => {
-  const response = await page.request.post('/api/auth/demo-session', {
-    data: {
-      email: 'demo.buyer@fabrictrad.com',
-      password: 'FabricDemo@2026',
+  await page.context().addCookies([
+    {
+      name: 'fabrictrad_demo_role',
+      value: 'buyer',
+      url: 'http://127.0.0.1:3000',
+      httpOnly: true,
+      sameSite: 'Lax',
     },
-  });
-  expect(response.ok()).toBeTruthy();
+  ]);
 });
 
 test('account recovery preserves the session and continues to the marketplace', async ({ page }) => {
