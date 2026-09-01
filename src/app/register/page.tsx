@@ -8,7 +8,7 @@ const options = [
   {
     href: '/buyer-registration?type=end_user',
     icon: 'UserIcon' as const,
-    badge: 'Fastest setup',
+    badge: 'Fastest · no documents',
     title: 'Buy for myself',
     description: 'For tailoring, weddings, events, household use or smaller personal orders.',
     points: ['No business documents required', 'Order from personal-buyer enabled listings', 'Add delivery details only when needed'],
