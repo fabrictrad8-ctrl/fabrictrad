@@ -27,11 +27,10 @@ CREATE UNIQUE INDEX IF NOT EXISTS bespoke_payments_razorpay_payment_unique_idx
   ON public.bespoke_payments (razorpay_payment_id)
   WHERE razorpay_payment_id IS NOT NULL;
 -- Prevent two simultaneously payable provider orders for one FabricTrad order.
--- A retry reuses the existing provider order; a later balance is allowed once
--- the advance/full ledger entry has moved out of initiated.
+-- Authorized but not captured is still payable, so it must remain exclusive.
 CREATE UNIQUE INDEX IF NOT EXISTS bespoke_payments_one_active_session_idx
   ON public.bespoke_payments (bespoke_order_id)
-  WHERE status = 'initiated';
+  WHERE status IN ('initiated','authorized');
 CREATE INDEX IF NOT EXISTS bespoke_payments_order_created_idx
   ON public.bespoke_payments (bespoke_order_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS bespoke_payments_user_created_idx
