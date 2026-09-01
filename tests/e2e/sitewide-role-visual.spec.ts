@@ -135,21 +135,11 @@ async function prepareRole(page: Page, role: Role) {
     });
   });
 
-  if (role === 'buyer' || role === 'seller') {
-    const response = await page.request.post('http://127.0.0.1:3000/api/auth/demo-session', {
-      data: {
-        email: `demo.${role}@fabrictrad.com`,
-        password: 'FabricDemo@2026',
-      },
-    });
-    expect(response.ok()).toBeTruthy();
-  }
-
-  if (role === 'admin') {
+  if (role !== 'public') {
     await page.context().addCookies([
       {
         name: 'fabrictrad_demo_role',
-        value: 'admin',
+        value: role,
         url: 'http://127.0.0.1:3000',
         httpOnly: true,
         sameSite: 'Lax',
