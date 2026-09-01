@@ -12,7 +12,15 @@ const REQUIRED_DOCUMENT_TYPES = [
   'cancelled_cheque',
 ] as const;
 
-type ReviewAction = 'approve_seller' | 'reject_seller';
+type ReviewAction =
+  | 'confirm_gstin'
+  | 'reject_gstin'
+  | 'approve_document'
+  | 'reject_document'
+  | 'verify_bank'
+  | 'reject_bank'
+  | 'approve_seller'
+  | 'reject_seller';
 
 type SellerRow = {
   id: string;
@@ -46,6 +54,8 @@ type RegistrationRow = {
   business_type: string | null;
   gstin: string | null;
   pan: string | null;
+  gstin_verified: boolean;
+  bank_verified: boolean;
   registration_status: string;
   submitted_at: string | null;
   approved_at: string | null;
@@ -85,6 +95,7 @@ type ApplicationRow = {
   bank: BankRow | null;
   documents: Array<DocumentRow & { signedUrl: string | null }>;
   blockers: string[];
+  reviewBlockers: string[];
   applicationSubmitted: boolean;
   readyForApproval: boolean;
 };
@@ -136,12 +147,34 @@ const submissionBlockers = (input: {
     }
   }
 
-  if (
-    !input.bank ||
-    !input.bank.account_number_masked?.trim() ||
-    !input.bank.ifsc_code?.trim()
-  ) {
+  if (!input.bank || !input.bank.account_number_masked?.trim() || !input.bank.ifsc_code?.trim()) {
     blockers.push('Settlement account details are missing.');
+  }
+  return blockers;
+};
+
+const verificationBlockers = (input: {
+  seller: SellerRow;
+  registration: RegistrationRow | null;
+  documents: DocumentRow[];
+  bank: BankRow | null;
+}) => {
+  const blockers: string[] = [];
+  if (
+    input.seller.gstin_verified !== true ||
+    input.seller.gstin_status !== 'active' ||
+    input.registration?.gstin_verified !== true
+  ) {
+    blockers.push('GSTIN review is pending.');
+  }
+  for (const documentType of REQUIRED_DOCUMENT_TYPES) {
+    const document = input.documents.find((item) => item.document_type === documentType);
+    if (!document || document.upload_status !== 'approved') {
+      blockers.push(`${documentType.replaceAll('_', ' ')} review is pending.`);
+    }
+  }
+  if (input.bank?.is_verified !== true || input.registration?.bank_verified !== true) {
+    blockers.push('Settlement bank review is pending.');
   }
   return blockers;
 };
@@ -162,7 +195,11 @@ async function loadApplications(): Promise<ApplicationRow[]> {
   const userIds = sellers.map((seller) => seller.user_id);
   const sellerIds = sellers.map((seller) => seller.id);
 
-  const [{ data: userData, error: userError }, { data: registrationData, error: registrationError }, { data: bankData, error: bankError }] = await Promise.all([
+  const [
+    { data: userData, error: userError },
+    { data: registrationData, error: registrationError },
+    { data: bankData, error: bankError },
+  ] = await Promise.all([
     admin
       .from('user_profiles')
       .select('id,full_name,email,phone,is_active,can_sell')
@@ -170,7 +207,7 @@ async function loadApplications(): Promise<ApplicationRow[]> {
     admin
       .from('seller_registrations')
       .select(
-        'id,user_id,business_name,business_type,gstin,pan,registration_status,submitted_at,approved_at,rejection_reason,updated_at'
+        'id,user_id,business_name,business_type,gstin,pan,gstin_verified,bank_verified,registration_status,submitted_at,approved_at,rejection_reason,updated_at'
       )
       .in('user_id', userIds)
       .order('updated_at', { ascending: false }),
@@ -237,6 +274,7 @@ async function loadApplications(): Promise<ApplicationRow[]> {
       documents,
       bank,
     });
+    const reviewBlockers = verificationBlockers({ seller, registration, documents, bank });
     const applicationSubmitted = Boolean(registration?.submitted_at && blockers.length === 0);
 
     return {
@@ -248,9 +286,12 @@ async function loadApplications(): Promise<ApplicationRow[]> {
       bank,
       documents,
       blockers,
+      reviewBlockers,
       applicationSubmitted,
       readyForApproval:
-        applicationSubmitted && seller.verification_status !== 'verified',
+        applicationSubmitted &&
+        reviewBlockers.length === 0 &&
+        seller.verification_status !== 'verified',
     };
   });
 }
@@ -274,18 +315,33 @@ export async function PATCH(request: NextRequest) {
   const payload = (await request.json().catch(() => ({}))) as {
     action?: ReviewAction;
     sellerId?: string;
+    documentId?: string;
     reason?: string;
   };
   const action = payload.action;
-  const sellerId = String(payload.sellerId || '');
-  const reason = String(payload.reason || '').trim().slice(0, 1000);
+  const sellerId = String(payload.sellerId || '').trim();
+  const documentId = String(payload.documentId || '').trim() || null;
+  const reason = String(payload.reason || '').trim().slice(0, 1000) || null;
 
   if (!sellerId || !action) return json({ error: 'Seller and review action are required.' }, 400);
-  if (!['approve_seller', 'reject_seller'].includes(action)) {
-    return json({ error: 'Unsupported seller review action.' }, 400);
-  }
-  if (action === 'reject_seller' && reason.length < 5) {
+
+  const supported: ReviewAction[] = [
+    'confirm_gstin',
+    'reject_gstin',
+    'approve_document',
+    'reject_document',
+    'verify_bank',
+    'reject_bank',
+    'approve_seller',
+    'reject_seller',
+  ];
+  if (!supported.includes(action)) return json({ error: 'Unsupported seller review action.' }, 400);
+
+  if (['reject_gstin', 'reject_document', 'reject_bank', 'reject_seller'].includes(action) && (!reason || reason.length < 5)) {
     return json({ error: 'Add a clear rejection reason.' }, 400);
+  }
+  if (['approve_document', 'reject_document'].includes(action) && !documentId) {
+    return json({ error: 'Choose the document to review.' }, 400);
   }
 
   const admin = createAdminClient();
@@ -294,7 +350,7 @@ export async function PATCH(request: NextRequest) {
     .select('id,user_id,verification_status')
     .eq('id', sellerId)
     .maybeSingle();
-  if (sellerReadError) throw sellerReadError;
+  if (sellerReadError) return json({ error: 'Seller application could not be loaded.' }, 503);
   if (!seller) return json({ error: 'Seller application not found.' }, 404);
 
   try {
@@ -305,11 +361,20 @@ export async function PATCH(request: NextRequest) {
 
       const applications = await loadApplications();
       const current = applications.find((item) => item.sellerId === sellerId);
-      if (!current?.applicationSubmitted || !current.readyForApproval) {
+      if (!current?.applicationSubmitted) {
         return json(
           {
             error: 'This application is not complete enough to approve yet.',
             blockers: current?.blockers || ['Seller application is incomplete.'],
+          },
+          409
+        );
+      }
+      if (!current.readyForApproval) {
+        return json(
+          {
+            error: 'Complete all GSTIN, document and bank checks before final approval.',
+            blockers: current.reviewBlockers,
           },
           409
         );
@@ -323,38 +388,15 @@ export async function PATCH(request: NextRequest) {
       return json({ updated: true, action, sellerId, approval: data });
     }
 
-    const now = new Date().toISOString();
-    const { data: registration } = await admin
-      .from('seller_registrations')
-      .select('id')
-      .eq('user_id', seller.user_id)
-      .order('updated_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    const { error: sellerError } = await admin
-      .from('seller_profiles')
-      .update({
-        verification_status: 'rejected',
-        settlement_eligible: false,
-        updated_at: now,
-      })
-      .eq('id', sellerId);
-    if (sellerError) throw sellerError;
-
-    if (registration) {
-      const { error: registrationError } = await admin
-        .from('seller_registrations')
-        .update({
-          registration_status: 'rejected',
-          rejection_reason: reason,
-          updated_at: now,
-        })
-        .eq('id', registration.id);
-      if (registrationError) throw registrationError;
-    }
-
-    return json({ updated: true, action, sellerId });
+    const { data, error } = await admin.rpc('admin_review_seller_stage', {
+      p_seller_id: sellerId,
+      p_admin_id: access.user.id,
+      p_action: action,
+      p_document_id: documentId,
+      p_reason: reason,
+    });
+    if (error) throw error;
+    return json({ updated: true, action, sellerId, review: data });
   } catch (error) {
     console.error('Administrator seller verification update failed', error);
     const message = error instanceof Error ? error.message : '';
