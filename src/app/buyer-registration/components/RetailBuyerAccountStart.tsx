@@ -5,6 +5,7 @@ import Link from 'next/link';
 import Icon from '@/components/ui/AppIcon';
 import { useAuth } from '@/contexts/AuthContext';
 import { normalizeEmail, normalizeIndianPhone, validateIndianPhone } from '@/lib/authValidation';
+import BuyerStoreNameField from './BuyerStoreNameField';
 
 type PreflightResponse = {
   emailUsed?: boolean;
@@ -12,21 +13,43 @@ type PreflightResponse = {
   error?: string;
 };
 
+type StoreAvailability = {
+  available?: boolean;
+  error?: string;
+  message?: string;
+};
+
 export default function RetailBuyerAccountStart() {
   const { signUp, signIn } = useAuth();
-  const [form, setForm] = useState({ fullName: '', phone: '', email: '', password: '' });
+  const [form, setForm] = useState({ fullName: '', storeName: '', phone: '', email: '', password: '' });
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+
+  const claimStore = async (storeName: string, phone: string) => {
+    const response = await fetch('/api/buyer/stores', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      cache: 'no-store',
+      body: JSON.stringify({ storeName, source: 'onboarding', whatsappPhone: `91${phone}`, primary: true }),
+    });
+    const payload = (await response.json().catch(() => ({}))) as { error?: string };
+    if (!response.ok && response.status !== 401) {
+      throw new Error(payload.error || 'The store name could not be reserved.');
+    }
+  };
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError('');
 
     const fullName = form.fullName.trim();
+    const storeName = form.storeName.trim();
     const email = normalizeEmail(form.email);
     const phone = normalizeIndianPhone(form.phone);
     if (!fullName) return setError('Enter the owner or authorised contact name.');
+    if (storeName.length < 3) return setError('Choose a store name with at least 3 characters.');
     if (!email || !email.includes('@')) return setError('Enter a valid business email address.');
     const phoneResult = validateIndianPhone(phone);
     if (!phoneResult.valid) return setError(phoneResult.message);
@@ -34,6 +57,17 @@ export default function RetailBuyerAccountStart() {
 
     setSubmitting(true);
     try {
+      const availabilityResponse = await fetch(
+        `/api/buyer/stores/availability?name=${encodeURIComponent(storeName)}`,
+        { credentials: 'same-origin', cache: 'no-store' }
+      );
+      const availability = (await availabilityResponse.json().catch(() => ({}))) as StoreAvailability;
+      if (!availabilityResponse.ok || availability.available !== true) {
+        throw new Error(
+          availability.message || availability.error || 'That store name is already taken. Choose another available name.'
+        );
+      }
+
       const preflightResponse = await fetch('/api/auth/registration-preflight', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -49,10 +83,15 @@ export default function RetailBuyerAccountStart() {
       if (preflight.emailUsed) {
         try {
           await signIn(email, form.password);
+          await claimStore(storeName, phone);
           window.location.replace('/buyer-registration?type=retail_store&resume=1');
           return;
-        } catch {
-          setError('That email already has a FabricTrad account. Sign in or reset the password instead of registering again.');
+        } catch (caught) {
+          setError(
+            caught instanceof Error && /store name|taken|reserved/i.test(caught.message)
+              ? caught.message
+              : 'That email already has a FabricTrad account. Sign in or reset the password instead of registering again.'
+          );
           return;
         }
       }
@@ -65,6 +104,7 @@ export default function RetailBuyerAccountStart() {
         fullName,
         phone,
         role: 'buyer',
+        requestedStoreName: storeName,
       });
       if (!signup?.user?.id) throw new Error('FabricTrad could not create the account.');
 
@@ -77,6 +117,7 @@ export default function RetailBuyerAccountStart() {
         }
       }
 
+      await claimStore(storeName, phone);
       window.location.replace('/buyer-registration?type=retail_store&resume=1');
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Account creation failed. Please try again.');
@@ -90,13 +131,13 @@ export default function RetailBuyerAccountStart() {
       <div className="mx-auto max-w-xl">
         <div className="text-center">
           <span className="inline-flex rounded-full bg-primary/10 px-3 py-1 text-xs font-800 text-primary">
-            Step 1 · secure your login
+            Step 1 · secure your login + store identity
           </span>
           <h1 className="mt-4 text-3xl font-800 tracking-tight text-foreground">
             Create the account before business KYC
           </h1>
           <p className="mx-auto mt-3 max-w-lg text-sm leading-6 text-muted-foreground">
-            Four basic details first. Your shop, GST and document checks come after the login is safely created, so you can leave and return without starting again.
+            Choose your unique FabricTrad store name with your basic login details. Your shop, GST and document checks come next, so you can leave and return without starting again.
           </p>
         </div>
 
@@ -120,6 +161,12 @@ export default function RetailBuyerAccountStart() {
               />
             </label>
 
+            <BuyerStoreNameField
+              value={form.storeName}
+              onChange={(storeName) => setForm((current) => ({ ...current, storeName }))}
+              disabled={submitting}
+            />
+
             <div className="grid gap-4 sm:grid-cols-2">
               <label className="text-sm font-700 text-foreground">
                 Business email
@@ -133,7 +180,7 @@ export default function RetailBuyerAccountStart() {
                 />
               </label>
               <label className="text-sm font-700 text-foreground">
-                Mobile number
+                Mobile / WhatsApp number
                 <input
                   value={form.phone}
                   onChange={(event) => setForm((current) => ({ ...current, phone: normalizeIndianPhone(event.target.value) }))}
@@ -171,11 +218,11 @@ export default function RetailBuyerAccountStart() {
             </label>
 
             <div className="rounded-xl border border-success/20 bg-success/10 p-3 text-xs leading-5 text-muted-foreground">
-              <strong className="text-foreground">After this:</strong> your login is protected and reusable. You can complete shop details and upload documents now or return later.
+              <strong className="text-foreground">After this:</strong> your login and unique store identity are protected and reusable. You can complete shop details and upload documents now or return later.
             </div>
 
             <button type="submit" disabled={submitting} className="btn-primary w-full py-3 text-sm disabled:opacity-50">
-              {submitting ? 'Creating your account…' : 'Create account & continue KYC'}
+              {submitting ? 'Creating your account…' : 'Create account & reserve store name'}
             </button>
           </form>
 
