@@ -1,15 +1,22 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "main": ".open-next/worker.js",
+  "main": "custom-worker.ts",
   "name": "fabrictrad",
   "compatibility_date": "2026-07-19",
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
   "workers_dev": false,
+  "triggers": {
+    "crons": ["*/5 * * * *"]
+  },
   "secrets": {
     "required": [
       "RAZORPAY_KEY_ID",
       "RAZORPAY_KEY_SECRET",
       "RAZORPAY_WEBHOOK_SECRET",
+      "WHATSAPP_ACCESS_TOKEN",
+      "WHATSAPP_APP_SECRET",
+      "WHATSAPP_VERIFY_TOKEN",
+      "WHATSAPP_PHONE_NUMBER_ID",
       "SHOPIFY_SHOP",
       "SHOPIFY_CLIENT_ID",
       "SHOPIFY_CLIENT_SECRET"
