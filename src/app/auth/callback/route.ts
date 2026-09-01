@@ -105,6 +105,9 @@ export async function GET(request: NextRequest) {
 
   let account: AuthenticatedProvisionedAccount;
   try {
+    // provisionAuthenticatedAccountWithRecovery calls
+    // ensureAuthenticatedAccountProvisioned first, then applies a tightly
+    // scoped server-side repair only if the authenticated RPC fails.
     const provisioning = await provisionAuthenticatedAccountWithRecovery(
       supabase,
       user,
