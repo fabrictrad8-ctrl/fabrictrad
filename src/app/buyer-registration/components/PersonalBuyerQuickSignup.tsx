@@ -47,10 +47,14 @@ export default function PersonalBuyerQuickSignup() {
     const phoneResult = validateIndianPhone(phone);
     if (!phoneResult.valid) return setError(phoneResult.message);
     if (form.password.length < 8) return setError('Use a password with at least 8 characters.');
-    if (addressLine1.length < 3 || !city || !state) {
-      return setError('Enter your complete delivery address, city and state.');
+
+    const anyAddress = Boolean(addressLine1 || city || state || pincode || form.addressLine2.trim());
+    if (anyAddress) {
+      if (addressLine1.length < 3 || !city || !state) {
+        return setError('Complete the optional delivery address, city and state, or leave the address section blank for now.');
+      }
+      if (!/^\d{6}$/.test(pincode)) return setError('Enter a valid 6-digit delivery PIN code or leave the address section blank.');
     }
-    if (!/^\d{6}$/.test(pincode)) return setError('Enter a valid 6-digit delivery PIN code.');
 
     setSubmitting(true);
     try {
@@ -115,11 +119,11 @@ export default function PersonalBuyerQuickSignup() {
           gstin: '',
           pan: '',
           identityMethod: 'pan',
-          addressLine1,
-          addressLine2: form.addressLine2.trim(),
-          city,
-          state,
-          pincode,
+          addressLine1: anyAddress ? addressLine1 : '',
+          addressLine2: anyAddress ? form.addressLine2.trim() : '',
+          city: anyAddress ? city : '',
+          state: anyAddress ? state : '',
+          pincode: anyAddress ? pincode : '',
         })
       );
 
@@ -167,10 +171,10 @@ export default function PersonalBuyerQuickSignup() {
             Personal buyer · no KYC documents
           </span>
           <h1 className="mt-4 text-3xl font-800 tracking-tight text-foreground sm:text-4xl">
-            Create your account and save delivery once
+            Create account & start shopping
           </h1>
           <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-muted-foreground">
-            Your contact and delivery details are saved to FabricTrad so paid orders can flow to the courier automatically. No PAN, Aadhaar or GST certificate is required for personal buying.
+            No PAN, Aadhaar or GST certificate is required for personal buying. Add a delivery address when you actually place an order. You can also save it below now if you want faster checkout later.
           </p>
         </div>
 
@@ -188,7 +192,7 @@ export default function PersonalBuyerQuickSignup() {
                 {googleSubmitting ? 'Connecting…' : 'Continue with Google'}
               </button>
               <p className="mt-2 text-center text-xs text-muted-foreground">
-                After Google sign-in, FabricTrad will ask for your mobile and delivery address before completing buyer setup.
+                After Google sign-in, FabricTrad will ask for your mobile number to complete buyer setup.
               </p>
               <div className="my-5 flex items-center gap-3 text-xs text-muted-foreground">
                 <span className="h-px flex-1 bg-border" />
@@ -228,22 +232,22 @@ export default function PersonalBuyerQuickSignup() {
               <div className="mb-4 flex items-start gap-3">
                 <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary"><Icon name="MapPinIcon" size={18} /></div>
                 <div>
-                  <p className="text-sm font-800 text-foreground">Delivery address</p>
-                  <p className="mt-1 text-xs leading-5 text-muted-foreground">Saved once and reused for eligible prepaid courier bookings. You can change it later from Profile & settings.</p>
+                  <p className="text-sm font-800 text-foreground">Delivery address <span className="font-500 text-muted-foreground">(optional now)</span></p>
+                  <p className="mt-1 text-xs leading-5 text-muted-foreground">Save it now for faster prepaid courier booking, or leave all address fields blank and add it later at checkout/profile.</p>
                 </div>
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
-                <label className="text-sm font-700 text-foreground sm:col-span-2">Address line 1 *<input value={form.addressLine1} onChange={(event) => setForm((current) => ({ ...current, addressLine1: event.target.value }))} className="input-base mt-1.5 w-full px-4 py-3 font-400" autoComplete="address-line1" placeholder="House / building / street" required /></label>
+                <label className="text-sm font-700 text-foreground sm:col-span-2">Address line 1<input value={form.addressLine1} onChange={(event) => setForm((current) => ({ ...current, addressLine1: event.target.value }))} className="input-base mt-1.5 w-full px-4 py-3 font-400" autoComplete="address-line1" placeholder="House / building / street" /></label>
                 <label className="text-sm font-700 text-foreground sm:col-span-2">Address line 2 <span className="font-500 text-muted-foreground">(optional)</span><input value={form.addressLine2} onChange={(event) => setForm((current) => ({ ...current, addressLine2: event.target.value }))} className="input-base mt-1.5 w-full px-4 py-3 font-400" autoComplete="address-line2" placeholder="Area / landmark" /></label>
-                <label className="text-sm font-700 text-foreground">City *<input value={form.city} onChange={(event) => setForm((current) => ({ ...current, city: event.target.value }))} className="input-base mt-1.5 w-full px-4 py-3 font-400" autoComplete="address-level2" required /></label>
-                <label className="text-sm font-700 text-foreground">State / UT *<select value={form.state} onChange={(event) => setForm((current) => ({ ...current, state: event.target.value }))} className="input-base mt-1.5 w-full px-4 py-3 font-400" autoComplete="address-level1" required><option value="">Select state</option>{INDIAN_STATES_AND_UTS.map((state) => <option key={state} value={state}>{state}</option>)}</select></label>
-                <label className="text-sm font-700 text-foreground">PIN code *<input value={form.pincode} onChange={(event) => setForm((current) => ({ ...current, pincode: event.target.value.replace(/\D/g, '').slice(0, 6) }))} className="input-base mt-1.5 w-full px-4 py-3 font-400" inputMode="numeric" maxLength={6} autoComplete="postal-code" placeholder="400001" required /></label>
+                <label className="text-sm font-700 text-foreground">City<input value={form.city} onChange={(event) => setForm((current) => ({ ...current, city: event.target.value }))} className="input-base mt-1.5 w-full px-4 py-3 font-400" autoComplete="address-level2" /></label>
+                <label className="text-sm font-700 text-foreground">State / UT<select value={form.state} onChange={(event) => setForm((current) => ({ ...current, state: event.target.value }))} className="input-base mt-1.5 w-full px-4 py-3 font-400" autoComplete="address-level1"><option value="">Select state</option>{INDIAN_STATES_AND_UTS.map((state) => <option key={state} value={state}>{state}</option>)}</select></label>
+                <label className="text-sm font-700 text-foreground">PIN code<input value={form.pincode} onChange={(event) => setForm((current) => ({ ...current, pincode: event.target.value.replace(/\D/g, '').slice(0, 6) }))} className="input-base mt-1.5 w-full px-4 py-3 font-400" inputMode="numeric" maxLength={6} autoComplete="postal-code" placeholder="400001" /></label>
                 <div className="flex items-end rounded-xl border border-success/20 bg-success/5 p-3 text-xs leading-5 text-muted-foreground"><Icon name="TruckIcon" size={16} className="mr-2 mt-0.5 shrink-0 text-success" />Used only for fulfilment, tracking and order documents.</div>
               </div>
             </div>
 
             <button type="submit" disabled={submitting || googleSubmitting} className="btn-primary w-full py-3 text-sm disabled:opacity-50">
-              {submitting ? 'Creating your account…' : 'Create account & save delivery details'}
+              {submitting ? 'Creating your account…' : 'Create account & start shopping'}
             </button>
           </form>
 
