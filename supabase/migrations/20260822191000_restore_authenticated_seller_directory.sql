@@ -1,4 +1,6 @@
-create or replace view public.seller_directory
+drop view if exists public.seller_directory;
+
+create view public.seller_directory
 with (security_barrier = true)
 as
 select
