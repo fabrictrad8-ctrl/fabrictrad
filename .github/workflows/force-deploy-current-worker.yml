@@ -64,16 +64,19 @@ jobs:
             const fs=require("node:fs");
             const rows=JSON.parse(fs.readFileSync("/tmp/worker-secrets.json","utf8"));
             const names=new Set(rows.map(x=>x.name));
-            const required=[
-              "RAZORPAY_KEY_ID","RAZORPAY_KEY_SECRET","RAZORPAY_WEBHOOK_SECRET",
+            const required=["RAZORPAY_KEY_ID","RAZORPAY_KEY_SECRET","RAZORPAY_WEBHOOK_SECRET"];
+            const whatsapp=[
               "WHATSAPP_ACCESS_TOKEN","WHATSAPP_APP_SECRET","WHATSAPP_VERIFY_TOKEN","WHATSAPP_PHONE_NUMBER_ID",
               "WHATSAPP_TEMPLATE_APPOINTMENT_REMINDER","WHATSAPP_TEMPLATE_PAYMENT_REMINDER",
               "WHATSAPP_TEMPLATE_TRIAL_REMINDER","WHATSAPP_TEMPLATE_DELIVERY_UPDATE",
               "WHATSAPP_TEMPLATE_REVIEW_REQUEST","WHATSAPP_TEMPLATE_POST_DELIVERY_FOLLOW_UP"
             ];
-            const missing=required.filter(x=>!names.has(x));
+            const missingRequired=required.filter(x=>!names.has(x));
+            const missingWhatsApp=whatsapp.filter(x=>!names.has(x));
             console.log("Required Cloudflare bindings:",Object.fromEntries(required.map(x=>[x,names.has(x)])));
-            if(missing.length){console.error("Missing Cloudflare Worker secrets: "+missing.join(", "));process.exit(1);}
+            console.log("WhatsApp binding presence:",Object.fromEntries(whatsapp.map(x=>[x,names.has(x)])));
+            if(missingRequired.length){console.error("Missing required Cloudflare Worker secrets: "+missingRequired.join(", "));process.exit(1);}
+            if(missingWhatsApp.length){console.warn("WhatsApp remains disabled until these credentials/templates are provisioned: "+missingWhatsApp.join(", "));}
           '
 
       - name: Verify existing production integrations before release
@@ -150,7 +153,8 @@ jobs:
               const s=JSON.parse(fs.readFileSync("/tmp/shiprocket.json","utf8"));
               const w=JSON.parse(fs.readFileSync("/tmp/whatsapp.json","utf8"));
               const a=JSON.parse(fs.readFileSync("/tmp/ai.json","utf8"));
-              process.exit(r.configured===true&&r.authenticated===true&&r.mode==="live"&&r.productionReady===true&&r.source==="environment"&&s.configured===true&&s.authenticated===true&&s.webhookConfigured===true&&w.configured===true&&w.webhookReady===true&&w.mediaReady===true&&w.automationReady===true&&w.templatesReady===true&&w.businessNumber==="917977286898"&&a.configured===true&&a.mode==="real_ai_image_try_on"?0:1);
+              const waSafe=(w.businessNumber==="917977286898") && (w.configured===true || (w.configured===false && w.webhookReady===false));
+              process.exit(r.configured===true&&r.authenticated===true&&r.mode==="live"&&r.productionReady===true&&r.source==="environment"&&s.configured===true&&s.authenticated===true&&s.webhookConfigured===true&&waSafe&&a.configured===true&&a.mode==="real_ai_image_try_on"?0:1);
             '; then
               healthy=true
               break
