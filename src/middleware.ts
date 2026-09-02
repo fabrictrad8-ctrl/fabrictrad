@@ -135,6 +135,11 @@ export async function middleware(request: NextRequest) {
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = pathname.startsWith('/admin-portal') ? '/admin-login' : '/login';
     loginUrl.search = '';
+    if (pathname === '/custom-order' || pathname.startsWith('/buyer-')) {
+      loginUrl.searchParams.set('role', 'buyer');
+    } else if (pathname.startsWith('/seller-')) {
+      loginUrl.searchParams.set('role', 'seller');
+    }
     loginUrl.searchParams.set('next', `${pathname}${request.nextUrl.search}`);
     return clearStaleSupabaseCookies(
       request,

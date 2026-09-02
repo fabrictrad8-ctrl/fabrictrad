@@ -140,8 +140,8 @@ async function prepareRole(page: Page, role: Role) {
       {
         name: 'fabrictrad_demo_role',
         value: role,
-        url: 'http://127.0.0.1:3000',
-        httpOnly: true,
+        url: 'http://localhost:3000',
+        httpOnly: false,
         sameSite: 'Lax',
       },
     ]);

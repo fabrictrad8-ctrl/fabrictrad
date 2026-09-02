@@ -18,7 +18,7 @@ jobs:
       NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
       NEXT_PUBLIC_SUPABASE_ANON_KEY: test-anon-key
       SUPABASE_SERVICE_ROLE_KEY: test-service-role-key
-      NEXT_PUBLIC_SITE_URL: http://127.0.0.1:3000
+      NEXT_PUBLIC_SITE_URL: http://localhost:3000
       NEXT_PUBLIC_ENABLE_GOOGLE_AUTH: 'false'
       ADMIN_EMAIL: fabrictrad8@gmail.com
       FABRICTRAD_ENABLE_AUDIT_ADMIN: 'true'
