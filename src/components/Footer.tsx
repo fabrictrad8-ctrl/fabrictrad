@@ -8,6 +8,7 @@ const footerGroups = [
     label: 'Shop',
     links: [
       { label: 'Marketplace', href: '/marketplace' },
+      { label: 'Custom order studio', href: '/custom-order' },
       { label: 'Categories', href: '/categories' },
       { label: 'Verified vendors', href: '/vendors' },
       { label: 'Buyer requirements', href: '/buyer-requirements' },

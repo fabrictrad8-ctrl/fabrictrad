@@ -1,4 +1,3 @@
-import { parseCatalogMessage } from '@/lib/catalogAssistant';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { storeKey, storeSuggestionSeeds, validateStoreName } from '@/lib/buyerStores';
 
@@ -83,27 +82,37 @@ export async function sendBuyerWhatsAppText(
 ) {
   const token = process.env.WHATSAPP_ACCESS_TOKEN;
   const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
-  if (!token || !phoneNumberId) return { sent: false, reason: 'not_configured' } as const;
+  if (!token || !phoneNumberId) throw new Error('whatsapp_cloud_api_not_configured');
 
-  const response = await fetch(`https://graph.facebook.com/${GRAPH_VERSION}/${phoneNumberId}/messages`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      messaging_product: 'whatsapp',
-      recipient_type: 'individual',
-      to: toRaw,
-      type: 'text',
-      text: { body: text.slice(0, 4000), preview_url: true },
-    }),
-    cache: 'no-store',
-    signal: AbortSignal.timeout(15_000),
-  }).catch(() => null);
-  if (!response?.ok) return { sent: false, reason: `provider_${response?.status || 0}` } as const;
-
-  const payload = (await response.json().catch(() => ({}))) as { messages?: Array<{ id?: string }> };
+  const response = await fetch(
+    `https://graph.facebook.com/${GRAPH_VERSION}/${phoneNumberId}/messages`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        messaging_product: 'whatsapp',
+        recipient_type: 'individual',
+        to: toRaw,
+        type: 'text',
+        text: { body: text.slice(0, 4000), preview_url: true },
+      }),
+      cache: 'no-store',
+      signal: AbortSignal.timeout(15_000),
+    }
+  ).catch(() => null);
+  if (!response) throw new Error('whatsapp_provider_unreachable');
+  const payload = (await response.json().catch(() => ({}))) as {
+    messages?: Array<{ id?: string }>;
+    error?: { message?: string; code?: number };
+  };
+  if (!response.ok || !payload.messages?.[0]?.id) {
+    throw new Error(
+      String(payload.error?.message || `whatsapp_provider_${response.status || 0}`).slice(0, 1000)
+    );
+  }
   const outboundId = String(payload.messages?.[0]?.id || '').trim();
   if (outboundId) {
     const admin = createAdminClient();
@@ -121,7 +130,7 @@ export async function sendBuyerWhatsAppText(
       })
       .then(() => undefined, () => undefined);
   }
-  return { sent: true, id: outboundId || null } as const;
+  return { sent: true, id: outboundId } as const;
 }
 
 async function downloadImage(mediaId: string) {
@@ -294,7 +303,27 @@ async function createAppointment(input: {
     })
     .select('id,requested_at')
     .single();
-  if (error) throw error;
+  if (error) {
+    if (error.code === '23505') {
+      const { data: racedAppointment } = await input.admin
+        .from('bespoke_appointments')
+        .select('id,requested_at')
+        .eq('bespoke_order_id', input.orderId)
+        .eq('appointment_type', input.appointmentType)
+        .in('status', ['requested', 'confirmed', 'reschedule_requested'])
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (racedAppointment?.id) {
+        return {
+          id: racedAppointment.id,
+          requestedAt: new Date(racedAppointment.requested_at),
+          reused: true,
+        };
+      }
+    }
+    throw error;
+  }
 
   await input.admin.from('bespoke_follow_up_jobs').insert({
     bespoke_order_id: input.orderId,
@@ -327,58 +356,116 @@ export async function handleBuyerWhatsAppMessage(
   if (!waMessageId || !phone) return { handled: false };
 
   const admin = createAdminClient();
-  const text = messageText(message).slice(0, 12_000);
+  const rawText = messageText(message).slice(0, 12_000);
+  const menuChoice = rawText.trim();
+  const naturalCommand =
+    /\bstatus\b.*\bcustom\s+order\b/i.test(menuChoice)
+      ? 'STATUS'
+      : /\b(?:start|place|create|make)\b.*\bcustom\s+order\b/i.test(menuChoice)
+        ? 'CATALOGUE'
+        : /^hi(?:\s+fabrictrad)?[\s!,.]*$/i.test(menuChoice)
+          ? 'HI'
+          : menuChoice;
+  const text =
+    menuChoice === '1'
+      ? 'CATALOGUE'
+      : menuChoice === '2'
+        ? '__STORE_MENU__'
+        : menuChoice === '3'
+          ? 'STATUS'
+          : menuChoice === '4'
+            ? 'HUMAN'
+            : naturalCommand;
   const { data: already } = await admin
     .from('whatsapp_buyer_messages')
-    .select('id')
+    .select('id,processing_status')
     .eq('wa_message_id', waMessageId)
     .maybeSingle();
   if (already?.id) return { handled: true };
 
-  const [{ data: profile }, { data: session }] = await Promise.all([
+  const [{ data: matchingProfiles }, { data: session }] = await Promise.all([
     admin
       .from('user_profiles')
       .select('id,is_active,can_buy,can_sell,full_name')
       .like('phone', `%${phone}`)
       .eq('is_active', true)
-      .limit(1)
-      .maybeSingle(),
+      .limit(2),
     admin.from('whatsapp_buyer_sessions').select('*').eq('whatsapp_phone', phone).maybeSingle(),
   ]);
-  const typedProfile = (profile || null) as UserProfile | null;
+  const ambiguousPhoneIdentity = (matchingProfiles?.length || 0) > 1;
+  const typedProfile = (
+    matchingProfiles?.length === 1 ? matchingProfiles[0] : null
+  ) as UserProfile | null;
 
   if (/^(sell|seller|upload product|catalog upload)\b/i.test(text) && typedProfile?.can_sell === true) {
     if (session) await admin.from('whatsapp_buyer_sessions').delete().eq('whatsapp_phone', phone);
     return { handled: false };
   }
 
-  const parsedSellerDraft = text ? parseCatalogMessage(text) : null;
-  const obviousBuyerIntent =
-    /\b(buy|order|custom|stitch|tailor|catalogue|catalog|fabric|measurement|appointment|store\s*(?:name)?\s*[:=]|status|human|help)\b/i.test(
+  const explicitBuyerIntent =
+    text === '__STORE_MENU__' ||
+    /^(?:hi|hello|hey|menu|start|buy|new(?:\s+order)?|order|custom(?:\s+order)?|stitch|tailor|catalogue|catalog|product|sku|measurement|appointment|store\s*(?:name)?\s*[:=]|status|human|help|support|agent)\b/i.test(
       text
     );
-  if (!session && typedProfile?.can_sell === true && parsedSellerDraft && !obviousBuyerIntent) {
+  // A dual-role account without an active buyer conversation defaults to the
+  // long-standing seller catalogue ingestion path. Buyer mode is entered by a
+  // clear buyer/menu command, and remains active until SELL explicitly exits.
+  if (!session && typedProfile?.can_sell === true && !explicitBuyerIntent) {
     return { handled: false };
   }
 
-  await admin.from('whatsapp_buyer_messages').insert({
+  const { error: messageInsertError } = await admin.from('whatsapp_buyer_messages').insert({
     wa_message_id: waMessageId,
     whatsapp_phone: phone,
     user_id: typedProfile?.id || null,
     bespoke_order_id: session?.active_order_id || null,
     direction: 'inbound',
     message_type: message.type || 'unknown',
-    message_text: text || null,
+    message_text: rawText || null,
     media_id: imageMedia(message)?.id || null,
     processing_status: 'received',
   });
+  if (messageInsertError) {
+    if (messageInsertError.code === '23505') return { handled: true };
+    throw messageInsertError;
+  }
 
-  const requestedStoreName = extractStoreName(text);
+  if (ambiguousPhoneIdentity) {
+    await admin
+      .from('whatsapp_buyer_messages')
+      .update({
+        processing_status: 'needs_human',
+        error_message: 'ambiguous_active_phone_identity',
+      })
+      .eq('wa_message_id', waMessageId);
+    await admin.from('whatsapp_buyer_sessions').upsert({
+      whatsapp_phone: phone,
+      user_id: null,
+      stage: session?.stage || 'catalogue',
+      context: { from_raw: fromRaw },
+      human_handoff_required: true,
+      human_handoff_reason: 'ambiguous_active_phone_identity',
+      last_inbound_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
+    await sendBuyerWhatsAppText(
+      fromRaw,
+      'This mobile number is linked to more than one active FabricTrad account, so automation has stopped safely. Customer service has been flagged to resolve the account identity before any order details are changed.'
+    );
+    return { handled: true };
+  }
+
+  const statedStoreName = extractStoreName(text);
+  const deferredStoreName = String(
+    (session?.context as Record<string, unknown> | null)?.requested_store_name || ''
+  ).trim();
+  const requestedStoreName =
+    statedStoreName || (typedProfile?.can_buy !== false ? deferredStoreName : '');
   if (!typedProfile || typedProfile.can_buy === false) {
     const context = {
       ...(session?.context && typeof session.context === 'object' ? session.context : {}),
       requested_store_name:
-        requestedStoreName ||
+        statedStoreName ||
         (session?.context as Record<string, unknown> | null)?.requested_store_name ||
         null,
       from_raw: fromRaw,
@@ -397,9 +484,36 @@ export async function handleBuyerWhatsAppMessage(
       .eq('wa_message_id', waMessageId);
     await sendBuyerWhatsAppText(
       fromRaw,
-      `${requestedStoreName ? `I saved “${requestedStoreName}” as your requested store name.\n\n` : ''}To attach WhatsApp orders securely, sign in or create a FabricTrad buyer account with this same mobile number (${phone}).\n${SITE_URL}/buyer-registration?type=retail_store\n\nAfter that, send HI here again and I will continue automatically.`,
+      `${statedStoreName ? `I saved “${statedStoreName}” as your requested store name.\n\n` : ''}To attach WhatsApp orders securely, sign in or create a FabricTrad buyer account with this same mobile number (${phone}).\n${SITE_URL}/buyer-registration?type=retail_store\n\nAfter that, send HI here again and I will continue automatically.`,
       null,
       typedProfile?.id || null
+    );
+    return { handled: true };
+  }
+
+  if (text === '__STORE_MENU__') {
+    await admin.from('whatsapp_buyer_sessions').upsert({
+      whatsapp_phone: phone,
+      user_id: typedProfile.id,
+      buyer_store_id: session?.buyer_store_id || null,
+      active_order_id: session?.active_order_id || null,
+      stage: session?.stage || 'catalogue',
+      context: {
+        ...(session?.context && typeof session.context === 'object' ? session.context : {}),
+        from_raw: fromRaw,
+      },
+      last_inbound_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
+    await admin
+      .from('whatsapp_buyer_messages')
+      .update({ processing_status: 'processed' })
+      .eq('wa_message_id', waMessageId);
+    await sendBuyerWhatsAppText(
+      fromRaw,
+      'Reply STORE: followed by your preferred unique store name, for example STORE: Mehta Textiles. I will check availability and suggest close alternatives if it is taken.',
+      session?.active_order_id || null,
+      typedProfile.id
     );
     return { handled: true };
   }
@@ -449,10 +563,10 @@ export async function handleBuyerWhatsAppMessage(
     activeOrder = (data || null) as Record<string, unknown> | null;
   }
 
-  if (
-    /^(new|new order|start over|catalogue|catalog)$/i.test(text) ||
-    (!activeOrder && !requestedStoreName)
-  ) {
+  const startsNewOrder = /^(new|new order|start over)$/i.test(text);
+  const opensCatalogue = /^(catalogue|catalog)$/i.test(text);
+  const informationalCommand = /^(hi|hello|hey|menu|start|status|human|help|support|agent)$/i.test(text);
+  if (startsNewOrder || (!activeOrder && !requestedStoreName && !informationalCommand)) {
     const { data: buyer } = await admin
       .from('buyer_profiles')
       .select('id')
@@ -489,7 +603,11 @@ export async function handleBuyerWhatsAppMessage(
 
   const activeOrderId = String(activeOrder?.id || '') || null;
   const stage = String(activeOrder?.stage || 'catalogue');
-  const context = session?.context && typeof session.context === 'object' ? session.context : {};
+  const context =
+    session?.context && typeof session.context === 'object'
+      ? { ...(session.context as Record<string, unknown>) }
+      : {};
+  if (storeId && requestedStoreName) delete context.requested_store_name;
   const sessionValues = {
     whatsapp_phone: phone,
     user_id: typedProfile.id,
@@ -577,6 +695,21 @@ export async function handleBuyerWhatsAppMessage(
       .update({ processing_status: 'processed' })
       .eq('wa_message_id', waMessageId);
     await sendBuyerWhatsAppText(fromRaw, menu(), null, typedProfile.id);
+    return { handled: true };
+  }
+
+  if (opensCatalogue && !['catalogue', 'product'].includes(stage)) {
+    await admin.from('whatsapp_buyer_sessions').upsert(sessionValues);
+    await admin
+      .from('whatsapp_buyer_messages')
+      .update({ processing_status: 'processed', bespoke_order_id: activeOrderId })
+      .eq('wa_message_id', waMessageId);
+    await sendBuyerWhatsAppText(
+      fromRaw,
+      `Browse the live catalogue without losing your active custom order: ${SITE_URL}/marketplace\n\n${await orderSummary(activeOrder)}\n\nReply NEW ORDER only if you want to start a separate custom order.`,
+      activeOrderId,
+      typedProfile.id
+    );
     return { handled: true };
   }
 
@@ -778,13 +911,13 @@ export async function handleBuyerWhatsAppMessage(
         ? `Your quotation is ₹${quote.toFixed(2)}. ${Number(activeOrder?.advance_amount || 0) > 0 ? `Advance available: ₹${Number(activeOrder?.advance_amount).toFixed(2)}. ` : ''}Reply ADVANCE or FULL, then pay securely on ${SITE_URL}/custom-order?order=${activeOrderId}&pay=1`
         : 'Your design/measurement details are complete. The quotation is being generated from the approved brief.';
   } else if (stage === 'advance_or_full_payment') {
-    if (/\badvance\b/i.test(text) && Number(activeOrder?.advance_amount || 0) > 0) {
+    if (/^advance$/i.test(text.trim()) && Number(activeOrder?.advance_amount || 0) > 0) {
       await admin
         .from('bespoke_orders')
         .update({ payment_choice: 'advance', updated_at: new Date().toISOString() })
         .eq('id', activeOrderId);
       responseText = `Advance selected. Pay securely through FabricTrad Razorpay checkout: ${SITE_URL}/custom-order?order=${activeOrderId}&pay=1&choice=advance`;
-    } else if (/\bfull\b/i.test(text)) {
+    } else if (/^(?:full|pay full)$/i.test(text.trim())) {
       await admin
         .from('bespoke_orders')
         .update({ payment_choice: 'full', updated_at: new Date().toISOString() })
@@ -798,7 +931,7 @@ export async function handleBuyerWhatsAppMessage(
   } else if (stage === 'embroidery') {
     responseText = `Embroidery status: ${String(activeOrder?.embroidery_status || 'not required').replaceAll('_', ' ')}. You will receive the next update automatically.`;
   } else if (stage === 'final_approval') {
-    if (/\bapprove(?:d)?\b/i.test(text)) {
+    if (/^(?:approve|approved|final approve)$/i.test(text.trim())) {
       const quote = Math.max(0, Number(activeOrder?.quoted_amount || 0));
       const paid = Math.max(0, Number(activeOrder?.paid_amount || 0));
       const balance = Math.max(0, Math.round((quote - paid) * 100) / 100);
@@ -835,7 +968,7 @@ export async function handleBuyerWhatsAppMessage(
         ? `Balance due: ₹${balance.toFixed(2)}. Pay securely here: ${SITE_URL}/custom-order?order=${activeOrderId}&pay=1&choice=full`
         : 'Payment is complete. Delivery/pickup is being unlocked.';
   } else if (stage === 'delivery_or_pickup') {
-    if (/\bpick\s*up|pickup\b/i.test(text)) {
+    if (/^(?:pick\s*up|pickup)$/i.test(text.trim())) {
       await admin
         .from('bespoke_orders')
         .update({
@@ -846,7 +979,7 @@ export async function handleBuyerWhatsAppMessage(
         .eq('id', activeOrderId);
       responseText =
         'Pickup preference saved. FabricTrad will send the confirmed pickup instructions. Review unlocks only after staff records the actual handover.';
-    } else if (/\bdeliver(?:y)?\b/i.test(text)) {
+    } else if (/^(?:deliver|delivery)$/i.test(text.trim())) {
       await admin
         .from('bespoke_orders')
         .update({
@@ -861,7 +994,7 @@ export async function handleBuyerWhatsAppMessage(
       responseText = 'Reply DELIVERY to use your FabricTrad address or PICKUP to collect the finished order.';
     }
   } else if (stage === 'review') {
-    const match = text.match(/(?:review\s*)?([1-5])(?:\s*[-:]?\s*(.*))?/i);
+    const match = text.trim().match(/^(?:review\s*)?([1-5])(?:\s*[-:]?\s*(.*))?$/i);
     if (match) {
       const rating = Number(match[1]);
       const review = String(match[2] || '').trim().slice(0, 2000) || null;

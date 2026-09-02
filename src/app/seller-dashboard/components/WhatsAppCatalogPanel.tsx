@@ -37,6 +37,7 @@ type InboxItem = {
 
 type StatusPayload = {
   configured?: boolean;
+  channelReady?: boolean;
   webhookReady?: boolean;
   mediaReady?: boolean;
   businessNumber?: string | null;
@@ -95,6 +96,7 @@ export default function WhatsAppCatalogPanel() {
     const number = status?.businessNumber?.replace(/\D/g, '');
     if (!number) return null;
     const text = [
+      'SELLER CATALOG UPLOAD',
       'FabricTrad catalogue upload',
       'Product = ',
       'Fabric = ',
@@ -121,7 +123,7 @@ export default function WhatsAppCatalogPanel() {
             <p className="text-xs font-800 uppercase tracking-[0.14em] text-[#128C7E]">Phone-first catalog sync</p>
             <h2 className="mt-1 text-lg font-800 text-foreground">WhatsApp → FabricTrad dashboard</h2>
             <p className="mt-1 max-w-2xl text-xs leading-5 text-muted-foreground sm:text-sm">
-              Send a product description, photos or a short reel from the mobile number linked to your seller account. FabricTrad receives it privately and organises the details here.
+              Send a product description, photos or a short reel from the mobile number linked to your seller account. Keep “SELLER CATALOG UPLOAD” at the start so a dual-role account is routed to seller mode, then FabricTrad receives it privately and organises the details here.
             </p>
           </div>
         </div>
@@ -152,7 +154,7 @@ export default function WhatsAppCatalogPanel() {
         </div>
       </div>
 
-      {!status?.configured && (
+      {!status?.channelReady && (
         <div className="border-b border-warning/20 bg-warning/5 px-4 py-3 text-xs leading-5 text-muted-foreground sm:px-5">
           <strong className="text-foreground">Connection status:</strong> FabricTrad's webhook and dashboard path are installed, but the official Meta WhatsApp Business credentials/number still need to be configured before real messages can arrive.
         </div>

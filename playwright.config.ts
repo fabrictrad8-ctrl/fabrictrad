@@ -22,7 +22,7 @@ export default defineConfig({
     colorScheme: 'dark',
   },
   webServer: {
-    command: 'npm run start',
+    command: './node_modules/.bin/next start -H 127.0.0.1 -p 3000',
     url: 'http://127.0.0.1:3000/login',
     reuseExistingServer: !process.env.CI,
     timeout: 60_000,

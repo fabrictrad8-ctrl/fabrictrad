@@ -101,6 +101,15 @@ export async function POST(request: NextRequest, context: RouteContext) {
     .select('*')
     .single();
   if (appointmentError || !appointment) {
+    if (appointmentError?.code === '23505') {
+      return json(
+        {
+          error: `A ${requiredType.replaceAll('_', ' ')} appointment is already active.`,
+          code: 'APPOINTMENT_ALREADY_ACTIVE',
+        },
+        409
+      );
+    }
     return json({ error: appointmentError?.message || 'Appointment could not be requested.' }, 500);
   }
 

@@ -109,7 +109,22 @@ const installLocalAuditAuth = <T extends ReturnType<typeof createBrowserClient>>
     user: auditUser,
   };
 
-  const auth = client.auth as any;
+  type AuditAuthOverrides = {
+    getSession: () => Promise<{ data: { session: typeof auditSession }; error: null }>;
+    getUser: () => Promise<{ data: { user: typeof auditUser }; error: null }>;
+    onAuthStateChange: (
+      callback: (event: string, session: typeof auditSession) => void
+    ) => {
+      data: {
+        subscription: {
+          id: string;
+          callback: (event: string, session: typeof auditSession) => void;
+          unsubscribe: () => undefined;
+        };
+      };
+    };
+  };
+  const auth = (client as unknown as { auth: AuditAuthOverrides }).auth;
   auth.getSession = async () => ({ data: { session: auditSession }, error: null });
   auth.getUser = async () => ({ data: { user: auditUser }, error: null });
   auth.onAuthStateChange = (callback: (event: string, session: typeof auditSession) => void) => {

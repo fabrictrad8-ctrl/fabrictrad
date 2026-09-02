@@ -200,6 +200,12 @@ export default function AdminBespokeOrders() {
         <div className="space-y-4">
           {orders.map((order) => {
             const activeAppointments = (order.appointments || []).filter((item) => ['requested', 'confirmed', 'reschedule_requested'].includes(item.status));
+            const trialCompleted = (order.appointments || []).some(
+              (item) => item.appointment_type === 'trial_fitting' && item.status === 'completed'
+            );
+            const alterationCompleted = (order.appointments || []).some(
+              (item) => item.appointment_type === 'alteration' && item.status === 'completed'
+            );
             const draft = quoteDrafts[order.id] || { total: '', advance: '0', notes: '' };
             const isBusy = busyId === order.id;
             return (
@@ -265,10 +271,10 @@ export default function AdminBespokeOrders() {
                 )}
 
                 <div className="mt-4 flex flex-wrap gap-2">
-                  {order.stage === 'stitching' && <><Action primary disabled={isBusy} onClick={() => transition(order.id, 'start_stitching', {}, 'Stitching marked in progress.')} label="Start stitching" /><Action disabled={isBusy} onClick={() => transition(order.id, 'stitching_to_embroidery', {}, 'Stitching complete; embroidery queued.')} label="Complete → embroidery" /><Action disabled={isBusy} onClick={() => transition(order.id, 'stitching_to_trial', {}, 'Stitching complete; trial/fitting required.')} label="Complete → trial" /></>}
-                  {order.stage === 'embroidery' && <><Action primary disabled={isBusy} onClick={() => transition(order.id, 'start_embroidery', {}, 'Embroidery marked in progress.')} label="Start embroidery" /><Action disabled={isBusy} onClick={() => transition(order.id, 'embroidery_to_trial', {}, 'Embroidery complete; trial/fitting required.')} label="Complete → trial" /></>}
-                  {order.stage === 'trial' && <><Action primary disabled={isBusy} onClick={() => transition(order.id, 'trial_passed', {}, 'Trial passed; awaiting buyer final approval.')} label="Trial passed" /><Action disabled={isBusy} onClick={() => transition(order.id, 'trial_needs_alteration', {}, 'Alteration checkpoint opened.')} label="Needs alteration" /></>}
-                  {order.stage === 'alteration' && <Action primary disabled={isBusy} onClick={() => transition(order.id, 'alteration_completed', {}, 'Alteration completed; awaiting final approval.')} label="Alteration complete" />}
+                  {order.stage === 'stitching' && <><Action primary disabled={isBusy || order.stitching_status === 'in_progress'} onClick={() => transition(order.id, 'start_stitching', {}, 'Stitching marked in progress.')} label={order.stitching_status === 'in_progress' ? 'Stitching in progress' : 'Start stitching'} /><Action disabled={isBusy || order.stitching_status !== 'in_progress'} onClick={() => transition(order.id, 'stitching_to_embroidery', {}, 'Stitching complete; embroidery queued.')} label="Complete → embroidery" /><Action disabled={isBusy || order.stitching_status !== 'in_progress'} onClick={() => transition(order.id, 'stitching_to_trial', {}, 'Stitching complete; trial/fitting required.')} label="Complete → trial" /></>}
+                  {order.stage === 'embroidery' && <><Action primary disabled={isBusy || order.embroidery_status === 'in_progress'} onClick={() => transition(order.id, 'start_embroidery', {}, 'Embroidery marked in progress.')} label={order.embroidery_status === 'in_progress' ? 'Embroidery in progress' : 'Start embroidery'} /><Action disabled={isBusy || order.embroidery_status !== 'in_progress'} onClick={() => transition(order.id, 'embroidery_to_trial', {}, 'Embroidery complete; trial/fitting required.')} label="Complete → trial" /></>}
+                  {order.stage === 'trial' && <><Action primary disabled={isBusy || !trialCompleted} onClick={() => transition(order.id, 'trial_passed', {}, 'Trial passed; awaiting buyer final approval.')} label={trialCompleted ? 'Trial passed' : 'Complete fitting first'} /><Action disabled={isBusy || !trialCompleted} onClick={() => transition(order.id, 'trial_needs_alteration', {}, 'Alteration checkpoint opened.')} label="Needs alteration" /></>}
+                  {order.stage === 'alteration' && <Action primary disabled={isBusy || !alterationCompleted} onClick={() => transition(order.id, 'alteration_completed', {}, 'Alteration completed; awaiting final approval.')} label={alterationCompleted ? 'Alteration complete' : 'Complete alteration appointment first'} />}
                   {order.stage === 'delivery_or_pickup' && <Action primary disabled={isBusy || !order.delivery_mode} onClick={() => transition(order.id, 'mark_handed_over', {}, 'Handover recorded; review request queued.')} label={order.delivery_mode ? `Mark ${order.delivery_mode} handed over` : 'Waiting for buyer delivery choice'} />}
                 </div>
 

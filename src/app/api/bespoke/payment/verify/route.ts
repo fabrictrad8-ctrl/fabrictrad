@@ -3,6 +3,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 import { getRazorpayCredentials } from '@/lib/razorpayCredentials';
+import {
+  recordBespokePaymentAuthorization,
+  recordBespokePaymentCapture,
+  type BespokePaymentLedger,
+  type RazorpayPaymentEntity,
+} from '@/lib/server/bespokePaymentReconciliation';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -53,7 +59,7 @@ export async function POST(request: NextRequest) {
       .maybeSingle(),
     admin
       .from('bespoke_payments')
-      .select('id,bespoke_order_id,user_id,razorpay_order_id,razorpay_payment_id,payment_purpose,amount,currency,status')
+      .select('id,bespoke_order_id,user_id,razorpay_order_id,razorpay_payment_id,payment_purpose,amount,currency,status,refunded_amount,refund_status,last_refund_id')
       .eq('bespoke_order_id', orderId)
       .eq('user_id', auth.user.id)
       .eq('razorpay_order_id', razorpayOrderId)
@@ -65,10 +71,9 @@ export async function POST(request: NextRequest) {
     return json({ error: 'Payment order does not match the active custom-order checkout.' }, 409);
   }
 
-  if (ledger.razorpay_payment_id === paymentId && ledger.status === 'captured') {
-    const { data: current } = await admin.from('bespoke_orders').select('*').eq('id', orderId).single();
-    return json({ verified: true, order: current || order, orderId, alreadyProcessed: true });
-  }
+  const alreadyProcessed =
+    ledger.razorpay_payment_id === paymentId &&
+    ['captured', 'partially_refunded', 'refunded'].includes(String(ledger.status));
 
   const { data: duplicatePayment } = await admin
     .from('bespoke_payments')
@@ -91,13 +96,7 @@ export async function POST(request: NextRequest) {
     }
   ).catch(() => null);
   if (!providerResponse) return json({ error: 'Razorpay could not be reached for verification.' }, 503);
-  const provider = (await providerResponse.json().catch(() => ({}))) as {
-    id?: string;
-    order_id?: string;
-    amount?: number;
-    currency?: string;
-    status?: string;
-    captured?: boolean;
+  const provider = (await providerResponse.json().catch(() => ({}))) as RazorpayPaymentEntity & {
     error?: { description?: string };
   };
   if (!providerResponse.ok) {
@@ -114,16 +113,22 @@ export async function POST(request: NextRequest) {
   }
   if (providerStatus !== 'captured' && provider.captured !== true) {
     const authorized = providerStatus === 'authorized';
-    await admin
-      .from('bespoke_payments')
-      .update({
-        razorpay_payment_id: authorized ? paymentId : ledger.razorpay_payment_id,
-        status: authorized ? 'authorized' : 'initiated',
-        provider_status: providerStatus || 'unknown',
-        provider_payload: provider,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', ledger.id);
+    if (authorized) {
+      await recordBespokePaymentAuthorization(admin, {
+        ledger: ledger as BespokePaymentLedger,
+        entity: provider,
+        eventType: 'browser.payment.authorized',
+      });
+    } else {
+      await admin
+        .from('bespoke_payments')
+        .update({
+          provider_status: providerStatus || 'unknown',
+          provider_payload: provider,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', ledger.id);
+    }
     return json(
       {
         error: 'Razorpay has authorized the payment but has not confirmed capture yet. Refresh shortly; FabricTrad will not mark an uncaptured payment as paid.',
@@ -138,90 +143,32 @@ export async function POST(request: NextRequest) {
     return json({ error: 'Verified payment amount does not match the reserved amount.' }, 409);
   }
 
-  const now = new Date().toISOString();
-  const { data: capturedLedger, error: captureError } = await admin
-    .from('bespoke_payments')
-    .update({
-      razorpay_payment_id: paymentId,
-      status: 'captured',
-      provider_status: providerStatus || 'captured',
-      provider_payload: provider,
-      captured_at: now,
-      updated_at: now,
-    })
-    .eq('id', ledger.id)
-    .eq('status', ledger.status)
-    .select('id')
-    .maybeSingle();
-  if (captureError) {
-    if (captureError.code === '23505') {
+  let reconciliation;
+  try {
+    reconciliation = await recordBespokePaymentCapture(admin, {
+      ledger: ledger as BespokePaymentLedger,
+      entity: provider,
+      eventType: 'browser.payment.captured',
+    });
+  } catch (error) {
+    const code = (error as { code?: string } | null)?.code;
+    if (code === '23505') {
       return json({ error: 'This Razorpay payment has already been reconciled.' }, 409);
     }
-    return json({ error: 'Payment is captured but the FabricTrad ledger could not be updated.' }, 500);
+    console.error('Bespoke browser payment reconciliation failed', {
+      orderId,
+      paymentId,
+      error: error instanceof Error ? error.message : 'unknown',
+    });
+    return json({ error: 'Payment is captured but the custom order could not be reconciled.' }, 500);
   }
-  if (!capturedLedger?.id) {
-    const { data: currentLedger } = await admin
-      .from('bespoke_payments')
-      .select('razorpay_payment_id,status')
-      .eq('id', ledger.id)
-      .maybeSingle();
-    if (currentLedger?.razorpay_payment_id === paymentId && currentLedger.status === 'captured') {
-      const { data: currentOrder } = await admin.from('bespoke_orders').select('*').eq('id', orderId).single();
-      return json({ verified: true, order: currentOrder || order, orderId, alreadyProcessed: true });
-    }
-    return json({ error: 'Payment reconciliation changed concurrently. Refresh the order status.' }, 409);
-  }
-
-  const { data: capturedPayments, error: sumError } = await admin
-    .from('bespoke_payments')
-    .select('amount')
-    .eq('bespoke_order_id', orderId)
-    .eq('status', 'captured');
-  if (sumError) return json({ error: 'Captured payment total could not be reconciled.' }, 500);
-
-  const quoted = roundMoney(Number(order.quoted_amount || 0));
-  const ledgerPaid = roundMoney(
-    (capturedPayments || []).reduce((total, row) => total + Number(row.amount || 0), 0)
-  );
-  const newPaid = Math.min(quoted, ledgerPaid);
-  const remaining = Math.max(0, roundMoney(quoted - newPaid));
-  const fullyPaid = quoted > 0 && remaining < 0.01;
-  const wasBalanceStage = order.stage === 'balance_payment';
-  const nextStage = wasBalanceStage && fullyPaid ? 'delivery_or_pickup' : 'stitching';
-  const updateValues: Record<string, unknown> = {
-    razorpay_payment_id: paymentId,
-    paid_amount: newPaid,
-    balance_amount: remaining,
-    payment_status: fullyPaid ? 'paid' : 'part_paid',
-    stage: nextStage,
-    human_action_required: false,
-    human_action_reason: null,
-    updated_at: now,
-  };
-  if (nextStage === 'stitching') updateValues.stitching_status = 'queued';
-
-  const { data: updated, error: updateError } = await admin
-    .from('bespoke_orders')
-    .update(updateValues)
-    .eq('id', orderId)
-    .select('*')
-    .single();
-  if (updateError) {
-    return json({ error: 'Payment is captured but the order could not be reconciled.' }, 500);
-  }
-
-  await admin
-    .from('bespoke_follow_up_jobs')
-    .update({ status: 'cancelled', updated_at: now })
-    .eq('bespoke_order_id', orderId)
-    .eq('job_type', 'payment_reminder')
-    .eq('status', 'pending');
 
   return json({
     verified: true,
-    order: updated,
-    paidAmount: newPaid,
-    balanceAmount: remaining,
-    fullyPaid,
+    order: reconciliation.order,
+    paidAmount: reconciliation.paidAmount,
+    balanceAmount: reconciliation.balanceAmount,
+    fullyPaid: reconciliation.fullyPaid,
+    alreadyProcessed,
   });
 }

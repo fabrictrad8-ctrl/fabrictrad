@@ -7,8 +7,7 @@ export const normalizeStoreName = (value: unknown) =>
   (typeof value === 'string' ? value : '')
     .normalize('NFKC')
     .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, 80);
+    .trim();
 
 export const storeKey = (value: unknown) =>
   normalizeStoreName(value)
@@ -45,7 +44,7 @@ export const validateStoreName = (value: unknown) => {
 };
 
 export const storeSuggestionSeeds = (value: unknown): StoreNameSuggestion[] => {
-  const base = normalizeStoreName(value) || 'Fabric Store';
+  const base = (normalizeStoreName(value) || 'Fabric Store').slice(0, 60).trim();
   const seeds = [
     `${base} India`,
     `The ${base}`,

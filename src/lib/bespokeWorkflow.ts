@@ -72,5 +72,5 @@ export const canMoveToStage = (from: BespokeStage, to: BespokeStage) => {
 export const publicWhatsAppNumber = () =>
   String(process.env.NEXT_PUBLIC_WHATSAPP_BUSINESS_NUMBER || '917977286898').replace(/\D/g, '');
 
-export const whatsappStartUrl = (message = 'Hi FabricTrad, I want to place a custom order') =>
+export const whatsappStartUrl = (message = 'CATALOGUE') =>
   `https://wa.me/${publicWhatsAppNumber()}?text=${encodeURIComponent(message)}`;

@@ -3,6 +3,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { paiseToRupees, rupeesToPaise } from '@/lib/razorpayIntegrity';
 import { ensureAutomaticInvoice } from '@/lib/server/automaticInvoice';
+import {
+  findBespokePaymentByOrder,
+  findBespokePaymentByPaymentId,
+  recordBespokePaymentAuthorization,
+  recordBespokePaymentCapture,
+  recordBespokePaymentFailure,
+  recordBespokeRefund,
+} from '@/lib/server/bespokePaymentReconciliation';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -245,95 +253,121 @@ export async function POST(request: NextRequest) {
       const razorpayPaymentId = String(entity.id || '');
       if (!razorpayOrderId || !razorpayPaymentId) throw new Error('Payment identifiers missing.');
 
-      const payment = await findPaymentByOrder(razorpayOrderId);
-      if (!payment) throw new Error('FabricTrad payment record not found.');
-      if (String(entity.currency || '') !== payment.currency) {
-        throw new Error('Webhook currency does not match the stored payment.');
-      }
-      if (Number(entity.amount || 0) !== rupeesToPaise(payment.amount)) {
-        throw new Error('Webhook amount does not match the stored FabricTrad payment.');
-      }
-
       const captured = eventType === 'payment.captured' || entity.captured === true;
-      const timestamp = new Date().toISOString();
-      const paymentTable =
-        payment.kind === 'bulk' ? 'bulk_order_payments' : 'catalog_order_payments';
-      const { error: paymentError } = await admin
-        .from(paymentTable)
-        .update({
-          razorpay_payment_id: razorpayPaymentId,
-          status: captured ? 'captured' : 'authorized',
-          captured_amount: captured ? paiseToRupees(Number(entity.amount || 0)) : null,
-          payment_method: entity.method ? String(entity.method) : null,
-          razorpay_fee_actual: paiseToRupees(Number(entity.fee || 0)),
-          razorpay_tax_actual: paiseToRupees(Number(entity.tax || 0)),
-          captured_at: captured ? timestamp : null,
-          failure_reason: null,
-          last_webhook_event: eventType,
-          last_webhook_at: timestamp,
-          updated_at: timestamp,
-        })
-        .eq('id', payment.id);
-      if (paymentError) throw paymentError;
-
-      if (captured) {
-        const reconciliation = await reconcileOrder(payment);
-        const { error: splitError } = await admin.from('taxation_splits').upsert(
-          {
-            order_id: payment.fabrictradOrderId,
-            transaction_id: razorpayPaymentId,
-            gross_amount: payment.amount,
-            gst_amount: reconciliation.gstAmount,
-            gst_rate: reconciliation.effectiveGstRate,
-            platform_fee: payment.platformCommission,
-            seller_payout: payment.sellerPayable,
-            status: 'processed',
-            split_at: timestamp,
-          },
-          { onConflict: 'transaction_id' }
-        );
-        if (splitError) throw splitError;
-
-        if (reconciliation.paymentStatus === 'paid') {
-          // Invoice/email failures must not roll back a successfully captured payment.
-          // The helper is idempotent and records its own delivery state for retry/audit.
-          await ensureAutomaticInvoice({
-            admin,
-            kind: payment.kind,
-            orderId: payment.fabrictradOrderId,
-            paymentId: razorpayPaymentId,
-            capturedAt: timestamp,
+      const bespokePayment = await findBespokePaymentByOrder(admin, razorpayOrderId);
+      if (bespokePayment) {
+        if (captured) {
+          await recordBespokePaymentCapture(admin, {
+            ledger: bespokePayment,
+            entity,
+            eventType,
           });
+        } else {
+          await recordBespokePaymentAuthorization(admin, {
+            ledger: bespokePayment,
+            entity,
+            eventType,
+          });
+        }
+      } else {
+        const payment = await findPaymentByOrder(razorpayOrderId);
+        if (!payment) throw new Error('FabricTrad payment record not found.');
+        if (String(entity.currency || '') !== payment.currency) {
+          throw new Error('Webhook currency does not match the stored payment.');
+        }
+        if (Number(entity.amount || 0) !== rupeesToPaise(payment.amount)) {
+          throw new Error('Webhook amount does not match the stored FabricTrad payment.');
+        }
+
+        const timestamp = new Date().toISOString();
+        const paymentTable =
+          payment.kind === 'bulk' ? 'bulk_order_payments' : 'catalog_order_payments';
+        const { error: paymentError } = await admin
+          .from(paymentTable)
+          .update({
+            razorpay_payment_id: razorpayPaymentId,
+            status: captured ? 'captured' : 'authorized',
+            captured_amount: captured ? paiseToRupees(Number(entity.amount || 0)) : null,
+            payment_method: entity.method ? String(entity.method) : null,
+            razorpay_fee_actual: paiseToRupees(Number(entity.fee || 0)),
+            razorpay_tax_actual: paiseToRupees(Number(entity.tax || 0)),
+            captured_at: captured ? timestamp : null,
+            failure_reason: null,
+            last_webhook_event: eventType,
+            last_webhook_at: timestamp,
+            updated_at: timestamp,
+          })
+          .eq('id', payment.id);
+        if (paymentError) throw paymentError;
+
+        if (captured) {
+          const reconciliation = await reconcileOrder(payment);
+          const { error: splitError } = await admin.from('taxation_splits').upsert(
+            {
+              order_id: payment.fabrictradOrderId,
+              transaction_id: razorpayPaymentId,
+              gross_amount: payment.amount,
+              gst_amount: reconciliation.gstAmount,
+              gst_rate: reconciliation.effectiveGstRate,
+              platform_fee: payment.platformCommission,
+              seller_payout: payment.sellerPayable,
+              status: 'processed',
+              split_at: timestamp,
+            },
+            { onConflict: 'transaction_id' }
+          );
+          if (splitError) throw splitError;
+
+          if (reconciliation.paymentStatus === 'paid') {
+            // Invoice/email failures must not roll back a successfully captured payment.
+            // The helper is idempotent and records its own delivery state for retry/audit.
+            await ensureAutomaticInvoice({
+              admin,
+              kind: payment.kind,
+              orderId: payment.fabrictradOrderId,
+              paymentId: razorpayPaymentId,
+              capturedAt: timestamp,
+            });
+          }
         }
       }
     } else if (eventType === 'payment.failed') {
       const entity = entityFrom(event, 'payment');
       const razorpayOrderId = String(entity.order_id || '');
       if (!razorpayOrderId) throw new Error('Payment order identifier missing.');
-      const payment = await findPaymentByOrder(razorpayOrderId);
-      if (!payment) throw new Error('FabricTrad payment record not found.');
-      const table = payment.kind === 'bulk' ? 'bulk_order_payments' : 'catalog_order_payments';
-      const timestamp = new Date().toISOString();
-      const { error } = await admin
-        .from(table)
-        .update({
-          status: 'failed',
-          razorpay_payment_id: entity.id ? String(entity.id) : null,
-          payment_method: entity.method ? String(entity.method) : null,
-          failure_reason: String(entity.error_description || 'Payment failed').slice(0, 1000),
-          last_webhook_event: eventType,
-          last_webhook_at: timestamp,
-          updated_at: timestamp,
-        })
-        .eq('id', payment.id);
-      if (error) throw error;
+      const bespokePayment = await findBespokePaymentByOrder(admin, razorpayOrderId);
+      if (bespokePayment) {
+        await recordBespokePaymentFailure(admin, {
+          ledger: bespokePayment,
+          entity,
+          eventType,
+        });
+      } else {
+        const payment = await findPaymentByOrder(razorpayOrderId);
+        if (!payment) throw new Error('FabricTrad payment record not found.');
+        const table = payment.kind === 'bulk' ? 'bulk_order_payments' : 'catalog_order_payments';
+        const timestamp = new Date().toISOString();
+        const { error } = await admin
+          .from(table)
+          .update({
+            status: 'failed',
+            razorpay_payment_id: entity.id ? String(entity.id) : null,
+            payment_method: entity.method ? String(entity.method) : null,
+            failure_reason: String(entity.error_description || 'Payment failed').slice(0, 1000),
+            last_webhook_event: eventType,
+            last_webhook_at: timestamp,
+            updated_at: timestamp,
+          })
+          .eq('id', payment.id);
+        if (error) throw error;
 
-      const orderTable = payment.kind === 'bulk' ? 'bulk_orders' : 'catalog_order_requests';
-      await admin
-        .from(orderTable)
-        .update({ payment_status: 'failed', updated_at: timestamp })
-        .eq('id', payment.fabrictradOrderId)
-        .eq('amount_paid', 0);
+        const orderTable = payment.kind === 'bulk' ? 'bulk_orders' : 'catalog_order_requests';
+        await admin
+          .from(orderTable)
+          .update({ payment_status: 'failed', updated_at: timestamp })
+          .eq('id', payment.fabrictradOrderId)
+          .eq('amount_paid', 0);
+      }
     } else if (
       eventType === 'refund.created' ||
       eventType === 'refund.processed' ||
@@ -346,71 +380,80 @@ export async function POST(request: NextRequest) {
       if (!paymentId || !refundId || refundAmount <= 0) {
         throw new Error('Refund identifiers or amount are missing.');
       }
-      const payment = await findPaymentByPaymentId(paymentId);
-      if (!payment) throw new Error('FabricTrad payment record for refund not found.');
-      if (refundAmount > roundMoney(payment.amount - payment.refundedAmount)) {
-        throw new Error('Refund webhook amount exceeds the stored refundable balance.');
-      }
-
-      const table = payment.kind === 'bulk' ? 'bulk_order_payments' : 'catalog_order_payments';
-      const timestamp = new Date().toISOString();
-      if (eventType === 'refund.created') {
-        const { error } = await admin
-          .from(table)
-          .update({
-            refund_status: 'requested',
-            refund_requested_amount: refundAmount,
-            last_refund_request_id: refundId,
-            last_webhook_event: eventType,
-            last_webhook_at: timestamp,
-            updated_at: timestamp,
-          })
-          .eq('id', payment.id);
-        if (error) throw error;
-      } else if (eventType === 'refund.failed') {
-        const { error } = await admin
-          .from(table)
-          .update({
-            refund_status: 'failed',
-            refund_requested_amount: 0,
-            last_refund_request_id: refundId,
-            failure_reason: String(entity.error_description || 'Refund failed').slice(0, 1000),
-            last_webhook_event: eventType,
-            last_webhook_at: timestamp,
-            updated_at: timestamp,
-          })
-          .eq('id', payment.id);
-        if (error) throw error;
+      const bespokePayment = await findBespokePaymentByPaymentId(admin, paymentId);
+      if (bespokePayment) {
+        await recordBespokeRefund(admin, {
+          ledger: bespokePayment,
+          entity,
+          eventType,
+        });
       } else {
-        const nextRefunded = Math.min(
-          payment.amount,
-          roundMoney(payment.refundedAmount + refundAmount)
-        );
-        const nextStatus =
-          nextRefunded + 0.01 >= payment.amount ? 'refunded' : 'partially_refunded';
-        const { error } = await admin
-          .from(table)
-          .update({
-            status: nextStatus,
-            refunded_amount: nextRefunded,
-            refund_status: 'processed',
-            refund_requested_amount: 0,
-            last_refund_request_id: refundId,
-            last_webhook_event: eventType,
-            last_webhook_at: timestamp,
-            updated_at: timestamp,
-          })
-          .eq('id', payment.id);
-        if (error) throw error;
-        await reconcileOrder({ ...payment, refundedAmount: nextRefunded });
+        const payment = await findPaymentByPaymentId(paymentId);
+        if (!payment) throw new Error('FabricTrad payment record for refund not found.');
+        if (refundAmount > roundMoney(payment.amount - payment.refundedAmount)) {
+          throw new Error('Refund webhook amount exceeds the stored refundable balance.');
+        }
 
-        await admin
-          .from('payment_ledger')
-          .update({
-            razorpay_refund_id: refundId,
-            reconciliation_status: 'pending',
-          })
-          .eq('razorpay_payment_id', paymentId);
+        const table = payment.kind === 'bulk' ? 'bulk_order_payments' : 'catalog_order_payments';
+        const timestamp = new Date().toISOString();
+        if (eventType === 'refund.created') {
+          const { error } = await admin
+            .from(table)
+            .update({
+              refund_status: 'requested',
+              refund_requested_amount: refundAmount,
+              last_refund_request_id: refundId,
+              last_webhook_event: eventType,
+              last_webhook_at: timestamp,
+              updated_at: timestamp,
+            })
+            .eq('id', payment.id);
+          if (error) throw error;
+        } else if (eventType === 'refund.failed') {
+          const { error } = await admin
+            .from(table)
+            .update({
+              refund_status: 'failed',
+              refund_requested_amount: 0,
+              last_refund_request_id: refundId,
+              failure_reason: String(entity.error_description || 'Refund failed').slice(0, 1000),
+              last_webhook_event: eventType,
+              last_webhook_at: timestamp,
+              updated_at: timestamp,
+            })
+            .eq('id', payment.id);
+          if (error) throw error;
+        } else {
+          const nextRefunded = Math.min(
+            payment.amount,
+            roundMoney(payment.refundedAmount + refundAmount)
+          );
+          const nextStatus =
+            nextRefunded + 0.01 >= payment.amount ? 'refunded' : 'partially_refunded';
+          const { error } = await admin
+            .from(table)
+            .update({
+              status: nextStatus,
+              refunded_amount: nextRefunded,
+              refund_status: 'processed',
+              refund_requested_amount: 0,
+              last_refund_request_id: refundId,
+              last_webhook_event: eventType,
+              last_webhook_at: timestamp,
+              updated_at: timestamp,
+            })
+            .eq('id', payment.id);
+          if (error) throw error;
+          await reconcileOrder({ ...payment, refundedAmount: nextRefunded });
+
+          await admin
+            .from('payment_ledger')
+            .update({
+              razorpay_refund_id: refundId,
+              reconciliation_status: 'pending',
+            })
+            .eq('razorpay_payment_id', paymentId);
+        }
       }
     } else if (eventType === 'transfer.processed') {
       const entity = entityFrom(event, 'transfer');

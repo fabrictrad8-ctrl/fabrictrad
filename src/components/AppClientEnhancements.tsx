@@ -111,6 +111,13 @@ export default function AppClientEnhancements() {
             keywords: 'buyer dashboard orders tracking wishlist',
           },
           {
+            label: 'Custom order studio',
+            description: 'Continue a tailoring order on web or WhatsApp',
+            href: '/custom-order',
+            icon: 'ChatBubbleLeftRightIcon',
+            keywords: 'custom bespoke tailoring whatsapp measurement fitting',
+          },
+          {
             label: 'Company purchasing',
             description: 'Locations, PO rules, payment terms and reorders',
             href: '/buyer-dashboard?tab=company',

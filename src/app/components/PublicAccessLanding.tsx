@@ -6,6 +6,7 @@ import Icon from '@/components/ui/AppIcon';
 import PreferenceControls from '@/components/PreferenceControls';
 import { useAppPreferences } from '@/contexts/AppPreferencesContext';
 import { getPublicLandingCopy } from '@/lib/publicLandingTranslations';
+import { whatsappStartUrl } from '@/lib/bespokeWorkflow';
 
 const capabilityIcons = ['MagnifyingGlassIcon', 'BuildingStorefrontIcon', 'SparklesIcon'] as const;
 const trustIcons = ['ShieldCheckIcon', 'CreditCardIcon', 'TruckIcon'] as const;
@@ -26,6 +27,7 @@ export default function PublicAccessLanding() {
           <nav className="ft-future-navlinks" aria-label="Public navigation">
             <a href="#platform">{copy.navPlatform}</a>
             <a href="#capabilities">{copy.navCapabilities}</a>
+            <Link href="/custom-order">Custom order</Link>
             <Link href="/how-to-use/start">{copy.navHowToUse}</Link>
             <a href="#trust">{copy.navTrust}</a>
           </nav>
@@ -63,6 +65,14 @@ export default function PublicAccessLanding() {
             <Link href="/how-to-use/start" className="ft-secondary-action rounded-xl">
               {copy.watchHowItWorks}
             </Link>
+            <a
+              href={whatsappStartUrl()}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#25D366] px-5 py-3 text-sm font-850 text-white shadow-sm transition hover:brightness-95"
+            >
+              <Icon name="ChatBubbleLeftRightIcon" size={17} /> WhatsApp +91 79772 86898
+            </a>
           </div>
 
           <div className="ft-future-trustline">
@@ -180,6 +190,7 @@ export default function PublicAccessLanding() {
           <nav className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-slate-600" aria-label="Footer navigation">
             <Link href="/how-to-use/start" className="hover:text-slate-950">{copy.footerHowToUse}</Link>
             <Link href="/help" className="hover:text-slate-950">{copy.footerHelp}</Link>
+            <Link href="/custom-order" className="hover:text-slate-950">Custom order</Link>
             <Link href="/privacy" className="hover:text-slate-950">{copy.footerPrivacy}</Link>
             <Link href="/terms" className="hover:text-slate-950">{copy.footerTerms}</Link>
             <Link href="/login" className="font-800 text-orange-700 hover:text-orange-900">{copy.signIn}</Link>

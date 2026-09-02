@@ -211,6 +211,9 @@ async function processOne(job: FollowUpJob) {
       (job.job_type === 'payment_reminder' && !['advance_or_full_payment', 'balance_payment'].includes(String(order.stage))) ||
       (job.job_type === 'review_request' && String(order.stage) !== 'review') ||
       (job.job_type === 'post_delivery_follow_up' && !['follow_up', 'completed'].includes(String(order.stage))) ||
+      (job.job_type === 'delivery_update' &&
+        job.payload?.expected_stage &&
+        String(order.stage) !== String(job.payload.expected_stage)) ||
       (['appointment_reminder', 'trial_reminder'].includes(job.job_type) && appointment && ['completed', 'cancelled', 'no_show'].includes(String(appointment.status)))
     ) {
       await admin.from('bespoke_follow_up_jobs').update({ status: 'cancelled', updated_at: new Date().toISOString() }).eq('id', job.id);
@@ -285,6 +288,34 @@ async function processOne(job: FollowUpJob) {
 
 export async function processDueBespokeFollowUps(limit = 40) {
   const admin = createAdminClient();
+  const staleBefore = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+  const recoveredAt = new Date().toISOString();
+  // A Worker can be terminated after claiming a job. Reclaim stale work so a
+  // transient runtime failure cannot leave an automated message stuck forever.
+  const { error: recoveryError } = await admin
+    .from('bespoke_follow_up_jobs')
+    .update({
+      status: 'pending',
+      due_at: recoveredAt,
+      last_error: 'stale_processing_claim_recovered',
+      updated_at: recoveredAt,
+    })
+    .eq('status', 'processing')
+    .lt('updated_at', staleBefore)
+    .lt('attempts', 5);
+  if (recoveryError) throw recoveryError;
+  const { error: exhaustedRecoveryError } = await admin
+    .from('bespoke_follow_up_jobs')
+    .update({
+      status: 'failed',
+      last_error: 'stale_processing_claim_exhausted',
+      updated_at: recoveredAt,
+    })
+    .eq('status', 'processing')
+    .lt('updated_at', staleBefore)
+    .gte('attempts', 5);
+  if (exhaustedRecoveryError) throw exhaustedRecoveryError;
+
   const { data, error } = await admin
     .from('bespoke_follow_up_jobs')
     .select('id,bespoke_order_id,user_id,whatsapp_phone,job_type,due_at,payload,attempts')

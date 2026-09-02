@@ -157,6 +157,16 @@ async function finalizeWithSignupNonce(
     return json(data as Record<string, unknown>);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Seller application could not be saved.';
+    if ((error as { code?: string } | null)?.code === '23505' && /phone|mobile/i.test(message)) {
+      return json(
+        {
+          error:
+            'That mobile number already belongs to an active FabricTrad account. Sign in to that account and activate selling there instead.',
+          code: 'PHONE_ALREADY_IN_USE',
+        },
+        409
+      );
+    }
     return json({ error: message }, 500);
   }
 }

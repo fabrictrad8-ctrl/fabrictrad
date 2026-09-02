@@ -333,6 +333,19 @@ export async function POST(request: NextRequest) {
           : 'Personal buyer profile created. No PAN, Aadhaar or GST documents are required.',
     });
   } catch (error) {
+    if (
+      (error as { code?: string } | null)?.code === '23505' &&
+      /phone|mobile/i.test(String((error as { message?: string } | null)?.message || ''))
+    ) {
+      return json(
+        {
+          error:
+            'That mobile number already belongs to an active FabricTrad account. Sign in to that account or use another number.',
+          code: 'PHONE_ALREADY_IN_USE',
+        },
+        409
+      );
+    }
     return json({ error: error instanceof Error ? error.message : 'Buyer registration could not be completed.' }, 500);
   }
 }

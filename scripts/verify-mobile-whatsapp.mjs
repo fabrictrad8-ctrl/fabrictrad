@@ -27,6 +27,15 @@ const catalogUi = 'src/app/seller-dashboard/components/SellerCatalogAssistant.ts
 const productDraftMigration = 'supabase/migrations/20260821165000_seller_product_composer_drafts.sql';
 const flexibleProductMigration = 'supabase/migrations/20260822043000_flexible_product_taxonomy_units.sql';
 const webhook = 'src/app/api/integrations/whatsapp/webhook/route.ts';
+const buyerAutomation = 'src/lib/whatsappBuyerAutomation.ts';
+const bespokeFollowUps = 'src/lib/bespokeFollowUps.ts';
+const bespokePaymentReconciliation = 'src/lib/server/bespokePaymentReconciliation.ts';
+const razorpayWebhook = 'src/app/api/razorpay/webhook/route.ts';
+const bespokePaymentVerify = 'src/app/api/bespoke/payment/verify/route.ts';
+const bespokeAdminTransition = 'src/app/api/admin/bespoke/orders/[id]/transition/route.ts';
+const bespokePaymentMigration = 'supabase/migrations/20260901020000_harden_bespoke_payment_webhooks.sql';
+const bespokeIndexMigration = 'supabase/migrations/20260901020100_index_bespoke_whatsapp_foreign_keys.sql';
+const whatsappIdentityMigration = 'supabase/migrations/20260901020200_unique_active_whatsapp_phone_identity.sql';
 const status = 'src/app/api/whatsapp/status/route.ts';
 const inboxApi = 'src/app/api/whatsapp/catalog-inbox/route.ts';
 const inboxUi = 'src/app/seller-dashboard/components/WhatsAppCatalogPanel.tsx';
@@ -38,6 +47,8 @@ const legacyDrape = 'src/app/product-detail/components/FabricDrapeViewer.tsx';
 const trialStatus = 'src/app/api/ai/trial-room/status/route.ts';
 const drapeStyle = 'src/lib/drapeProductStyle.ts';
 const pageContinuity = 'src/components/PageContinuity.tsx';
+const publicLanding = 'src/app/components/PublicAccessLanding.tsx';
+const header = 'src/components/Header.tsx';
 const authContext = 'src/contexts/AuthContext.tsx';
 const manifest = 'src/app/manifest.ts';
 const readiness = '.github/workflows/integration-readiness.yml';
@@ -52,6 +63,15 @@ const readiness = '.github/workflows/integration-readiness.yml';
   productDraftMigration,
   flexibleProductMigration,
   webhook,
+  buyerAutomation,
+  bespokeFollowUps,
+  bespokePaymentReconciliation,
+  razorpayWebhook,
+  bespokePaymentVerify,
+  bespokeAdminTransition,
+  bespokePaymentMigration,
+  bespokeIndexMigration,
+  whatsappIdentityMigration,
   status,
   inboxApi,
   inboxUi,
@@ -63,6 +83,8 @@ const readiness = '.github/workflows/integration-readiness.yml';
   trialStatus,
   drapeStyle,
   pageContinuity,
+  publicLanding,
+  header,
   authContext,
   manifest,
   readiness,
@@ -129,6 +151,10 @@ requireText(webhook, 'WHATSAPP_VERIFY_TOKEN');
 requireText(webhook, 'parseCatalogMessage');
 requireText(webhook, "from('whatsapp_catalog_ingestions')");
 requireText(webhook, "from(MEDIA_BUCKET)");
+requireText(webhook, 'messagesBySender');
+requireText(webhook, 'for (const message of senderMessages)');
+requireText(webhook, 'recordProcessingFailure');
+requireText(webhook, "processing_status: 'failed'");
 forbidText(webhook, 'WHATSAPP_ACCESS_TOKEN =');
 forbidText(webhook, 'WHATSAPP_APP_SECRET =');
 requireText(migration, "'seller-whatsapp-inbox'");
@@ -137,6 +163,60 @@ requireText(migration, 'user_id = (SELECT auth.uid())');
 requireText(inboxApi, ".eq('user_id', user.id)");
 requireText(inboxApi, 'createSignedUrl');
 requireText(inboxUi, 'WhatsApp → FabricTrad dashboard');
+requireText(inboxUi, 'SELLER CATALOG UPLOAD');
+
+// Buyer WhatsApp routing is explicit, stateful and connected to the complete
+// bespoke workflow without stealing dual-role seller catalogue uploads.
+requireText(buyerAutomation, "menuChoice === '1'");
+requireText(buyerAutomation, "menuChoice === '4'");
+requireText(buyerAutomation, 'naturalCommand');
+requireText(buyerAutomation, "text === '__STORE_MENU__'");
+requireText(buyerAutomation, "typedProfile?.can_sell === true && !explicitBuyerIntent");
+requireText(buyerAutomation, 'ambiguous_active_phone_identity');
+requireText(buyerAutomation, "if (session) await admin.from('whatsapp_buyer_sessions').delete()");
+requireText(buyerAutomation, "from('buyer_stores')");
+requireText(buyerAutomation, "from('bespoke_orders')");
+requireText(buyerAutomation, "from('bespoke_appointments')");
+requireText(buyerAutomation, "from('bespoke_follow_up_jobs')");
+requireText(buyerAutomation, "stage === 'balance_payment'");
+requireText(buyerAutomation, "stage === 'delivery_or_pickup'");
+requireText(buyerAutomation, "stage === 'review'");
+requireText(buyerAutomation, 'Browse the live catalogue without losing your active custom order');
+requireText(publicLanding, 'whatsappStartUrl()');
+requireText(publicLanding, 'WhatsApp +91 79772 86898');
+requireText(header, "href: '/custom-order'");
+requireText(header, "'/custom-order'");
+
+// Follow-ups respect Meta's 24-hour customer-service window and use approved
+// templates outside it.
+requireText(bespokeFollowUps, 'CUSTOMER_WINDOW_MS');
+requireText(bespokeFollowUps, 'customerWindowOpen');
+requireText(bespokeFollowUps, 'templatePayload');
+requireText(bespokeFollowUps, 'WHATSAPP_TEMPLATE_PAYMENT_REMINDER');
+requireText(bespokeFollowUps, "job.job_type === 'delivery_update'");
+requireText(bespokeFollowUps, 'stale_processing_claim_recovered');
+
+// Bespoke payments reconcile from both the browser and Razorpay webhooks. The
+// refund ledger and unique active-appointment index make provider retries safe.
+requireText(razorpayWebhook, 'findBespokePaymentByOrder');
+requireText(razorpayWebhook, 'recordBespokePaymentCapture');
+requireText(razorpayWebhook, 'recordBespokePaymentFailure');
+requireText(razorpayWebhook, 'recordBespokeRefund');
+requireText(bespokePaymentVerify, 'recordBespokePaymentCapture');
+requireText(bespokePaymentReconciliation, 'reconcileBespokeOrderPayments');
+requireText(bespokePaymentReconciliation, "['captured', 'partially_refunded', 'refunded']");
+requireText(bespokePaymentReconciliation, "currentStage === 'balance_payment' && fullyPaid");
+requireText(bespokePaymentMigration, 'CREATE TABLE IF NOT EXISTS public.bespoke_refunds');
+requireText(bespokePaymentMigration, 'razorpay_refund_id text NOT NULL UNIQUE');
+requireText(bespokePaymentMigration, 'bespoke_appointments_one_active_type_idx');
+requireText(bespokePaymentMigration, 'ENABLE ROW LEVEL SECURITY');
+requireText(bespokeIndexMigration, 'bespoke_follow_up_jobs_order_idx');
+requireText(bespokeIndexMigration, 'bespoke_refunds_user_idx');
+requireText(bespokeIndexMigration, 'whatsapp_buyer_sessions_order_idx');
+requireText(whatsappIdentityMigration, 'user_profiles_active_phone_identity_unique_idx');
+requireText(bespokeAdminTransition, "String(order.stage) !== 'quotation'");
+requireText(bespokeAdminTransition, "completedAppointmentExists('trial_fitting')");
+requireText(bespokeAdminTransition, "completedAppointmentExists('alteration')");
 
 // Flagship Virtual Drape must expose exactly two fully AI experiences.
 requireText(drapeRoute, "export { default } from './FlagshipVirtualDrapeStudio';");
@@ -211,6 +291,9 @@ requireText(manifest, "display: 'standalone'");
 requireText(manifest, "start_url: '/'");
 requireText(manifest, "categories: ['business', 'shopping', 'productivity']");
 requireText(status, 'configured');
+requireText(status, 'automationReady');
+requireText(status, 'templatesReady');
+requireText(status, 'WHATSAPP_TEMPLATE_POST_DELIVERY_FOLLOW_UP');
 requireText(readiness, "fetch_json 'WhatsApp catalog readiness'");
 requireText(readiness, 'WhatsApp forged-signature probe');
 requireText(readiness, '/api/integrations/whatsapp/webhook');

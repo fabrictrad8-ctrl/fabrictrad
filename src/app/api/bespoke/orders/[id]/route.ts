@@ -239,6 +239,29 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       );
     }
 
+    const { data: activeAppointment, error: activeAppointmentError } = await admin
+      .from('bespoke_appointments')
+      .select('id,appointment_type,requested_at,status')
+      .eq('bespoke_order_id', id)
+      .eq('appointment_type', appointmentType)
+      .in('status', ['requested', 'confirmed', 'reschedule_requested'])
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (activeAppointmentError) {
+      return json({ error: 'Existing appointments could not be checked.' }, 503);
+    }
+    if (activeAppointment?.id) {
+      return json(
+        {
+          error: `A ${appointmentType.replaceAll('_', ' ')} appointment is already active. Request a reschedule instead of creating a duplicate.`,
+          code: 'APPOINTMENT_ALREADY_ACTIVE',
+          appointment: activeAppointment,
+        },
+        409
+      );
+    }
+
     const { data: createdAppointment, error: appointmentError } = await admin
       .from('bespoke_appointments')
       .insert({
@@ -251,7 +274,18 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       })
       .select('*')
       .single();
-    if (appointmentError) return json({ error: appointmentError.message }, 500);
+    if (appointmentError) {
+      if (appointmentError.code === '23505') {
+        return json(
+          {
+            error: `A ${appointmentType.replaceAll('_', ' ')} appointment is already active.`,
+            code: 'APPOINTMENT_ALREADY_ACTIVE',
+          },
+          409
+        );
+      }
+      return json({ error: appointmentError.message }, 500);
+    }
     appointment = createdAppointment;
     // Initial measurement/design appointment, trial fitting and alteration are
     // separate human checkpoints. Preserve the corresponding stage so the
@@ -263,7 +297,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       bespoke_order_id: id,
       user_id: order.user_id,
       whatsapp_phone: order.whatsapp_phone,
-      job_type: 'appointment_reminder',
+      job_type: appointmentType === 'trial_fitting' ? 'trial_reminder' : 'appointment_reminder',
       due_at: new Date(Math.max(Date.now(), requestedAt.getTime() - 24 * 60 * 60 * 1000)).toISOString(),
       payload: { appointment_id: createdAppointment.id, appointment_type: appointmentType },
     });

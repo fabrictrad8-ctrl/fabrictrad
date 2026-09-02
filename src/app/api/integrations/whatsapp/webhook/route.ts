@@ -2,7 +2,10 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import { after, NextRequest, NextResponse } from 'next/server';
 import { parseCatalogMessage } from '@/lib/catalogAssistant';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { handleBuyerWhatsAppMessage } from '@/lib/whatsappBuyerAutomation';
+import {
+  handleBuyerWhatsAppMessage,
+  sendBuyerWhatsAppText,
+} from '@/lib/whatsappBuyerAutomation';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -125,8 +128,8 @@ async function downloadMetaMedia(mediaId: string, accessToken: string) {
 async function acknowledgeSeller(to: string, text: string) {
   const token = process.env.WHATSAPP_ACCESS_TOKEN;
   const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
-  if (!token || !phoneNumberId) return;
-  await fetch(`https://graph.facebook.com/${GRAPH_VERSION}/${phoneNumberId}/messages`, {
+  if (!token || !phoneNumberId) return false;
+  const response = await fetch(`https://graph.facebook.com/${GRAPH_VERSION}/${phoneNumberId}/messages`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
@@ -140,7 +143,23 @@ async function acknowledgeSeller(to: string, text: string) {
       text: { body: text, preview_url: false },
     }),
     signal: AbortSignal.timeout(15_000),
-  }).catch(() => undefined);
+  }).catch(() => null);
+  if (!response) {
+    console.error('Seller WhatsApp acknowledgement failed', { code: 'provider_unreachable' });
+    return false;
+  }
+  const result = (await response.json().catch(() => ({}))) as {
+    error?: { message?: string; code?: number };
+  };
+  if (!response.ok) {
+    console.error('Seller WhatsApp acknowledgement failed', {
+      status: response.status,
+      code: result.error?.code || null,
+      message: String(result.error?.message || 'provider_error').slice(0, 500),
+    });
+    return false;
+  }
+  return true;
 }
 
 async function ingestSellerMessage(message: MetaMessage) {
@@ -244,6 +263,60 @@ async function processMessage(message: MetaMessage) {
   if (!buyerResult.handled) await ingestSellerMessage(message);
 }
 
+async function recordProcessingFailure(message: MetaMessage, error: unknown) {
+  const waMessageId = String(message.id || '').trim();
+  const fromRaw = String(message.from || '').trim();
+  if (!waMessageId) return;
+  const reason = (error instanceof Error ? error.message : 'unknown').slice(0, 1000);
+  const admin = createAdminClient();
+  const { data: buyerMessage } = await admin
+    .from('whatsapp_buyer_messages')
+    .select('id,user_id,bespoke_order_id')
+    .eq('wa_message_id', waMessageId)
+    .maybeSingle();
+
+  if (buyerMessage?.id) {
+    await admin
+      .from('whatsapp_buyer_messages')
+      .update({ processing_status: 'failed', error_message: reason })
+      .eq('id', buyerMessage.id);
+    if (buyerMessage.bespoke_order_id) {
+      await admin
+        .from('bespoke_orders')
+        .update({
+          human_action_required: true,
+          human_action_reason: 'customer_service',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', buyerMessage.bespoke_order_id);
+    }
+    await admin
+      .from('whatsapp_buyer_sessions')
+      .update({
+        human_handoff_required: true,
+        human_handoff_reason: 'message_processing_failed',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('whatsapp_phone', normalizePhone(fromRaw));
+    await sendBuyerWhatsAppText(
+      fromRaw,
+      'We saved your message, but an automated step could not finish. FabricTrad customer service has been flagged with your order context; you do not need to resend sensitive details.',
+      buyerMessage.bespoke_order_id,
+      buyerMessage.user_id
+    );
+    return;
+  }
+
+  await admin
+    .from('whatsapp_catalog_ingestions')
+    .update({ status: 'failed', error_message: reason, updated_at: new Date().toISOString() })
+    .eq('wa_message_id', waMessageId);
+  await acknowledgeSeller(
+    fromRaw,
+    'FabricTrad saved your WhatsApp upload but could not finish processing it. It has been flagged for seller-support review.'
+  );
+}
+
 export async function GET(request: NextRequest) {
   const mode = request.nextUrl.searchParams.get('hub.mode');
   const suppliedToken = request.nextUrl.searchParams.get('hub.verify_token');
@@ -281,15 +354,35 @@ export async function POST(request: NextRequest) {
     ) || [];
 
   after(async () => {
+    const messagesBySender = new Map<string, MetaMessage[]>();
+    for (const message of messages) {
+      const sender = String(message.from || message.id || 'unknown');
+      const group = messagesBySender.get(sender) || [];
+      group.push(message);
+      messagesBySender.set(sender, group);
+    }
+
+    // Preserve message order for each phone so an image/caption cannot race a
+    // stage transition. Independent senders can still be handled in parallel.
     await Promise.all(
-      messages.map((message) =>
-        processMessage(message).catch((error) => {
-          console.error('WhatsApp message processing failed', {
-            messageId: message.id || null,
-            code: error instanceof Error ? error.message : 'unknown',
-          });
-        })
-      )
+      [...messagesBySender.values()].map(async (senderMessages) => {
+        for (const message of senderMessages) {
+          try {
+            await processMessage(message);
+          } catch (error) {
+            console.error('WhatsApp message processing failed', {
+              messageId: message.id || null,
+              code: error instanceof Error ? error.message : 'unknown',
+            });
+            await recordProcessingFailure(message, error).catch((recordError) => {
+              console.error('WhatsApp processing failure could not be recorded', {
+                messageId: message.id || null,
+                code: recordError instanceof Error ? recordError.message : 'unknown',
+              });
+            });
+          }
+        }
+      })
     );
   });
 

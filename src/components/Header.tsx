@@ -21,6 +21,7 @@ const BUYER_PATH_PREFIXES = [
   '/vendors',
   '/buyer-dashboard',
   '/buyer-requirements',
+  '/custom-order',
   '/cart',
   '/checkout',
   '/product-detail',
@@ -80,6 +81,7 @@ export default function Header() {
   const publicNavLinks = useMemo<NavLink[]>(
     () => [
       { label: t('nav.marketplace'), href: '/marketplace', icon: 'ShoppingBagIcon' },
+      { label: 'Custom order', href: '/custom-order', icon: 'ChatBubbleLeftRightIcon' },
       { label: 'Categories', href: '/categories', icon: 'Squares2X2Icon' },
       { label: 'AI Drape', href: '/product-detail#drape-on', icon: 'SparklesIcon' },
       { label: 'Vendors', href: '/vendors', icon: 'BuildingStorefrontIcon' },
@@ -90,6 +92,7 @@ export default function Header() {
   const buyerNavLinks = useMemo<NavLink[]>(
     () => [
       { label: t('nav.marketplace'), href: '/marketplace', icon: 'ShoppingBagIcon' },
+      { label: 'Custom order', href: '/custom-order', icon: 'ChatBubbleLeftRightIcon' },
       { label: 'Categories', href: '/categories', icon: 'Squares2X2Icon' },
       { label: 'Vendors', href: '/vendors', icon: 'BuildingStorefrontIcon' },
       { label: 'Requirements', href: '/buyer-requirements', icon: 'MegaphoneIcon' },
@@ -131,7 +134,8 @@ export default function Header() {
     if (canBuy) {
       links.push(
         { label: 'Open buyer workspace', href: '/marketplace', icon: 'ShoppingBagIcon' },
-        { label: 'Buyer dashboard', href: '/buyer-dashboard', icon: 'HomeIcon' }
+        { label: 'Buyer dashboard', href: '/buyer-dashboard', icon: 'HomeIcon' },
+        { label: 'Custom order studio', href: '/custom-order', icon: 'ChatBubbleLeftRightIcon' }
       );
     }
     if (canSell) {

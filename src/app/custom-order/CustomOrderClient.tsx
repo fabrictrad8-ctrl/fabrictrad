@@ -372,7 +372,7 @@ export default function CustomOrderClient() {
           </div>
           <div className="flex flex-wrap gap-2">
             <a
-              href={whatsappHref(order?.id ? `Hi FabricTrad, STATUS for custom order ${order.id}` : 'Hi FabricTrad, I want to start a custom order')}
+              href={whatsappHref(order?.id ? 'STATUS' : 'CATALOGUE')}
               target="_blank"
               rel="noreferrer"
               className="inline-flex items-center gap-2 rounded-xl bg-[#25D366] px-4 py-2.5 text-sm font-800 text-white hover:opacity-90"
@@ -583,7 +583,7 @@ export default function CustomOrderClient() {
             <div className="rounded-3xl border border-border bg-card p-5 shadow-sm">
               <p className="text-xs font-800 uppercase tracking-widest text-primary">Continue on WhatsApp</p>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">Send STATUS, reference images, fabric choices or customization details to the same automation number.</p>
-              <a href={whatsappHref(`Hi FabricTrad, STATUS for custom order ${order.id}`)} target="_blank" rel="noreferrer" className="mt-4 inline-flex w-full justify-center rounded-xl bg-[#25D366] px-4 py-3 text-sm font-900 text-white">Open WhatsApp</a>
+              <a href={whatsappHref('STATUS')} target="_blank" rel="noreferrer" className="mt-4 inline-flex w-full justify-center rounded-xl bg-[#25D366] px-4 py-3 text-sm font-900 text-white">Open WhatsApp</a>
             </div>
             <div className="rounded-3xl border border-border bg-card p-5 shadow-sm">
               <p className="text-xs font-800 uppercase tracking-widest text-primary">Need a person?</p>

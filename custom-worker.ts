@@ -1,5 +1,6 @@
 // OpenNext generates this module before Wrangler bundles the worker.
-// @ts-expect-error -- generated build artifact is absent during static type-checking
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore -- generated build artifact is absent before OpenNext builds it
 import openNextWorker from './.open-next/worker.js';
 import { processDueBespokeFollowUps } from './src/lib/bespokeFollowUps';
 
@@ -23,5 +24,6 @@ const fabricTradWorker = {
 export default fabricTradWorker;
 
 // Required by OpenNext's queue/cache implementation when those bindings are used.
-// @ts-expect-error -- generated build artifact is absent during static type-checking
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore -- generated build artifact is absent before OpenNext builds it
 export { DOQueueHandler, DOShardedTagCache } from './.open-next/worker.js';

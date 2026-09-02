@@ -63,6 +63,19 @@ export async function POST(request: NextRequest, context: RouteContext) {
   const now = new Date().toISOString();
   const update: Record<string, unknown> = { updated_at: now };
   let followUp: Record<string, unknown> | null = null;
+  const completedAppointmentExists = async (appointmentType: 'trial_fitting' | 'alteration') => {
+    const { data, error } = await admin
+      .from('bespoke_appointments')
+      .select('id')
+      .eq('bespoke_order_id', id)
+      .eq('appointment_type', appointmentType)
+      .eq('status', 'completed')
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error) throw error;
+    return Boolean(data?.id);
+  };
 
   if (action === 'confirm_appointment' || action === 'complete_appointment') {
     const appointmentId = String(body.appointmentId || '').trim();
@@ -76,6 +89,21 @@ export async function POST(request: NextRequest, context: RouteContext) {
     if (!appointment) return json({ error: 'Appointment not found for this custom order.' }, 404);
     if (!['requested', 'confirmed', 'reschedule_requested'].includes(String(appointment.status))) {
       return json({ error: 'That appointment is no longer active.' }, 409);
+    }
+
+    const expectedStage =
+      appointment.appointment_type === 'trial_fitting'
+        ? 'trial'
+        : appointment.appointment_type === 'alteration'
+          ? 'alteration'
+          : 'appointment';
+    if (String(order.stage) !== expectedStage) {
+      return json(
+        {
+          error: `The order is no longer waiting at the ${String(appointment.appointment_type).replaceAll('_', ' ')} stage.`,
+        },
+        409
+      );
     }
 
     const nextStatus = action === 'confirm_appointment' ? 'confirmed' : 'completed';
@@ -94,30 +122,21 @@ export async function POST(request: NextRequest, context: RouteContext) {
         .eq('status', 'pending');
 
       if (appointment.appointment_type === 'physical_measurement' || appointment.appointment_type === 'design_approval') {
-        if (String(order.stage) !== 'appointment') {
-          return json({ error: 'The order is no longer waiting at the measurement/design appointment stage.' }, 409);
-        }
         update.stage = 'quotation';
         update.human_action_required = false;
         update.human_action_reason = null;
       } else if (appointment.appointment_type === 'trial_fitting') {
-        if (String(order.stage) !== 'trial') {
-          return json({ error: 'The order is no longer at the trial stage.' }, 409);
-        }
         // Keep the order at trial. Staff explicitly records passed vs alteration
         // after the fitting result is known.
         update.human_action_required = true;
         update.human_action_reason = 'trial_fitting';
       } else if (appointment.appointment_type === 'alteration') {
-        if (String(order.stage) !== 'alteration') {
-          return json({ error: 'The order is no longer at the alteration stage.' }, 409);
-        }
         update.human_action_required = true;
         update.human_action_reason = 'alteration';
       }
     }
   } else if (action === 'publish_quote') {
-    if (!['quotation', 'appointment'].includes(String(order.stage))) {
+    if (String(order.stage) !== 'quotation') {
       return json({ error: 'The order must complete measurement/design approval before payment can open.' }, 409);
     }
     const quotedAmount = money(body.quotedAmount);
@@ -145,19 +164,28 @@ export async function POST(request: NextRequest, context: RouteContext) {
       user_id: order.user_id,
       whatsapp_phone: order.whatsapp_phone,
       job_type: 'payment_reminder',
-      due_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+      due_at: now,
       payload: { quoted_amount: quotedAmount, advance_amount: advanceAmount },
     };
   } else if (action === 'start_stitching') {
     if (String(order.stage) !== 'stitching') return json({ error: 'The order is not at stitching.' }, 409);
+    if (String(order.stitching_status) === 'completed') {
+      return json({ error: 'Stitching is already completed.' }, 409);
+    }
     update.stitching_status = 'in_progress';
   } else if (action === 'stitching_to_embroidery') {
     if (String(order.stage) !== 'stitching') return json({ error: 'The order is not at stitching.' }, 409);
+    if (String(order.stitching_status) !== 'in_progress') {
+      return json({ error: 'Start stitching before marking it complete.' }, 409);
+    }
     update.stitching_status = 'completed';
     update.embroidery_status = 'queued';
     update.stage = 'embroidery';
   } else if (action === 'stitching_to_trial') {
     if (String(order.stage) !== 'stitching') return json({ error: 'The order is not at stitching.' }, 409);
+    if (String(order.stitching_status) !== 'in_progress') {
+      return json({ error: 'Start stitching before marking it complete.' }, 409);
+    }
     update.stitching_status = 'completed';
     update.embroidery_status = 'not_required';
     update.stage = 'trial';
@@ -165,25 +193,40 @@ export async function POST(request: NextRequest, context: RouteContext) {
     update.human_action_reason = 'trial_fitting';
   } else if (action === 'start_embroidery') {
     if (String(order.stage) !== 'embroidery') return json({ error: 'The order is not at embroidery.' }, 409);
+    if (String(order.embroidery_status) === 'completed') {
+      return json({ error: 'Embroidery is already completed.' }, 409);
+    }
     update.embroidery_status = 'in_progress';
   } else if (action === 'embroidery_to_trial') {
     if (String(order.stage) !== 'embroidery') return json({ error: 'The order is not at embroidery.' }, 409);
+    if (String(order.embroidery_status) !== 'in_progress') {
+      return json({ error: 'Start embroidery before marking it complete.' }, 409);
+    }
     update.embroidery_status = 'completed';
     update.stage = 'trial';
     update.human_action_required = true;
     update.human_action_reason = 'trial_fitting';
   } else if (action === 'trial_passed') {
     if (String(order.stage) !== 'trial') return json({ error: 'The order is not at trial.' }, 409);
+    if (!(await completedAppointmentExists('trial_fitting'))) {
+      return json({ error: 'Complete the trial fitting appointment before recording its result.' }, 409);
+    }
     update.stage = 'final_approval';
     update.human_action_required = false;
     update.human_action_reason = null;
   } else if (action === 'trial_needs_alteration') {
     if (String(order.stage) !== 'trial') return json({ error: 'The order is not at trial.' }, 409);
+    if (!(await completedAppointmentExists('trial_fitting'))) {
+      return json({ error: 'Complete the trial fitting appointment before recording its result.' }, 409);
+    }
     update.stage = 'alteration';
     update.human_action_required = true;
     update.human_action_reason = 'alteration';
   } else if (action === 'alteration_completed') {
     if (String(order.stage) !== 'alteration') return json({ error: 'The order is not at alteration.' }, 409);
+    if (!(await completedAppointmentExists('alteration'))) {
+      return json({ error: 'Complete the alteration appointment before approving the altered piece.' }, 409);
+    }
     update.stage = 'final_approval';
     update.human_action_required = false;
     update.human_action_reason = null;
@@ -212,6 +255,20 @@ export async function POST(request: NextRequest, context: RouteContext) {
     };
   } else {
     return json({ error: 'Unsupported admin transition.' }, 400);
+  }
+
+  if (
+    !followUp &&
+    ['stitching_to_embroidery', 'stitching_to_trial', 'embroidery_to_trial', 'trial_passed', 'trial_needs_alteration', 'alteration_completed'].includes(action)
+  ) {
+    followUp = {
+      bespoke_order_id: id,
+      user_id: order.user_id,
+      whatsapp_phone: order.whatsapp_phone,
+      job_type: 'delivery_update',
+      due_at: now,
+      payload: { action, expected_stage: update.stage },
+    };
   }
 
   const { data: updated, error: updateError } = await admin
