@@ -1,4 +1,4 @@
-name: Run Gupshup migration safely
+name: Run Gupshup production release
 
 on:
   push:
@@ -9,148 +9,174 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
-  group: fabrictrad-gupshup-migration-runner
+  group: fabrictrad-gupshup-production-release
   cancel-in-progress: false
 
 jobs:
-  migrate:
+  deploy:
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    env:
+      CLOUDFLARE_ACCOUNT_ID: aa4ff7a482130e543f176e2d73c93f45
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      GUPSHUP_API_KEY_SECRET: ${{ secrets.GUPSHUP_API_KEY }}
+      GUPSHUP_API_KEY_VAR: ${{ vars.GUPSHUP_API_KEY }}
+      GUPSHUP_APP_NAME_SECRET: ${{ secrets.GUPSHUP_APP_NAME }}
+      GUPSHUP_APP_NAME_VAR: ${{ vars.GUPSHUP_APP_NAME }}
+      GUPSHUP_SOURCE_NUMBER_SECRET: ${{ secrets.GUPSHUP_SOURCE_NUMBER }}
+      GUPSHUP_SOURCE_NUMBER_VAR: ${{ vars.GUPSHUP_SOURCE_NUMBER }}
+      GUPSHUP_WABA_ID_SECRET: ${{ secrets.GUPSHUP_WABA_ID }}
+      GUPSHUP_WABA_ID_VAR: ${{ vars.GUPSHUP_WABA_ID }}
+      TEMPLATE_APPOINTMENT_SECRET: ${{ secrets.WHATSAPP_TEMPLATE_APPOINTMENT_REMINDER }}
+      TEMPLATE_APPOINTMENT_VAR: ${{ vars.WHATSAPP_TEMPLATE_APPOINTMENT_REMINDER }}
+      TEMPLATE_PAYMENT_SECRET: ${{ secrets.WHATSAPP_TEMPLATE_PAYMENT_REMINDER }}
+      TEMPLATE_PAYMENT_VAR: ${{ vars.WHATSAPP_TEMPLATE_PAYMENT_REMINDER }}
+      TEMPLATE_TRIAL_SECRET: ${{ secrets.WHATSAPP_TEMPLATE_TRIAL_REMINDER }}
+      TEMPLATE_TRIAL_VAR: ${{ vars.WHATSAPP_TEMPLATE_TRIAL_REMINDER }}
+      TEMPLATE_DELIVERY_SECRET: ${{ secrets.WHATSAPP_TEMPLATE_DELIVERY_UPDATE }}
+      TEMPLATE_DELIVERY_VAR: ${{ vars.WHATSAPP_TEMPLATE_DELIVERY_UPDATE }}
+      TEMPLATE_REVIEW_SECRET: ${{ secrets.WHATSAPP_TEMPLATE_REVIEW_REQUEST }}
+      TEMPLATE_REVIEW_VAR: ${{ vars.WHATSAPP_TEMPLATE_REVIEW_REQUEST }}
+      TEMPLATE_FOLLOWUP_SECRET: ${{ secrets.WHATSAPP_TEMPLATE_POST_DELIVERY_FOLLOW_UP }}
+      TEMPLATE_FOLLOWUP_VAR: ${{ vars.WHATSAPP_TEMPLATE_POST_DELIVERY_FOLLOW_UP }}
+
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
           node-version: 22
 
-      - name: Extract migration program
+      - name: Resolve secure Gupshup inputs
         shell: bash
         run: |
           set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-          import re
+          choose() {
+            local secret_value="$1"
+            local variable_value="$2"
+            if [ -n "$secret_value" ]; then printf '%s' "$secret_value"; else printf '%s' "$variable_value"; fi
+          }
+          {
+            echo "GUPSHUP_API_KEY=$(choose "$GUPSHUP_API_KEY_SECRET" "$GUPSHUP_API_KEY_VAR")"
+            echo "GUPSHUP_APP_NAME=$(choose "$GUPSHUP_APP_NAME_SECRET" "$GUPSHUP_APP_NAME_VAR")"
+            echo "GUPSHUP_SOURCE_NUMBER=$(choose "$GUPSHUP_SOURCE_NUMBER_SECRET" "$GUPSHUP_SOURCE_NUMBER_VAR")"
+            echo "GUPSHUP_WABA_ID=$(choose "$GUPSHUP_WABA_ID_SECRET" "$GUPSHUP_WABA_ID_VAR")"
+            echo "WHATSAPP_TEMPLATE_APPOINTMENT_REMINDER=$(choose "$TEMPLATE_APPOINTMENT_SECRET" "$TEMPLATE_APPOINTMENT_VAR")"
+            echo "WHATSAPP_TEMPLATE_PAYMENT_REMINDER=$(choose "$TEMPLATE_PAYMENT_SECRET" "$TEMPLATE_PAYMENT_VAR")"
+            echo "WHATSAPP_TEMPLATE_TRIAL_REMINDER=$(choose "$TEMPLATE_TRIAL_SECRET" "$TEMPLATE_TRIAL_VAR")"
+            echo "WHATSAPP_TEMPLATE_DELIVERY_UPDATE=$(choose "$TEMPLATE_DELIVERY_SECRET" "$TEMPLATE_DELIVERY_VAR")"
+            echo "WHATSAPP_TEMPLATE_REVIEW_REQUEST=$(choose "$TEMPLATE_REVIEW_SECRET" "$TEMPLATE_REVIEW_VAR")"
+            echo "WHATSAPP_TEMPLATE_POST_DELIVERY_FOLLOW_UP=$(choose "$TEMPLATE_FOLLOWUP_SECRET" "$TEMPLATE_FOLLOWUP_VAR")"
+          } >> "$GITHUB_ENV"
 
-          source = Path('.github/workflows/migrate-gupshup-transport.yml').read_text().splitlines()
-          start = next(i for i, line in enumerate(source) if line.strip() == "python3 <<'PY'")
-          end = next(i for i in range(start + 1, len(source)) if source[i].strip() == 'PY')
-          body = source[start + 1:end]
-          indent = min(len(line) - len(line.lstrip()) for line in body if line.strip())
-          program = '\n'.join(line[indent:] if line.strip() else '' for line in body) + '\n'
-
-          old = "updated, count = re.subn(pattern, replacement, text, count=1, flags=flags)"
-          new = "updated, count = re.subn(pattern, lambda _match: replacement, text, count=1, flags=flags)"
-          if old not in program:
-              raise SystemExit('Expected regex replacement helper was not found.')
-          program = program.replace(old, new, 1)
-
-          deploy_patch = re.compile(
-              r"\n\s*deploy_old = '''[\s\S]*?\n\s*replace_once\(deploy, deploy_old, deploy_new\)\n",
-              re.MULTILINE,
-          )
-          program, removed = deploy_patch.subn('\n', program, count=1)
-          if removed != 1:
-              raise SystemExit('Expected embedded production deployment exact patch was not found.')
-
-          compile(program, '/tmp/gupshup-migrate.py', 'exec')
-          Path('/tmp/gupshup-migrate.py').write_text(program)
-          print(f'Extracted and compiled migration program ({len(program)} bytes).')
-          PY
-
-      - name: Patch Meta transport to Gupshup
-        run: python3 /tmp/gupshup-migrate.py
-
-      - name: Align generated verifier assertions
+      - name: Verify required secure values
         shell: bash
         run: |
           set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-          path = Path('scripts/verify-mobile-whatsapp.mjs')
-          text = path.read_text()
-          old_header = 'requireText(whatsappProvider, "headers: {\\n        apikey: apiKey");'
-          new_header = 'requireText(whatsappProvider, "apikey: apiKey");'
-          if old_header not in text:
-              raise SystemExit('Expected generated Gupshup apikey verifier assertion not found.')
-          text = text.replace(old_header, new_header, 1)
-          old_probe = "requireText(readiness, 'WhatsApp forged-signature probe');"
-          new_probe = "requireText(readiness, 'WhatsApp forged-token probe');"
-          if old_probe not in text:
-              raise SystemExit('Expected legacy forged-signature verifier assertion not found.')
-          text = text.replace(old_probe, new_probe, 1)
-          path.write_text(text)
-          PY
+          missing=0
+          for name in CLOUDFLARE_API_TOKEN GUPSHUP_API_KEY GUPSHUP_APP_NAME GUPSHUP_SOURCE_NUMBER; do
+            if [ -z "${!name:-}" ]; then
+              echo "::error::${name} is missing from GitHub Actions secrets/variables."
+              missing=1
+            else
+              echo "${name}=present"
+            fi
+          done
+          [ "$missing" -eq 0 ]
 
-      - name: Keep production deploy guard untouched during runtime migration
-        run: git restore .github/workflows/force-deploy-current-worker.yml
+      - name: Verify public callback source
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q "export async function GET()" src/app/api/integrations/whatsapp/webhook/route.ts
+          grep -q "return noContent()" src/app/api/integrations/whatsapp/webhook/route.ts
+          grep -q "processDeliveryEvent" src/app/api/integrations/whatsapp/webhook/route.ts
+          if grep -q "x-fabrictrad-webhook-token" src/app/api/integrations/whatsapp/webhook/route.ts; then
+            echo '::error::Private webhook token remains in callback runtime.'
+            exit 1
+          fi
 
       - name: Install dependencies
         run: npm install --no-audit --no-fund --package-lock=false --legacy-peer-deps
 
-      - name: Verify WhatsApp integrity
-        run: npm run verify:whatsapp
-
       - name: Type-check
         run: npm run type-check
 
-      - name: Lint changed runtime files
-        run: npx eslint src/lib/gupshupWhatsApp.ts src/lib/whatsappBuyerAutomation.ts src/lib/bespokeFollowUps.ts src/app/api/integrations/whatsapp/webhook/route.ts src/app/api/whatsapp/status/route.ts scripts/verify-mobile-whatsapp.mjs
+      - name: Lint Gupshup runtime
+        run: npx eslint src/lib/gupshupWhatsApp.ts src/lib/whatsappBuyerAutomation.ts src/lib/bespokeFollowUps.ts src/app/api/integrations/whatsapp/webhook/route.ts src/app/api/whatsapp/status/route.ts
 
       - name: Build Cloudflare/OpenNext package
         run: npm run build:sites
 
-      - name: Keep workflow changes for a privileged follow-up commit
+      - name: Validate Worker package
         shell: bash
         run: |
           set -euo pipefail
-          git restore \
-            .github/workflows/sync-whatsapp-production.yml \
-            .github/workflows/integration-readiness.yml
+          test -s .open-next/worker.js
+          grep -q 'GUPSHUP_API_KEY' .open-next/worker.js
+          grep -q 'api.gupshup.io' .open-next/worker.js
 
-      - name: Verify diff
+      - name: Sync Gupshup bindings to Cloudflare
         shell: bash
         run: |
           set -euo pipefail
-          git diff --check
-          git status --short
-          git diff --stat
-          if git diff --name-only | grep -q '^\.github/workflows/'; then
-            echo '::error::Runtime migration must not publish workflow-file changes from GITHUB_TOKEN.'
-            exit 1
-          fi
+          put() {
+            local name="$1"
+            local value="${!name:-}"
+            if [ -n "$value" ]; then
+              printf '%s' "$value" | npx wrangler secret put "$name" >/dev/null
+              echo "${name}=synced"
+            fi
+          }
+          put GUPSHUP_API_KEY
+          put GUPSHUP_APP_NAME
+          put GUPSHUP_SOURCE_NUMBER
+          put GUPSHUP_WABA_ID
+          put WHATSAPP_TEMPLATE_APPOINTMENT_REMINDER
+          put WHATSAPP_TEMPLATE_PAYMENT_REMINDER
+          put WHATSAPP_TEMPLATE_TRIAL_REMINDER
+          put WHATSAPP_TEMPLATE_DELIVERY_UPDATE
+          put WHATSAPP_TEMPLATE_REVIEW_REQUEST
+          put WHATSAPP_TEMPLATE_POST_DELIVERY_FOLLOW_UP
 
-      - name: Commit verified migration
+      - name: Verify required Cloudflare bindings
         shell: bash
         run: |
           set -euo pipefail
-          git config user.name 'FabricTrad Release Bot'
-          git config user.email 'fabrictrad8@gmail.com'
-          git add \
-            src/lib/gupshupWhatsApp.ts \
-            src/lib/whatsappBuyerAutomation.ts \
-            src/lib/bespokeFollowUps.ts \
-            src/app/api/integrations/whatsapp/webhook/route.ts \
-            src/app/api/whatsapp/status/route.ts \
-            scripts/verify-mobile-whatsapp.mjs
-          if git diff --cached --quiet; then
-            echo 'No migration changes required.'
-            exit 0
-          fi
-          git commit -m 'feat: migrate WhatsApp transport to Gupshup [skip deploy]'
+          npx wrangler secret list > /tmp/secrets.json
+          python3 - <<'PY'
+          import json
+          names={item.get('name') for item in json.load(open('/tmp/secrets.json')) if isinstance(item,dict)}
+          required={'GUPSHUP_API_KEY','GUPSHUP_APP_NAME','GUPSHUP_SOURCE_NUMBER'}
+          missing=sorted(required-names)
+          if missing: raise SystemExit('Missing Cloudflare bindings: '+', '.join(missing))
+          print('Required Gupshup bindings verified.')
+          PY
 
-          for attempt in 1 2 3 4; do
-            git fetch origin main
-            git rebase origin/main
-            if git push origin HEAD:main; then
+      - name: Deploy FabricTrad Worker
+        run: npx wrangler deploy
+
+      - name: Verify live Gupshup callback
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='https://fabrictrad.com'
+          sleep 10
+          for attempt in 1 2 3 4 5 6; do
+            status=$(curl -sS --connect-timeout 10 --max-time 30 -o /tmp/status.json -w '%{http_code}' "$base/api/whatsapp/status" || true)
+            callback_get=$(curl -sS --connect-timeout 10 --max-time 30 -o /tmp/get.out -w '%{http_code}' "$base/api/integrations/whatsapp/webhook" || true)
+            callback_post=$(curl -sS --connect-timeout 10 --max-time 30 -o /tmp/post.out -w '%{http_code}' -H 'Content-Type: application/json' --data '{"type":"user-event","version":2,"app":"__registration_probe__","payload":{"type":"sandbox-start"}}' "$base/api/integrations/whatsapp/webhook" || true)
+            echo "Attempt ${attempt}: status=${status} GET=${callback_get} POST=${callback_post}"
+            if [ "$status" = '200' ] && [ "$callback_get" = '204' ] && [ "$callback_post" = '204' ] && [ ! -s /tmp/get.out ] && [ ! -s /tmp/post.out ] && grep -q '"provider":"gupshup"' /tmp/status.json && grep -q '"configured":true' /tmp/status.json && grep -q '"webhookReady":true' /tmp/status.json; then
+              echo 'Gupshup webhook is LIVE: https://fabrictrad.com/api/integrations/whatsapp/webhook'
               exit 0
             fi
-            echo "Push raced with main on attempt ${attempt}; retrying safely."
-            sleep 2
+            sleep 10
           done
-          echo '::error::Could not publish verified Gupshup migration without a force push.'
+          cat /tmp/status.json || true
+          echo
+          echo '::error::Production Gupshup callback failed readiness checks.'
           exit 1
