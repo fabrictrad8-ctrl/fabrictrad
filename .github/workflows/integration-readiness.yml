@@ -107,7 +107,7 @@ jobs:
           fi
 
           if [ -s /tmp/whatsapp.json ] && ! grep -q '"configured":true' /tmp/whatsapp.json; then
-            warn 'WhatsApp seller catalog sync is installed but not fully configured.'
+            warn 'WhatsApp/Gupshup channel is installed but not fully configured in the live Worker yet.'
           fi
 
           webhook_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
@@ -125,16 +125,19 @@ jobs:
           fi
 
           whatsapp_webhook_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
-            --output /tmp/whatsapp-webhook.json --write-out '%{http_code}' \
+            --output /tmp/whatsapp-webhook.out --write-out '%{http_code}' \
             --header 'Content-Type: application/json' \
-            --header 'x-hub-signature-256: sha256=00' --data '{}' \
+            --data '{"type":"user-event","version":2,"app":"__fabrictrad_readiness_probe__","payload":{"type":"sandbox-start"}}' \
             "$base_url/api/integrations/whatsapp/webhook" || true)
-          echo "WhatsApp forged-signature probe: HTTP ${whatsapp_webhook_status} (expected 401 when configured, 503 while credentials are pending)"
-          if [ "$whatsapp_webhook_status" != '401' ] && [ "$whatsapp_webhook_status" != '503' ]; then
-            fail "WhatsApp webhook returned HTTP ${whatsapp_webhook_status}; expected 401 or 503."
+          echo "WhatsApp public callback probe: HTTP ${whatsapp_webhook_status} (expected 204)"
+          if [ "$whatsapp_webhook_status" != '204' ]; then
+            head -c 1200 /tmp/whatsapp-webhook.out || true
+            echo
+            fail "WhatsApp public callback returned HTTP ${whatsapp_webhook_status}; expected 204."
+          elif [ -s /tmp/whatsapp-webhook.out ]; then
+            fail 'WhatsApp public callback returned a non-empty response body; Gupshup expects an empty 2xx acknowledgement.'
           fi
 
-          # Stale test/audit cookies must never grant production access.
           assert_cookie_cannot_unlock buyer '/buyer-dashboard' 'login'
           assert_cookie_cannot_unlock seller '/seller-dashboard' 'login'
           assert_cookie_cannot_unlock admin '/admin-portal' 'admin-login'
