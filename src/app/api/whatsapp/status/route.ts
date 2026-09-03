@@ -19,9 +19,9 @@ export async function GET() {
     postDeliveryFollowUp: Boolean(process.env.WHATSAPP_TEMPLATE_POST_DELIVERY_FOLLOW_UP),
   };
   const channelReady = channel.apiKey && channel.appName && channel.sourceNumber;
-  const webhookReady = channel.appName;
+  const webhookReady = true;
   const templatesReady = Object.values(templates).every(Boolean);
-  const configured = channelReady && webhookReady;
+  const configured = channelReady;
 
   return NextResponse.json(
     {
@@ -31,7 +31,7 @@ export async function GET() {
       webhookReady,
       automationReady: configured && templatesReady,
       templatesReady,
-      mediaReady: configured,
+      mediaReady: webhookReady,
       businessNumber: channel.sourceNumber
         ? String(process.env.GUPSHUP_SOURCE_NUMBER).replace(/\D/g, '')
         : null,
@@ -41,7 +41,7 @@ export async function GET() {
         path: '/api/integrations/whatsapp/webhook',
         payloadFormat: 'gupshup_v2',
         access: 'public',
-        validation: 'configured_app_name_and_v2_event_shape',
+        validation: channel.appName ? 'configured_app_name_and_v2_event_shape' : 'gupshup_v2_event_shape',
         acknowledgement: 'empty_204',
       },
       required: { channel, templates },
