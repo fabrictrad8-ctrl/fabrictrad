@@ -13,7 +13,7 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
         with:
@@ -35,12 +35,17 @@ jobs:
           : > /tmp/post.out
           echo '{}' > /tmp/status.json
 
-          for attempt in 1 2 3 4 5 6; do
+          # Cloudflare connected builds can take a couple of minutes after a
+          # main-branch commit. Poll until the NEW runtime marker is visible,
+          # not merely until the previous healthy webhook answers.
+          for attempt in $(seq 1 30); do
             get_code=$(curl -sS --connect-timeout 10 --max-time 30 -o /tmp/get.out -w '%{http_code}' "$webhook" || true)
             post_code=$(curl -sS --connect-timeout 10 --max-time 30 -o /tmp/post.out -w '%{http_code}' -H 'Content-Type: application/json' --data '{"type":"user-event","version":2,"app":"__fabrictrad_live_probe__","payload":{"type":"sandbox-start"}}' "$webhook" || true)
             status_code=$(curl -sS --connect-timeout 10 --max-time 30 -o /tmp/status.json -w '%{http_code}' "$status_url" || true)
-            echo "Attempt ${attempt}: GET=${get_code}; POST=${post_code}; STATUS=${status_code}"
-            if [ "$get_code" = '204' ] && [ "$post_code" = '204' ] && [ "$status_code" = '200' ] && [ ! -s /tmp/get.out ] && [ ! -s /tmp/post.out ]; then
+            interactive=$(grep -o '"interactiveRepliesReady":true' /tmp/status.json || true)
+            strategy=$(grep -o '"appIdentityStrategy":"gupshup_inbound_event"' /tmp/status.json || true)
+            echo "Attempt ${attempt}: GET=${get_code}; POST=${post_code}; STATUS=${status_code}; interactive=$([ -n "$interactive" ] && echo yes || echo no); inbound-app=$([ -n "$strategy" ] && echo yes || echo no)"
+            if [ "$get_code" = '204' ] && [ "$post_code" = '204' ] && [ "$status_code" = '200' ] && [ ! -s /tmp/get.out ] && [ ! -s /tmp/post.out ] && [ -n "$interactive" ] && [ -n "$strategy" ]; then
               break
             fi
             sleep 10
@@ -73,6 +78,14 @@ jobs:
               and webhook.get('access') == 'public'
               and webhook.get('acknowledgement') == 'empty_204'
           )
+          interactive_live = (
+              webhook_live
+              and status.get('interactiveRepliesReady') is True
+              and status.get('configured') is True
+              and status.get('appIdentityStrategy') == 'gupshup_inbound_event'
+              and channel.get('apiKey') is True
+              and channel.get('sourceNumber') is True
+          )
           result = {
               'checkedAt': datetime.datetime.now(datetime.timezone.utc).isoformat(),
               'baseUrl': 'https://fabrictrad.com',
@@ -85,12 +98,16 @@ jobs:
                   'postBodyEmpty': post_empty,
               },
               'webhookLive': webhook_live,
+              'interactiveRuntimeLive': interactive_live,
               'provider': status.get('provider'),
               'configured': status.get('configured'),
               'channelReady': status.get('channelReady'),
+              'interactiveRepliesReady': status.get('interactiveRepliesReady'),
               'webhookReady': status.get('webhookReady'),
               'automationReady': status.get('automationReady'),
+              'proactiveAutomationReady': status.get('proactiveAutomationReady'),
               'templatesReady': status.get('templatesReady'),
+              'appIdentityStrategy': status.get('appIdentityStrategy'),
               'businessNumber': status.get('businessNumber'),
               'channelFieldsPresent': channel,
               'templateFieldsPresent': templates,
@@ -112,12 +129,12 @@ jobs:
           if git diff --cached --quiet; then
             echo 'Production proof unchanged.'
           else
-            git commit -m 'chore: record Gupshup production readiness [skip deploy]'
+            git commit -m 'chore: record final Gupshup production readiness [skip deploy]'
             git pull --rebase origin main
             git push origin HEAD:main
           fi
 
-      - name: Enforce live callback contract
+      - name: Enforce live interactive callback contract
         shell: bash
         run: |
           python3 - <<'PY'
@@ -125,5 +142,7 @@ jobs:
           data=json.load(open('.github/deployments/gupshup-live-status.json', encoding='utf-8'))
           if not data.get('webhookLive'):
               raise SystemExit('Production webhook is not registration-ready yet.')
-          print('Production Gupshup callback is registration-ready.')
+          if not data.get('interactiveRuntimeLive'):
+              raise SystemExit('Production has not activated the final interactive Gupshup runtime yet.')
+          print('Production Gupshup callback and interactive runtime are LIVE.')
           PY
