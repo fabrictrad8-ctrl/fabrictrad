@@ -1,0 +1,96 @@
+name: Finalize Gupshup public webhook backend
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/finalize-gupshup-public-webhook.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Patch runtime bookkeeping and verifier
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new):
+              p=Path(path); text=p.read_text()
+              if old not in text:
+                  raise SystemExit(f'Expected text not found in {path}: {old[:120]}')
+              p.write_text(text.replace(old,new,1))
+
+          marker="        processing_status: 'processed',\n"
+          addition=("        processing_status: 'processed',\n"
+                    "        provider: 'gupshup',\n"
+                    "        provider_message_id: outboundId,\n"
+                    "        delivery_status: 'submitted',\n"
+                    "        delivery_status_at: new Date().toISOString(),\n")
+          replace_once('src/lib/whatsappBuyerAutomation.ts', marker, addition)
+          replace_once('src/lib/bespokeFollowUps.ts', "    processing_status: 'processed',\n", "    processing_status: 'processed',\n    provider: 'gupshup',\n    provider_message_id: outboundId,\n    delivery_status: 'submitted',\n    delivery_status_at: new Date().toISOString(),\n")
+
+          p=Path('scripts/verify-mobile-whatsapp.mjs'); text=p.read_text()
+          old="""// WhatsApp catalogue ingestion uses Gupshup v2 callbacks, a private shared
+// header, asynchronous processing and seller-scoped persistence.
+requireText(webhook, \"request.headers.get('x-fabrictrad-webhook-token')\");
+requireText(webhook, 'GUPSHUP_WEBHOOK_SECRET');
+requireText(webhook, 'normalizeGupshupMessage');
+requireText(webhook, \"event.type !== 'message'\");
+"""
+          new="""// WhatsApp catalogue ingestion uses a public Gupshup v2 callback with
+// immediate empty 204 acknowledgements and app-scoped asynchronous processing.
+requireText(webhook, 'normalizeGupshupMessage');
+requireText(webhook, 'processDeliveryEvent');
+requireText(webhook, \"event.type === 'message-event'\");
+requireText(webhook, 'return noContent()');
+forbidText(webhook, 'x-fabrictrad-webhook-token');
+forbidText(webhook, 'GUPSHUP_WEBHOOK_SECRET');
+"""
+          if old not in text: raise SystemExit('Legacy private-webhook verifier block not found')
+          text=text.replace(old,new,1)
+          text=text.replace("requireText(status, 'WHATSAPP_TEMPLATE_POST_DELIVERY_FOLLOW_UP');\n", "requireText(status, 'WHATSAPP_TEMPLATE_POST_DELIVERY_FOLLOW_UP');\nrequireText(status, \"access: 'public'\");\nrequireText(status, \"acknowledgement: 'empty_204'\");\n",1)
+          text=text.replace("requireText(readiness, 'WhatsApp forged-token probe');", "requireText(readiness, 'WhatsApp public callback probe');",1)
+          p.write_text(text)
+          PY
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund --package-lock=false --legacy-peer-deps
+      - name: Verify WhatsApp integrity
+        run: npm run verify:whatsapp
+      - name: Type-check
+        run: npm run type-check
+      - name: Lint Gupshup runtime
+        run: npx eslint src/lib/gupshupWhatsApp.ts src/lib/whatsappBuyerAutomation.ts src/lib/bespokeFollowUps.ts src/app/api/integrations/whatsapp/webhook/route.ts src/app/api/whatsapp/status/route.ts scripts/verify-mobile-whatsapp.mjs
+      - name: Build Cloudflare/OpenNext package
+        run: npm run build:sites
+      - name: Commit verified runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'FabricTrad Release Bot'
+          git config user.email 'fabrictrad8@gmail.com'
+          git add src/lib/whatsappBuyerAutomation.ts src/lib/bespokeFollowUps.ts scripts/verify-mobile-whatsapp.mjs
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'fix: finalize Gupshup webhook delivery tracking [skip deploy]'
+          for attempt in 1 2 3 4; do
+            git fetch origin main
+            git rebase origin/main
+            if git push origin HEAD:main; then exit 0; fi
+            sleep 2
+          done
+          exit 1
