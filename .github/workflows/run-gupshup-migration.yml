@@ -43,19 +43,12 @@ jobs:
           indent = min(len(line) - len(line.lstrip()) for line in body if line.strip())
           program = '\n'.join(line[indent:] if line.strip() else '' for line in body) + '\n'
 
-          # Python replacement strings interpret TypeScript regex escapes such as \D.
-          # Use a callable replacement so generated TypeScript is copied literally.
           old = "updated, count = re.subn(pattern, replacement, text, count=1, flags=flags)"
           new = "updated, count = re.subn(pattern, lambda _match: replacement, text, count=1, flags=flags)"
           if old not in program:
               raise SystemExit('Expected regex replacement helper was not found.')
           program = program.replace(old, new, 1)
 
-          # The legacy embedded helper contains one exact multiline match for the
-          # production deployment YAML. Its first line lives inline in a Python
-          # triple-quoted string while continuation lines inherit YAML indentation,
-          # so extracting it necessarily changes that exact string. Production
-          # deployment hardening is intentionally handled in its own guarded patch.
           deploy_patch = re.compile(
               r"\n\s*deploy_old = '''[\s\S]*?\n\s*replace_once\(deploy, deploy_old, deploy_new\)\n",
               re.MULTILINE,
@@ -71,6 +64,27 @@ jobs:
 
       - name: Patch Meta transport to Gupshup
         run: python3 /tmp/gupshup-migrate.py
+
+      - name: Align generated verifier assertions
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('scripts/verify-mobile-whatsapp.mjs')
+          text = path.read_text()
+          old_header = 'requireText(whatsappProvider, "headers: {\\n        apikey: apiKey");'
+          new_header = 'requireText(whatsappProvider, "apikey: apiKey");'
+          if old_header not in text:
+              raise SystemExit('Expected generated Gupshup apikey verifier assertion not found.')
+          text = text.replace(old_header, new_header, 1)
+          old_probe = "requireText(readiness, 'WhatsApp forged-signature probe');"
+          new_probe = "requireText(readiness, 'WhatsApp forged-token probe');"
+          if old_probe not in text:
+              raise SystemExit('Expected legacy forged-signature verifier assertion not found.')
+          text = text.replace(old_probe, new_probe, 1)
+          path.write_text(text)
+          PY
 
       - name: Install dependencies
         run: npm install --no-audit --no-fund --package-lock=false --legacy-peer-deps
