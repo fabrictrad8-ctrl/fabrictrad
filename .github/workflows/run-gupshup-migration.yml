@@ -36,3 +36,5 @@ jobs:
       - name: Build, sync, deploy and verify Gupshup callback
         shell: bash
         run: bash scripts/deploy-gupshup-production.sh
+
+# Rerun marker: OpenNext package presence is the release gate.
