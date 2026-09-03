@@ -94,3 +94,5 @@ forbidText(webhook, 'GUPSHUP_WEBHOOK_SECRET');
             sleep 2
           done
           exit 1
+
+# Rerun marker: public callback readiness aligned 2026-09-03
