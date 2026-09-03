@@ -34,6 +34,7 @@ jobs:
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
+          import re
 
           source = Path('.github/workflows/migrate-gupshup-transport.yml').read_text().splitlines()
           start = next(i for i, line in enumerate(source) if line.strip() == "python3 <<'PY'")
@@ -41,11 +42,28 @@ jobs:
           body = source[start + 1:end]
           indent = min(len(line) - len(line.lstrip()) for line in body if line.strip())
           program = '\n'.join(line[indent:] if line.strip() else '' for line in body) + '\n'
+
+          # Python replacement strings interpret TypeScript regex escapes such as \D.
+          # Use a callable replacement so generated TypeScript is copied literally.
           old = "updated, count = re.subn(pattern, replacement, text, count=1, flags=flags)"
           new = "updated, count = re.subn(pattern, lambda _match: replacement, text, count=1, flags=flags)"
           if old not in program:
               raise SystemExit('Expected regex replacement helper was not found.')
           program = program.replace(old, new, 1)
+
+          # The legacy embedded helper contains one exact multiline match for the
+          # production deployment YAML. Its first line lives inline in a Python
+          # triple-quoted string while continuation lines inherit YAML indentation,
+          # so extracting it necessarily changes that exact string. Production
+          # deployment hardening is intentionally handled in its own guarded patch.
+          deploy_patch = re.compile(
+              r"\n\s*deploy_old = '''[\s\S]*?\n\s*replace_once\(deploy, deploy_old, deploy_new\)\n",
+              re.MULTILINE,
+          )
+          program, removed = deploy_patch.subn('\n', program, count=1)
+          if removed != 1:
+              raise SystemExit('Expected embedded production deployment exact patch was not found.')
+
           compile(program, '/tmp/gupshup-migrate.py', 'exec')
           Path('/tmp/gupshup-migrate.py').write_text(program)
           print(f'Extracted and compiled migration program ({len(program)} bytes).')
@@ -95,7 +113,6 @@ jobs:
             src/app/api/whatsapp/status/route.ts \
             scripts/verify-mobile-whatsapp.mjs \
             .github/workflows/sync-whatsapp-production.yml \
-            .github/workflows/force-deploy-current-worker.yml \
             .github/workflows/integration-readiness.yml
           git commit -m 'feat: migrate WhatsApp transport to Gupshup [skip deploy]'
           git push origin HEAD:main
