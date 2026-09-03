@@ -60,12 +60,13 @@ type OutboundPayload =
 async function sendWhatsAppPayload(
   to: string,
   payload: OutboundPayload,
-  context: { userId: string; orderId: string; fallbackText: string }
+  context: { userId: string; orderId: string; fallbackText: string },
+  appNameOverride?: string | null
 ) {
   const result =
     payload.kind === 'template'
-      ? await sendGupshupTemplate(to, payload.templateId, payload.parameters)
-      : await sendGupshupText(to, payload.text, true);
+      ? await sendGupshupTemplate(to, payload.templateId, payload.parameters, appNameOverride)
+      : await sendGupshupText(to, payload.text, true, appNameOverride);
   const outboundId = String(result.messageId || '').trim();
   const admin = createAdminClient();
   await admin.from('whatsapp_buyer_messages').insert({
@@ -77,6 +78,10 @@ async function sendWhatsAppPayload(
     message_type: payload.kind === 'template' ? 'template' : 'text',
     message_text: context.fallbackText.slice(0, 12_000),
     processing_status: 'processed',
+    provider: 'gupshup',
+    provider_message_id: outboundId,
+    delivery_status: 'submitted',
+    delivery_status_at: new Date().toISOString(),
   });
   return outboundId;
 }
@@ -168,7 +173,7 @@ async function processOne(job: FollowUpJob) {
     const [{ data: order }, { data: profile }, { data: session }] = await Promise.all([
       admin.from('bespoke_orders').select('*').eq('id', job.bespoke_order_id).maybeSingle(),
       admin.from('user_profiles').select('full_name,phone').eq('id', job.user_id).maybeSingle(),
-      admin.from('whatsapp_buyer_sessions').select('last_inbound_at').eq('user_id', job.user_id).order('last_inbound_at', { ascending: false }).limit(1).maybeSingle(),
+      admin.from('whatsapp_buyer_sessions').select('last_inbound_at,context').eq('user_id', job.user_id).order('last_inbound_at', { ascending: false }).limit(1).maybeSingle(),
     ]);
     if (!order) throw new Error('bespoke_order_missing');
 
@@ -202,6 +207,11 @@ async function processOne(job: FollowUpJob) {
     });
     const lastInbound = session?.last_inbound_at ? new Date(session.last_inbound_at).getTime() : 0;
     const customerWindowOpen = lastInbound > 0 && Date.now() - lastInbound < CUSTOMER_WINDOW_MS;
+    const sessionContext =
+      session?.context && typeof session.context === 'object'
+        ? (session.context as Record<string, unknown>)
+        : {};
+    const appNameOverride = String(sessionContext.gupshup_app_name || '').trim() || undefined;
     const templateName = process.env[templateEnvByJob[job.job_type]]?.trim() || '';
 
     if (customerWindowOpen) {
@@ -209,7 +219,7 @@ async function processOne(job: FollowUpJob) {
         userId: job.user_id,
         orderId: job.bespoke_order_id,
         fallbackText: message.text,
-      });
+      }, appNameOverride);
     } else {
       if (!templateName) {
         throw new Error(`whatsapp_template_missing:${templateEnvByJob[job.job_type]}`);
@@ -221,7 +231,8 @@ async function processOne(job: FollowUpJob) {
           userId: job.user_id,
           orderId: job.bespoke_order_id,
           fallbackText: message.text,
-        }
+        },
+        appNameOverride
       );
     }
 

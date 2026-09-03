@@ -17,6 +17,7 @@ const DELIVERY_STATES = new Set(['enqueued', 'failed', 'sent', 'delivered', 'rea
 
 type WhatsAppMessage = {
   id?: string;
+  appName?: string;
   from?: string;
   type?: string;
   text?: { body?: string };
@@ -59,7 +60,11 @@ const normalizeGupshupMessage = (event: GupshupEvent): WhatsAppMessage | null =>
   if (event.type !== 'message' || !event.payload?.id || !event.payload.source) return null;
   const message = event.payload;
   const content = message.payload || {};
-  const common = { id: message.id, from: message.source };
+  const common = {
+    id: message.id,
+    from: message.source,
+    appName: String(event.app || '').trim() || undefined,
+  };
   if (message.type === 'text') {
     return { ...common, type: 'text', text: { body: String(content.text || '') } };
   }
@@ -153,9 +158,13 @@ const extensionFor = (mime: string) => {
   return 'bin';
 };
 
-async function acknowledgeSeller(to: string, text: string) {
+async function acknowledgeSeller(
+  to: string,
+  text: string,
+  appNameOverride?: string | null
+) {
   try {
-    await sendGupshupText(to, text, false);
+    await sendGupshupText(to, text, false, appNameOverride);
     return true;
   } catch (error) {
     console.error('Seller WhatsApp acknowledgement failed', {
@@ -189,7 +198,8 @@ async function ingestSellerMessage(message: WhatsAppMessage) {
   if (profileError || !profile?.id || profile.can_sell !== true) {
     await acknowledgeSeller(
       fromRaw,
-      'FabricTrad could not match this WhatsApp number to an active seller account. Add the same number to your FabricTrad seller profile first.'
+      'FabricTrad could not match this WhatsApp number to an active seller account. Add the same number to your FabricTrad seller profile first.',
+      message.appName
     );
     return;
   }
@@ -257,7 +267,8 @@ async function ingestSellerMessage(message: WhatsAppMessage) {
     fromRaw,
     parsedDraft
       ? `Received ${parsedDraft.name}. FabricTrad has organised the details and synced them to your seller dashboard as a private WhatsApp catalogue draft.`
-      : 'Received. The message or media is now visible in your FabricTrad seller dashboard for review.'
+      : 'Received. The message or media is now visible in your FabricTrad seller dashboard for review.',
+    message.appName
   );
 }
 
@@ -305,7 +316,8 @@ async function recordProcessingFailure(message: WhatsAppMessage, error: unknown)
       fromRaw,
       'We saved your message, but an automated step could not finish. FabricTrad customer service has been flagged with your order context; you do not need to resend sensitive details.',
       buyerMessage.bespoke_order_id,
-      buyerMessage.user_id
+      buyerMessage.user_id,
+      message.appName
     );
     return;
   }
@@ -316,7 +328,8 @@ async function recordProcessingFailure(message: WhatsAppMessage, error: unknown)
     .eq('wa_message_id', waMessageId);
   await acknowledgeSeller(
     fromRaw,
-    'FabricTrad saved your WhatsApp upload but could not finish processing it. It has been flagged for seller-support review.'
+    'FabricTrad saved your WhatsApp upload but could not finish processing it. It has been flagged for seller-support review.',
+    message.appName
   );
 }
 

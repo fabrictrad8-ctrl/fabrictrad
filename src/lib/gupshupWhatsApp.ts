@@ -26,11 +26,12 @@ type GupshupSendResult = {
 async function postGupshupForm(
   url: string,
   destinationRaw: string,
-  extra: Record<string, string>
+  extra: Record<string, string>,
+  appNameOverride?: string | null
 ) {
   const apiKey = env('GUPSHUP_API_KEY');
   const source = normalizeDestination(env('GUPSHUP_SOURCE_NUMBER'));
-  const appName = env('GUPSHUP_APP_NAME');
+  const appName = String(appNameOverride || env('GUPSHUP_APP_NAME')).trim();
   const destination = normalizeDestination(destinationRaw);
   if (!apiKey || !source || !appName) throw new Error('gupshup_not_configured');
   if (!destination) throw new Error('gupshup_destination_invalid');
@@ -67,30 +68,42 @@ async function postGupshupForm(
 export async function sendGupshupText(
   destination: string,
   text: string,
-  previewUrl = true
+  previewUrl = true,
+  appNameOverride?: string | null
 ) {
-  return postGupshupForm(GUPSHUP_MESSAGE_URL, destination, {
-    message: JSON.stringify({
-      type: 'text',
-      text: text.slice(0, 4096),
-      previewUrl,
-    }),
-  });
+  return postGupshupForm(
+    GUPSHUP_MESSAGE_URL,
+    destination,
+    {
+      message: JSON.stringify({
+        type: 'text',
+        text: text.slice(0, 4096),
+        previewUrl,
+      }),
+    },
+    appNameOverride
+  );
 }
 
 export async function sendGupshupTemplate(
   destination: string,
   templateId: string,
-  parameters: string[]
+  parameters: string[],
+  appNameOverride?: string | null
 ) {
   const id = String(templateId || '').trim();
   if (!id) throw new Error('gupshup_template_id_missing');
-  return postGupshupForm(GUPSHUP_TEMPLATE_URL, destination, {
-    template: JSON.stringify({
-      id,
-      params: parameters.map((value) => String(value).slice(0, 1024)),
-    }),
-  });
+  return postGupshupForm(
+    GUPSHUP_TEMPLATE_URL,
+    destination,
+    {
+      template: JSON.stringify({
+        id,
+        params: parameters.map((value) => String(value).slice(0, 1024)),
+      }),
+    },
+    appNameOverride
+  );
 }
 
 const isAllowedMediaUrl = (value: string) => {

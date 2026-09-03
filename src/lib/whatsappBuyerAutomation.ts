@@ -7,6 +7,7 @@ const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || 'https://fabrictrad.com').
 
 type MetaMessage = {
   id?: string;
+  appName?: string;
   from?: string;
   type?: string;
   text?: { body?: string };
@@ -78,9 +79,15 @@ export async function sendBuyerWhatsAppText(
   toRaw: string,
   text: string,
   orderId?: string | null,
-  userId?: string | null
+  userId?: string | null,
+  appNameOverride?: string | null
 ) {
-  const result = await sendGupshupText(toRaw, text.slice(0, 4000), true);
+  const result = await sendGupshupText(
+    toRaw,
+    text.slice(0, 4000),
+    true,
+    appNameOverride
+  );
   const outboundId = String(result.messageId || '').trim();
   if (outboundId) {
     const admin = createAdminClient();
@@ -95,6 +102,10 @@ export async function sendBuyerWhatsAppText(
         message_type: 'text',
         message_text: text.slice(0, 12_000),
         processing_status: 'processed',
+        provider: 'gupshup',
+        provider_message_id: outboundId,
+        delivery_status: 'submitted',
+        delivery_status_at: new Date().toISOString(),
       })
       .then(() => undefined, () => undefined);
   }
@@ -287,6 +298,12 @@ const appointmentTypeForStage = (
 export async function handleBuyerWhatsAppMessage(
   message: MetaMessage
 ): Promise<{ handled: boolean }> {
+  const sendBuyerReply = (
+    toRaw: string,
+    text: string,
+    orderId?: string | null,
+    userId?: string | null
+  ) => sendBuyerWhatsAppText(toRaw, text, orderId, userId, message.appName);
   const waMessageId = String(message.id || '').trim();
   const fromRaw = String(message.from || '').replace(/\D/g, '');
   const phone = normalizePhone(fromRaw);
@@ -385,7 +402,7 @@ export async function handleBuyerWhatsAppMessage(
       last_inbound_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     });
-    await sendBuyerWhatsAppText(
+    await sendBuyerReply(
       fromRaw,
       'This mobile number is linked to more than one active FabricTrad account, so automation has stopped safely. Customer service has been flagged to resolve the account identity before any order details are changed.'
     );
@@ -419,7 +436,7 @@ export async function handleBuyerWhatsAppMessage(
       .from('whatsapp_buyer_messages')
       .update({ processing_status: 'processed' })
       .eq('wa_message_id', waMessageId);
-    await sendBuyerWhatsAppText(
+    await sendBuyerReply(
       fromRaw,
       `${statedStoreName ? `I saved “${statedStoreName}” as your requested store name.\n\n` : ''}To attach WhatsApp orders securely, sign in or create a FabricTrad buyer account with this same mobile number (${phone}).\n${SITE_URL}/buyer-registration?type=retail_store\n\nAfter that, send HI here again and I will continue automatically.`,
       null,
@@ -446,7 +463,7 @@ export async function handleBuyerWhatsAppMessage(
       .from('whatsapp_buyer_messages')
       .update({ processing_status: 'processed' })
       .eq('wa_message_id', waMessageId);
-    await sendBuyerWhatsAppText(
+    await sendBuyerReply(
       fromRaw,
       'Reply STORE: followed by your preferred unique store name, for example STORE: Mehta Textiles. I will check availability and suggest close alternatives if it is taken.',
       session?.active_order_id || null,
@@ -468,7 +485,7 @@ export async function handleBuyerWhatsAppMessage(
         .from('whatsapp_buyer_messages')
         .update({ processing_status: 'processed' })
         .eq('wa_message_id', waMessageId);
-      await sendBuyerWhatsAppText(
+      await sendBuyerReply(
         fromRaw,
         storeResult.message,
         session?.active_order_id || null,
@@ -510,7 +527,7 @@ export async function handleBuyerWhatsAppMessage(
       .eq('user_id', typedProfile.id)
       .maybeSingle();
     if (!buyer?.id) {
-      await sendBuyerWhatsAppText(
+      await sendBuyerReply(
         fromRaw,
         `Your buyer profile is still being prepared. Complete it here: ${SITE_URL}/buyer-registration?resume=1`,
         null,
@@ -551,7 +568,11 @@ export async function handleBuyerWhatsAppMessage(
     buyer_store_id: storeId,
     active_order_id: activeOrderId,
     stage,
-    context: { ...context, from_raw: fromRaw },
+    context: {
+      ...context,
+      from_raw: fromRaw,
+      ...(message.appName ? { gupshup_app_name: message.appName } : {}),
+    },
     last_inbound_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   };
@@ -562,7 +583,7 @@ export async function handleBuyerWhatsAppMessage(
       .from('whatsapp_buyer_messages')
       .update({ processing_status: 'processed', bespoke_order_id: activeOrderId })
       .eq('wa_message_id', waMessageId);
-    await sendBuyerWhatsAppText(
+    await sendBuyerReply(
       fromRaw,
       `Store saved. Reply CATALOGUE to begin a custom order.\n\n${menu()}`,
       activeOrderId,
@@ -577,7 +598,7 @@ export async function handleBuyerWhatsAppMessage(
       .from('whatsapp_buyer_messages')
       .update({ processing_status: 'processed', bespoke_order_id: activeOrderId })
       .eq('wa_message_id', waMessageId);
-    await sendBuyerWhatsAppText(fromRaw, menu(), activeOrderId, typedProfile.id);
+    await sendBuyerReply(fromRaw, menu(), activeOrderId, typedProfile.id);
     return { handled: true };
   }
 
@@ -587,7 +608,7 @@ export async function handleBuyerWhatsAppMessage(
       .from('whatsapp_buyer_messages')
       .update({ processing_status: 'processed', bespoke_order_id: activeOrderId })
       .eq('wa_message_id', waMessageId);
-    await sendBuyerWhatsAppText(
+    await sendBuyerReply(
       fromRaw,
       await orderSummary(activeOrder),
       activeOrderId,
@@ -616,7 +637,7 @@ export async function handleBuyerWhatsAppMessage(
       .from('whatsapp_buyer_messages')
       .update({ processing_status: 'needs_human', bespoke_order_id: activeOrderId })
       .eq('wa_message_id', waMessageId);
-    await sendBuyerWhatsAppText(
+    await sendBuyerReply(
       fromRaw,
       'Customer-service handoff requested. Your digital order context is saved, so you will not need to repeat the details.',
       activeOrderId,
@@ -631,7 +652,7 @@ export async function handleBuyerWhatsAppMessage(
       .from('whatsapp_buyer_messages')
       .update({ processing_status: 'processed' })
       .eq('wa_message_id', waMessageId);
-    await sendBuyerWhatsAppText(fromRaw, menu(), null, typedProfile.id);
+    await sendBuyerReply(fromRaw, menu(), null, typedProfile.id);
     return { handled: true };
   }
 
@@ -641,7 +662,7 @@ export async function handleBuyerWhatsAppMessage(
       .from('whatsapp_buyer_messages')
       .update({ processing_status: 'processed', bespoke_order_id: activeOrderId })
       .eq('wa_message_id', waMessageId);
-    await sendBuyerWhatsAppText(
+    await sendBuyerReply(
       fromRaw,
       `Browse the live catalogue without losing your active custom order: ${SITE_URL}/marketplace\n\n${await orderSummary(activeOrder)}\n\nReply NEW ORDER only if you want to start a separate custom order.`,
       activeOrderId,
@@ -984,6 +1005,6 @@ export async function handleBuyerWhatsAppMessage(
       bespoke_order_id: activeOrderId,
     })
     .eq('wa_message_id', waMessageId);
-  await sendBuyerWhatsAppText(fromRaw, responseText || menu(), activeOrderId, typedProfile.id);
+  await sendBuyerReply(fromRaw, responseText || menu(), activeOrderId, typedProfile.id);
   return { handled: true };
 }
