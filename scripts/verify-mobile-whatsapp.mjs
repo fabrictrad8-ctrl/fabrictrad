@@ -27,6 +27,7 @@ const catalogUi = 'src/app/seller-dashboard/components/SellerCatalogAssistant.ts
 const productDraftMigration = 'supabase/migrations/20260821165000_seller_product_composer_drafts.sql';
 const flexibleProductMigration = 'supabase/migrations/20260822043000_flexible_product_taxonomy_units.sql';
 const webhook = 'src/app/api/integrations/whatsapp/webhook/route.ts';
+const whatsappProvider = 'src/lib/gupshupWhatsApp.ts';
 const buyerAutomation = 'src/lib/whatsappBuyerAutomation.ts';
 const bespokeFollowUps = 'src/lib/bespokeFollowUps.ts';
 const bespokePaymentReconciliation = 'src/lib/server/bespokePaymentReconciliation.ts';
@@ -63,6 +64,7 @@ const readiness = '.github/workflows/integration-readiness.yml';
   productDraftMigration,
   flexibleProductMigration,
   webhook,
+  whatsappProvider,
   buyerAutomation,
   bespokeFollowUps,
   bespokePaymentReconciliation,
@@ -140,23 +142,27 @@ requireText(flexibleProductMigration, 'add column if not exists unit_label text'
 requireText(flexibleProductMigration, "'yard'::text,'farma'::text,'custom'::text");
 requireText(flexibleProductMigration, 'check (char_length(trim(package_format)) between 1 and 160)');
 
-// WhatsApp catalogue ingestion remains signed, asynchronous and seller-scoped.
-requireText(webhook, "request.headers.get('x-hub-signature-256')");
-requireText(webhook, "createHmac('sha256'");
-requireText(webhook, 'timingSafeEqual');
+// WhatsApp catalogue ingestion uses Gupshup v2 callbacks, a private shared
+// header, asynchronous processing and seller-scoped persistence.
+requireText(webhook, "request.headers.get('x-fabrictrad-webhook-token')");
+requireText(webhook, 'GUPSHUP_WEBHOOK_SECRET');
+requireText(webhook, 'normalizeGupshupMessage');
+requireText(webhook, "event.type !== 'message'");
 requireText(webhook, 'after(async () =>');
-requireText(webhook, 'WHATSAPP_APP_SECRET');
-requireText(webhook, 'WHATSAPP_ACCESS_TOKEN');
-requireText(webhook, 'WHATSAPP_VERIFY_TOKEN');
 requireText(webhook, 'parseCatalogMessage');
 requireText(webhook, "from('whatsapp_catalog_ingestions')");
 requireText(webhook, "from(MEDIA_BUCKET)");
-requireText(webhook, 'messagesBySender');
-requireText(webhook, 'for (const message of senderMessages)');
 requireText(webhook, 'recordProcessingFailure');
 requireText(webhook, "processing_status: 'failed'");
-forbidText(webhook, 'WHATSAPP_ACCESS_TOKEN =');
-forbidText(webhook, 'WHATSAPP_APP_SECRET =');
+requireText(whatsappProvider, 'https://api.gupshup.io/wa/api/v1/msg');
+requireText(whatsappProvider, 'https://api.gupshup.io/wa/api/v1/template/msg');
+requireText(whatsappProvider, "apikey: apiKey");
+requireText(whatsappProvider, "host.endsWith('.gupshup.io')");
+requireText(buyerAutomation, 'sendGupshupText');
+requireText(bespokeFollowUps, 'sendGupshupTemplate');
+forbidText(webhook, 'graph.facebook.com');
+forbidText(buyerAutomation, 'graph.facebook.com');
+forbidText(bespokeFollowUps, 'graph.facebook.com');
 requireText(migration, "'seller-whatsapp-inbox'");
 requireText(migration, 'ENABLE ROW LEVEL SECURITY');
 requireText(migration, 'user_id = (SELECT auth.uid())');
@@ -295,7 +301,7 @@ requireText(status, 'automationReady');
 requireText(status, 'templatesReady');
 requireText(status, 'WHATSAPP_TEMPLATE_POST_DELIVERY_FOLLOW_UP');
 requireText(readiness, "fetch_json 'WhatsApp catalog readiness'");
-requireText(readiness, 'WhatsApp forged-signature probe');
+requireText(readiness, 'WhatsApp forged-token probe');
 requireText(readiness, '/api/integrations/whatsapp/webhook');
 
 if (failures.length) {

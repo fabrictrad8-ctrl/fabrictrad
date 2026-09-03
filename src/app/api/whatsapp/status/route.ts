@@ -5,11 +5,11 @@ export const runtime = 'nodejs';
 
 export async function GET() {
   const channel = {
-    accessToken: Boolean(process.env.WHATSAPP_ACCESS_TOKEN),
-    appSecret: Boolean(process.env.WHATSAPP_APP_SECRET),
-    verifyToken: Boolean(process.env.WHATSAPP_VERIFY_TOKEN),
-    phoneNumberId: Boolean(process.env.WHATSAPP_PHONE_NUMBER_ID),
-    businessNumber: Boolean(process.env.NEXT_PUBLIC_WHATSAPP_BUSINESS_NUMBER),
+    apiKey: Boolean(process.env.GUPSHUP_API_KEY),
+    appName: Boolean(process.env.GUPSHUP_APP_NAME),
+    sourceNumber: Boolean(process.env.GUPSHUP_SOURCE_NUMBER),
+    wabaId: Boolean(process.env.GUPSHUP_WABA_ID),
+    webhookSecret: Boolean(process.env.GUPSHUP_WEBHOOK_SECRET),
   };
   const templates = {
     appointmentReminder: Boolean(process.env.WHATSAPP_TEMPLATE_APPOINTMENT_REMINDER),
@@ -19,23 +19,30 @@ export async function GET() {
     reviewRequest: Boolean(process.env.WHATSAPP_TEMPLATE_REVIEW_REQUEST),
     postDeliveryFollowUp: Boolean(process.env.WHATSAPP_TEMPLATE_POST_DELIVERY_FOLLOW_UP),
   };
-  const channelReady = Object.values(channel).every(Boolean);
+  const channelReady = channel.apiKey && channel.appName && channel.sourceNumber && channel.wabaId;
+  const webhookReady = channel.webhookSecret;
   const templatesReady = Object.values(templates).every(Boolean);
-  const configured = channelReady && templatesReady;
+  const configured = channelReady && webhookReady;
 
   return NextResponse.json(
     {
+      provider: 'gupshup',
       configured,
       channelReady,
-      automationReady: channelReady && templatesReady,
+      webhookReady,
+      automationReady: configured && templatesReady,
       templatesReady,
-      webhookReady: channel.appSecret && channel.verifyToken,
-      mediaReady: channel.accessToken && channel.phoneNumberId,
-      businessNumber: channel.businessNumber
-        ? String(process.env.NEXT_PUBLIC_WHATSAPP_BUSINESS_NUMBER).replace(/\D/g, '')
+      mediaReady: configured,
+      businessNumber: channel.sourceNumber
+        ? String(process.env.GUPSHUP_SOURCE_NUMBER).replace(/\D/g, '')
         : null,
-      graphVersion: process.env.WHATSAPP_GRAPH_API_VERSION || 'v23.0',
-      required: { ...channel, templates },
+      wabaIdConfigured: channel.wabaId,
+      webhook: {
+        path: '/api/integrations/whatsapp/webhook',
+        payloadFormat: 'gupshup_v2',
+        authHeader: 'x-fabrictrad-webhook-token',
+      },
+      required: { channel, templates },
     },
     { headers: { 'Cache-Control': 'no-store, max-age=0' } }
   );

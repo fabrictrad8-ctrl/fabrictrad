@@ -1,6 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin';
+import { sendGupshupTemplate, sendGupshupText } from '@/lib/gupshupWhatsApp';
 
-const GRAPH_VERSION = process.env.WHATSAPP_GRAPH_API_VERSION || 'v23.0';
 const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || 'https://fabrictrad.com').replace(/\/$/, '');
 const CUSTOMER_WINDOW_MS = 24 * 60 * 60 * 1000;
 
@@ -53,41 +53,20 @@ const templateEnvByJob: Record<FollowUpJob['job_type'], string> = {
   post_delivery_follow_up: 'WHATSAPP_TEMPLATE_POST_DELIVERY_FOLLOW_UP',
 };
 
+type OutboundPayload =
+  | { kind: 'text'; text: string }
+  | { kind: 'template'; templateId: string; parameters: string[] };
+
 async function sendWhatsAppPayload(
   to: string,
-  payload: Record<string, unknown>,
+  payload: OutboundPayload,
   context: { userId: string; orderId: string; fallbackText: string }
 ) {
-  const token = process.env.WHATSAPP_ACCESS_TOKEN;
-  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
-  if (!token || !phoneNumberId) throw new Error('whatsapp_cloud_api_not_configured');
-
-  const response = await fetch(`https://graph.facebook.com/${GRAPH_VERSION}/${phoneNumberId}/messages`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      messaging_product: 'whatsapp',
-      recipient_type: 'individual',
-      to,
-      ...payload,
-    }),
-    cache: 'no-store',
-    signal: AbortSignal.timeout(15_000),
-  });
-  const result = (await response.json().catch(() => ({}))) as {
-    messages?: Array<{ id?: string }>;
-    error?: { message?: string; code?: number };
-  };
-  if (!response.ok || !result.messages?.[0]?.id) {
-    throw new Error(
-      result.error?.message || `whatsapp_provider_${response.status || 0}`
-    );
-  }
-
-  const outboundId = String(result.messages[0].id);
+  const result =
+    payload.kind === 'template'
+      ? await sendGupshupTemplate(to, payload.templateId, payload.parameters)
+      : await sendGupshupText(to, payload.text, true);
+  const outboundId = String(result.messageId || '').trim();
   const admin = createAdminClient();
   await admin.from('whatsapp_buyer_messages').insert({
     wa_message_id: outboundId,
@@ -95,30 +74,22 @@ async function sendWhatsAppPayload(
     user_id: context.userId,
     bespoke_order_id: context.orderId,
     direction: 'outbound',
-    message_type: payload.type === 'template' ? 'template' : 'text',
+    message_type: payload.kind === 'template' ? 'template' : 'text',
     message_text: context.fallbackText.slice(0, 12_000),
     processing_status: 'processed',
   });
   return outboundId;
 }
 
-const freeFormPayload = (text: string) => ({
-  type: 'text',
-  text: { body: text.slice(0, 4000), preview_url: true },
+const freeFormPayload = (text: string): OutboundPayload => ({
+  kind: 'text',
+  text: text.slice(0, 4000),
 });
 
-const templatePayload = (config: TemplateConfig) => ({
-  type: 'template',
-  template: {
-    name: config.name,
-    language: { code: process.env.WHATSAPP_TEMPLATE_LANGUAGE || 'en_US' },
-    components: [
-      {
-        type: 'body',
-        parameters: config.parameters.map((text) => ({ type: 'text', text: text.slice(0, 1024) })),
-      },
-    ],
-  },
+const templatePayload = (config: TemplateConfig): OutboundPayload => ({
+  kind: 'template',
+  templateId: config.name,
+  parameters: config.parameters,
 });
 
 function messageForJob(input: {

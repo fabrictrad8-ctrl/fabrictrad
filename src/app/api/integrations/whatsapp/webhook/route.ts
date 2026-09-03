@@ -1,7 +1,8 @@
-import { createHmac, timingSafeEqual } from 'node:crypto';
+import { timingSafeEqual } from 'node:crypto';
 import { after, NextRequest, NextResponse } from 'next/server';
 import { parseCatalogMessage } from '@/lib/catalogAssistant';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { downloadGupshupMedia, sendGupshupText } from '@/lib/gupshupWhatsApp';
 import {
   handleBuyerWhatsAppMessage,
   sendBuyerWhatsAppText,
@@ -12,7 +13,6 @@ export const runtime = 'nodejs';
 export const maxDuration = 60;
 
 const MAX_MEDIA_BYTES = 50 * 1024 * 1024;
-const GRAPH_VERSION = process.env.WHATSAPP_GRAPH_API_VERSION || 'v23.0';
 const MEDIA_BUCKET = 'seller-whatsapp-inbox';
 
 type MetaMessage = {
@@ -23,6 +23,82 @@ type MetaMessage = {
   image?: { id?: string; caption?: string; mime_type?: string };
   video?: { id?: string; caption?: string; mime_type?: string };
   document?: { id?: string; caption?: string; filename?: string; mime_type?: string };
+};
+
+
+type GupshupEvent = {
+  app?: string;
+  timestamp?: number;
+  version?: number;
+  type?: string;
+  payload?: {
+    id?: string;
+    source?: string;
+    type?: string;
+    payload?: {
+      text?: string;
+      caption?: string;
+      url?: string;
+      contentType?: string;
+      name?: string;
+      filename?: string;
+      title?: string;
+      postbackText?: string;
+    };
+    sender?: { phone?: string; name?: string };
+  };
+};
+
+const normalizeGupshupMessage = (event: GupshupEvent): MetaMessage | null => {
+  if (event.type !== 'message' || !event.payload?.id || !event.payload.source) return null;
+  const message = event.payload;
+  const content = message.payload || {};
+  const common = { id: message.id, from: message.source };
+  if (message.type === 'text') {
+    return { ...common, type: 'text', text: { body: String(content.text || '') } };
+  }
+  if (message.type === 'image' && content.url) {
+    return {
+      ...common,
+      type: 'image',
+      image: {
+        id: content.url,
+        caption: content.caption,
+        mime_type: content.contentType || 'image/jpeg',
+      },
+    };
+  }
+  if ((message.type === 'file' || message.type === 'document') && content.url) {
+    return {
+      ...common,
+      type: 'document',
+      document: {
+        id: content.url,
+        caption: content.caption,
+        filename: content.name || content.filename,
+        mime_type: content.contentType || 'application/octet-stream',
+      },
+    };
+  }
+  if (message.type === 'video' && content.url) {
+    return {
+      ...common,
+      type: 'video',
+      video: {
+        id: content.url,
+        caption: content.caption,
+        mime_type: content.contentType || 'video/mp4',
+      },
+    };
+  }
+  if (message.type === 'button_reply' || message.type === 'list_reply') {
+    return {
+      ...common,
+      type: 'text',
+      text: { body: String(content.postbackText || content.title || content.text || '') },
+    };
+  }
+  return { ...common, type: String(message.type || 'unknown') };
 };
 
 type WebhookPayload = {
@@ -78,88 +154,24 @@ const extensionFor = (mime: string) => {
   return 'bin';
 };
 
-const verifySignature = (rawBody: string, signature: string | null, secret: string) => {
-  if (!signature?.startsWith('sha256=')) return false;
-  const expected = `sha256=${createHmac('sha256', secret).update(rawBody).digest('hex')}`;
-  const suppliedBuffer = Buffer.from(signature);
+const secureEqual = (supplied: string | null, expected: string) => {
+  if (!supplied || !expected) return false;
+  const suppliedBuffer = Buffer.from(supplied);
   const expectedBuffer = Buffer.from(expected);
   if (suppliedBuffer.length !== expectedBuffer.length) return false;
   return timingSafeEqual(suppliedBuffer, expectedBuffer);
 };
 
-async function downloadMetaMedia(mediaId: string, accessToken: string) {
-  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
-  const metadataUrl = new URL(
-    `https://graph.facebook.com/${GRAPH_VERSION}/${encodeURIComponent(mediaId)}`
-  );
-  if (phoneNumberId) metadataUrl.searchParams.set('phone_number_id', phoneNumberId);
-
-  const metadataResponse = await fetch(metadataUrl, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-    cache: 'no-store',
-    signal: AbortSignal.timeout(20_000),
-  });
-  if (!metadataResponse.ok) throw new Error(`media_metadata_${metadataResponse.status}`);
-  const metadata = (await metadataResponse.json()) as {
-    url?: string;
-    mime_type?: string;
-    file_size?: number | string;
-  };
-  if (!metadata.url) throw new Error('media_url_missing');
-  if (Number(metadata.file_size || 0) > MAX_MEDIA_BYTES) throw new Error('media_too_large');
-
-  const mediaResponse = await fetch(metadata.url, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-    cache: 'no-store',
-    redirect: 'follow',
-    signal: AbortSignal.timeout(30_000),
-  });
-  if (!mediaResponse.ok) throw new Error(`media_download_${mediaResponse.status}`);
-  const buffer = Buffer.from(await mediaResponse.arrayBuffer());
-  if (!buffer.length || buffer.length > MAX_MEDIA_BYTES) throw new Error('media_too_large');
-  const mime =
-    String(metadata.mime_type || mediaResponse.headers.get('content-type') || 'application/octet-stream')
-      .split(';')[0]
-      .trim()
-      .toLowerCase();
-  return { buffer, mime };
-}
-
 async function acknowledgeSeller(to: string, text: string) {
-  const token = process.env.WHATSAPP_ACCESS_TOKEN;
-  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
-  if (!token || !phoneNumberId) return false;
-  const response = await fetch(`https://graph.facebook.com/${GRAPH_VERSION}/${phoneNumberId}/messages`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      messaging_product: 'whatsapp',
-      recipient_type: 'individual',
-      to,
-      type: 'text',
-      text: { body: text, preview_url: false },
-    }),
-    signal: AbortSignal.timeout(15_000),
-  }).catch(() => null);
-  if (!response) {
-    console.error('Seller WhatsApp acknowledgement failed', { code: 'provider_unreachable' });
-    return false;
-  }
-  const result = (await response.json().catch(() => ({}))) as {
-    error?: { message?: string; code?: number };
-  };
-  if (!response.ok) {
+  try {
+    await sendGupshupText(to, text, false);
+    return true;
+  } catch (error) {
     console.error('Seller WhatsApp acknowledgement failed', {
-      status: response.status,
-      code: result.error?.code || null,
-      message: String(result.error?.message || 'provider_error').slice(0, 500),
+      code: error instanceof Error ? error.message : 'provider_error',
     });
     return false;
   }
-  return true;
 }
 
 async function ingestSellerMessage(message: MetaMessage) {
@@ -205,9 +217,9 @@ async function ingestSellerMessage(message: MetaMessage) {
   let mediaMimeType: string | null = media?.mime || null;
   let processingError = '';
 
-  if (media?.id && process.env.WHATSAPP_ACCESS_TOKEN) {
+  if (media?.id) {
     try {
-      const downloaded = await downloadMetaMedia(media.id, process.env.WHATSAPP_ACCESS_TOKEN);
+      const downloaded = await downloadGupshupMedia(media.id, MAX_MEDIA_BYTES);
       mediaMimeType = downloaded.mime;
       const extension = extensionFor(downloaded.mime);
       mediaStoragePath = `${profile.id}/${seller.id}/${waMessageId}.${extension}`;
@@ -317,76 +329,54 @@ async function recordProcessingFailure(message: MetaMessage, error: unknown) {
   );
 }
 
-export async function GET(request: NextRequest) {
-  const mode = request.nextUrl.searchParams.get('hub.mode');
-  const suppliedToken = request.nextUrl.searchParams.get('hub.verify_token');
-  const challenge = request.nextUrl.searchParams.get('hub.challenge');
-  const expectedToken = process.env.WHATSAPP_VERIFY_TOKEN;
-
-  if (mode === 'subscribe' && expectedToken && suppliedToken === expectedToken && challenge) {
-    return new NextResponse(challenge, {
-      status: 200,
-      headers: { 'Content-Type': 'text/plain', 'Cache-Control': 'no-store' },
-    });
-  }
-  return new NextResponse('Webhook verification failed.', { status: 403 });
+export async function GET() {
+  return json({
+    provider: 'gupshup',
+    ready: Boolean(process.env.GUPSHUP_WEBHOOK_SECRET),
+    payloadFormat: 'gupshup_v2',
+  });
 }
 
 export async function POST(request: NextRequest) {
-  const appSecret = process.env.WHATSAPP_APP_SECRET;
-  if (!appSecret) return json({ error: 'WhatsApp webhook is not configured.' }, 503);
-
-  const rawBody = await request.text();
-  if (!verifySignature(rawBody, request.headers.get('x-hub-signature-256'), appSecret)) {
-    return json({ error: 'Invalid WhatsApp webhook signature.' }, 401);
+  const webhookSecret = String(process.env.GUPSHUP_WEBHOOK_SECRET || '').trim();
+  if (!webhookSecret) return json({ error: 'WhatsApp webhook is not configured.' }, 503);
+  if (!secureEqual(request.headers.get('x-fabrictrad-webhook-token'), webhookSecret)) {
+    return json({ error: 'Invalid WhatsApp webhook token.' }, 401);
   }
 
-  let payload: WebhookPayload;
+  const rawBody = await request.text();
+  let event: GupshupEvent;
   try {
-    payload = JSON.parse(rawBody) as WebhookPayload;
+    event = JSON.parse(rawBody) as GupshupEvent;
   } catch {
     return json({ error: 'Invalid webhook payload.' }, 400);
   }
 
-  const messages =
-    payload.entry?.flatMap((entry) =>
-      entry.changes?.flatMap((change) => change.value?.messages || []) || []
-    ) || [];
+  const expectedApp = String(process.env.GUPSHUP_APP_NAME || '').trim();
+  if (expectedApp && event.app && event.app !== expectedApp) {
+    return json({ error: 'Unexpected Gupshup app.' }, 403);
+  }
 
-  after(async () => {
-    const messagesBySender = new Map<string, MetaMessage[]>();
-    for (const message of messages) {
-      const sender = String(message.from || message.id || 'unknown');
-      const group = messagesBySender.get(sender) || [];
-      group.push(message);
-      messagesBySender.set(sender, group);
-    }
+  const message = normalizeGupshupMessage(event);
+  if (message) {
+    after(async () => {
+      try {
+        await processMessage(message);
+      } catch (error) {
+        console.error('WhatsApp message processing failed', {
+messageId: message.id || null,
+code: error instanceof Error ? error.message : 'unknown',
+        });
+        await recordProcessingFailure(message, error).catch((recordError) => {
+console.error('WhatsApp processing failure could not be recorded', {
+  messageId: message.id || null,
+  code: recordError instanceof Error ? recordError.message : 'unknown',
+});
+        });
+      }
+    });
+  }
 
-    // Preserve message order for each phone so an image/caption cannot race a
-    // stage transition. Independent senders can still be handled in parallel.
-    await Promise.all(
-      [...messagesBySender.values()].map(async (senderMessages) => {
-        for (const message of senderMessages) {
-          try {
-            await processMessage(message);
-          } catch (error) {
-            console.error('WhatsApp message processing failed', {
-              messageId: message.id || null,
-              code: error instanceof Error ? error.message : 'unknown',
-            });
-            await recordProcessingFailure(message, error).catch((recordError) => {
-              console.error('WhatsApp processing failure could not be recorded', {
-                messageId: message.id || null,
-                code: recordError instanceof Error ? recordError.message : 'unknown',
-              });
-            });
-          }
-        }
-      })
-    );
-  });
-
-  // Acknowledge immediately. Meta retries slow/non-2xx deliveries, while
-  // Next.js `after()` keeps verified message processing alive separately.
-  return json({ received: true });
+  // Gupshup requires an immediate empty 2xx acknowledgement and retries slow failures.
+  return new NextResponse(null, { status: 204 });
 }

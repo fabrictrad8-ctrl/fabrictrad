@@ -1,7 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/admin';
+import { downloadGupshupMedia, sendGupshupText } from '@/lib/gupshupWhatsApp';
 import { storeKey, storeSuggestionSeeds, validateStoreName } from '@/lib/buyerStores';
 
-const GRAPH_VERSION = process.env.WHATSAPP_GRAPH_API_VERSION || 'v23.0';
 const MAX_MEDIA_BYTES = 10 * 1024 * 1024;
 const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || 'https://fabrictrad.com').replace(/\/$/, '');
 
@@ -80,40 +80,8 @@ export async function sendBuyerWhatsAppText(
   orderId?: string | null,
   userId?: string | null
 ) {
-  const token = process.env.WHATSAPP_ACCESS_TOKEN;
-  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
-  if (!token || !phoneNumberId) throw new Error('whatsapp_cloud_api_not_configured');
-
-  const response = await fetch(
-    `https://graph.facebook.com/${GRAPH_VERSION}/${phoneNumberId}/messages`,
-    {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        messaging_product: 'whatsapp',
-        recipient_type: 'individual',
-        to: toRaw,
-        type: 'text',
-        text: { body: text.slice(0, 4000), preview_url: true },
-      }),
-      cache: 'no-store',
-      signal: AbortSignal.timeout(15_000),
-    }
-  ).catch(() => null);
-  if (!response) throw new Error('whatsapp_provider_unreachable');
-  const payload = (await response.json().catch(() => ({}))) as {
-    messages?: Array<{ id?: string }>;
-    error?: { message?: string; code?: number };
-  };
-  if (!response.ok || !payload.messages?.[0]?.id) {
-    throw new Error(
-      String(payload.error?.message || `whatsapp_provider_${response.status || 0}`).slice(0, 1000)
-    );
-  }
-  const outboundId = String(payload.messages?.[0]?.id || '').trim();
+  const result = await sendGupshupText(toRaw, text.slice(0, 4000), true);
+  const outboundId = String(result.messageId || '').trim();
   if (outboundId) {
     const admin = createAdminClient();
     await admin
@@ -133,41 +101,10 @@ export async function sendBuyerWhatsAppText(
   return { sent: true, id: outboundId } as const;
 }
 
-async function downloadImage(mediaId: string) {
-  const token = process.env.WHATSAPP_ACCESS_TOKEN;
-  if (!token) throw new Error('whatsapp_access_token_missing');
-  const metadataResponse = await fetch(
-    `https://graph.facebook.com/${GRAPH_VERSION}/${encodeURIComponent(mediaId)}`,
-    {
-      headers: { Authorization: `Bearer ${token}` },
-      cache: 'no-store',
-      signal: AbortSignal.timeout(15_000),
-    }
-  );
-  if (!metadataResponse.ok) throw new Error(`media_metadata_${metadataResponse.status}`);
-  const metadata = (await metadataResponse.json()) as {
-    url?: string;
-    mime_type?: string;
-    file_size?: number;
-  };
-  if (!metadata.url) throw new Error('media_url_missing');
-  if (Number(metadata.file_size || 0) > MAX_MEDIA_BYTES) throw new Error('media_too_large');
-
-  const mediaResponse = await fetch(metadata.url, {
-    headers: { Authorization: `Bearer ${token}` },
-    cache: 'no-store',
-    redirect: 'follow',
-    signal: AbortSignal.timeout(20_000),
-  });
-  if (!mediaResponse.ok) throw new Error(`media_download_${mediaResponse.status}`);
-  const buffer = Buffer.from(await mediaResponse.arrayBuffer());
-  if (!buffer.length || buffer.length > MAX_MEDIA_BYTES) throw new Error('media_too_large');
-  const mime = String(metadata.mime_type || mediaResponse.headers.get('content-type') || 'image/jpeg')
-    .split(';')[0]
-    .trim()
-    .toLowerCase();
-  if (!mime.startsWith('image/')) throw new Error('reference_image_required');
-  return { buffer, mime };
+async function downloadImage(mediaUrl: string) {
+  const downloaded = await downloadGupshupMedia(mediaUrl, MAX_MEDIA_BYTES);
+  if (!downloaded.mime.startsWith('image/')) throw new Error('reference_image_required');
+  return downloaded;
 }
 
 async function availableStoreSuggestions(admin: ReturnType<typeof createAdminClient>, name: string) {
