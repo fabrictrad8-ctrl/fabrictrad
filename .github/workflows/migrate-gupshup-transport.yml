@@ -1,0 +1,766 @@
+name: Migrate WhatsApp transport to Gupshup
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/migrate-gupshup-transport.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: fabrictrad-gupshup-migration
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Patch Meta transport to Gupshup
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          from pathlib import Path
+          import re
+
+          root = Path('.')
+
+          def read(path):
+              return (root / path).read_text()
+
+          def write(path, content):
+              target = root / path
+              target.parent.mkdir(parents=True, exist_ok=True)
+              target.write_text(content)
+
+          def replace_once(path, old, new):
+              text = read(path)
+              if old not in text:
+                  raise SystemExit(f'Expected source block not found in {path}: {old[:120]!r}')
+              write(path, text.replace(old, new, 1))
+
+          def regex_once(path, pattern, replacement, flags=re.S):
+              text = read(path)
+              updated, count = re.subn(pattern, replacement, text, count=1, flags=flags)
+              if count != 1:
+                  raise SystemExit(f'Expected exactly one regex match in {path}; found {count}: {pattern[:120]!r}')
+              write(path, updated)
+
+          provider = r'''const GUPSHUP_MESSAGE_URL = 'https://api.gupshup.io/wa/api/v1/msg';
+          const GUPSHUP_TEMPLATE_URL = 'https://api.gupshup.io/wa/api/v1/template/msg';
+
+          const env = (name: string) => String(process.env[name] || '').trim();
+
+          export const gupshupRuntimeConfig = {
+            configured: Boolean(env('GUPSHUP_API_KEY') && env('GUPSHUP_APP_NAME') && env('GUPSHUP_SOURCE_NUMBER')),
+            webhookConfigured: Boolean(env('GUPSHUP_WEBHOOK_SECRET')),
+            appNameConfigured: Boolean(env('GUPSHUP_APP_NAME')),
+            sourceNumberConfigured: Boolean(env('GUPSHUP_SOURCE_NUMBER')),
+            wabaIdConfigured: Boolean(env('GUPSHUP_WABA_ID')),
+          };
+
+          const normalizeDestination = (value: unknown) => {
+            const digits = typeof value === 'string' ? value.replace(/\D/g, '') : '';
+            if (!digits) return '';
+            if (digits.length === 10 && /^[6-9]/.test(digits)) return `91${digits}`;
+            return digits.slice(-15);
+          };
+
+          type GupshupSendResult = {
+            status?: string;
+            messageId?: string;
+            message?: string;
+          };
+
+          async function postGupshupForm(
+            url: string,
+            destinationRaw: string,
+            extra: Record<string, string>
+          ) {
+            const apiKey = env('GUPSHUP_API_KEY');
+            const source = normalizeDestination(env('GUPSHUP_SOURCE_NUMBER'));
+            const appName = env('GUPSHUP_APP_NAME');
+            const destination = normalizeDestination(destinationRaw);
+            if (!apiKey || !source || !appName) throw new Error('gupshup_not_configured');
+            if (!destination) throw new Error('gupshup_destination_invalid');
+
+            const body = new URLSearchParams({
+              channel: 'whatsapp',
+              source,
+              destination,
+              'src.name': appName,
+              ...extra,
+            });
+            const response = await fetch(url, {
+              method: 'POST',
+              headers: {
+                apikey: apiKey,
+                'Content-Type': 'application/x-www-form-urlencoded',
+              },
+              body,
+              cache: 'no-store',
+              signal: AbortSignal.timeout(15_000),
+            }).catch(() => null);
+            if (!response) throw new Error('gupshup_provider_unreachable');
+            const payload = (await response.json().catch(() => ({}))) as GupshupSendResult;
+            const messageId = String(payload.messageId || '').trim();
+            if (!response.ok || !messageId) {
+              throw new Error(
+                String(payload.message || `gupshup_provider_${response.status || 0}`).slice(0, 1000)
+              );
+            }
+            return { sent: true as const, messageId, status: payload.status || 'submitted' };
+          }
+
+          export async function sendGupshupText(
+            destination: string,
+            text: string,
+            previewUrl = true
+          ) {
+            return postGupshupForm(GUPSHUP_MESSAGE_URL, destination, {
+              message: JSON.stringify({
+                type: 'text',
+                text: text.slice(0, 4096),
+                previewUrl,
+              }),
+            });
+          }
+
+          export async function sendGupshupTemplate(
+            destination: string,
+            templateId: string,
+            parameters: string[]
+          ) {
+            const id = String(templateId || '').trim();
+            if (!id) throw new Error('gupshup_template_id_missing');
+            return postGupshupForm(GUPSHUP_TEMPLATE_URL, destination, {
+              template: JSON.stringify({
+                id,
+                params: parameters.map((value) => String(value).slice(0, 1024)),
+              }),
+            });
+          }
+
+          const isAllowedMediaUrl = (value: string) => {
+            try {
+              const parsed = new URL(value);
+              const host = parsed.hostname.toLowerCase();
+              return parsed.protocol === 'https:' && (host === 'gupshup.io' || host.endsWith('.gupshup.io'));
+            } catch {
+              return false;
+            }
+          };
+
+          export async function downloadGupshupMedia(mediaUrl: string, maxBytes: number) {
+            if (!isAllowedMediaUrl(mediaUrl)) throw new Error('gupshup_media_url_invalid');
+            const response = await fetch(mediaUrl, {
+              cache: 'no-store',
+              redirect: 'follow',
+              signal: AbortSignal.timeout(30_000),
+            });
+            if (!response.ok) throw new Error(`gupshup_media_download_${response.status}`);
+            const declared = Number(response.headers.get('content-length') || 0);
+            if (declared > maxBytes) throw new Error('media_too_large');
+            const buffer = Buffer.from(await response.arrayBuffer());
+            if (!buffer.length || buffer.length > maxBytes) throw new Error('media_too_large');
+            const mime = String(response.headers.get('content-type') || 'application/octet-stream')
+              .split(';')[0]
+              .trim()
+              .toLowerCase();
+            return { buffer, mime };
+          }
+          '''.replace('\n          ', '\n').lstrip()
+          write('src/lib/gupshupWhatsApp.ts', provider)
+
+          buyer = 'src/lib/whatsappBuyerAutomation.ts'
+          replace_once(
+              buyer,
+              "import { createAdminClient } from '@/lib/supabase/admin';\n",
+              "import { createAdminClient } from '@/lib/supabase/admin';\nimport { downloadGupshupMedia, sendGupshupText } from '@/lib/gupshupWhatsApp';\n",
+          )
+          replace_once(buyer, "const GRAPH_VERSION = process.env.WHATSAPP_GRAPH_API_VERSION || 'v23.0';\n", '')
+          buyer_transport = r'''export async function sendBuyerWhatsAppText(
+            toRaw: string,
+            text: string,
+            orderId?: string | null,
+            userId?: string | null
+          ) {
+            const result = await sendGupshupText(toRaw, text.slice(0, 4000), true);
+            const outboundId = String(result.messageId || '').trim();
+            if (outboundId) {
+              const admin = createAdminClient();
+              await admin
+                .from('whatsapp_buyer_messages')
+                .insert({
+                  wa_message_id: outboundId,
+                  whatsapp_phone: normalizePhone(toRaw) || toRaw.replace(/\D/g, '').slice(-15),
+                  user_id: userId || null,
+                  bespoke_order_id: orderId || null,
+                  direction: 'outbound',
+                  message_type: 'text',
+                  message_text: text.slice(0, 12_000),
+                  processing_status: 'processed',
+                })
+                .then(() => undefined, () => undefined);
+            }
+            return { sent: true, id: outboundId } as const;
+          }
+
+          async function downloadImage(mediaUrl: string) {
+            const downloaded = await downloadGupshupMedia(mediaUrl, MAX_MEDIA_BYTES);
+            if (!downloaded.mime.startsWith('image/')) throw new Error('reference_image_required');
+            return downloaded;
+          }
+
+          async function availableStoreSuggestions'''.replace('\n          ', '\n').lstrip()
+          regex_once(
+              buyer,
+              r"export async function sendBuyerWhatsAppText\([\s\S]*?\nasync function availableStoreSuggestions",
+              buyer_transport,
+          )
+
+          webhook = 'src/app/api/integrations/whatsapp/webhook/route.ts'
+          replace_once(
+              webhook,
+              "import { createHmac, timingSafeEqual } from 'node:crypto';\n",
+              "import { timingSafeEqual } from 'node:crypto';\n",
+          )
+          replace_once(
+              webhook,
+              "import { createAdminClient } from '@/lib/supabase/admin';\n",
+              "import { createAdminClient } from '@/lib/supabase/admin';\nimport { downloadGupshupMedia, sendGupshupText } from '@/lib/gupshupWhatsApp';\n",
+          )
+          replace_once(webhook, "const GRAPH_VERSION = process.env.WHATSAPP_GRAPH_API_VERSION || 'v23.0';\n", '')
+
+          gupshup_types = r'''
+          type GupshupEvent = {
+            app?: string;
+            timestamp?: number;
+            version?: number;
+            type?: string;
+            payload?: {
+              id?: string;
+              source?: string;
+              type?: string;
+              payload?: {
+                text?: string;
+                caption?: string;
+                url?: string;
+                contentType?: string;
+                name?: string;
+                filename?: string;
+                title?: string;
+                postbackText?: string;
+              };
+              sender?: { phone?: string; name?: string };
+            };
+          };
+
+          const normalizeGupshupMessage = (event: GupshupEvent): MetaMessage | null => {
+            if (event.type !== 'message' || !event.payload?.id || !event.payload.source) return null;
+            const message = event.payload;
+            const content = message.payload || {};
+            const common = { id: message.id, from: message.source };
+            if (message.type === 'text') {
+              return { ...common, type: 'text', text: { body: String(content.text || '') } };
+            }
+            if (message.type === 'image' && content.url) {
+              return {
+                ...common,
+                type: 'image',
+                image: {
+                  id: content.url,
+                  caption: content.caption,
+                  mime_type: content.contentType || 'image/jpeg',
+                },
+              };
+            }
+            if ((message.type === 'file' || message.type === 'document') && content.url) {
+              return {
+                ...common,
+                type: 'document',
+                document: {
+                  id: content.url,
+                  caption: content.caption,
+                  filename: content.name || content.filename,
+                  mime_type: content.contentType || 'application/octet-stream',
+                },
+              };
+            }
+            if (message.type === 'video' && content.url) {
+              return {
+                ...common,
+                type: 'video',
+                video: {
+                  id: content.url,
+                  caption: content.caption,
+                  mime_type: content.contentType || 'video/mp4',
+                },
+              };
+            }
+            if (message.type === 'button_reply' || message.type === 'list_reply') {
+              return {
+                ...common,
+                type: 'text',
+                text: { body: String(content.postbackText || content.title || content.text || '') },
+              };
+            }
+            return { ...common, type: String(message.type || 'unknown') };
+          };
+          '''.replace('\n          ', '\n')
+          replace_once(webhook, "type WebhookPayload = {\n", gupshup_types + "\ntype WebhookPayload = {\n")
+
+          auth_block = r'''const secureEqual = (supplied: string | null, expected: string) => {
+            if (!supplied || !expected) return false;
+            const suppliedBuffer = Buffer.from(supplied);
+            const expectedBuffer = Buffer.from(expected);
+            if (suppliedBuffer.length !== expectedBuffer.length) return false;
+            return timingSafeEqual(suppliedBuffer, expectedBuffer);
+          };
+
+          async function acknowledgeSeller'''.replace('\n          ', '\n').lstrip()
+          regex_once(
+              webhook,
+              r"const verifySignature[\s\S]*?\nasync function acknowledgeSeller",
+              auth_block,
+          )
+
+          ack = r'''async function acknowledgeSeller(to: string, text: string) {
+            try {
+              await sendGupshupText(to, text, false);
+              return true;
+            } catch (error) {
+              console.error('Seller WhatsApp acknowledgement failed', {
+                code: error instanceof Error ? error.message : 'provider_error',
+              });
+              return false;
+            }
+          }
+
+          async function ingestSellerMessage'''.replace('\n          ', '\n').lstrip()
+          regex_once(
+              webhook,
+              r"async function acknowledgeSeller[\s\S]*?\nasync function ingestSellerMessage",
+              ack,
+          )
+          replace_once(
+              webhook,
+              "  if (media?.id && process.env.WHATSAPP_ACCESS_TOKEN) {\n",
+              "  if (media?.id) {\n",
+          )
+          regex_once(
+              webhook,
+              r"const downloaded = await downloadMetaMedia\(media\.id, process\.env\.WHATSAPP_ACCESS_TOKEN\);",
+              "const downloaded = await downloadGupshupMedia(media.id, MAX_MEDIA_BYTES);",
+          )
+
+          webhook_tail = r'''export async function GET() {
+            return json({
+              provider: 'gupshup',
+              ready: Boolean(process.env.GUPSHUP_WEBHOOK_SECRET),
+              payloadFormat: 'gupshup_v2',
+            });
+          }
+
+          export async function POST(request: NextRequest) {
+            const webhookSecret = String(process.env.GUPSHUP_WEBHOOK_SECRET || '').trim();
+            if (!webhookSecret) return json({ error: 'WhatsApp webhook is not configured.' }, 503);
+            if (!secureEqual(request.headers.get('x-fabrictrad-webhook-token'), webhookSecret)) {
+              return json({ error: 'Invalid WhatsApp webhook token.' }, 401);
+            }
+
+            const rawBody = await request.text();
+            let event: GupshupEvent;
+            try {
+              event = JSON.parse(rawBody) as GupshupEvent;
+            } catch {
+              return json({ error: 'Invalid webhook payload.' }, 400);
+            }
+
+            const expectedApp = String(process.env.GUPSHUP_APP_NAME || '').trim();
+            if (expectedApp && event.app && event.app !== expectedApp) {
+              return json({ error: 'Unexpected Gupshup app.' }, 403);
+            }
+
+            const message = normalizeGupshupMessage(event);
+            if (message) {
+              after(async () => {
+                try {
+                  await processMessage(message);
+                } catch (error) {
+                  console.error('WhatsApp message processing failed', {
+                    messageId: message.id || null,
+                    code: error instanceof Error ? error.message : 'unknown',
+                  });
+                  await recordProcessingFailure(message, error).catch((recordError) => {
+                    console.error('WhatsApp processing failure could not be recorded', {
+                      messageId: message.id || null,
+                      code: recordError instanceof Error ? recordError.message : 'unknown',
+                    });
+                  });
+                }
+              });
+            }
+
+            // Gupshup requires an immediate empty 2xx acknowledgement and retries slow failures.
+            return new NextResponse(null, { status: 204 });
+          }
+          '''.replace('\n          ', '\n').lstrip()
+          regex_once(webhook, r"export async function GET\([\s\S]*\Z", webhook_tail)
+
+          followups = 'src/lib/bespokeFollowUps.ts'
+          replace_once(
+              followups,
+              "import { createAdminClient } from '@/lib/supabase/admin';\n",
+              "import { createAdminClient } from '@/lib/supabase/admin';\nimport { sendGupshupTemplate, sendGupshupText } from '@/lib/gupshupWhatsApp';\n",
+          )
+          replace_once(followups, "const GRAPH_VERSION = process.env.WHATSAPP_GRAPH_API_VERSION || 'v23.0';\n", '')
+          followup_transport = r'''type OutboundPayload =
+            | { kind: 'text'; text: string }
+            | { kind: 'template'; templateId: string; parameters: string[] };
+
+          async function sendWhatsAppPayload(
+            to: string,
+            payload: OutboundPayload,
+            context: { userId: string; orderId: string; fallbackText: string }
+          ) {
+            const result =
+              payload.kind === 'template'
+                ? await sendGupshupTemplate(to, payload.templateId, payload.parameters)
+                : await sendGupshupText(to, payload.text, true);
+            const outboundId = String(result.messageId || '').trim();
+            const admin = createAdminClient();
+            await admin.from('whatsapp_buyer_messages').insert({
+              wa_message_id: outboundId,
+              whatsapp_phone: normalizeDestination(to).slice(-10),
+              user_id: context.userId,
+              bespoke_order_id: context.orderId,
+              direction: 'outbound',
+              message_type: payload.kind === 'template' ? 'template' : 'text',
+              message_text: context.fallbackText.slice(0, 12_000),
+              processing_status: 'processed',
+            });
+            return outboundId;
+          }
+
+          const freeFormPayload = (text: string): OutboundPayload => ({
+            kind: 'text',
+            text: text.slice(0, 4000),
+          });
+
+          const templatePayload = (config: TemplateConfig): OutboundPayload => ({
+            kind: 'template',
+            templateId: config.name,
+            parameters: config.parameters,
+          });
+
+          function messageForJob'''.replace('\n          ', '\n').lstrip()
+          regex_once(
+              followups,
+              r"async function sendWhatsAppPayload\([\s\S]*?\nfunction messageForJob",
+              followup_transport,
+          )
+
+          status = r'''import { NextResponse } from 'next/server';
+
+          export const dynamic = 'force-dynamic';
+          export const runtime = 'nodejs';
+
+          export async function GET() {
+            const channel = {
+              apiKey: Boolean(process.env.GUPSHUP_API_KEY),
+              appName: Boolean(process.env.GUPSHUP_APP_NAME),
+              sourceNumber: Boolean(process.env.GUPSHUP_SOURCE_NUMBER),
+              wabaId: Boolean(process.env.GUPSHUP_WABA_ID),
+              webhookSecret: Boolean(process.env.GUPSHUP_WEBHOOK_SECRET),
+            };
+            const templates = {
+              appointmentReminder: Boolean(process.env.WHATSAPP_TEMPLATE_APPOINTMENT_REMINDER),
+              paymentReminder: Boolean(process.env.WHATSAPP_TEMPLATE_PAYMENT_REMINDER),
+              trialReminder: Boolean(process.env.WHATSAPP_TEMPLATE_TRIAL_REMINDER),
+              deliveryUpdate: Boolean(process.env.WHATSAPP_TEMPLATE_DELIVERY_UPDATE),
+              reviewRequest: Boolean(process.env.WHATSAPP_TEMPLATE_REVIEW_REQUEST),
+              postDeliveryFollowUp: Boolean(process.env.WHATSAPP_TEMPLATE_POST_DELIVERY_FOLLOW_UP),
+            };
+            const channelReady = channel.apiKey && channel.appName && channel.sourceNumber && channel.wabaId;
+            const webhookReady = channel.webhookSecret;
+            const templatesReady = Object.values(templates).every(Boolean);
+            const configured = channelReady && webhookReady;
+
+            return NextResponse.json(
+              {
+                provider: 'gupshup',
+                configured,
+                channelReady,
+                webhookReady,
+                automationReady: configured && templatesReady,
+                templatesReady,
+                mediaReady: configured,
+                businessNumber: channel.sourceNumber
+                  ? String(process.env.GUPSHUP_SOURCE_NUMBER).replace(/\D/g, '')
+                  : null,
+                wabaIdConfigured: channel.wabaId,
+                webhook: {
+                  path: '/api/integrations/whatsapp/webhook',
+                  payloadFormat: 'gupshup_v2',
+                  authHeader: 'x-fabrictrad-webhook-token',
+                },
+                required: { channel, templates },
+              },
+              { headers: { 'Cache-Control': 'no-store, max-age=0' } }
+            );
+          }
+          '''.replace('\n          ', '\n').lstrip()
+          write('src/app/api/whatsapp/status/route.ts', status)
+
+          sync = r'''name: Sync WhatsApp production bindings
+
+          on:
+            push:
+              branches:
+                - main
+              paths:
+                - '.github/workflows/sync-whatsapp-production.yml'
+            workflow_dispatch:
+
+          permissions:
+            contents: read
+            actions: write
+
+          concurrency:
+            group: fabrictrad-whatsapp-production-sync
+            cancel-in-progress: false
+
+          jobs:
+            sync-and-deploy:
+              runs-on: ubuntu-latest
+              timeout-minutes: 20
+              env:
+                CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+                CLOUDFLARE_ACCOUNT_ID: aa4ff7a482130e543f176e2d73c93f45
+                GUPSHUP_API_KEY: ${{ secrets.GUPSHUP_API_KEY }}
+                GUPSHUP_WEBHOOK_SECRET: ${{ secrets.GUPSHUP_WEBHOOK_SECRET }}
+                GUPSHUP_APP_NAME: ${{ vars.GUPSHUP_APP_NAME }}
+                GUPSHUP_SOURCE_NUMBER: ${{ vars.GUPSHUP_SOURCE_NUMBER }}
+                GUPSHUP_WABA_ID: ${{ vars.GUPSHUP_WABA_ID }}
+                WHATSAPP_TEMPLATE_APPOINTMENT_REMINDER: ${{ secrets.WHATSAPP_TEMPLATE_APPOINTMENT_REMINDER || vars.WHATSAPP_TEMPLATE_APPOINTMENT_REMINDER }}
+                WHATSAPP_TEMPLATE_PAYMENT_REMINDER: ${{ secrets.WHATSAPP_TEMPLATE_PAYMENT_REMINDER || vars.WHATSAPP_TEMPLATE_PAYMENT_REMINDER }}
+                WHATSAPP_TEMPLATE_TRIAL_REMINDER: ${{ secrets.WHATSAPP_TEMPLATE_TRIAL_REMINDER || vars.WHATSAPP_TEMPLATE_TRIAL_REMINDER }}
+                WHATSAPP_TEMPLATE_DELIVERY_UPDATE: ${{ secrets.WHATSAPP_TEMPLATE_DELIVERY_UPDATE || vars.WHATSAPP_TEMPLATE_DELIVERY_UPDATE }}
+                WHATSAPP_TEMPLATE_REVIEW_REQUEST: ${{ secrets.WHATSAPP_TEMPLATE_REVIEW_REQUEST || vars.WHATSAPP_TEMPLATE_REVIEW_REQUEST }}
+                WHATSAPP_TEMPLATE_POST_DELIVERY_FOLLOW_UP: ${{ secrets.WHATSAPP_TEMPLATE_POST_DELIVERY_FOLLOW_UP || vars.WHATSAPP_TEMPLATE_POST_DELIVERY_FOLLOW_UP }}
+
+              steps:
+                - uses: actions/checkout@v4
+                - uses: actions/setup-node@v4
+                  with:
+                    node-version: 22
+
+                - name: Verify complete Gupshup source
+                  shell: bash
+                  run: |
+                    set -euo pipefail
+                    [ -n "${CLOUDFLARE_API_TOKEN:-}" ] || { echo '::error::CLOUDFLARE_API_TOKEN is not configured.'; exit 1; }
+                    required=(GUPSHUP_API_KEY GUPSHUP_WEBHOOK_SECRET GUPSHUP_APP_NAME GUPSHUP_SOURCE_NUMBER GUPSHUP_WABA_ID)
+                    missing=()
+                    for name in "${required[@]}"; do
+                      if [ -z "${!name:-}" ]; then missing+=("$name"); fi
+                    done
+                    if [ "${#missing[@]}" -ne 0 ]; then
+                      echo "::error::Gupshup production values are not available from GitHub Actions: ${missing[*]}"
+                      exit 1
+                    fi
+                    echo 'All core Gupshup production values are available. Values remain masked.'
+
+                - name: Install Wrangler
+                  run: npm install --no-audit --no-fund --package-lock=false --legacy-peer-deps
+
+                - name: Verify Cloudflare authentication
+                  run: npx wrangler whoami
+
+                - name: Sync Gupshup bindings to Cloudflare
+                  shell: bash
+                  run: |
+                    set -euo pipefail
+                    put_secret() {
+                      local name="$1"
+                      printf '%s' "${!name}" | npx wrangler secret put "$name" --config wrangler.jsonc >/dev/null
+                      echo "Synced ${name}."
+                    }
+                    put_secret GUPSHUP_API_KEY
+                    put_secret GUPSHUP_WEBHOOK_SECRET
+                    put_secret GUPSHUP_APP_NAME
+                    put_secret GUPSHUP_SOURCE_NUMBER
+                    put_secret GUPSHUP_WABA_ID
+                    optional=(
+                      WHATSAPP_TEMPLATE_APPOINTMENT_REMINDER WHATSAPP_TEMPLATE_PAYMENT_REMINDER
+                      WHATSAPP_TEMPLATE_TRIAL_REMINDER WHATSAPP_TEMPLATE_DELIVERY_UPDATE
+                      WHATSAPP_TEMPLATE_REVIEW_REQUEST WHATSAPP_TEMPLATE_POST_DELIVERY_FOLLOW_UP
+                    )
+                    for name in "${optional[@]}"; do
+                      if [ -n "${!name:-}" ]; then put_secret "$name"; fi
+                    done
+
+                - name: Verify Cloudflare Gupshup bindings
+                  shell: bash
+                  run: |
+                    set -euo pipefail
+                    npx wrangler secret list --config wrangler.jsonc --format json > /tmp/worker-secrets.json
+                    node -e '
+                      const fs=require("node:fs");
+                      const rows=JSON.parse(fs.readFileSync("/tmp/worker-secrets.json","utf8"));
+                      const names=new Set(rows.map(x=>x.name));
+                      const required=["GUPSHUP_API_KEY","GUPSHUP_WEBHOOK_SECRET","GUPSHUP_APP_NAME","GUPSHUP_SOURCE_NUMBER","GUPSHUP_WABA_ID"];
+                      const missing=required.filter(x=>!names.has(x));
+                      console.log("Gupshup binding presence:",Object.fromEntries(required.map(x=>[x,names.has(x)])));
+                      if(missing.length){console.error("Missing after sync: "+missing.join(", "));process.exit(1);}
+                    '
+
+                - name: Dispatch guarded production deployment
+                  shell: bash
+                  env:
+                    GH_TOKEN: ${{ github.token }}
+                  run: |
+                    set -euo pipefail
+                    gh workflow run force-deploy-current-worker.yml --repo "$GITHUB_REPOSITORY" --ref main
+                    echo 'Guarded production deployment dispatched.'
+          '''.replace('\n          ', '\n').lstrip()
+          write('.github/workflows/sync-whatsapp-production.yml', sync)
+
+          deploy = '.github/workflows/force-deploy-current-worker.yml'
+          deploy_old = '''            const whatsapp=[
+              "WHATSAPP_ACCESS_TOKEN","WHATSAPP_APP_SECRET","WHATSAPP_VERIFY_TOKEN","WHATSAPP_PHONE_NUMBER_ID",
+              "WHATSAPP_TEMPLATE_APPOINTMENT_REMINDER","WHATSAPP_TEMPLATE_PAYMENT_REMINDER",
+              "WHATSAPP_TEMPLATE_TRIAL_REMINDER","WHATSAPP_TEMPLATE_DELIVERY_UPDATE",
+              "WHATSAPP_TEMPLATE_REVIEW_REQUEST","WHATSAPP_TEMPLATE_POST_DELIVERY_FOLLOW_UP"
+            ];
+            const missingRequired=required.filter(x=>!names.has(x));
+            const missingWhatsApp=whatsapp.filter(x=>!names.has(x));
+            console.log("Required Cloudflare bindings:",Object.fromEntries(required.map(x=>[x,names.has(x)])));
+            console.log("WhatsApp binding presence:",Object.fromEntries(whatsapp.map(x=>[x,names.has(x)])));
+            if(missingRequired.length){console.error("Missing required Cloudflare Worker secrets: "+missingRequired.join(", "));process.exit(1);}
+            if(missingWhatsApp.length){console.warn("WhatsApp remains disabled until these credentials/templates are provisioned: "+missingWhatsApp.join(", "));}'''
+          deploy_new = '''            const whatsappCore=["GUPSHUP_API_KEY","GUPSHUP_WEBHOOK_SECRET","GUPSHUP_APP_NAME","GUPSHUP_SOURCE_NUMBER","GUPSHUP_WABA_ID"];
+            const whatsappTemplates=[
+              "WHATSAPP_TEMPLATE_APPOINTMENT_REMINDER","WHATSAPP_TEMPLATE_PAYMENT_REMINDER",
+              "WHATSAPP_TEMPLATE_TRIAL_REMINDER","WHATSAPP_TEMPLATE_DELIVERY_UPDATE",
+              "WHATSAPP_TEMPLATE_REVIEW_REQUEST","WHATSAPP_TEMPLATE_POST_DELIVERY_FOLLOW_UP"
+            ];
+            const missingRequired=required.filter(x=>!names.has(x));
+            const missingWhatsAppCore=whatsappCore.filter(x=>!names.has(x));
+            const missingWhatsAppTemplates=whatsappTemplates.filter(x=>!names.has(x));
+            console.log("Required Cloudflare bindings:",Object.fromEntries(required.map(x=>[x,names.has(x)])));
+            console.log("Gupshup core binding presence:",Object.fromEntries(whatsappCore.map(x=>[x,names.has(x)])));
+            console.log("WhatsApp template binding presence:",Object.fromEntries(whatsappTemplates.map(x=>[x,names.has(x)])));
+            if(missingRequired.length){console.error("Missing required Cloudflare Worker secrets: "+missingRequired.join(", "));process.exit(1);}
+            if(missingWhatsAppCore.length){console.error("Missing required Gupshup Worker secrets: "+missingWhatsAppCore.join(", "));process.exit(1);}
+            if(missingWhatsAppTemplates.length){console.warn("Outside-24-hour WhatsApp follow-ups remain disabled until template IDs are provisioned: "+missingWhatsAppTemplates.join(", "));}'''
+          replace_once(deploy, deploy_old, deploy_new)
+          replace_once(
+              deploy,
+              'const waSafe=(w.businessNumber==="917977286898") && (w.configured===true || (w.configured===false && w.webhookReady===false));',
+              'const waSafe=w.provider==="gupshup"&&w.businessNumber==="917977286898"&&w.configured===true&&w.webhookReady===true;',
+          )
+
+          readiness = '.github/workflows/integration-readiness.yml'
+          replace_once(
+              readiness,
+              "            --header 'x-hub-signature-256: sha256=00' --data '{}' \\\n",
+              "            --header 'x-fabrictrad-webhook-token: forged' --data '{}' \\\n",
+          )
+          replace_once(readiness, 'WhatsApp forged-signature probe:', 'WhatsApp forged-token probe:')
+
+          verify = 'scripts/verify-mobile-whatsapp.mjs'
+          replace_once(
+              verify,
+              "const webhook = 'src/app/api/integrations/whatsapp/webhook/route.ts';\n",
+              "const webhook = 'src/app/api/integrations/whatsapp/webhook/route.ts';\nconst whatsappProvider = 'src/lib/gupshupWhatsApp.ts';\n",
+          )
+          replace_once(verify, "  webhook,\n  buyerAutomation,\n", "  webhook,\n  whatsappProvider,\n  buyerAutomation,\n")
+          verify_block = r'''// WhatsApp catalogue ingestion uses Gupshup v2 callbacks, a private shared
+          // header, asynchronous processing and seller-scoped persistence.
+          requireText(webhook, "request.headers.get('x-fabrictrad-webhook-token')");
+          requireText(webhook, 'GUPSHUP_WEBHOOK_SECRET');
+          requireText(webhook, 'normalizeGupshupMessage');
+          requireText(webhook, "event.type !== 'message'");
+          requireText(webhook, 'after(async () =>');
+          requireText(webhook, 'parseCatalogMessage');
+          requireText(webhook, "from('whatsapp_catalog_ingestions')");
+          requireText(webhook, "from(MEDIA_BUCKET)");
+          requireText(webhook, 'recordProcessingFailure');
+          requireText(webhook, "processing_status: 'failed'");
+          requireText(whatsappProvider, 'https://api.gupshup.io/wa/api/v1/msg');
+          requireText(whatsappProvider, 'https://api.gupshup.io/wa/api/v1/template/msg');
+          requireText(whatsappProvider, "headers: {\n        apikey: apiKey");
+          requireText(whatsappProvider, "host.endsWith('.gupshup.io')");
+          requireText(buyerAutomation, 'sendGupshupText');
+          requireText(bespokeFollowUps, 'sendGupshupTemplate');
+          forbidText(webhook, 'graph.facebook.com');
+          forbidText(buyerAutomation, 'graph.facebook.com');
+          forbidText(bespokeFollowUps, 'graph.facebook.com');'''.replace('\n          ', '\n').lstrip()
+          regex_once(
+              verify,
+              r"// WhatsApp catalogue ingestion remains signed[\s\S]*?forbidText\(webhook, 'WHATSAPP_APP_SECRET ='\);",
+              verify_block,
+          )
+
+          print('Gupshup migration patches applied successfully.')
+          PY
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund --package-lock=false --legacy-peer-deps
+
+      - name: Verify WhatsApp integrity
+        run: npm run verify:whatsapp
+
+      - name: Type-check
+        run: npm run type-check
+
+      - name: Lint changed runtime files
+        run: npx eslint src/lib/gupshupWhatsApp.ts src/lib/whatsappBuyerAutomation.ts src/lib/bespokeFollowUps.ts src/app/api/integrations/whatsapp/webhook/route.ts src/app/api/whatsapp/status/route.ts scripts/verify-mobile-whatsapp.mjs
+
+      - name: Build Cloudflare/OpenNext package
+        run: npm run build:sites
+
+      - name: Verify diff
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          git status --short
+          git diff --stat
+
+      - name: Commit verified migration
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then
+            echo 'No migration changes required.'
+            exit 0
+          fi
+          git config user.name 'FabricTrad Release Bot'
+          git config user.email 'fabrictrad8@gmail.com'
+          git add \
+            src/lib/gupshupWhatsApp.ts \
+            src/lib/whatsappBuyerAutomation.ts \
+            src/lib/bespokeFollowUps.ts \
+            src/app/api/integrations/whatsapp/webhook/route.ts \
+            src/app/api/whatsapp/status/route.ts \
+            scripts/verify-mobile-whatsapp.mjs \
+            .github/workflows/sync-whatsapp-production.yml \
+            .github/workflows/force-deploy-current-worker.yml \
+            .github/workflows/integration-readiness.yml
+          git commit -m 'feat: migrate WhatsApp transport to Gupshup [skip deploy]'
+          git push origin HEAD:main
