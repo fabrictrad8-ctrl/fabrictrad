@@ -18,20 +18,24 @@ export async function GET() {
     reviewRequest: Boolean(process.env.WHATSAPP_TEMPLATE_REVIEW_REQUEST),
     postDeliveryFollowUp: Boolean(process.env.WHATSAPP_TEMPLATE_POST_DELIVERY_FOLLOW_UP),
   };
-  const channelReady = channel.apiKey && channel.appName && channel.sourceNumber;
   const webhookReady = true;
+  const interactiveRepliesReady = channel.apiKey && channel.sourceNumber && webhookReady;
+  const channelReady = channel.apiKey && channel.appName && channel.sourceNumber;
   const templatesReady = Object.values(templates).every(Boolean);
-  const configured = channelReady;
+  const proactiveAutomationReady = channelReady && templatesReady;
 
   return NextResponse.json(
     {
       provider: 'gupshup',
-      configured,
+      configured: interactiveRepliesReady,
       channelReady,
+      interactiveRepliesReady,
       webhookReady,
-      automationReady: configured && templatesReady,
+      automationReady: proactiveAutomationReady,
+      proactiveAutomationReady,
       templatesReady,
       mediaReady: webhookReady,
+      appIdentityStrategy: channel.appName ? 'environment' : 'gupshup_inbound_event',
       businessNumber: channel.sourceNumber
         ? String(process.env.GUPSHUP_SOURCE_NUMBER).replace(/\D/g, '')
         : null,
@@ -41,7 +45,9 @@ export async function GET() {
         path: '/api/integrations/whatsapp/webhook',
         payloadFormat: 'gupshup_v2',
         access: 'public',
-        validation: channel.appName ? 'configured_app_name_and_v2_event_shape' : 'gupshup_v2_event_shape',
+        validation: channel.appName
+          ? 'configured_app_name_and_v2_event_shape'
+          : 'gupshup_v2_event_shape_with_event_app_reply_identity',
         acknowledgement: 'empty_204',
       },
       required: { channel, templates },
