@@ -1,0 +1,96 @@
+name: Run Gupshup migration safely
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/run-gupshup-migration.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: fabrictrad-gupshup-migration-runner
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Extract migration program
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          source = Path('.github/workflows/migrate-gupshup-transport.yml').read_text().splitlines()
+          start = next(i for i, line in enumerate(source) if line.strip() == "python3 <<'PY'")
+          end = next(i for i in range(start + 1, len(source)) if source[i].strip() == 'PY')
+          body = source[start + 1:end]
+          indent = min(len(line) - len(line.lstrip()) for line in body if line.strip())
+          program = '\n'.join(line[indent:] if line.strip() else '' for line in body) + '\n'
+          compile(program, '/tmp/gupshup-migrate.py', 'exec')
+          Path('/tmp/gupshup-migrate.py').write_text(program)
+          print(f'Extracted and compiled migration program ({len(program)} bytes).')
+          PY
+
+      - name: Patch Meta transport to Gupshup
+        run: python3 /tmp/gupshup-migrate.py
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund --package-lock=false --legacy-peer-deps
+
+      - name: Verify WhatsApp integrity
+        run: npm run verify:whatsapp
+
+      - name: Type-check
+        run: npm run type-check
+
+      - name: Lint changed runtime files
+        run: npx eslint src/lib/gupshupWhatsApp.ts src/lib/whatsappBuyerAutomation.ts src/lib/bespokeFollowUps.ts src/app/api/integrations/whatsapp/webhook/route.ts src/app/api/whatsapp/status/route.ts scripts/verify-mobile-whatsapp.mjs
+
+      - name: Build Cloudflare/OpenNext package
+        run: npm run build:sites
+
+      - name: Verify diff
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          git status --short
+          git diff --stat
+
+      - name: Commit verified migration
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then
+            echo 'No migration changes required.'
+            exit 0
+          fi
+          git config user.name 'FabricTrad Release Bot'
+          git config user.email 'fabrictrad8@gmail.com'
+          git add \
+            src/lib/gupshupWhatsApp.ts \
+            src/lib/whatsappBuyerAutomation.ts \
+            src/lib/bespokeFollowUps.ts \
+            src/app/api/integrations/whatsapp/webhook/route.ts \
+            src/app/api/whatsapp/status/route.ts \
+            scripts/verify-mobile-whatsapp.mjs \
+            .github/workflows/sync-whatsapp-production.yml \
+            .github/workflows/force-deploy-current-worker.yml \
+            .github/workflows/integration-readiness.yml
+          git commit -m 'feat: migrate WhatsApp transport to Gupshup [skip deploy]'
+          git push origin HEAD:main
