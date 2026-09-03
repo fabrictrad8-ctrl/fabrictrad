@@ -1,12 +1,15 @@
 import { NextResponse } from 'next/server';
+import { FABRICTRAD_GUPSHUP_APP_NAME } from '@/lib/gupshupWhatsApp';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 export async function GET() {
+  const envAppName = String(process.env.GUPSHUP_APP_NAME || '').trim();
+  const effectiveAppName = envAppName || FABRICTRAD_GUPSHUP_APP_NAME;
   const channel = {
     apiKey: Boolean(process.env.GUPSHUP_API_KEY),
-    appName: Boolean(process.env.GUPSHUP_APP_NAME),
+    appName: Boolean(effectiveAppName),
     sourceNumber: Boolean(process.env.GUPSHUP_SOURCE_NUMBER),
     wabaId: Boolean(process.env.GUPSHUP_WABA_ID),
   };
@@ -19,8 +22,8 @@ export async function GET() {
     postDeliveryFollowUp: Boolean(process.env.WHATSAPP_TEMPLATE_POST_DELIVERY_FOLLOW_UP),
   };
   const webhookReady = true;
-  const interactiveRepliesReady = channel.apiKey && channel.sourceNumber && webhookReady;
   const channelReady = channel.apiKey && channel.appName && channel.sourceNumber;
+  const interactiveRepliesReady = channelReady && webhookReady;
   const templatesReady = Object.values(templates).every(Boolean);
   const proactiveAutomationReady = channelReady && templatesReady;
 
@@ -35,7 +38,7 @@ export async function GET() {
       proactiveAutomationReady,
       templatesReady,
       mediaReady: webhookReady,
-      appIdentityStrategy: channel.appName ? 'environment' : 'gupshup_inbound_event',
+      appIdentityStrategy: envAppName ? 'environment' : 'application_config',
       businessNumber: channel.sourceNumber
         ? String(process.env.GUPSHUP_SOURCE_NUMBER).replace(/\D/g, '')
         : null,
@@ -43,11 +46,9 @@ export async function GET() {
       webhook: {
         url: 'https://fabrictrad.com/api/integrations/whatsapp/webhook',
         path: '/api/integrations/whatsapp/webhook',
-        payloadFormat: 'gupshup_v2',
+        payloadFormat: 'meta_v3_with_gupshup_v2_fallback',
         access: 'public',
-        validation: channel.appName
-          ? 'configured_app_name_and_v2_event_shape'
-          : 'gupshup_v2_event_shape_with_event_app_reply_identity',
+        validation: 'meta_v3_and_gupshup_v2_event_shapes',
         acknowledgement: 'empty_204',
       },
       required: { channel, templates },

@@ -1,11 +1,15 @@
 const GUPSHUP_MESSAGE_URL = 'https://api.gupshup.io/wa/api/v1/msg';
 const GUPSHUP_TEMPLATE_URL = 'https://api.gupshup.io/wa/api/v1/template/msg';
 
+export const FABRICTRAD_GUPSHUP_APP_NAME = 'Fabrictrad';
+
 const env = (name: string) => String(process.env[name] || '').trim();
+const configuredAppName = () => env('GUPSHUP_APP_NAME') || FABRICTRAD_GUPSHUP_APP_NAME;
 
 export const gupshupRuntimeConfig = {
-  configured: Boolean(env('GUPSHUP_API_KEY') && env('GUPSHUP_APP_NAME') && env('GUPSHUP_SOURCE_NUMBER')),
-  appNameConfigured: Boolean(env('GUPSHUP_APP_NAME')),
+  configured: Boolean(env('GUPSHUP_API_KEY') && configuredAppName() && env('GUPSHUP_SOURCE_NUMBER')),
+  appNameConfigured: Boolean(configuredAppName()),
+  appNameSource: env('GUPSHUP_APP_NAME') ? 'environment' : 'application_config',
   sourceNumberConfigured: Boolean(env('GUPSHUP_SOURCE_NUMBER')),
   wabaIdConfigured: Boolean(env('GUPSHUP_WABA_ID')),
 };
@@ -31,7 +35,7 @@ async function postGupshupForm(
 ) {
   const apiKey = env('GUPSHUP_API_KEY');
   const source = normalizeDestination(env('GUPSHUP_SOURCE_NUMBER'));
-  const appName = String(appNameOverride || env('GUPSHUP_APP_NAME')).trim();
+  const appName = String(appNameOverride || configuredAppName()).trim();
   const destination = normalizeDestination(destinationRaw);
   if (!apiKey || !source || !appName) throw new Error('gupshup_not_configured');
   if (!destination) throw new Error('gupshup_destination_invalid');

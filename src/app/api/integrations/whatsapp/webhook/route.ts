@@ -1,7 +1,12 @@
 import { after, NextRequest, NextResponse } from 'next/server';
 import { parseCatalogMessage } from '@/lib/catalogAssistant';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { downloadGupshupMedia, sendGupshupText } from '@/lib/gupshupWhatsApp';
+import {
+  downloadGupshupMedia,
+  FABRICTRAD_GUPSHUP_APP_NAME,
+  sendGupshupText,
+} from '@/lib/gupshupWhatsApp';
+import { isGupshupV3Webhook, normalizeGupshupV3 } from '@/lib/gupshupWebhookV3';
 import {
   handleBuyerWhatsAppMessage,
   sendBuyerWhatsAppText,
@@ -333,15 +338,35 @@ async function recordProcessingFailure(message: WhatsAppMessage, error: unknown)
   );
 }
 
+async function processMessageWithFailureHandling(message: WhatsAppMessage) {
+  try {
+    await processMessage(message);
+  } catch (error) {
+    console.error('WhatsApp message processing failed', {
+      messageId: message.id || null,
+      code: error instanceof Error ? error.message : 'unknown',
+    });
+    await recordProcessingFailure(message, error).catch((recordError) => {
+      console.error('WhatsApp processing failure could not be recorded', {
+        messageId: message.id || null,
+        code: recordError instanceof Error ? recordError.message : 'unknown',
+      });
+    });
+  }
+}
+
 async function processDeliveryEvent(event: GupshupEvent) {
   if (event.type !== 'message-event' || !event.payload) return;
   const payload = event.payload;
   const status = String(payload.type || '').trim().toLowerCase();
   if (!DELIVERY_STATES.has(status)) return;
 
-  const providerMessageId = String(payload.gsId || payload.id || '').trim();
+  const explicitWhatsappMessageId = String(payload.payload?.whatsappMessageId || '').trim();
+  const providerMessageId = String(
+    payload.gsId || (explicitWhatsappMessageId ? '' : payload.id) || ''
+  ).trim();
   const whatsappMessageId = String(
-    payload.payload?.whatsappMessageId || (payload.gsId ? payload.id : '') || ''
+    explicitWhatsappMessageId || (payload.gsId ? payload.id : '') || ''
   ).trim();
   if (!providerMessageId && !whatsappMessageId) return;
 
@@ -389,25 +414,51 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   // Gupshup requires a publicly reachable webhook that immediately returns an
-  // empty 2xx. Registration/health probes may not contain a business payload.
+  // empty 2xx. FabricTrad supports both current Meta-format v3 callbacks and
+  // legacy Gupshup-format v2 callbacks while processing work asynchronously.
   const rawBody = await request.text().catch(() => '');
   if (!rawBody.trim()) return noContent();
 
-  let event: GupshupEvent;
+  let parsed: unknown;
   try {
-    event = JSON.parse(rawBody) as GupshupEvent;
+    parsed = JSON.parse(rawBody) as unknown;
   } catch {
     return noContent();
   }
 
-  const expectedApp = String(process.env.GUPSHUP_APP_NAME || '').trim();
+  const expectedApp = String(process.env.GUPSHUP_APP_NAME || FABRICTRAD_GUPSHUP_APP_NAME).trim();
+
+  if (isGupshupV3Webhook(parsed)) {
+    const normalized = normalizeGupshupV3(parsed, {
+      appName: expectedApp,
+      expectedSourceNumber: process.env.GUPSHUP_SOURCE_NUMBER,
+    });
+
+    if (normalized.deliveryEvents.length || normalized.messages.length) {
+      after(async () => {
+        for (const deliveryEvent of normalized.deliveryEvents) {
+          await processDeliveryEvent(deliveryEvent).catch((error) => {
+            console.error('WhatsApp v3 delivery event processing failed', {
+              code: error instanceof Error ? error.message : 'unknown',
+            });
+          });
+        }
+        for (const message of normalized.messages) {
+          await processMessageWithFailureHandling(message);
+        }
+      });
+    }
+    return noContent();
+  }
+
+  const event = parsed as GupshupEvent;
   if (expectedApp && event.app && event.app !== expectedApp) return noContent();
   if (event.version && event.version !== 2) return noContent();
 
   if (event.type === 'message-event') {
     after(async () => {
       await processDeliveryEvent(event).catch((error) => {
-        console.error('WhatsApp delivery event processing failed', {
+        console.error('WhatsApp v2 delivery event processing failed', {
           code: error instanceof Error ? error.message : 'unknown',
         });
       });
@@ -418,20 +469,7 @@ export async function POST(request: NextRequest) {
   const message = normalizeGupshupMessage(event);
   if (message) {
     after(async () => {
-      try {
-        await processMessage(message);
-      } catch (error) {
-        console.error('WhatsApp message processing failed', {
-          messageId: message.id || null,
-          code: error instanceof Error ? error.message : 'unknown',
-        });
-        await recordProcessingFailure(message, error).catch((recordError) => {
-          console.error('WhatsApp processing failure could not be recorded', {
-            messageId: message.id || null,
-            code: recordError instanceof Error ? recordError.message : 'unknown',
-          });
-        });
-      }
+      await processMessageWithFailureHandling(message);
     });
   }
 
