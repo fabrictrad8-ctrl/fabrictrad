@@ -41,6 +41,11 @@ jobs:
           body = source[start + 1:end]
           indent = min(len(line) - len(line.lstrip()) for line in body if line.strip())
           program = '\n'.join(line[indent:] if line.strip() else '' for line in body) + '\n'
+          old = "updated, count = re.subn(pattern, replacement, text, count=1, flags=flags)"
+          new = "updated, count = re.subn(pattern, lambda _match: replacement, text, count=1, flags=flags)"
+          if old not in program:
+              raise SystemExit('Expected regex replacement helper was not found.')
+          program = program.replace(old, new, 1)
           compile(program, '/tmp/gupshup-migrate.py', 'exec')
           Path('/tmp/gupshup-migrate.py').write_text(program)
           print(f'Extracted and compiled migration program ({len(program)} bytes).')
