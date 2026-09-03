@@ -5,7 +5,6 @@ const env = (name: string) => String(process.env[name] || '').trim();
 
 export const gupshupRuntimeConfig = {
   configured: Boolean(env('GUPSHUP_API_KEY') && env('GUPSHUP_APP_NAME') && env('GUPSHUP_SOURCE_NUMBER')),
-  webhookConfigured: Boolean(env('GUPSHUP_WEBHOOK_SECRET')),
   appNameConfigured: Boolean(env('GUPSHUP_APP_NAME')),
   sourceNumberConfigured: Boolean(env('GUPSHUP_SOURCE_NUMBER')),
   wabaIdConfigured: Boolean(env('GUPSHUP_WABA_ID')),
@@ -56,12 +55,13 @@ async function postGupshupForm(
   if (!response) throw new Error('gupshup_provider_unreachable');
   const payload = (await response.json().catch(() => ({}))) as GupshupSendResult;
   const messageId = String(payload.messageId || '').trim();
-  if (!response.ok || !messageId) {
+  const status = String(payload.status || '').trim().toLowerCase();
+  if (!response.ok || status !== 'submitted' || !messageId) {
     throw new Error(
-      String(payload.message || `gupshup_provider_${response.status || 0}`).slice(0, 1000)
+      String(payload.message || `gupshup_provider_${response.status || 0}_${status || 'invalid'}`).slice(0, 1000)
     );
   }
-  return { sent: true as const, messageId, status: payload.status || 'submitted' };
+  return { sent: true as const, messageId, status: 'submitted' as const };
 }
 
 export async function sendGupshupText(
@@ -105,11 +105,28 @@ const isAllowedMediaUrl = (value: string) => {
 
 export async function downloadGupshupMedia(mediaUrl: string, maxBytes: number) {
   if (!isAllowedMediaUrl(mediaUrl)) throw new Error('gupshup_media_url_invalid');
-  const response = await fetch(mediaUrl, {
-    cache: 'no-store',
-    redirect: 'follow',
-    signal: AbortSignal.timeout(30_000),
-  });
+  let currentUrl = mediaUrl;
+  let response: Response | null = null;
+
+  for (let redirectCount = 0; redirectCount <= 3; redirectCount += 1) {
+    if (!isAllowedMediaUrl(currentUrl)) throw new Error('gupshup_media_redirect_invalid');
+    response = await fetch(currentUrl, {
+      cache: 'no-store',
+      redirect: 'manual',
+      signal: AbortSignal.timeout(30_000),
+    });
+    if ([301, 302, 303, 307, 308].includes(response.status)) {
+      const location = response.headers.get('location');
+      if (!location) throw new Error('gupshup_media_redirect_missing');
+      currentUrl = new URL(location, currentUrl).toString();
+      continue;
+    }
+    break;
+  }
+
+  if (!response || [301, 302, 303, 307, 308].includes(response.status)) {
+    throw new Error('gupshup_media_redirect_limit');
+  }
   if (!response.ok) throw new Error(`gupshup_media_download_${response.status}`);
   const declared = Number(response.headers.get('content-length') || 0);
   if (declared > maxBytes) throw new Error('media_too_large');
