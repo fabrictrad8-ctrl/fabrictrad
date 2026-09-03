@@ -8,53 +8,122 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   verify:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Verify live webhook and status
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Probe real production endpoints
         shell: bash
         run: |
-          set -euo pipefail
+          set -u -o pipefail
+          mkdir -p .github/deployments
           base='https://fabrictrad.com'
           webhook="$base/api/integrations/whatsapp/webhook"
           status_url="$base/api/whatsapp/status"
+
+          get_code='000'
+          post_code='000'
+          status_code='000'
+          : > /tmp/get.out
+          : > /tmp/post.out
+          echo '{}' > /tmp/status.json
 
           for attempt in 1 2 3 4 5 6; do
             get_code=$(curl -sS --connect-timeout 10 --max-time 30 -o /tmp/get.out -w '%{http_code}' "$webhook" || true)
             post_code=$(curl -sS --connect-timeout 10 --max-time 30 -o /tmp/post.out -w '%{http_code}' -H 'Content-Type: application/json' --data '{"type":"user-event","version":2,"app":"__fabrictrad_live_probe__","payload":{"type":"sandbox-start"}}' "$webhook" || true)
             status_code=$(curl -sS --connect-timeout 10 --max-time 30 -o /tmp/status.json -w '%{http_code}' "$status_url" || true)
-
             echo "Attempt ${attempt}: GET=${get_code}; POST=${post_code}; STATUS=${status_code}"
             if [ "$get_code" = '204' ] && [ "$post_code" = '204' ] && [ "$status_code" = '200' ] && [ ! -s /tmp/get.out ] && [ ! -s /tmp/post.out ]; then
-              python3 - <<'PY'
-          import json
-          with open('/tmp/status.json', encoding='utf-8') as f:
-              data=json.load(f)
-          print('provider=', data.get('provider'))
-          print('configured=', data.get('configured'))
-          print('channelReady=', data.get('channelReady'))
-          print('webhookReady=', data.get('webhookReady'))
-          print('automationReady=', data.get('automationReady'))
-          print('templatesReady=', data.get('templatesReady'))
-          print('businessNumber=', data.get('businessNumber'))
-          print('required=', json.dumps(data.get('required', {}), sort_keys=True))
-          webhook=data.get('webhook') or {}
-          assert data.get('provider') == 'gupshup'
-          assert data.get('webhookReady') is True
-          assert webhook.get('access') == 'public'
-          assert webhook.get('acknowledgement') == 'empty_204'
-          PY
-              echo "LIVE_WEBHOOK=$webhook"
-              exit 0
+              break
             fi
             sleep 10
           done
 
-          echo 'GET body:'; cat /tmp/get.out || true; echo
-          echo 'POST body:'; cat /tmp/post.out || true; echo
-          echo 'Status body:'; cat /tmp/status.json || true; echo
-          exit 1
+          GET_CODE="$get_code" POST_CODE="$post_code" STATUS_CODE="$status_code" python3 - <<'PY'
+          import json, os, pathlib, datetime
+
+          def load_json(path):
+              try:
+                  return json.loads(pathlib.Path(path).read_text(encoding='utf-8'))
+              except Exception:
+                  return {}
+
+          status = load_json('/tmp/status.json')
+          required = status.get('required') if isinstance(status, dict) else {}
+          channel = required.get('channel', {}) if isinstance(required, dict) else {}
+          templates = required.get('templates', {}) if isinstance(required, dict) else {}
+          webhook = status.get('webhook', {}) if isinstance(status, dict) else {}
+          get_code = os.environ.get('GET_CODE', '000')
+          post_code = os.environ.get('POST_CODE', '000')
+          status_code = os.environ.get('STATUS_CODE', '000')
+          get_empty = pathlib.Path('/tmp/get.out').exists() and pathlib.Path('/tmp/get.out').stat().st_size == 0
+          post_empty = pathlib.Path('/tmp/post.out').exists() and pathlib.Path('/tmp/post.out').stat().st_size == 0
+          webhook_live = (
+              get_code == '204' and post_code == '204' and status_code == '200'
+              and get_empty and post_empty
+              and status.get('provider') == 'gupshup'
+              and status.get('webhookReady') is True
+              and webhook.get('access') == 'public'
+              and webhook.get('acknowledgement') == 'empty_204'
+          )
+          result = {
+              'checkedAt': datetime.datetime.now(datetime.timezone.utc).isoformat(),
+              'baseUrl': 'https://fabrictrad.com',
+              'webhookUrl': 'https://fabrictrad.com/api/integrations/whatsapp/webhook',
+              'http': {
+                  'webhookGet': get_code,
+                  'webhookPost': post_code,
+                  'status': status_code,
+                  'getBodyEmpty': get_empty,
+                  'postBodyEmpty': post_empty,
+              },
+              'webhookLive': webhook_live,
+              'provider': status.get('provider'),
+              'configured': status.get('configured'),
+              'channelReady': status.get('channelReady'),
+              'webhookReady': status.get('webhookReady'),
+              'automationReady': status.get('automationReady'),
+              'templatesReady': status.get('templatesReady'),
+              'businessNumber': status.get('businessNumber'),
+              'channelFieldsPresent': channel,
+              'templateFieldsPresent': templates,
+              'webhook': webhook,
+          }
+          pathlib.Path('.github/deployments/gupshup-live-status.json').write_text(
+              json.dumps(result, indent=2, sort_keys=True) + '\n', encoding='utf-8'
+          )
+          print(json.dumps(result, indent=2, sort_keys=True))
+          PY
+
+      - name: Record production proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'FabricTrad Release Bot'
+          git config user.email 'fabrictrad8@gmail.com'
+          git add .github/deployments/gupshup-live-status.json
+          if git diff --cached --quiet; then
+            echo 'Production proof unchanged.'
+          else
+            git commit -m 'chore: record Gupshup production readiness [skip deploy]'
+            git pull --rebase origin main
+            git push origin HEAD:main
+          fi
+
+      - name: Enforce live callback contract
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json
+          data=json.load(open('.github/deployments/gupshup-live-status.json', encoding='utf-8'))
+          if not data.get('webhookLive'):
+              raise SystemExit('Production webhook is not registration-ready yet.')
+          print('Production Gupshup callback is registration-ready.')
+          PY
