@@ -1,0 +1,42 @@
+{
+  "automationReady": false,
+  "baseUrl": "https://fabrictrad.com",
+  "businessNumber": "917977286898",
+  "channelFieldsPresent": {
+    "apiKey": true,
+    "appName": false,
+    "sourceNumber": true,
+    "wabaId": false
+  },
+  "channelReady": false,
+  "checkedAt": "2026-09-03T07:38:30.879708+00:00",
+  "configured": false,
+  "http": {
+    "getBodyEmpty": true,
+    "postBodyEmpty": true,
+    "status": "200",
+    "webhookGet": "204",
+    "webhookPost": "204"
+  },
+  "provider": "gupshup",
+  "templateFieldsPresent": {
+    "appointmentReminder": false,
+    "deliveryUpdate": false,
+    "paymentReminder": false,
+    "postDeliveryFollowUp": false,
+    "reviewRequest": false,
+    "trialReminder": false
+  },
+  "templatesReady": false,
+  "webhook": {
+    "access": "public",
+    "acknowledgement": "empty_204",
+    "path": "/api/integrations/whatsapp/webhook",
+    "payloadFormat": "gupshup_v2",
+    "url": "https://fabrictrad.com/api/integrations/whatsapp/webhook",
+    "validation": "gupshup_v2_event_shape"
+  },
+  "webhookLive": true,
+  "webhookReady": true,
+  "webhookUrl": "https://fabrictrad.com/api/integrations/whatsapp/webhook"
+}
