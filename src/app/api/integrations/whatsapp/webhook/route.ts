@@ -1,4 +1,3 @@
-import { timingSafeEqual } from 'node:crypto';
 import { after, NextRequest, NextResponse } from 'next/server';
 import { parseCatalogMessage } from '@/lib/catalogAssistant';
 import { createAdminClient } from '@/lib/supabase/admin';
@@ -14,8 +13,9 @@ export const maxDuration = 60;
 
 const MAX_MEDIA_BYTES = 50 * 1024 * 1024;
 const MEDIA_BUCKET = 'seller-whatsapp-inbox';
+const DELIVERY_STATES = new Set(['enqueued', 'failed', 'sent', 'delivered', 'read', 'deleted']);
 
-type MetaMessage = {
+type WhatsAppMessage = {
   id?: string;
   from?: string;
   type?: string;
@@ -25,7 +25,6 @@ type MetaMessage = {
   document?: { id?: string; caption?: string; filename?: string; mime_type?: string };
 };
 
-
 type GupshupEvent = {
   app?: string;
   timestamp?: number;
@@ -33,8 +32,11 @@ type GupshupEvent = {
   type?: string;
   payload?: {
     id?: string;
+    gsId?: string;
     source?: string;
+    destination?: string;
     type?: string;
+    phone?: string;
     payload?: {
       text?: string;
       caption?: string;
@@ -44,12 +46,16 @@ type GupshupEvent = {
       filename?: string;
       title?: string;
       postbackText?: string;
+      whatsappMessageId?: string;
+      code?: string | number;
+      reason?: string;
+      ts?: number;
     };
     sender?: { phone?: string; name?: string };
   };
 };
 
-const normalizeGupshupMessage = (event: GupshupEvent): MetaMessage | null => {
+const normalizeGupshupMessage = (event: GupshupEvent): WhatsAppMessage | null => {
   if (event.type !== 'message' || !event.payload?.id || !event.payload.source) return null;
   const message = event.payload;
   const content = message.payload || {};
@@ -91,7 +97,7 @@ const normalizeGupshupMessage = (event: GupshupEvent): MetaMessage | null => {
       },
     };
   }
-  if (message.type === 'button_reply' || message.type === 'list_reply') {
+  if (message.type === 'button_reply' || message.type === 'list_reply' || message.type === 'button') {
     return {
       ...common,
       type: 'text',
@@ -101,20 +107,13 @@ const normalizeGupshupMessage = (event: GupshupEvent): MetaMessage | null => {
   return { ...common, type: String(message.type || 'unknown') };
 };
 
-type WebhookPayload = {
-  entry?: Array<{
-    changes?: Array<{
-      value?: {
-        messages?: MetaMessage[];
-      };
-    }>;
-  }>;
-};
-
-const json = (body: Record<string, unknown>, status = 200) =>
-  NextResponse.json(body, {
-    status,
-    headers: { 'Cache-Control': 'no-store, max-age=0' },
+const noContent = () =>
+  new NextResponse(null, {
+    status: 204,
+    headers: {
+      'Cache-Control': 'no-store, max-age=0',
+      'X-Content-Type-Options': 'nosniff',
+    },
   });
 
 const normalizePhone = (value: unknown) => {
@@ -123,7 +122,7 @@ const normalizePhone = (value: unknown) => {
   return /^[6-9][0-9]{9}$/.test(lastTen) ? lastTen : '';
 };
 
-const extractText = (message: MetaMessage) => {
+const extractText = (message: WhatsAppMessage) => {
   if (message.type === 'text') return String(message.text?.body || '').trim();
   if (message.type === 'image') return String(message.image?.caption || '').trim();
   if (message.type === 'video') return String(message.video?.caption || '').trim();
@@ -131,7 +130,7 @@ const extractText = (message: MetaMessage) => {
   return '';
 };
 
-const extractMedia = (message: MetaMessage) => {
+const extractMedia = (message: WhatsAppMessage) => {
   if (message.type === 'image' && message.image?.id) {
     return { id: message.image.id, mime: message.image.mime_type || 'image/jpeg' };
   }
@@ -154,14 +153,6 @@ const extensionFor = (mime: string) => {
   return 'bin';
 };
 
-const secureEqual = (supplied: string | null, expected: string) => {
-  if (!supplied || !expected) return false;
-  const suppliedBuffer = Buffer.from(supplied);
-  const expectedBuffer = Buffer.from(expected);
-  if (suppliedBuffer.length !== expectedBuffer.length) return false;
-  return timingSafeEqual(suppliedBuffer, expectedBuffer);
-};
-
 async function acknowledgeSeller(to: string, text: string) {
   try {
     await sendGupshupText(to, text, false);
@@ -174,7 +165,7 @@ async function acknowledgeSeller(to: string, text: string) {
   }
 }
 
-async function ingestSellerMessage(message: MetaMessage) {
+async function ingestSellerMessage(message: WhatsAppMessage) {
   const waMessageId = String(message.id || '').trim();
   const fromRaw = String(message.from || '').trim();
   const fromPhone = normalizePhone(fromRaw);
@@ -270,12 +261,12 @@ async function ingestSellerMessage(message: MetaMessage) {
   );
 }
 
-async function processMessage(message: MetaMessage) {
+async function processMessage(message: WhatsAppMessage) {
   const buyerResult = await handleBuyerWhatsAppMessage(message);
   if (!buyerResult.handled) await ingestSellerMessage(message);
 }
 
-async function recordProcessingFailure(message: MetaMessage, error: unknown) {
+async function recordProcessingFailure(message: WhatsAppMessage, error: unknown) {
   const waMessageId = String(message.id || '').trim();
   const fromRaw = String(message.from || '').trim();
   if (!waMessageId) return;
@@ -329,32 +320,86 @@ async function recordProcessingFailure(message: MetaMessage, error: unknown) {
   );
 }
 
+async function processDeliveryEvent(event: GupshupEvent) {
+  if (event.type !== 'message-event' || !event.payload) return;
+  const payload = event.payload;
+  const status = String(payload.type || '').trim().toLowerCase();
+  if (!DELIVERY_STATES.has(status)) return;
+
+  const providerMessageId = String(payload.gsId || payload.id || '').trim();
+  const whatsappMessageId = String(
+    payload.payload?.whatsappMessageId || (payload.gsId ? payload.id : '') || ''
+  ).trim();
+  if (!providerMessageId && !whatsappMessageId) return;
+
+  const eventTime = new Date(
+    Number.isFinite(Number(event.timestamp)) ? Number(event.timestamp) : Date.now()
+  );
+  const eventIso = Number.isFinite(eventTime.getTime()) ? eventTime.toISOString() : new Date().toISOString();
+  const admin = createAdminClient();
+
+  let query = admin
+    .from('whatsapp_buyer_messages')
+    .select('id,delivery_status_at')
+    .eq('provider', 'gupshup')
+    .limit(1);
+  if (providerMessageId) query = query.eq('provider_message_id', providerMessageId);
+  else query = query.eq('whatsapp_message_id', whatsappMessageId);
+  const { data: row } = await query.maybeSingle();
+  if (!row?.id) return;
+
+  if (row.delivery_status_at) {
+    const currentTime = new Date(row.delivery_status_at).getTime();
+    const incomingTime = new Date(eventIso).getTime();
+    if (Number.isFinite(currentTime) && Number.isFinite(incomingTime) && incomingTime < currentTime) {
+      return;
+    }
+  }
+
+  const providerErrorCode = status === 'failed' ? String(payload.payload?.code || '').slice(0, 120) : null;
+  const providerErrorMessage = status === 'failed' ? String(payload.payload?.reason || '').slice(0, 1000) : null;
+  await admin
+    .from('whatsapp_buyer_messages')
+    .update({
+      delivery_status: status,
+      delivery_status_at: eventIso,
+      whatsapp_message_id: whatsappMessageId || null,
+      provider_error_code: providerErrorCode || null,
+      provider_error_message: providerErrorMessage || null,
+    })
+    .eq('id', row.id);
+}
+
 export async function GET() {
-  return json({
-    provider: 'gupshup',
-    ready: Boolean(process.env.GUPSHUP_WEBHOOK_SECRET),
-    payloadFormat: 'gupshup_v2',
-  });
+  return noContent();
 }
 
 export async function POST(request: NextRequest) {
-  const webhookSecret = String(process.env.GUPSHUP_WEBHOOK_SECRET || '').trim();
-  if (!webhookSecret) return json({ error: 'WhatsApp webhook is not configured.' }, 503);
-  if (!secureEqual(request.headers.get('x-fabrictrad-webhook-token'), webhookSecret)) {
-    return json({ error: 'Invalid WhatsApp webhook token.' }, 401);
-  }
+  // Gupshup requires a publicly reachable webhook that immediately returns an
+  // empty 2xx. Registration/health probes may not contain a business payload.
+  const rawBody = await request.text().catch(() => '');
+  if (!rawBody.trim()) return noContent();
 
-  const rawBody = await request.text();
   let event: GupshupEvent;
   try {
     event = JSON.parse(rawBody) as GupshupEvent;
   } catch {
-    return json({ error: 'Invalid webhook payload.' }, 400);
+    return noContent();
   }
 
   const expectedApp = String(process.env.GUPSHUP_APP_NAME || '').trim();
-  if (expectedApp && event.app && event.app !== expectedApp) {
-    return json({ error: 'Unexpected Gupshup app.' }, 403);
+  if (expectedApp && event.app && event.app !== expectedApp) return noContent();
+  if (event.version && event.version !== 2) return noContent();
+
+  if (event.type === 'message-event') {
+    after(async () => {
+      await processDeliveryEvent(event).catch((error) => {
+        console.error('WhatsApp delivery event processing failed', {
+          code: error instanceof Error ? error.message : 'unknown',
+        });
+      });
+    });
+    return noContent();
   }
 
   const message = normalizeGupshupMessage(event);
@@ -364,19 +409,20 @@ export async function POST(request: NextRequest) {
         await processMessage(message);
       } catch (error) {
         console.error('WhatsApp message processing failed', {
-messageId: message.id || null,
-code: error instanceof Error ? error.message : 'unknown',
+          messageId: message.id || null,
+          code: error instanceof Error ? error.message : 'unknown',
         });
         await recordProcessingFailure(message, error).catch((recordError) => {
-console.error('WhatsApp processing failure could not be recorded', {
-  messageId: message.id || null,
-  code: recordError instanceof Error ? recordError.message : 'unknown',
-});
+          console.error('WhatsApp processing failure could not be recorded', {
+            messageId: message.id || null,
+            code: recordError instanceof Error ? recordError.message : 'unknown',
+          });
         });
       }
     });
   }
 
-  // Gupshup requires an immediate empty 2xx acknowledgement and retries slow failures.
-  return new NextResponse(null, { status: 204 });
+  // user-event (including sandbox-start), system-event, billing-event and all
+  // other valid Gupshup notifications are acknowledged immediately.
+  return noContent();
 }
