@@ -9,7 +9,6 @@ export async function GET() {
     appName: Boolean(process.env.GUPSHUP_APP_NAME),
     sourceNumber: Boolean(process.env.GUPSHUP_SOURCE_NUMBER),
     wabaId: Boolean(process.env.GUPSHUP_WABA_ID),
-    webhookSecret: Boolean(process.env.GUPSHUP_WEBHOOK_SECRET),
   };
   const templates = {
     appointmentReminder: Boolean(process.env.WHATSAPP_TEMPLATE_APPOINTMENT_REMINDER),
@@ -19,8 +18,8 @@ export async function GET() {
     reviewRequest: Boolean(process.env.WHATSAPP_TEMPLATE_REVIEW_REQUEST),
     postDeliveryFollowUp: Boolean(process.env.WHATSAPP_TEMPLATE_POST_DELIVERY_FOLLOW_UP),
   };
-  const channelReady = channel.apiKey && channel.appName && channel.sourceNumber && channel.wabaId;
-  const webhookReady = channel.webhookSecret;
+  const channelReady = channel.apiKey && channel.appName && channel.sourceNumber;
+  const webhookReady = channel.appName;
   const templatesReady = Object.values(templates).every(Boolean);
   const configured = channelReady && webhookReady;
 
@@ -38,9 +37,12 @@ export async function GET() {
         : null,
       wabaIdConfigured: channel.wabaId,
       webhook: {
+        url: 'https://fabrictrad.com/api/integrations/whatsapp/webhook',
         path: '/api/integrations/whatsapp/webhook',
         payloadFormat: 'gupshup_v2',
-        authHeader: 'x-fabrictrad-webhook-token',
+        access: 'public',
+        validation: 'configured_app_name_and_v2_event_shape',
+        acknowledgement: 'empty_204',
       },
       required: { channel, templates },
     },
