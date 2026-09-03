@@ -1,0 +1,60 @@
+name: Verify live Gupshup webhook
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/verify-live-gupshup.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Verify live webhook and status
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='https://fabrictrad.com'
+          webhook="$base/api/integrations/whatsapp/webhook"
+          status_url="$base/api/whatsapp/status"
+
+          for attempt in 1 2 3 4 5 6; do
+            get_code=$(curl -sS --connect-timeout 10 --max-time 30 -o /tmp/get.out -w '%{http_code}' "$webhook" || true)
+            post_code=$(curl -sS --connect-timeout 10 --max-time 30 -o /tmp/post.out -w '%{http_code}' -H 'Content-Type: application/json' --data '{"type":"user-event","version":2,"app":"__fabrictrad_live_probe__","payload":{"type":"sandbox-start"}}' "$webhook" || true)
+            status_code=$(curl -sS --connect-timeout 10 --max-time 30 -o /tmp/status.json -w '%{http_code}' "$status_url" || true)
+
+            echo "Attempt ${attempt}: GET=${get_code}; POST=${post_code}; STATUS=${status_code}"
+            if [ "$get_code" = '204' ] && [ "$post_code" = '204' ] && [ "$status_code" = '200' ] && [ ! -s /tmp/get.out ] && [ ! -s /tmp/post.out ]; then
+              python3 - <<'PY'
+          import json
+          with open('/tmp/status.json', encoding='utf-8') as f:
+              data=json.load(f)
+          print('provider=', data.get('provider'))
+          print('configured=', data.get('configured'))
+          print('channelReady=', data.get('channelReady'))
+          print('webhookReady=', data.get('webhookReady'))
+          print('automationReady=', data.get('automationReady'))
+          print('templatesReady=', data.get('templatesReady'))
+          print('businessNumber=', data.get('businessNumber'))
+          print('required=', json.dumps(data.get('required', {}), sort_keys=True))
+          webhook=data.get('webhook') or {}
+          assert data.get('provider') == 'gupshup'
+          assert data.get('webhookReady') is True
+          assert webhook.get('access') == 'public'
+          assert webhook.get('acknowledgement') == 'empty_204'
+          PY
+              echo "LIVE_WEBHOOK=$webhook"
+              exit 0
+            fi
+            sleep 10
+          done
+
+          echo 'GET body:'; cat /tmp/get.out || true; echo
+          echo 'POST body:'; cat /tmp/post.out || true; echo
+          echo 'Status body:'; cat /tmp/status.json || true; echo
+          exit 1
