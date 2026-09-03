@@ -86,6 +86,9 @@ jobs:
           path.write_text(text)
           PY
 
+      - name: Keep production deploy guard untouched during runtime migration
+        run: git restore .github/workflows/force-deploy-current-worker.yml
+
       - name: Install dependencies
         run: npm install --no-audit --no-fund --package-lock=false --legacy-peer-deps
 
@@ -113,10 +116,6 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if git diff --quiet; then
-            echo 'No migration changes required.'
-            exit 0
-          fi
           git config user.name 'FabricTrad Release Bot'
           git config user.email 'fabrictrad8@gmail.com'
           git add \
@@ -128,5 +127,22 @@ jobs:
             scripts/verify-mobile-whatsapp.mjs \
             .github/workflows/sync-whatsapp-production.yml \
             .github/workflows/integration-readiness.yml
+          if git diff --cached --quiet; then
+            echo 'No migration changes required.'
+            exit 0
+          fi
           git commit -m 'feat: migrate WhatsApp transport to Gupshup [skip deploy]'
-          git push origin HEAD:main
+
+          # Validation-status automation may legitimately advance main while this
+          # full build is running. Rebase only our verified commit, never force-push.
+          for attempt in 1 2 3 4; do
+            git fetch origin main
+            git rebase origin/main
+            if git push origin HEAD:main; then
+              exit 0
+            fi
+            echo "Push raced with main on attempt ${attempt}; retrying safely."
+            sleep 2
+          done
+          echo '::error::Could not publish verified Gupshup migration without a force push.'
+          exit 1
