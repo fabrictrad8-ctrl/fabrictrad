@@ -47,7 +47,12 @@ const record = (value: unknown): Record<string, unknown> | null =>
     : null;
 
 const stringValue = (value: unknown) => (typeof value === 'string' ? value.trim() : '');
-const records = (value: unknown) => (Array.isArray(value) ? value.map(record).filter(Boolean) : []);
+const records = (value: unknown): Record<string, unknown>[] =>
+  Array.isArray(value)
+    ? value
+        .map(record)
+        .filter((item): item is Record<string, unknown> => item !== null)
+    : [];
 const digits = (value: unknown) => stringValue(value).replace(/\D/g, '');
 
 const epochMs = (value: unknown) => {
