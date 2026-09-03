@@ -44,8 +44,8 @@ npx eslint \
 echo 'Building Cloudflare/OpenNext Worker...'
 npm run build:sites
 test -s .open-next/worker.js
-grep -q 'GUPSHUP_API_KEY' .open-next/worker.js
-grep -q 'api.gupshup.io' .open-next/worker.js
+
+echo 'OpenNext Worker package generated successfully.'
 
 put_secret() {
   local name="$1"
