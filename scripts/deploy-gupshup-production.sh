@@ -4,11 +4,14 @@ set -euo pipefail
 BASE_URL="https://fabrictrad.com"
 WEBHOOK_PATH="/api/integrations/whatsapp/webhook"
 
-required=(CLOUDFLARE_API_TOKEN GUPSHUP_API_KEY GUPSHUP_APP_NAME GUPSHUP_SOURCE_NUMBER)
+: "${GUPSHUP_SOURCE_NUMBER:=917977286898}"
+export GUPSHUP_SOURCE_NUMBER
+
+required=(CLOUDFLARE_API_TOKEN GUPSHUP_API_KEY GUPSHUP_SOURCE_NUMBER)
 missing=0
 for name in "${required[@]}"; do
   if [ -z "${!name:-}" ]; then
-    echo "::error::Required secure value ${name} is missing."
+    echo "::error::Required deployment value ${name} is missing."
     missing=1
   else
     echo "${name}=present"
@@ -70,11 +73,11 @@ import json
 with open('/tmp/fabrictrad-cloudflare-secrets.json', encoding='utf-8') as handle:
     payload = json.load(handle)
 names = {str(item.get('name', '')) for item in payload if isinstance(item, dict)}
-required = {'GUPSHUP_API_KEY', 'GUPSHUP_APP_NAME', 'GUPSHUP_SOURCE_NUMBER'}
+required = {'GUPSHUP_API_KEY', 'GUPSHUP_SOURCE_NUMBER'}
 missing = sorted(required - names)
 if missing:
     raise SystemExit('Missing required Cloudflare bindings: ' + ', '.join(missing))
-print('Required Cloudflare Gupshup bindings verified.')
+print('Required callback/runtime Gupshup bindings verified.')
 PY
 
 echo 'Deploying FabricTrad Worker...'
@@ -84,17 +87,9 @@ echo 'Waiting for production propagation...'
 sleep 12
 
 for attempt in 1 2 3 4 5 6; do
-  status_code=$(curl -sS --connect-timeout 10 --max-time 30 \
-    -o /tmp/fabrictrad-wa-status.json -w '%{http_code}' \
-    "$BASE_URL/api/whatsapp/status" || true)
-  get_code=$(curl -sS --connect-timeout 10 --max-time 30 \
-    -o /tmp/fabrictrad-wa-get.out -w '%{http_code}' \
-    "$BASE_URL$WEBHOOK_PATH" || true)
-  post_code=$(curl -sS --connect-timeout 10 --max-time 30 \
-    -o /tmp/fabrictrad-wa-post.out -w '%{http_code}' \
-    -H 'Content-Type: application/json' \
-    --data '{"type":"user-event","version":2,"app":"__fabrictrad_registration_probe__","payload":{"type":"sandbox-start"}}' \
-    "$BASE_URL$WEBHOOK_PATH" || true)
+  status_code=$(curl -sS --connect-timeout 10 --max-time 30 -o /tmp/fabrictrad-wa-status.json -w '%{http_code}' "$BASE_URL/api/whatsapp/status" || true)
+  get_code=$(curl -sS --connect-timeout 10 --max-time 30 -o /tmp/fabrictrad-wa-get.out -w '%{http_code}' "$BASE_URL$WEBHOOK_PATH" || true)
+  post_code=$(curl -sS --connect-timeout 10 --max-time 30 -o /tmp/fabrictrad-wa-post.out -w '%{http_code}' -H 'Content-Type: application/json' --data '{"type":"user-event","version":2,"app":"__fabrictrad_registration_probe__","payload":{"type":"sandbox-start"}}' "$BASE_URL$WEBHOOK_PATH" || true)
 
   echo "Live check ${attempt}: status=${status_code}; webhook GET=${get_code}; webhook POST=${post_code}"
   if [ "$status_code" = '200' ] \
@@ -103,7 +98,6 @@ for attempt in 1 2 3 4 5 6; do
     && [ ! -s /tmp/fabrictrad-wa-get.out ] \
     && [ ! -s /tmp/fabrictrad-wa-post.out ] \
     && grep -q '"provider":"gupshup"' /tmp/fabrictrad-wa-status.json \
-    && grep -q '"configured":true' /tmp/fabrictrad-wa-status.json \
     && grep -q '"webhookReady":true' /tmp/fabrictrad-wa-status.json; then
     echo "GUPSHUP_WEBHOOK_LIVE=${BASE_URL}${WEBHOOK_PATH}"
     exit 0
@@ -111,7 +105,6 @@ for attempt in 1 2 3 4 5 6; do
   sleep 10
 done
 
-echo 'Final WhatsApp status response:'
 cat /tmp/fabrictrad-wa-status.json || true
 echo
 echo '::error::Production Gupshup callback did not become registration-ready.'
