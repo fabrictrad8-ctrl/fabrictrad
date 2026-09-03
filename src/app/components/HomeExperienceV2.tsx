@@ -29,5 +29,14 @@ export default function HomeExperienceV2() {
     );
   }
 
-  return <PublicAccessLanding />;
+  return (
+    <div className="ft-public-access-only">
+      <style jsx global>{`
+        .ft-public-access-only a[href^='https://wa.me/'] {
+          display: none !important;
+        }
+      `}</style>
+      <PublicAccessLanding />
+    </div>
+  );
 }
