@@ -192,10 +192,11 @@ body.ft-root {
 }
 
 @media (max-width: 479px) {
-  /* On narrow phones, generic multi-column content grids become one column.
-     Product-specific responsive grids can opt out with data-mobile-grid='keep'. */
-  .ft-root main :where([class*='grid-cols-2'], [class*='grid-cols-3'], [class*='grid-cols-4'], [class*='grid-cols-5'], [class*='grid-cols-6']):not([data-mobile-grid='keep']) {
-    grid-template-columns: minmax(0, 1fr) !important;
+  /* Keep deliberate two-column product/stat layouts intact. At narrow widths,
+     only make their children shrinkable; page-specific QA decides where a
+     component truly needs to stack. */
+  .ft-root main :where(.grid, .flex) > * {
+    min-width: 0;
   }
 
   .ft-root main :where(.flex)[class*='justify-between'] {
