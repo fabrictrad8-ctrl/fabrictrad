@@ -141,6 +141,10 @@ try {
 
         const escapedFixedControls = Array.from(document.querySelectorAll('body *'))
           .filter((element) => visible(element))
+          // Skip links intentionally sit above the viewport until keyboard
+          // focus moves them into view; that is accessible behaviour, not a
+          // mobile layout escape.
+          .filter((element) => !element.matches('.ft-skip-link:not(:focus)'))
           .filter((element) => ['fixed', 'sticky'].includes(window.getComputedStyle(element).position))
           .map((element) => {
             const rect = element.getBoundingClientRect();
@@ -239,7 +243,8 @@ try {
 
       // Exercise the actual mobile header drawer on a representative shared-header route.
       if (route === '/help' && device.width <= 767) {
-        const opener = page.locator('button[aria-label="Open menu"]').first();
+        const opener = page.locator('.ft-mobile-menu-trigger').first();
+        await opener.waitFor({ state: 'visible', timeout: 3_000 }).catch(() => {});
         if (await opener.isVisible().catch(() => false)) {
           await opener.click();
           await page.waitForTimeout(80);
