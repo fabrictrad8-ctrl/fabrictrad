@@ -26,7 +26,10 @@ export default function SitewideLanguageControl() {
   if (!needsFallback) return null;
 
   return (
-    <div className="fixed bottom-4 right-4 z-[120] rounded-full bg-white/95 p-1 shadow-[0_12px_36px_rgba(15,23,42,0.18)] backdrop-blur-xl print:hidden">
+    <div
+      data-sitewide-language-fallback
+      className="fixed bottom-4 right-4 z-[120] rounded-full bg-white/95 p-1 shadow-[0_12px_36px_rgba(15,23,42,0.18)] backdrop-blur-xl print:hidden"
+    >
       <PreferenceControls source="fallback" menuPlacement="up" />
     </div>
   );
