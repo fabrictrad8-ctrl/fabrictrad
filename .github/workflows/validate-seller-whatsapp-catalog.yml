@@ -15,7 +15,7 @@ on:
       - 'scripts/apply-seller-whatsapp-catalog-patch.py'
       - 'scripts/fix-seller-whatsapp-media-conflict.py'
       - 'scripts/patch-whatsapp-regression-for-seller.py'
-      - 'scripts/patch-whatsapp-catalog-panel.py'
+      - 'scripts/patch-whatsapp-catalog-panel-v2.py'
       - 'scripts/verify-mobile-whatsapp.mjs'
       - 'supabase/migrations/20260904080000_seller_whatsapp_catalog_identity.sql'
       - 'supabase/migrations/20260904080500_buyer_profile_seller_identity_guard.sql'
@@ -41,7 +41,7 @@ jobs:
           python3 scripts/apply-seller-whatsapp-catalog-patch.py
           python3 scripts/fix-seller-whatsapp-media-conflict.py
           python3 scripts/patch-whatsapp-regression-for-seller.py
-          python3 scripts/patch-whatsapp-catalog-panel.py
+          python3 scripts/patch-whatsapp-catalog-panel-v2.py
 
       - name: Verify required implementation markers
         shell: bash
