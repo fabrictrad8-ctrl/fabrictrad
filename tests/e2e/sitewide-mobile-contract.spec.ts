@@ -53,7 +53,7 @@ const routes: MobileRoute[] = [
   { role: 'admin', path: '/admin-portal?tab=settings', label: 'admin-settings' },
 ];
 
-async function prepareRole(page: Page, role: Role) {
+async function setupNetworkStubs(page: Page) {
   await page.route('**/api/admin/seller-metrics*', async (route) => {
     await route.fulfill({
       status: 200,
@@ -75,18 +75,23 @@ async function prepareRole(page: Page, role: Role) {
       headers: { 'access-control-allow-origin': '*' },
     });
   });
+}
 
-  if (role !== 'public') {
-    await page.context().addCookies([
-      {
-        name: 'fabrictrad_demo_role',
-        value: role,
-        url: 'http://localhost:3000',
-        httpOnly: false,
-        sameSite: 'Lax',
-      },
-    ]);
+async function setRole(page: Page, role: Role) {
+  if (role === 'public') {
+    await page.context().clearCookies({ name: 'fabrictrad_demo_role' });
+    return;
   }
+
+  await page.context().addCookies([
+    {
+      name: 'fabrictrad_demo_role',
+      value: role,
+      url: 'http://localhost:3000',
+      httpOnly: false,
+      sameSite: 'Lax',
+    },
+  ]);
 }
 
 type MobileAudit = {
@@ -177,13 +182,16 @@ for (const viewport of viewports) {
   test(`site-wide mobile contract: ${viewport.width}px ${viewport.label}`, async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'mobile-chromium', 'Dedicated contract runs once using the mobile browser project.');
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    await setupNetworkStubs(page);
 
     const failures: string[] = [];
-    let activeRole: Role = 'public';
+    let activeRole: Role | null = null;
 
     for (const routeCase of routes) {
-      if (routeCase.role !== activeRole) activeRole = routeCase.role;
-      await prepareRole(page, routeCase.role);
+      if (routeCase.role !== activeRole) {
+        await setRole(page, routeCase.role);
+        activeRole = routeCase.role;
+      }
 
       const response = await page.goto(routeCase.path, { waitUntil: 'domcontentloaded' });
       if (!response || response.status() >= 400) {
