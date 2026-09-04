@@ -1,11 +1,7 @@
 import { after, NextRequest, NextResponse } from 'next/server';
-import { parseCatalogMessage } from '@/lib/catalogAssistant';
+import { tryHandleSellerCatalogMessage } from '@/lib/whatsappSellerCatalog';
 import { createAdminClient } from '@/lib/supabase/admin';
-import {
-  downloadGupshupMedia,
-  FABRICTRAD_GUPSHUP_APP_NAME,
-  sendGupshupText,
-} from '@/lib/gupshupWhatsApp';
+import { FABRICTRAD_GUPSHUP_APP_NAME, sendGupshupText } from '@/lib/gupshupWhatsApp';
 import { isGupshupV3Webhook, normalizeGupshupV3 } from '@/lib/gupshupWebhookV3';
 import {
   handleBuyerWhatsAppMessage,
@@ -16,8 +12,6 @@ export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 
-const MAX_MEDIA_BYTES = 50 * 1024 * 1024;
-const MEDIA_BUCKET = 'seller-whatsapp-inbox';
 const DELIVERY_STATES = new Set(['enqueued', 'failed', 'sent', 'delivered', 'read', 'deleted']);
 
 type WhatsAppMessage = {
@@ -153,16 +147,6 @@ const extractMedia = (message: WhatsAppMessage) => {
   return null;
 };
 
-const extensionFor = (mime: string) => {
-  const normalized = mime.toLowerCase();
-  if (normalized.includes('png')) return 'png';
-  if (normalized.includes('jpeg') || normalized.includes('jpg')) return 'jpg';
-  if (normalized.includes('3gpp')) return '3gp';
-  if (normalized.includes('mp4')) return 'mp4';
-  if (normalized.includes('pdf')) return 'pdf';
-  return 'bin';
-};
-
 async function acknowledgeSeller(
   to: string,
   text: string,
@@ -179,107 +163,26 @@ async function acknowledgeSeller(
   }
 }
 
-async function ingestSellerMessage(message: WhatsAppMessage) {
-  const waMessageId = String(message.id || '').trim();
-  const fromRaw = String(message.from || '').trim();
-  const fromPhone = normalizePhone(fromRaw);
-  if (!waMessageId || !fromPhone) return;
-
-  const admin = createAdminClient();
-  const { data: existing } = await admin
-    .from('whatsapp_catalog_ingestions')
-    .select('id')
-    .eq('wa_message_id', waMessageId)
-    .maybeSingle();
-  if (existing?.id) return;
-
-  const { data: profile, error: profileError } = await admin
-    .from('user_profiles')
-    .select('id,is_active,can_sell')
-    .like('phone', `%${fromPhone}`)
-    .eq('is_active', true)
-    .limit(1)
-    .maybeSingle();
-  if (profileError || !profile?.id || profile.can_sell !== true) {
-    await acknowledgeSeller(
-      fromRaw,
-      'FabricTrad could not match this WhatsApp number to an active seller account. Add the same number to your FabricTrad seller profile first.',
-      message.appName
-    );
-    return;
-  }
-
-  const { data: seller, error: sellerError } = await admin
-    .from('seller_profiles')
-    .select('id')
-    .eq('user_id', profile.id)
-    .maybeSingle();
-  if (sellerError || !seller?.id) return;
-
-  const text = extractText(message).slice(0, 12_000);
-  const parsedDraft = text ? parseCatalogMessage(text) : null;
+async function ingestSellerMessage(message: WhatsAppMessage): Promise<boolean> {
   const media = extractMedia(message);
-  let mediaStoragePath: string | null = null;
-  let mediaMimeType: string | null = media?.mime || null;
-  let processingError = '';
-
-  if (media?.id) {
-    try {
-      const downloaded = await downloadGupshupMedia(media.id, MAX_MEDIA_BYTES);
-      mediaMimeType = downloaded.mime;
-      const extension = extensionFor(downloaded.mime);
-      mediaStoragePath = `${profile.id}/${seller.id}/${waMessageId}.${extension}`;
-      const { error: uploadError } = await admin.storage
-        .from(MEDIA_BUCKET)
-        .upload(mediaStoragePath, downloaded.buffer, {
-          contentType: downloaded.mime,
-          cacheControl: '3600',
-          upsert: true,
-        });
-      if (uploadError) throw uploadError;
-    } catch (error) {
-      processingError = error instanceof Error ? error.message : 'media_processing_failed';
-    }
-  }
-
-  const status = parsedDraft
-    ? 'parsed'
-    : text || mediaStoragePath
-      ? 'needs_review'
-      : processingError
-        ? 'failed'
-        : 'ignored';
-
-  const { error: insertError } = await admin.from('whatsapp_catalog_ingestions').insert({
-    user_id: profile.id,
-    seller_id: seller.id,
-    wa_message_id: waMessageId,
-    from_phone: fromPhone,
-    message_type: message.type || 'unknown',
-    message_text: text || null,
-    media_id: media?.id || null,
-    media_storage_path: mediaStoragePath,
-    media_mime_type: mediaMimeType,
-    parsed_draft: parsedDraft,
-    status,
-    error_message: processingError || null,
-    processed_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
+  const result = await tryHandleSellerCatalogMessage({
+    id: String(message.id || '').trim(),
+    from: String(message.from || '').trim(),
+    appName: message.appName || null,
+    type: String(message.type || 'unknown'),
+    text: extractText(message),
+    mediaUrl: media?.id || null,
+    mediaMimeType: media?.mime || null,
   });
-  if (insertError) throw insertError;
-
-  await acknowledgeSeller(
-    fromRaw,
-    parsedDraft
-      ? `Received ${parsedDraft.name}. FabricTrad has organised the details and synced them to your seller dashboard as a private WhatsApp catalogue draft.`
-      : 'Received. The message or media is now visible in your FabricTrad seller dashboard for review.',
-    message.appName
-  );
+  return result.handled;
 }
 
 async function processMessage(message: WhatsAppMessage) {
-  const buyerResult = await handleBuyerWhatsAppMessage(message);
-  if (!buyerResult.handled) await ingestSellerMessage(message);
+  // Exact seller WhatsApp identity wins before buyer automation. This prevents a
+  // dual-workspace account from having catalogue uploads consumed as buyer chat.
+  const sellerHandled = await ingestSellerMessage(message);
+  if (sellerHandled) return;
+  await handleBuyerWhatsAppMessage(message);
 }
 
 async function recordProcessingFailure(message: WhatsAppMessage, error: unknown) {

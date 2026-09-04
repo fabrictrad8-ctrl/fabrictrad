@@ -25,6 +25,10 @@ type FormState = {
   ownerName: string;
   email: string;
   phone: string;
+  sellerContactName: string;
+  sellerContactEmail: string;
+  sellerPhone: string;
+  sellerWhatsapp: string;
   password: string;
   confirmPassword: string;
   businessName: string;
@@ -112,6 +116,10 @@ const initialForm: FormState = {
   ownerName: '',
   email: '',
   phone: '',
+  sellerContactName: '',
+  sellerContactEmail: '',
+  sellerPhone: '',
+  sellerWhatsapp: '',
   password: '',
   confirmPassword: '',
   businessName: '',
@@ -184,6 +192,10 @@ export default function SellerRegistrationFlowV2() {
         ownerName: form.ownerName,
         email: form.email,
         phone: form.phone,
+        sellerContactName: form.sellerContactName,
+        sellerContactEmail: form.sellerContactEmail,
+        sellerPhone: form.sellerPhone,
+        sellerWhatsapp: form.sellerWhatsapp,
         businessName: form.businessName,
         businessType: form.businessType,
         gstin: form.gstin,
@@ -328,6 +340,10 @@ export default function SellerRegistrationFlowV2() {
       JSON.stringify({
         ownerName: source.ownerName,
         phone: normalizeIndianPhone(source.phone),
+        sellerContactName: source.sellerContactName.trim(),
+        sellerContactEmail: normalizeEmail(source.sellerContactEmail),
+        sellerPhone: normalizeIndianPhone(source.sellerPhone),
+        sellerWhatsapp: normalizeIndianPhone(source.sellerWhatsapp),
         businessName: source.businessName,
         businessType: source.businessType,
         city: source.city,
@@ -446,6 +462,24 @@ export default function SellerRegistrationFlowV2() {
     const pan = normalizePan(form.pan);
     if (!form.businessName.trim()) return setError('Enter the legal business name exactly as shown on the GST certificate.');
     if (!form.businessType) return setError('Select the business type before continuing.');
+    const sellerContactName = form.sellerContactName.trim();
+    const sellerContactEmail = normalizeEmail(form.sellerContactEmail);
+    const sellerPhone = normalizeIndianPhone(form.sellerPhone);
+    const sellerWhatsapp = normalizeIndianPhone(form.sellerWhatsapp);
+    if (!sellerContactName) return setError('Enter the seller contact/display name.');
+    if (!sellerContactEmail) return setError('Enter a valid seller contact email.');
+    const sellerPhoneCheck = validateIndianPhone(sellerPhone);
+    if (!sellerPhoneCheck.valid) return setError(`Seller phone: ${sellerPhoneCheck.message}`);
+    const sellerWhatsappCheck = validateIndianPhone(sellerWhatsapp);
+    if (!sellerWhatsappCheck.valid) return setError(`Seller WhatsApp: ${sellerWhatsappCheck.message}`);
+    const buyerAccountName = form.ownerName.trim().toLowerCase();
+    const buyerAccountEmail = normalizeEmail(form.email);
+    const buyerAccountPhone = normalizeIndianPhone(form.phone);
+    if (sellerContactName.toLowerCase() === buyerAccountName) return setError('Seller name cannot be the same as the buyer/account name. Use a different seller contact/display name.');
+    if (sellerContactEmail === buyerAccountEmail) return setError('Seller email cannot be the same as the buyer/account email. Use a different seller email.');
+    if (sellerPhone === buyerAccountPhone) return setError('Seller phone cannot be the same as the buyer/account phone. Use a different seller phone.');
+    if (sellerWhatsapp === buyerAccountPhone) return setError('Seller WhatsApp cannot be the same as the buyer/account phone/WhatsApp. Use a different seller WhatsApp number.');
+    setForm((current) => ({ ...current, sellerContactName, sellerContactEmail, sellerPhone, sellerWhatsapp }));
     if (!form.address.trim() || !form.city.trim() || !form.state || !/^\d{6}$/.test(form.pincode)) {
       return setError('Enter the complete registered or pickup address.');
     }
@@ -633,6 +667,16 @@ export default function SellerRegistrationFlowV2() {
             <div className="space-y-5">
               <div><h2 className="text-xl font-800 text-foreground">GST business identity</h2><p className="mt-1 text-sm leading-6 text-muted-foreground">FabricTrad checks an authorised GST API when configured. Otherwise, use the free official GST Portal search below.</p></div>
               <div className="grid gap-4 sm:grid-cols-2"><label className="text-sm font-700 text-foreground">Legal business name *<input value={form.businessName} onChange={(event) => update('businessName', event.target.value)} className="input-base mt-1.5 w-full px-4 py-3 font-400" required /></label><label className="text-sm font-700 text-foreground">Business type *<select value={form.businessType} onChange={(event) => update('businessType', event.target.value)} className="input-base mt-1.5 w-full px-3 py-3 font-400" required><option value="">Select business type</option>{businessTypes.map((value) => <option key={value} value={value}>{value}</option>)}</select></label></div>
+              <div className="rounded-2xl border border-teal-200 bg-teal-50/50 p-4">
+                <p className="text-sm font-800 text-teal-950">Seller contact & WhatsApp identity *</p>
+                <p className="mt-1 text-xs leading-5 text-teal-800">These seller details must be different from the buyer/account name, email and phone. Only the WhatsApp number saved here can add products to this seller store.</p>
+                <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                  <label className="text-sm font-700 text-foreground">Seller contact/display name *<input value={form.sellerContactName} onChange={(event) => update('sellerContactName', event.target.value)} className="input-base mt-1.5 w-full px-4 py-3 font-400" placeholder="e.g. FabricTrad Surat Sales" /></label>
+                  <label className="text-sm font-700 text-foreground">Seller email *<input type="email" value={form.sellerContactEmail} onChange={(event) => update('sellerContactEmail', event.target.value)} className="input-base mt-1.5 w-full px-4 py-3 font-400" placeholder="sales@yourbusiness.com" /></label>
+                  <label className="text-sm font-700 text-foreground">Seller phone *<input value={form.sellerPhone} onChange={(event) => update('sellerPhone', event.target.value.replace(/\D/g, '').slice(0, 10))} className="input-base mt-1.5 w-full px-4 py-3 font-mono font-400" inputMode="numeric" placeholder="10 digit seller phone" /></label>
+                  <label className="text-sm font-700 text-foreground">Seller WhatsApp *<input value={form.sellerWhatsapp} onChange={(event) => update('sellerWhatsapp', event.target.value.replace(/\D/g, '').slice(0, 10))} className="input-base mt-1.5 w-full px-4 py-3 font-mono font-400" inputMode="numeric" placeholder="WhatsApp used for catalogue uploads" /></label>
+                </div>
+              </div>
               <label className="block text-sm font-700 text-foreground">GSTIN *<div className="mt-1.5 flex flex-col gap-2 sm:flex-row"><input value={form.gstin} onChange={(event) => { update('gstin', normalizeGstin(event.target.value)); setGstStatus('idle'); setGstMessage(''); setGstNames({ legalName: '', tradeName: '' }); }} className="input-base min-w-0 flex-1 px-4 py-3 font-mono uppercase" maxLength={15} placeholder="27AAPFU0939F1ZV" autoComplete="off" /><button type="button" onClick={checkGstin} disabled={gstStatus === 'checking'} className="btn-secondary px-5 py-3 text-sm disabled:opacity-50">{gstStatus === 'checking' ? 'Checking…' : 'Check GSTIN'}</button></div></label>
               <div className="flex flex-col gap-2 rounded-xl border border-border bg-muted/30 p-3 text-xs leading-5 text-muted-foreground sm:flex-row sm:items-center sm:justify-between"><span><strong className="text-foreground">Free official reference:</strong> paste the GSTIN into GST Portal Search Taxpayer and complete its captcha.</span><a href={OFFICIAL_GST_PORTAL_REFERENCE.url} target="_blank" rel="noreferrer" className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg border border-primary/30 bg-card px-3 py-2 font-800 text-primary hover:bg-primary/5"><Icon name="ArrowTopRightOnSquareIcon" size={15} />Open official GST Portal</a></div>
               {gstMessage && <div aria-live="polite" className={`rounded-xl border p-3 text-xs leading-5 ${gstStatus === 'active' ? 'border-success/30 bg-success/10 text-success' : gstStatus === 'invalid' || gstStatus === 'inactive' || gstStatus === 'cancelled' ? 'border-error/30 bg-error/10 text-error' : 'border-amber-300 bg-amber-50 text-amber-900'}`}><p className="font-800">{gstMessage}</p>{(gstNames.legalName || gstNames.tradeName) && <p className="mt-1">{gstNames.legalName}{gstNames.tradeName ? ` · ${gstNames.tradeName}` : ''}</p>}</div>}
