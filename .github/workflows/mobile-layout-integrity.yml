@@ -19,7 +19,7 @@ permissions:
 jobs:
   mobile-layout:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 40
     env:
       NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
       NEXT_PUBLIC_SUPABASE_ANON_KEY: test-anon-key
@@ -44,8 +44,8 @@ jobs:
       - name: Build application
         run: npm run build
 
-      - name: Install Chromium
-        run: npx playwright install --with-deps chromium
+      - name: Install Android Chrome and iPhone Safari test engines
+        run: npx playwright install --with-deps chromium webkit
 
       - name: Run mobile layout audit
         shell: bash
