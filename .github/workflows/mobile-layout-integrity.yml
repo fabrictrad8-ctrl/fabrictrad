@@ -1,0 +1,76 @@
+name: Mobile layout integrity
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - 'agent/**'
+    paths:
+      - 'src/app/**'
+      - 'src/components/**'
+      - 'src/styles/**'
+      - 'scripts/audit-mobile-layout.mjs'
+      - '.github/workflows/mobile-layout-integrity.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  mobile-layout:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: test-anon-key
+      SUPABASE_SERVICE_ROLE_KEY: test-service-role-key
+      NEXT_PUBLIC_SITE_URL: http://localhost:3000
+      NEXT_PUBLIC_ENABLE_GOOGLE_AUTH: 'false'
+      ADMIN_EMAIL: fabrictrad8@gmail.com
+      OPENAI_DRAPE_IMAGE_MODEL: gpt-image-2
+      OPENAI_DRAPE_IMAGE_SIZE: 1024x1536
+      OPENAI_DRAPE_IMAGE_QUALITY: medium
+      OPENAI_CATALOG_MODEL: gpt-4.1-mini
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund --package-lock=false --legacy-peer-deps
+
+      - name: Build application
+        run: npm run build
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run mobile layout audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run start > /tmp/fabrictrad-mobile-layout.log 2>&1 &
+          server_pid=$!
+          cleanup() {
+            kill "$server_pid" 2>/dev/null || true
+            wait "$server_pid" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+
+          ready=false
+          for _ in $(seq 1 45); do
+            if curl --fail --silent http://127.0.0.1:3000/login > /dev/null; then
+              ready=true
+              break
+            fi
+            sleep 1
+          done
+
+          if [ "$ready" != 'true' ]; then
+            cat /tmp/fabrictrad-mobile-layout.log
+            exit 1
+          fi
+
+          node scripts/audit-mobile-layout.mjs
