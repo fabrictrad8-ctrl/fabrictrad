@@ -200,7 +200,7 @@ export default function AdminPortalLayout() {
 
   return (
     <div className="min-h-screen bg-[#f1f1f1] text-foreground dark:bg-background">
-      <header className="sticky top-0 z-40 flex h-14 items-center gap-3 border-b border-border bg-card/95 px-3 shadow-sm backdrop-blur-xl sm:px-4">
+      <header className="ft-admin-header sticky top-0 z-40 flex h-14 items-center gap-3 border-b border-border bg-card/95 px-3 shadow-sm backdrop-blur-xl sm:px-4">
         <button type="button" onClick={() => setSidebarOpen(true)} className="ft-icon-button min-h-10 min-w-10 shrink-0 justify-center md:!hidden" aria-label="Open admin navigation">
           <Icon name="Bars3Icon" size={20} />
         </button>
