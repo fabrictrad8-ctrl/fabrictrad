@@ -193,6 +193,50 @@ try {
         );
       }
 
+      // Reproduce the reported login failure at the exact point where the
+      // fixed language selector previously covered the submit button.
+      if (route === '/login' && device.width <= 767) {
+        const submit = page.locator('.ft-auth-submit').first();
+        const language = page.locator('[data-sitewide-language-control]').first();
+        const brand = page
+          .locator('.ft-auth-card-wrap [data-fabrictrad-brand-logo]')
+          .first();
+        const languageBoxAtTop = await language.boundingBox().catch(() => null);
+        const brandBox = await brand.boundingBox().catch(() => null);
+        const brandOverlap =
+          brandBox &&
+          languageBoxAtTop &&
+          brandBox.x < languageBoxAtTop.x + languageBoxAtTop.width &&
+          brandBox.x + brandBox.width > languageBoxAtTop.x &&
+          brandBox.y < languageBoxAtTop.y + languageBoxAtTop.height &&
+          brandBox.y + brandBox.height > languageBoxAtTop.y;
+        if (brandOverlap) {
+          failures.push(
+            `${device.name} /login: language selector overlaps auth brand; ` +
+            `brand=${JSON.stringify(brandBox)} language=${JSON.stringify(languageBoxAtTop)}`
+          );
+        }
+        if (await submit.isVisible().catch(() => false)) {
+          await submit.scrollIntoViewIfNeeded();
+          await page.waitForTimeout(80);
+          const submitBox = await submit.boundingBox();
+          const languageBox = await language.boundingBox().catch(() => null);
+          const overlaps =
+            submitBox &&
+            languageBox &&
+            submitBox.x < languageBox.x + languageBox.width &&
+            submitBox.x + submitBox.width > languageBox.x &&
+            submitBox.y < languageBox.y + languageBox.height &&
+            submitBox.y + submitBox.height > languageBox.y;
+          if (overlaps) {
+            failures.push(
+              `${device.name} /login: language selector overlaps submit action; ` +
+              `submit=${JSON.stringify(submitBox)} language=${JSON.stringify(languageBox)}`
+            );
+          }
+        }
+      }
+
       // Exercise the actual mobile header drawer on a representative shared-header route.
       if (route === '/help' && device.width <= 767) {
         const opener = page.locator('button[aria-label="Open menu"]').first();

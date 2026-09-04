@@ -12,6 +12,7 @@ export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 
+const MAX_WEBHOOK_BYTES = 1024 * 1024;
 const DELIVERY_STATES = new Set(['enqueued', 'failed', 'sent', 'delivered', 'read', 'deleted']);
 
 type WhatsAppMessage = {
@@ -119,6 +120,40 @@ const noContent = () =>
       'X-Content-Type-Options': 'nosniff',
     },
   });
+
+async function readWebhookBody(request: NextRequest) {
+  const declaredLength = Number(request.headers.get('content-length') || 0);
+  if (Number.isFinite(declaredLength) && declaredLength > MAX_WEBHOOK_BYTES) return null;
+  if (!request.body) return '';
+
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let totalBytes = 0;
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value) continue;
+      totalBytes += value.byteLength;
+      if (totalBytes > MAX_WEBHOOK_BYTES) {
+        await reader.cancel('payload_too_large').catch(() => undefined);
+        return null;
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  const body = new Uint8Array(totalBytes);
+  let offset = 0;
+  for (const chunk of chunks) {
+    body.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return new TextDecoder().decode(body);
+}
 
 const normalizePhone = (value: unknown) => {
   const digits = typeof value === 'string' ? value.replace(/\D/g, '') : '';
@@ -319,8 +354,8 @@ export async function POST(request: NextRequest) {
   // Gupshup requires a publicly reachable webhook that immediately returns an
   // empty 2xx. FabricTrad supports both current Meta-format v3 callbacks and
   // legacy Gupshup-format v2 callbacks while processing work asynchronously.
-  const rawBody = await request.text().catch(() => '');
-  if (!rawBody.trim()) return noContent();
+  const rawBody = await readWebhookBody(request).catch(() => null);
+  if (rawBody === null || !rawBody.trim()) return noContent();
 
   let parsed: unknown;
   try {
@@ -334,6 +369,7 @@ export async function POST(request: NextRequest) {
   if (isGupshupV3Webhook(parsed)) {
     const normalized = normalizeGupshupV3(parsed, {
       appName: expectedApp,
+      expectedAppId: process.env.GUPSHUP_APP_ID,
       expectedSourceNumber: process.env.GUPSHUP_SOURCE_NUMBER,
     });
 
@@ -355,8 +391,18 @@ export async function POST(request: NextRequest) {
   }
 
   const event = parsed as GupshupEvent;
-  if (expectedApp && event.app && event.app !== expectedApp) return noContent();
+  if (expectedApp && event.app !== expectedApp) return noContent();
   if (event.version && event.version !== 2) return noContent();
+
+  const expectedSource = String(process.env.GUPSHUP_SOURCE_NUMBER || '').replace(/\D/g, '');
+  if (expectedSource && event.type === 'message') {
+    const destination = String(event.payload?.destination || '').replace(/\D/g, '');
+    if (destination !== expectedSource) return noContent();
+  }
+  if (expectedSource && event.type === 'message-event' && event.payload?.source) {
+    const reportedSource = String(event.payload.source).replace(/\D/g, '');
+    if (reportedSource !== expectedSource) return noContent();
+  }
 
   if (event.type === 'message-event') {
     after(async () => {

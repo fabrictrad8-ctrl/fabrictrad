@@ -51,13 +51,32 @@ jobs:
                 timeout: 45000,
               });
 
+              const brandAtTop = await page.locator('.ft-auth-card-wrap [data-fabrictrad-brand-logo]').first().boundingBox();
+              const languageAtTop = await page.locator('[data-sitewide-language-control]').first().boundingBox();
+              const submitControl = page.locator('.ft-auth-submit').first();
+              await submitControl.scrollIntoViewIfNeeded();
+              await page.waitForTimeout(100);
+
               const result = await page.evaluate(() => {
                 const visual = document.querySelector('.ft-auth-visual');
                 const stage = document.querySelector('.ft-auth-stage');
                 const card = document.querySelector('.ft-auth-card');
                 const submit = document.querySelector('.ft-auth-submit');
                 const lang = document.querySelector('[data-sitewide-language-control], .fixed.bottom-4.right-4');
-                const rect = (el) => el ? el.getBoundingClientRect() : null;
+                const rect = (el) => {
+                  if (!el) return null;
+                  const box = el.getBoundingClientRect();
+                  return {
+                    x: box.x,
+                    y: box.y,
+                    width: box.width,
+                    height: box.height,
+                    left: box.left,
+                    right: box.right,
+                    top: box.top,
+                    bottom: box.bottom,
+                  };
+                };
                 const bodyWidth = document.documentElement.scrollWidth;
                 return {
                   viewportWidth: window.innerWidth,
@@ -71,6 +90,8 @@ jobs:
               });
 
               const inside = (box) => box && box.left >= -1 && box.right <= size.width + 1 && box.width <= size.width + 1;
+              const overlaps = (a, b) => a && b && a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
+              const boxOverlaps = (a, b) => a && b && a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
               if (result.bodyWidth > size.width + 1) {
                 throw new Error(`${size.name}: horizontal overflow ${result.bodyWidth}px > ${size.width}px`);
               }
@@ -80,6 +101,12 @@ jobs:
               if (!inside(result.stage)) throw new Error(`${size.name}: auth stage escapes viewport: ${JSON.stringify(result.stage)}`);
               if (!inside(result.card)) throw new Error(`${size.name}: auth card escapes viewport: ${JSON.stringify(result.card)}`);
               if (!inside(result.submit)) throw new Error(`${size.name}: submit button escapes viewport: ${JSON.stringify(result.submit)}`);
+              if (overlaps(result.submit, result.language)) {
+                throw new Error(`${size.name}: language selector overlaps submit action: ${JSON.stringify(result)}`);
+              }
+              if (boxOverlaps(brandAtTop, languageAtTop)) {
+                throw new Error(`${size.name}: language selector overlaps auth brand: ${JSON.stringify({ brandAtTop, languageAtTop })}`);
+              }
 
               console.log('MOBILE LOGIN GEOMETRY PASS', size.name, JSON.stringify(result));
               await page.close();

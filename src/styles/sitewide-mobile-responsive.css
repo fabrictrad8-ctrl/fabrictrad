@@ -259,7 +259,26 @@ body {
     padding-bottom: max(6px, env(safe-area-inset-bottom)) !important;
   }
 
-  .ft-root :where(.fixed.bottom-4, .fixed.bottom-6) {
+  /* Keep the fallback language selector clear of workspace docks. Auth pages
+     place it at the top so it never obscures the primary sign-in action. */
+  .ft-sitewide-language-control {
+    right: max(10px, env(safe-area-inset-right)) !important;
+    bottom: calc(76px + env(safe-area-inset-bottom)) !important;
+  }
+
+  .ft-root:has(.ft-auth-page) .ft-sitewide-language-control {
+    top: max(10px, env(safe-area-inset-top)) !important;
+    right: max(10px, env(safe-area-inset-right)) !important;
+    bottom: auto !important;
+  }
+
+  .ft-root:has(.ft-auth-page) .ft-sitewide-language-control [role='listbox'] {
+    top: calc(100% + 8px) !important;
+    bottom: auto !important;
+    margin: 0 !important;
+  }
+
+  .ft-root :where(.fixed.bottom-4, .fixed.bottom-6):not(.ft-sitewide-language-control) {
     bottom: max(16px, env(safe-area-inset-bottom)) !important;
   }
 

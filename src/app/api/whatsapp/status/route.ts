@@ -10,6 +10,7 @@ export async function GET() {
   const channel = {
     apiKey: Boolean(process.env.GUPSHUP_API_KEY),
     appName: Boolean(effectiveAppName),
+    appId: Boolean(process.env.GUPSHUP_APP_ID),
     sourceNumber: Boolean(process.env.GUPSHUP_SOURCE_NUMBER),
     wabaId: Boolean(process.env.GUPSHUP_WABA_ID),
   };
@@ -48,8 +49,11 @@ export async function GET() {
         path: '/api/integrations/whatsapp/webhook',
         payloadFormat: 'meta_v3_with_gupshup_v2_fallback',
         access: 'public',
-        validation: 'meta_v3_and_gupshup_v2_event_shapes',
+        validation: 'provider_identity_source_number_and_event_shape',
+        appIdValidation: channel.appId ? 'exact' : 'presence',
+        sourceNumberValidation: 'exact',
         acknowledgement: 'empty_204',
+        maxPayloadBytes: 1024 * 1024,
       },
       required: { channel, templates },
     },

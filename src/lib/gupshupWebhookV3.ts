@@ -30,6 +30,7 @@ export type NormalizedGupshupDeliveryEvent = {
 
 type NormalizeOptions = {
   appName?: string;
+  expectedAppId?: string;
   expectedSourceNumber?: string;
 };
 
@@ -214,6 +215,10 @@ export function normalizeGupshupV3(
     deliveryEvents: [],
   };
   if (!root || root.object !== 'whatsapp_business_account') return result;
+  if (!result.appId) return result;
+
+  const expectedAppId = stringValue(options.expectedAppId);
+  if (expectedAppId && result.appId !== expectedAppId) return result;
 
   const expectedSource = digits(options.expectedSourceNumber);
   const appName = stringValue(options.appName);
@@ -226,7 +231,7 @@ export function normalizeGupshupV3(
 
       const metadata = record(changeValue.metadata);
       const displayNumber = digits(metadata?.display_phone_number);
-      if (expectedSource && displayNumber && displayNumber !== expectedSource) continue;
+      if (expectedSource && displayNumber !== expectedSource) continue;
 
       for (const message of records(changeValue.messages)) {
         const normalized = normalizeMessage(message, appName);

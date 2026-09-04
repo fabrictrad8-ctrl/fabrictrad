@@ -10,6 +10,7 @@ export const gupshupRuntimeConfig = {
   configured: Boolean(env('GUPSHUP_API_KEY') && configuredAppName() && env('GUPSHUP_SOURCE_NUMBER')),
   appNameConfigured: Boolean(configuredAppName()),
   appNameSource: env('GUPSHUP_APP_NAME') ? 'environment' : 'application_config',
+  appIdConfigured: Boolean(env('GUPSHUP_APP_ID')),
   sourceNumberConfigured: Boolean(env('GUPSHUP_SOURCE_NUMBER')),
   wabaIdConfigured: Boolean(env('GUPSHUP_WABA_ID')),
 };

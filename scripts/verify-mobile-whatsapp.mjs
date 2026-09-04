@@ -32,6 +32,7 @@ const sellerContactApi = 'src/app/api/seller/contact-identity/route.ts';
 const sellerCatalogIdentityMigration = 'supabase/migrations/20260904080000_seller_whatsapp_catalog_identity.sql';
 const buyerSellerEditGuardMigration = 'supabase/migrations/20260904080500_buyer_profile_seller_identity_guard.sql';
 const whatsappProvider = 'src/lib/gupshupWhatsApp.ts';
+const whatsappV3 = 'src/lib/gupshupWebhookV3.ts';
 const buyerAutomation = 'src/lib/whatsappBuyerAutomation.ts';
 const bespokeFollowUps = 'src/lib/bespokeFollowUps.ts';
 const bespokePaymentReconciliation = 'src/lib/server/bespokePaymentReconciliation.ts';
@@ -57,6 +58,9 @@ const header = 'src/components/Header.tsx';
 const authContext = 'src/contexts/AuthContext.tsx';
 const manifest = 'src/app/manifest.ts';
 const readiness = '.github/workflows/integration-readiness.yml';
+const productionDeploy = '.github/workflows/force-deploy-current-worker.yml';
+const whatsappSync = '.github/workflows/sync-whatsapp-production.yml';
+const environmentExample = '.env.example';
 
 [
   onboarding,
@@ -73,6 +77,7 @@ const readiness = '.github/workflows/integration-readiness.yml';
   sellerCatalogIdentityMigration,
   buyerSellerEditGuardMigration,
   whatsappProvider,
+  whatsappV3,
   buyerAutomation,
   bespokeFollowUps,
   bespokePaymentReconciliation,
@@ -98,6 +103,9 @@ const readiness = '.github/workflows/integration-readiness.yml';
   authContext,
   manifest,
   readiness,
+  productionDeploy,
+  whatsappSync,
+  environmentExample,
 ].forEach(read);
 
 // Onboarding persistence and authenticated server restore.
@@ -156,6 +164,14 @@ requireText(flexibleProductMigration, 'check (char_length(trim(package_format)) 
 requireText(webhook, 'isGupshupV3Webhook');
 requireText(webhook, 'normalizeGupshupV3');
 requireText(webhook, 'normalizeGupshupMessage');
+requireText(webhook, 'MAX_WEBHOOK_BYTES');
+requireText(webhook, 'readWebhookBody');
+requireText(webhook, 'event.app !== expectedApp');
+requireText(webhook, "event.type === 'message'");
+requireText(webhook, 'event.payload?.destination');
+requireText(webhook, "event.type === 'message-event' && event.payload?.source");
+requireText(webhook, 'expectedSourceNumber: process.env.GUPSHUP_SOURCE_NUMBER');
+requireText(webhook, 'expectedAppId: process.env.GUPSHUP_APP_ID');
 requireText(webhook, 'after(async () =>');
 requireText(webhook, 'tryHandleSellerCatalogMessage');
 requireText(webhook, 'sellerHandled = await ingestSellerMessage');
@@ -188,6 +204,9 @@ requireText(whatsappProvider, 'https://api.gupshup.io/wa/api/v1/msg');
 requireText(whatsappProvider, 'https://api.gupshup.io/wa/api/v1/template/msg');
 requireText(whatsappProvider, "apikey: apiKey");
 requireText(whatsappProvider, "host.endsWith('.gupshup.io')");
+requireText(whatsappV3, 'expectedAppId');
+requireText(whatsappV3, 'if (!result.appId) return result');
+requireText(whatsappV3, 'displayNumber !== expectedSource');
 requireText(buyerAutomation, 'sendGupshupText');
 requireText(bespokeFollowUps, 'sendGupshupTemplate');
 forbidText(webhook, 'graph.facebook.com');
@@ -332,6 +351,15 @@ requireText(status, 'WHATSAPP_TEMPLATE_POST_DELIVERY_FOLLOW_UP');
 requireText(readiness, "fetch_json 'WhatsApp catalog readiness'");
 requireText(readiness, 'WhatsApp public callback probe');
 requireText(readiness, '/api/integrations/whatsapp/webhook');
+requireText(productionDeploy, 'GUPSHUP_API_KEY');
+requireText(productionDeploy, 'GUPSHUP_SOURCE_NUMBER');
+forbidText(productionDeploy, 'WHATSAPP_ACCESS_TOKEN');
+requireText(whatsappSync, 'GUPSHUP_API_KEY');
+requireText(whatsappSync, 'GUPSHUP_SOURCE_NUMBER');
+forbidText(whatsappSync, 'WHATSAPP_PHONE_NUMBER_ID');
+requireText(environmentExample, 'GUPSHUP_API_KEY=');
+requireText(environmentExample, 'GUPSHUP_SOURCE_NUMBER=917977286898');
+forbidText(environmentExample, 'WHATSAPP_ACCESS_TOKEN=');
 
 if (failures.length) {
   console.error(`Mobile/WhatsApp/AI verification failed (${failures.length}):`);

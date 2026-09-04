@@ -94,7 +94,14 @@
   }
 
   .ft-auth-card-wrap > div:first-child {
+    width: 100% !important;
+    justify-content: flex-start !important;
+    padding-right: 128px !important;
     margin: 4px 0 12px !important;
+  }
+
+  .ft-auth-card-wrap > div:first-child > span {
+    display: none !important;
   }
 
   .ft-auth-card {

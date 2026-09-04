@@ -106,8 +106,15 @@ jobs:
             warn 'GSTIN verification is using the official-manual review path.'
           fi
 
-          if [ -s /tmp/whatsapp.json ] && ! grep -q '"configured":true' /tmp/whatsapp.json; then
-            warn 'WhatsApp/Gupshup channel is installed but not fully configured in the live Worker yet.'
+          if [ -s /tmp/whatsapp.json ]; then
+            grep -q '"provider":"gupshup"' /tmp/whatsapp.json || fail 'WhatsApp is not reporting Gupshup as its active provider.'
+            grep -q '"configured":true' /tmp/whatsapp.json || fail 'WhatsApp/Gupshup interactive messaging is not configured in the live Worker.'
+            grep -q '"interactiveRepliesReady":true' /tmp/whatsapp.json || fail 'WhatsApp inbound/reply automation is not ready.'
+            grep -q '"webhookReady":true' /tmp/whatsapp.json || fail 'WhatsApp webhook readiness is false.'
+            grep -q '"businessNumber":"917977286898"' /tmp/whatsapp.json || fail 'WhatsApp is not bound to the FabricTrad business number.'
+            if ! grep -q '"templatesReady":true' /tmp/whatsapp.json; then
+              warn 'Interactive WhatsApp is live, but one or more approved proactive reminder templates are still missing.'
+            fi
           fi
 
           webhook_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \

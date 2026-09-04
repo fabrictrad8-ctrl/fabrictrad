@@ -1,11 +1,6 @@
 name: Sync WhatsApp production bindings
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - '.github/workflows/sync-whatsapp-production.yml'
   workflow_dispatch:
 
 permissions:
@@ -23,10 +18,11 @@ jobs:
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: aa4ff7a482130e543f176e2d73c93f45
-      WHATSAPP_ACCESS_TOKEN: ${{ secrets.WHATSAPP_ACCESS_TOKEN }}
-      WHATSAPP_APP_SECRET: ${{ secrets.WHATSAPP_APP_SECRET }}
-      WHATSAPP_VERIFY_TOKEN: ${{ secrets.WHATSAPP_VERIFY_TOKEN }}
-      WHATSAPP_PHONE_NUMBER_ID: ${{ secrets.WHATSAPP_PHONE_NUMBER_ID || vars.WHATSAPP_PHONE_NUMBER_ID }}
+      GUPSHUP_API_KEY: ${{ secrets.GUPSHUP_API_KEY }}
+      GUPSHUP_APP_NAME: ${{ secrets.GUPSHUP_APP_NAME || vars.GUPSHUP_APP_NAME || 'Fabrictrad' }}
+      GUPSHUP_SOURCE_NUMBER: ${{ secrets.GUPSHUP_SOURCE_NUMBER || vars.GUPSHUP_SOURCE_NUMBER }}
+      GUPSHUP_APP_ID: ${{ secrets.GUPSHUP_APP_ID || vars.GUPSHUP_APP_ID }}
+      GUPSHUP_WABA_ID: ${{ secrets.GUPSHUP_WABA_ID || vars.GUPSHUP_WABA_ID }}
       WHATSAPP_TEMPLATE_APPOINTMENT_REMINDER: ${{ secrets.WHATSAPP_TEMPLATE_APPOINTMENT_REMINDER || vars.WHATSAPP_TEMPLATE_APPOINTMENT_REMINDER }}
       WHATSAPP_TEMPLATE_PAYMENT_REMINDER: ${{ secrets.WHATSAPP_TEMPLATE_PAYMENT_REMINDER || vars.WHATSAPP_TEMPLATE_PAYMENT_REMINDER }}
       WHATSAPP_TEMPLATE_TRIAL_REMINDER: ${{ secrets.WHATSAPP_TEMPLATE_TRIAL_REMINDER || vars.WHATSAPP_TEMPLATE_TRIAL_REMINDER }}
@@ -47,10 +43,11 @@ jobs:
           set -euo pipefail
           [ -n "${CLOUDFLARE_API_TOKEN:-}" ] || { echo '::error::CLOUDFLARE_API_TOKEN is not configured.'; exit 1; }
           required=(
-            WHATSAPP_ACCESS_TOKEN
-            WHATSAPP_APP_SECRET
-            WHATSAPP_VERIFY_TOKEN
-            WHATSAPP_PHONE_NUMBER_ID
+            GUPSHUP_API_KEY
+            GUPSHUP_APP_NAME
+            GUPSHUP_SOURCE_NUMBER
+          )
+          templates=(
             WHATSAPP_TEMPLATE_APPOINTMENT_REMINDER
             WHATSAPP_TEMPLATE_PAYMENT_REMINDER
             WHATSAPP_TEMPLATE_TRIAL_REMINDER
@@ -66,7 +63,14 @@ jobs:
             echo "::error::WhatsApp production values are not available from GitHub Actions: ${missing[*]}"
             exit 1
           fi
-          echo 'All required WhatsApp production values are available. Values remain masked.'
+          missing_templates=()
+          for name in "${templates[@]}"; do
+            if [ -z "${!name:-}" ]; then missing_templates+=("$name"); fi
+          done
+          echo 'All required Gupshup channel values are available. Values remain masked.'
+          if [ "${#missing_templates[@]}" -ne 0 ]; then
+            echo "::warning::Interactive WhatsApp can be synced, but proactive templates are unavailable: ${missing_templates[*]}"
+          fi
 
       - name: Install Wrangler
         run: npm install --no-audit --no-fund --package-lock=false --legacy-peer-deps
@@ -83,16 +87,21 @@ jobs:
             printf '%s' "${!name}" | npx wrangler secret put "$name" --config wrangler.jsonc >/dev/null
             echo "Synced ${name}."
           }
-          put_secret WHATSAPP_ACCESS_TOKEN
-          put_secret WHATSAPP_APP_SECRET
-          put_secret WHATSAPP_VERIFY_TOKEN
-          put_secret WHATSAPP_PHONE_NUMBER_ID
-          put_secret WHATSAPP_TEMPLATE_APPOINTMENT_REMINDER
-          put_secret WHATSAPP_TEMPLATE_PAYMENT_REMINDER
-          put_secret WHATSAPP_TEMPLATE_TRIAL_REMINDER
-          put_secret WHATSAPP_TEMPLATE_DELIVERY_UPDATE
-          put_secret WHATSAPP_TEMPLATE_REVIEW_REQUEST
-          put_secret WHATSAPP_TEMPLATE_POST_DELIVERY_FOLLOW_UP
+          put_secret_if_present() {
+            local name="$1"
+            if [ -n "${!name:-}" ]; then put_secret "$name"; fi
+          }
+          put_secret GUPSHUP_API_KEY
+          put_secret GUPSHUP_APP_NAME
+          put_secret GUPSHUP_SOURCE_NUMBER
+          put_secret_if_present GUPSHUP_APP_ID
+          put_secret_if_present GUPSHUP_WABA_ID
+          put_secret_if_present WHATSAPP_TEMPLATE_APPOINTMENT_REMINDER
+          put_secret_if_present WHATSAPP_TEMPLATE_PAYMENT_REMINDER
+          put_secret_if_present WHATSAPP_TEMPLATE_TRIAL_REMINDER
+          put_secret_if_present WHATSAPP_TEMPLATE_DELIVERY_UPDATE
+          put_secret_if_present WHATSAPP_TEMPLATE_REVIEW_REQUEST
+          put_secret_if_present WHATSAPP_TEMPLATE_POST_DELIVERY_FOLLOW_UP
 
       - name: Verify Cloudflare now has every required WhatsApp binding
         shell: bash
@@ -103,15 +112,18 @@ jobs:
             const fs=require("node:fs");
             const rows=JSON.parse(fs.readFileSync("/tmp/worker-secrets.json","utf8"));
             const names=new Set(rows.map(x=>x.name));
-            const required=[
-              "WHATSAPP_ACCESS_TOKEN","WHATSAPP_APP_SECRET","WHATSAPP_VERIFY_TOKEN","WHATSAPP_PHONE_NUMBER_ID",
+            const required=["GUPSHUP_API_KEY","GUPSHUP_APP_NAME","GUPSHUP_SOURCE_NUMBER"];
+            const templates=[
               "WHATSAPP_TEMPLATE_APPOINTMENT_REMINDER","WHATSAPP_TEMPLATE_PAYMENT_REMINDER",
               "WHATSAPP_TEMPLATE_TRIAL_REMINDER","WHATSAPP_TEMPLATE_DELIVERY_UPDATE",
               "WHATSAPP_TEMPLATE_REVIEW_REQUEST","WHATSAPP_TEMPLATE_POST_DELIVERY_FOLLOW_UP"
             ];
             const missing=required.filter(x=>!names.has(x));
-            console.log("WhatsApp binding presence:",Object.fromEntries(required.map(x=>[x,names.has(x)])));
+            const missingTemplates=templates.filter(x=>!names.has(x));
+            console.log("Gupshup channel binding presence:",Object.fromEntries(required.map(x=>[x,names.has(x)])));
+            console.log("WhatsApp template presence:",Object.fromEntries(templates.map(x=>[x,names.has(x)])));
             if(missing.length){console.error("Missing after sync: "+missing.join(", "));process.exit(1);}
+            if(missingTemplates.length){console.warn("Interactive messaging is ready; proactive templates still missing: "+missingTemplates.join(", "));}
           '
 
       - name: Dispatch guarded production deployment
