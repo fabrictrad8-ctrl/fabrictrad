@@ -46,7 +46,7 @@ jobs:
         run: npm run build
 
       - name: Test public, buyer, seller, admin and OAuth recovery experiences
-        run: npx playwright test tests/e2e/sitewide-role-visual.spec.ts tests/e2e/oauth-recovery.spec.ts tests/e2e/whatsapp-custom-order.spec.ts
+        run: npx playwright test tests/e2e/sitewide-role-visual.spec.ts tests/e2e/sitewide-mobile-contract.spec.ts tests/e2e/oauth-recovery.spec.ts tests/e2e/whatsapp-custom-order.spec.ts
 
       - name: Upload browser QA report
         if: always()
