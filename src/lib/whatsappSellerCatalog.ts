@@ -366,7 +366,7 @@ async function attachMediaToProduct(identity: SellerIdentity, productId: string,
         alt_text: 'Seller product media uploaded through FabricTrad WhatsApp',
       }));
     const { error: mediaError } = await admin.from('seller_product_media').upsert(rows, {
-      onConflict: 'seller_id,storage_path',
+      onConflict: 'storage_path',
       ignoreDuplicates: true,
     });
     if (mediaError) throw mediaError;
@@ -474,7 +474,7 @@ async function handleMedia(identity: SellerIdentity, incoming: SellerCatalogInco
   await saveInboundAudit(identity, incoming, { storagePath, mimeType: downloaded.mime, status: 'media_queued' });
   await sendSellerText(
     identity.whatsappNo,
-    `Saved image/video ${nextQueue.length}. Now send this product's details using the FabricTrad format. Send FORMAT anytime to see the template.`,
+    `Saved image/video ${nextQueue.length}. Now send this product's details using the FabricTrad format.\n\n${SELLER_CATALOG_FORMAT_MESSAGE}` ,
     incoming.appName
   );
 }
@@ -511,7 +511,7 @@ async function handleText(identity: SellerIdentity, incoming: SellerCatalogIncom
     const parts = [
       validation.missing.length ? `Missing required: ${validation.missing.map(formatFieldName).join(', ')}.` : '',
       validation.errors.length ? `Fix: ${validation.errors.join('; ')}.` : '',
-      'Nothing was added yet. Send the missing/corrected fields, or send FORMAT for the full template.',
+      `Nothing was added yet. Send the missing/corrected fields using this template:\n\n${SELLER_CATALOG_FORMAT_MESSAGE}` ,
     ].filter(Boolean);
     await sendSellerText(identity.whatsappNo, parts.join('\n'), incoming.appName);
     return;

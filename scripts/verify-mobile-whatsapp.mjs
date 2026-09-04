@@ -27,6 +27,10 @@ const catalogUi = 'src/app/seller-dashboard/components/SellerCatalogAssistant.ts
 const productDraftMigration = 'supabase/migrations/20260821165000_seller_product_composer_drafts.sql';
 const flexibleProductMigration = 'supabase/migrations/20260822043000_flexible_product_taxonomy_units.sql';
 const webhook = 'src/app/api/integrations/whatsapp/webhook/route.ts';
+const sellerCatalog = 'src/lib/whatsappSellerCatalog.ts';
+const sellerContactApi = 'src/app/api/seller/contact-identity/route.ts';
+const sellerCatalogIdentityMigration = 'supabase/migrations/20260904080000_seller_whatsapp_catalog_identity.sql';
+const buyerSellerEditGuardMigration = 'supabase/migrations/20260904080500_buyer_profile_seller_identity_guard.sql';
 const whatsappProvider = 'src/lib/gupshupWhatsApp.ts';
 const buyerAutomation = 'src/lib/whatsappBuyerAutomation.ts';
 const bespokeFollowUps = 'src/lib/bespokeFollowUps.ts';
@@ -64,6 +68,10 @@ const readiness = '.github/workflows/integration-readiness.yml';
   productDraftMigration,
   flexibleProductMigration,
   webhook,
+  sellerCatalog,
+  sellerContactApi,
+  sellerCatalogIdentityMigration,
+  buyerSellerEditGuardMigration,
   whatsappProvider,
   buyerAutomation,
   bespokeFollowUps,
@@ -142,18 +150,40 @@ requireText(flexibleProductMigration, 'add column if not exists unit_label text'
 requireText(flexibleProductMigration, "'yard'::text,'farma'::text,'custom'::text");
 requireText(flexibleProductMigration, 'check (char_length(trim(package_format)) between 1 and 160)');
 
-// WhatsApp catalogue ingestion uses Gupshup v2 callbacks, a private shared
-// header, asynchronous processing and seller-scoped persistence.
-requireText(webhook, "request.headers.get('x-fabrictrad-webhook-token')");
-requireText(webhook, 'GUPSHUP_WEBHOOK_SECRET');
+// Seller catalogue ingestion accepts the live public Gupshup v3/v2 callback,
+// gives an exact registered seller WhatsApp identity priority over buyer chat,
+// requires the strict FabricTrad field format, and persists seller-scoped media/products.
+requireText(webhook, 'isGupshupV3Webhook');
+requireText(webhook, 'normalizeGupshupV3');
 requireText(webhook, 'normalizeGupshupMessage');
-requireText(webhook, "event.type !== 'message'");
 requireText(webhook, 'after(async () =>');
-requireText(webhook, 'parseCatalogMessage');
-requireText(webhook, "from('whatsapp_catalog_ingestions')");
-requireText(webhook, "from(MEDIA_BUCKET)");
-requireText(webhook, 'recordProcessingFailure');
-requireText(webhook, "processing_status: 'failed'");
+requireText(webhook, 'tryHandleSellerCatalogMessage');
+requireText(webhook, 'sellerHandled = await ingestSellerMessage');
+requireText(webhook, 'if (sellerHandled) return');
+forbidText(webhook, "request.headers.get('x-fabrictrad-webhook-token')");
+forbidText(webhook, 'GUPSHUP_WEBHOOK_SECRET');
+requireText(sellerCatalog, 'SELLER_CATALOG_REQUIRED_FIELDS');
+requireText(sellerCatalog, 'SELLER_CATALOG_OPTIONAL_FIELDS');
+requireText(sellerCatalog, 'SELLER_CATALOG_FORMAT_MESSAGE');
+requireText(sellerCatalog, 'parseSellerCatalogFormat');
+requireText(sellerCatalog, 'validateSellerCatalogDraft');
+requireText(sellerCatalog, "from('whatsapp_seller_catalog_sessions')");
+requireText(sellerCatalog, "from('whatsapp_catalog_ingestions')");
+requireText(sellerCatalog, "from('seller_products')");
+requireText(sellerCatalog, "from('seller_product_media')");
+requireText(sellerCatalog, "from(MEDIA_BUCKET).upload");
+requireText(sellerCatalog, "onConflict: 'storage_path'");
+requireText(sellerCatalog, "source: 'whatsapp'");
+requireText(sellerCatalog, "status: merged.status || 'draft'");
+requireText(sellerCatalog, 'duplicate_sku');
+requireText(sellerCatalog, 'Nothing was added yet');
+requireText(sellerCatalog, 'Send ONE product at a time');
+requireText(sellerContactApi, 'seller_identity_conflicts');
+requireText(sellerContactApi, 'Seller WhatsApp cannot be the same as the buyer/account phone/WhatsApp');
+requireText(sellerCatalogIdentityMigration, 'whatsapp_seller_catalog_sessions');
+requireText(sellerCatalogIdentityMigration, 'enforce_seller_buyer_identity_separation');
+requireText(sellerCatalogIdentityMigration, 'seller_identity_conflicts');
+requireText(buyerSellerEditGuardMigration, 'enforce_user_profile_seller_identity_separation');
 requireText(whatsappProvider, 'https://api.gupshup.io/wa/api/v1/msg');
 requireText(whatsappProvider, 'https://api.gupshup.io/wa/api/v1/template/msg');
 requireText(whatsappProvider, "apikey: apiKey");
@@ -163,13 +193,12 @@ requireText(bespokeFollowUps, 'sendGupshupTemplate');
 forbidText(webhook, 'graph.facebook.com');
 forbidText(buyerAutomation, 'graph.facebook.com');
 forbidText(bespokeFollowUps, 'graph.facebook.com');
-requireText(migration, "'seller-whatsapp-inbox'");
-requireText(migration, 'ENABLE ROW LEVEL SECURITY');
-requireText(migration, 'user_id = (SELECT auth.uid())');
 requireText(inboxApi, ".eq('user_id', user.id)");
 requireText(inboxApi, 'createSignedUrl');
 requireText(inboxUi, 'WhatsApp → FabricTrad dashboard');
-requireText(inboxUi, 'SELLER CATALOG UPLOAD');
+requireText(inboxUi, 'Open WhatsApp with FORMAT');
+requireText(inboxUi, 'Predefined product format');
+requireText(inboxUi, 'Save seller WhatsApp identity');
 
 // Buyer WhatsApp routing is explicit, stateful and connected to the complete
 // bespoke workflow without stealing dual-role seller catalogue uploads.
@@ -301,7 +330,7 @@ requireText(status, 'automationReady');
 requireText(status, 'templatesReady');
 requireText(status, 'WHATSAPP_TEMPLATE_POST_DELIVERY_FOLLOW_UP');
 requireText(readiness, "fetch_json 'WhatsApp catalog readiness'");
-requireText(readiness, 'WhatsApp forged-token probe');
+requireText(readiness, 'WhatsApp public callback probe');
 requireText(readiness, '/api/integrations/whatsapp/webhook');
 
 if (failures.length) {

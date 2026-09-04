@@ -44,6 +44,10 @@ type ExistingSeller = {
   business_type: string | null;
   gstin: string | null;
   pan: string | null;
+  contact_name: string | null;
+  contact_email: string | null;
+  contact_phone: string | null;
+  whatsapp_no: string | null;
 };
 
 type ExistingRegistration = {
@@ -105,6 +109,7 @@ export async function POST(request: NextRequest) {
     error: userError,
   } = await supabase.auth.getUser();
   if (userError || !user) return json({ error: 'Sign in to continue the seller application.' }, 401);
+  const admin = createAdminClient();
 
   let formData: FormData;
   try {
@@ -129,7 +134,7 @@ export async function POST(request: NextRequest) {
       .maybeSingle(),
     supabase
       .from('seller_profiles')
-      .select('id,legal_business_name,display_name,business_type,gstin,pan')
+      .select('id,legal_business_name,display_name,business_type,gstin,pan,contact_name,contact_email,contact_phone,whatsapp_no')
       .eq('user_id', user.id)
       .maybeSingle(),
     supabase
@@ -168,6 +173,11 @@ export async function POST(request: NextRequest) {
     digits(existingRegistration?.phone, 32).slice(-10) ||
     digits(existingProfile?.phone, 32).slice(-10);
 
+  const sellerContactName = clean(input.sellerContactName, 160) || clean(existingSeller?.contact_name, 160);
+  const sellerContactEmail = (clean(input.sellerContactEmail, 320) || clean(existingSeller?.contact_email, 320)).toLowerCase();
+  const sellerPhone = digits(input.sellerPhone, 32).slice(-10) || digits(existingSeller?.contact_phone, 32).slice(-10);
+  const sellerWhatsapp = digits(input.sellerWhatsapp, 32).slice(-10) || digits(existingSeller?.whatsapp_no, 32).slice(-10);
+
   if (!businessName || !ownerName || !/^[6-9]\d{9}$/.test(phone)) {
     return json(
       {
@@ -176,6 +186,34 @@ export async function POST(request: NextRequest) {
       },
       400
     );
+  }
+
+  if (!sellerContactName) return json({ error: 'Enter a seller contact/display name.' }, 400);
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(sellerContactEmail)) return json({ error: 'Enter a valid seller email address.' }, 400);
+  if (!/^[6-9]\d{9}$/.test(sellerPhone)) return json({ error: 'Enter a valid 10 digit seller phone number.' }, 400);
+  if (!/^[6-9]\d{9}$/.test(sellerWhatsapp)) return json({ error: 'Enter a valid 10 digit seller WhatsApp number.' }, 400);
+
+  const accountName = clean(existingProfile?.full_name, 160).toLowerCase();
+  const accountEmail = String(user.email || '').trim().toLowerCase();
+  const accountPhone = digits(existingProfile?.phone, 32).slice(-10);
+  if (sellerContactName.toLowerCase() === accountName) return json({ error: 'Seller name cannot be the same as the buyer/account name. Use a different seller contact/display name.' }, 409);
+  if (sellerContactEmail === accountEmail) return json({ error: 'Seller email cannot be the same as the buyer/account email. Use a different seller email.' }, 409);
+  if (sellerPhone === accountPhone) return json({ error: 'Seller phone cannot be the same as the buyer/account phone. Use a different seller phone.' }, 409);
+  if (sellerWhatsapp === accountPhone) return json({ error: 'Seller WhatsApp cannot be the same as the buyer/account phone/WhatsApp. Use a different seller WhatsApp number.' }, 409);
+
+  const { data: identityConflicts, error: identityConflictError } = await admin.rpc('seller_identity_conflicts', {
+    p_contact_name: sellerContactName,
+    p_contact_email: sellerContactEmail,
+    p_contact_phone: sellerPhone,
+    p_whatsapp_no: sellerWhatsapp,
+  });
+  if (identityConflictError) return json({ error: 'Seller identity could not be checked. Please retry.' }, 500);
+  const conflictFields = Array.isArray(identityConflicts) ? identityConflicts.map(String) : [];
+  if (conflictFields.length) {
+    return json({
+      error: `Seller ${conflictFields.join(', ')} already matches a buyer identity. Change ${conflictFields.length === 1 ? 'it' : 'those fields'} before continuing.`,
+      conflicts: conflictFields,
+    }, 409);
   }
 
   let existingBank: ExistingBank | null = null;
@@ -287,7 +325,23 @@ export async function POST(request: NextRequest) {
   const sellerProfileId = String(access.seller_profile_id);
   const registrationId = String(access.registration_id);
   const sellerRef = `FT-SLR-${user.id.replaceAll('-', '').slice(0, 12).toUpperCase()}`;
-  const admin = createAdminClient();
+  const { error: sellerContactSaveError } = await admin
+    .from('seller_profiles')
+    .update({
+      contact_name: sellerContactName,
+      contact_email: sellerContactEmail,
+      contact_phone: sellerPhone,
+      whatsapp_no: sellerWhatsapp,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', sellerProfileId);
+  if (sellerContactSaveError) {
+    const detail = String(sellerContactSaveError.message || '');
+    const conflict = detail.includes('IDENTITY_CONFLICT') || detail.includes('duplicate key');
+    return json({ error: conflict
+      ? 'Seller name, email, phone or WhatsApp conflicts with an existing buyer/seller identity. Change the conflicting value and retry.'
+      : 'Seller contact and WhatsApp identity could not be saved.' }, conflict ? 409 : 500);
+  }
 
   const bankWasChanged = Boolean(
     accountDigits ||
