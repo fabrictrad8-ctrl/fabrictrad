@@ -19,6 +19,7 @@ import '../styles/commerce-ux-final.css';
 import '../styles/human-ui-refinement.css';
 import '../styles/public-nav-consistency.css';
 import '../styles/ui-integrity-hotfix.css';
+import '../styles/mobile-auth-hotfix.css';
 import { AuthProvider } from '@/contexts/AuthContext';
 import AppClientEnhancements from '@/components/AppClientEnhancements';
 import RouteExperienceEnhancer from '@/components/RouteExperienceEnhancer';
