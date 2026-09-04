@@ -1,0 +1,93 @@
+name: Promote validated seller WhatsApp runtime
+
+on:
+  push:
+    branches:
+      - agent/whatsapp-seller-catalog-20260904
+    paths:
+      - '.github/workflows/promote-seller-whatsapp-runtime.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Overlay validated seller runtime onto latest main
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_ref='origin/agent/whatsapp-seller-catalog-20260904'
+          git fetch origin main agent/whatsapp-seller-catalog-20260904
+          git checkout -B seller-runtime-promotion origin/main
+          files=(
+            'scripts/verify-mobile-whatsapp.mjs'
+            'src/app/api/account/enable-selling/route.ts'
+            'src/app/api/integrations/whatsapp/webhook/route.ts'
+            'src/app/api/seller/contact-identity/route.ts'
+            'src/app/seller-dashboard/components/WhatsAppCatalogPanel.tsx'
+            'src/app/seller-registration/components/SellerRegistrationFlowV2.tsx'
+            'src/lib/whatsappSellerCatalog.ts'
+            'supabase/migrations/20260904080000_seller_whatsapp_catalog_identity.sql'
+            'supabase/migrations/20260904080500_buyer_profile_seller_identity_guard.sql'
+          )
+          for file in "${files[@]}"; do
+            mkdir -p "$(dirname "$file")"
+            git show "$source_ref:$file" > "$file"
+          done
+          git diff --check
+          grep -Fq 'tryHandleSellerCatalogMessage' src/app/api/integrations/whatsapp/webhook/route.ts
+          grep -Fq 'SELLER_CATALOG_FORMAT_MESSAGE' src/lib/whatsappSellerCatalog.ts
+          grep -Fq 'Open WhatsApp with FORMAT' src/app/seller-dashboard/components/WhatsAppCatalogPanel.tsx
+          grep -Fq "onConflict: 'storage_path'" src/lib/whatsappSellerCatalog.ts
+          grep -Fq 'mobile-auth-hotfix.css' src/app/layout.tsx
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund --package-lock=false --legacy-peer-deps
+
+      - name: Type-check combined production source
+        run: npm run type-check
+
+      - name: Lint combined seller runtime
+        run: npx eslint src/lib/whatsappSellerCatalog.ts src/app/api/seller/contact-identity/route.ts src/app/api/integrations/whatsapp/webhook/route.ts src/app/api/account/enable-selling/route.ts src/app/seller-registration/components/SellerRegistrationFlowV2.tsx src/app/seller-dashboard/components/WhatsAppCatalogPanel.tsx scripts/verify-mobile-whatsapp.mjs
+
+      - name: Verify WhatsApp regression contract
+        run: npm run verify:whatsapp
+
+      - name: Build combined Cloudflare/OpenNext package
+        run: npm run build:sites
+
+      - name: Push one atomic production commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'FabricTrad Release Bot'
+          git config user.email 'fabrictrad8@gmail.com'
+          git add \
+            scripts/verify-mobile-whatsapp.mjs \
+            src/app/api/account/enable-selling/route.ts \
+            src/app/api/integrations/whatsapp/webhook/route.ts \
+            src/app/api/seller/contact-identity/route.ts \
+            src/app/seller-dashboard/components/WhatsAppCatalogPanel.tsx \
+            src/app/seller-registration/components/SellerRegistrationFlowV2.tsx \
+            src/lib/whatsappSellerCatalog.ts \
+            supabase/migrations/20260904080000_seller_whatsapp_catalog_identity.sql \
+            supabase/migrations/20260904080500_buyer_profile_seller_identity_guard.sql
+          if git diff --cached --quiet; then
+            echo 'Latest main already contains the validated seller runtime.'
+            exit 0
+          fi
+          git commit -m 'feat: activate seller WhatsApp catalogue ingestion'
+          git fetch origin main
+          git rebase origin/main
+          git push origin HEAD:main
