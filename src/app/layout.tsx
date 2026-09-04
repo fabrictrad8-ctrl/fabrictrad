@@ -20,6 +20,7 @@ import '../styles/human-ui-refinement.css';
 import '../styles/public-nav-consistency.css';
 import '../styles/ui-integrity-hotfix.css';
 import '../styles/mobile-auth-hotfix.css';
+import '../styles/mobile-sitewide-contract.css';
 import { AuthProvider } from '@/contexts/AuthContext';
 import AppClientEnhancements from '@/components/AppClientEnhancements';
 import RouteExperienceEnhancer from '@/components/RouteExperienceEnhancer';
