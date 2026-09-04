@@ -1,0 +1,67 @@
+name: Validate seller WhatsApp catalogue
+
+on:
+  push:
+    branches:
+      - agent/whatsapp-seller-catalog-20260904
+    paths:
+      - '.github/workflows/validate-seller-whatsapp-catalog.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Apply seller catalogue runtime patch
+        run: python3 scripts/apply-seller-whatsapp-catalog-patch.py
+
+      - name: Verify required implementation markers
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'tryHandleSellerCatalogMessage' src/app/api/integrations/whatsapp/webhook/route.ts
+          grep -Fq 'sellerHandled = await ingestSellerMessage' src/app/api/integrations/whatsapp/webhook/route.ts
+          grep -Fq 'sellerWhatsapp' src/app/seller-registration/components/SellerRegistrationFlowV2.tsx
+          grep -Fq "seller_identity_conflicts" src/app/api/account/enable-selling/route.ts
+          grep -Fq 'SELLER_CATALOG_FORMAT_MESSAGE' src/lib/whatsappSellerCatalog.ts
+          grep -Fq 'whatsapp_seller_catalog_sessions' supabase/migrations/20260904080000_seller_whatsapp_catalog_identity.sql
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund --package-lock=false --legacy-peer-deps
+
+      - name: Type-check
+        run: npm run type-check
+
+      - name: Lint changed runtime
+        run: npx eslint src/lib/whatsappSellerCatalog.ts src/app/api/seller/contact-identity/route.ts src/app/api/integrations/whatsapp/webhook/route.ts src/app/api/account/enable-selling/route.ts src/app/seller-registration/components/SellerRegistrationFlowV2.tsx
+
+      - name: Run WhatsApp regression verifier
+        run: npm run verify:whatsapp
+
+      - name: Build Cloudflare/OpenNext package
+        run: npm run build:sites
+
+      - name: Commit validated patch to branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'FabricTrad Release Bot'
+          git config user.email 'fabrictrad8@gmail.com'
+          git add src/lib/whatsappSellerCatalog.ts src/app/api/seller/contact-identity/route.ts src/app/api/integrations/whatsapp/webhook/route.ts src/app/api/account/enable-selling/route.ts src/app/seller-registration/components/SellerRegistrationFlowV2.tsx supabase/migrations/20260904080000_seller_whatsapp_catalog_identity.sql
+          if git diff --cached --quiet; then
+            echo 'No runtime patch changes to commit.'
+            exit 0
+          fi
+          git commit -m 'feat: seller WhatsApp products from strict format [skip deploy]'
+          git push origin HEAD:agent/whatsapp-seller-catalog-20260904
