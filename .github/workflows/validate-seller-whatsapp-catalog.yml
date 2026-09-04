@@ -6,6 +6,14 @@ on:
       - agent/whatsapp-seller-catalog-20260904
     paths:
       - '.github/workflows/validate-seller-whatsapp-catalog.yml'
+      - 'src/lib/whatsappSellerCatalog.ts'
+      - 'src/app/api/seller/contact-identity/route.ts'
+      - 'src/app/api/integrations/whatsapp/webhook/route.ts'
+      - 'src/app/api/account/enable-selling/route.ts'
+      - 'src/app/seller-registration/components/SellerRegistrationFlowV2.tsx'
+      - 'scripts/apply-seller-whatsapp-catalog-patch.py'
+      - 'scripts/fix-seller-whatsapp-media-conflict.py'
+      - 'supabase/migrations/20260904080000_seller_whatsapp_catalog_identity.sql'
   workflow_dispatch:
 
 permissions:
@@ -24,7 +32,9 @@ jobs:
           node-version: 22
 
       - name: Apply seller catalogue runtime patch
-        run: python3 scripts/apply-seller-whatsapp-catalog-patch.py
+        run: |
+          python3 scripts/apply-seller-whatsapp-catalog-patch.py
+          python3 scripts/fix-seller-whatsapp-media-conflict.py
 
       - name: Verify required implementation markers
         shell: bash
@@ -33,8 +43,9 @@ jobs:
           grep -Fq 'tryHandleSellerCatalogMessage' src/app/api/integrations/whatsapp/webhook/route.ts
           grep -Fq 'sellerHandled = await ingestSellerMessage' src/app/api/integrations/whatsapp/webhook/route.ts
           grep -Fq 'sellerWhatsapp' src/app/seller-registration/components/SellerRegistrationFlowV2.tsx
-          grep -Fq "seller_identity_conflicts" src/app/api/account/enable-selling/route.ts
+          grep -Fq 'seller_identity_conflicts' src/app/api/account/enable-selling/route.ts
           grep -Fq 'SELLER_CATALOG_FORMAT_MESSAGE' src/lib/whatsappSellerCatalog.ts
+          grep -Fq "onConflict: 'storage_path'" src/lib/whatsappSellerCatalog.ts
           grep -Fq 'whatsapp_seller_catalog_sessions' supabase/migrations/20260904080000_seller_whatsapp_catalog_identity.sql
 
       - name: Install dependencies
