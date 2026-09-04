@@ -14,6 +14,7 @@ on:
 permissions:
   contents: write
 
+# Re-probe marker: seller catalogue release 2026-09-04.
 jobs:
   verify:
     runs-on: ubuntu-latest
@@ -39,11 +40,8 @@ jobs:
           : > /tmp/post.out
           echo '{}' > /tmp/status.json
 
-          # Use the same Meta-format v3 callback shape selected in Gupshup.
           v3_probe='{"object":"whatsapp_business_account","gs_app_id":"__fabrictrad_live_probe__","entry":[{"changes":[{"field":"messages","value":{"messaging_product":"whatsapp","statuses":[{"type":"set-callback"}]}}]}]}'
 
-          # Cloudflare connected builds can take a couple of minutes after a
-          # main-branch commit. Poll until the NEW v3 runtime marker is visible.
           for attempt in $(seq 1 30); do
             get_code=$(curl -sS --connect-timeout 10 --max-time 30 -o /tmp/get.out -w '%{http_code}' "$webhook" || true)
             post_code=$(curl -sS --connect-timeout 10 --max-time 30 -o /tmp/post.out -w '%{http_code}' -H 'Content-Type: application/json' --data "$v3_probe" "$webhook" || true)
