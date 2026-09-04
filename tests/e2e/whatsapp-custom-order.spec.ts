@@ -21,6 +21,6 @@ test('public WhatsApp custom-order entry renders and points to the official numb
 test('custom-order studio preserves the destination through buyer sign-in', async ({ page }) => {
   await page.goto('/custom-order', { waitUntil: 'domcontentloaded' });
   await page.waitForURL(/\/login\?role=buyer&next=%2Fcustom-order/);
-  await expect(page.getByRole('heading', { name: /Sign in/i })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /Welcome back|Sign in/i })).toBeVisible();
   await expect(page.locator('[data-nextjs-dialog]')).toHaveCount(0);
 });

@@ -5,7 +5,7 @@ test.beforeEach(async ({ page }) => {
     {
       name: 'fabrictrad_demo_role',
       value: 'buyer',
-      url: 'http://127.0.0.1:3000',
+      url: 'http://localhost:3000',
       httpOnly: true,
       sameSite: 'Lax',
     },

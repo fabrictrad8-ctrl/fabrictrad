@@ -83,11 +83,29 @@ try {
       hasTouch: true,
       userAgent: device.userAgent,
     });
-    const page = await context.newPage();
+    let page = await context.newPage();
 
     for (const route of routes) {
       const url = new URL(route, baseURL).toString();
-      const response = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45_000 });
+      let response = null;
+      let navigationError = null;
+      for (let attempt = 1; attempt <= 3; attempt += 1) {
+        try {
+          response = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45_000 });
+          navigationError = null;
+          break;
+        } catch (error) {
+          navigationError = error;
+          if (attempt === 3) break;
+          await page.close().catch(() => {});
+          page = await context.newPage();
+          await page.waitForTimeout(250 * attempt);
+        }
+      }
+      if (navigationError) {
+        failures.push(`${device.name} ${route}: navigation failed after 3 attempts: ${navigationError.message}`);
+        continue;
+      }
       if (!response || response.status() >= 500) {
         failures.push(`${device.name} ${route}: HTTP ${response?.status() ?? 'no response'}`);
         continue;

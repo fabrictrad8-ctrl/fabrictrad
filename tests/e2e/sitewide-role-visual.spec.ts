@@ -112,6 +112,32 @@ const ignoredConsolePatterns = [
   /favicon/i,
 ];
 
+const auditProfileFor = (role: Exclude<Role, 'public'>) => {
+  const accountRole = role === 'admin' ? 'admin_staff' : role;
+  const idSuffix = role === 'buyer' ? '000000000001' : role === 'seller' ? '000000000002' : '000000000003';
+  return {
+    id: `00000000-0000-4000-8000-${idSuffix}`,
+    email: `qa-${role}@localhost.invalid`,
+    full_name: `QA ${role}`,
+    phone: '+919876543210',
+    phone_verified: true,
+    role: accountRole,
+    is_active: true,
+    can_buy: role !== 'admin',
+    can_sell: role === 'seller',
+    account_kind: role === 'seller' ? 'business' : 'individual',
+    verification_method: role === 'seller' ? 'gstin' : 'none',
+    verification_status: role === 'seller' ? 'verified' : 'unverified',
+    avatar_url: null,
+    business_name: role === 'seller' ? 'QA Textile Supplier' : null,
+    gstin: role === 'seller' ? '27AAAAA0000A1Z5' : null,
+    city: 'Mumbai',
+    state: 'Maharashtra',
+    address_line1: 'QA workspace',
+    pincode: '400001',
+  };
+};
+
 async function prepareRole(page: Page, role: Role) {
   await page.route('**/api/admin/seller-metrics*', async (route) => {
     await route.fulfill({
@@ -127,6 +153,19 @@ async function prepareRole(page: Page, role: Role) {
   });
 
   await page.route(/https:\/\/example\.supabase\.co\/.*/, async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    if (role !== 'public' && url.pathname.includes('/rest/v1/user_profiles')) {
+      const profile = auditProfileFor(role);
+      const expectsOne = (request.headers().accept || '').includes('application/vnd.pgrst.object');
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(expectsOne ? profile : [profile]),
+        headers: { 'access-control-allow-origin': '*' },
+      });
+      return;
+    }
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
