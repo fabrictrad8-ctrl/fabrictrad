@@ -161,6 +161,21 @@ body {
     min-height: 44px;
   }
 
+  /* The official horizontal mark already contains the FabricTrad name. Hiding
+     the duplicate label leaves room for all three 44px support targets on
+     compact Android and foldable cover screens. */
+  .ft-site-footer-mobile-top {
+    gap: 8px !important;
+  }
+
+  .ft-site-footer-mobile-top .ft-site-footer-brand-label {
+    display: none !important;
+  }
+
+  .ft-site-footer-mobile-top > :last-child {
+    flex: 0 0 auto;
+  }
+
   /* Seller/admin shells */
   .ft-admin-shell {
     min-height: 100vh;

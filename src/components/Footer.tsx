@@ -42,10 +42,10 @@ export default function Footer() {
   return (
     <footer className="ft-site-footer border-t border-border bg-card/90 backdrop-blur-xl">
       <div className="mx-auto max-w-[1440px] px-4 py-7 sm:px-6 sm:py-12 lg:px-8 lg:py-14">
-        <div className="flex items-center justify-between gap-4 sm:hidden">
+        <div className="ft-site-footer-mobile-top flex items-center justify-between gap-4 sm:hidden">
           <Link href="/" className="inline-flex min-w-0 items-center gap-2.5">
             <AppLogo size={31} />
-            <span className="truncate text-base font-800 tracking-tight text-foreground">FabricTrad</span>
+            <span className="ft-site-footer-brand-label truncate text-base font-800 tracking-tight text-foreground">FabricTrad</span>
           </Link>
           <div className="flex items-center gap-1.5">
             <a href="mailto:fabrictrad8@gmail.com" className="ft-icon-button" aria-label="Email FabricTrad support">
