@@ -11,9 +11,11 @@ on:
       - 'src/app/api/integrations/whatsapp/webhook/route.ts'
       - 'src/app/api/account/enable-selling/route.ts'
       - 'src/app/seller-registration/components/SellerRegistrationFlowV2.tsx'
+      - 'src/app/seller-dashboard/components/WhatsAppCatalogPanel.tsx'
       - 'scripts/apply-seller-whatsapp-catalog-patch.py'
       - 'scripts/fix-seller-whatsapp-media-conflict.py'
       - 'scripts/patch-whatsapp-regression-for-seller.py'
+      - 'scripts/patch-whatsapp-catalog-panel.py'
       - 'scripts/verify-mobile-whatsapp.mjs'
       - 'supabase/migrations/20260904080000_seller_whatsapp_catalog_identity.sql'
       - 'supabase/migrations/20260904080500_buyer_profile_seller_identity_guard.sql'
@@ -39,6 +41,7 @@ jobs:
           python3 scripts/apply-seller-whatsapp-catalog-patch.py
           python3 scripts/fix-seller-whatsapp-media-conflict.py
           python3 scripts/patch-whatsapp-regression-for-seller.py
+          python3 scripts/patch-whatsapp-catalog-panel.py
 
       - name: Verify required implementation markers
         shell: bash
@@ -53,6 +56,8 @@ jobs:
           grep -Fq 'whatsapp_seller_catalog_sessions' supabase/migrations/20260904080000_seller_whatsapp_catalog_identity.sql
           grep -Fq 'enforce_user_profile_seller_identity_separation' supabase/migrations/20260904080500_buyer_profile_seller_identity_guard.sql
           grep -Fq "const sellerCatalog = 'src/lib/whatsappSellerCatalog.ts'" scripts/verify-mobile-whatsapp.mjs
+          grep -Fq 'Save seller WhatsApp identity' src/app/seller-dashboard/components/WhatsAppCatalogPanel.tsx
+          grep -Fq 'Predefined product format' src/app/seller-dashboard/components/WhatsAppCatalogPanel.tsx
 
       - name: Install dependencies
         run: npm install --no-audit --no-fund --package-lock=false --legacy-peer-deps
@@ -61,7 +66,7 @@ jobs:
         run: npm run type-check
 
       - name: Lint changed runtime
-        run: npx eslint src/lib/whatsappSellerCatalog.ts src/app/api/seller/contact-identity/route.ts src/app/api/integrations/whatsapp/webhook/route.ts src/app/api/account/enable-selling/route.ts src/app/seller-registration/components/SellerRegistrationFlowV2.tsx scripts/verify-mobile-whatsapp.mjs
+        run: npx eslint src/lib/whatsappSellerCatalog.ts src/app/api/seller/contact-identity/route.ts src/app/api/integrations/whatsapp/webhook/route.ts src/app/api/account/enable-selling/route.ts src/app/seller-registration/components/SellerRegistrationFlowV2.tsx src/app/seller-dashboard/components/WhatsAppCatalogPanel.tsx scripts/verify-mobile-whatsapp.mjs
 
       - name: Run WhatsApp regression verifier
         run: npm run verify:whatsapp
@@ -75,7 +80,7 @@ jobs:
           set -euo pipefail
           git config user.name 'FabricTrad Release Bot'
           git config user.email 'fabrictrad8@gmail.com'
-          git add src/lib/whatsappSellerCatalog.ts src/app/api/seller/contact-identity/route.ts src/app/api/integrations/whatsapp/webhook/route.ts src/app/api/account/enable-selling/route.ts src/app/seller-registration/components/SellerRegistrationFlowV2.tsx scripts/verify-mobile-whatsapp.mjs supabase/migrations/20260904080000_seller_whatsapp_catalog_identity.sql supabase/migrations/20260904080500_buyer_profile_seller_identity_guard.sql
+          git add src/lib/whatsappSellerCatalog.ts src/app/api/seller/contact-identity/route.ts src/app/api/integrations/whatsapp/webhook/route.ts src/app/api/account/enable-selling/route.ts src/app/seller-registration/components/SellerRegistrationFlowV2.tsx src/app/seller-dashboard/components/WhatsAppCatalogPanel.tsx scripts/verify-mobile-whatsapp.mjs supabase/migrations/20260904080000_seller_whatsapp_catalog_identity.sql supabase/migrations/20260904080500_buyer_profile_seller_identity_guard.sql
           if git diff --cached --quiet; then
             echo 'No runtime patch changes to commit.'
             exit 0
