@@ -68,11 +68,19 @@ forbidText(bespokeFollowUps, 'graph.facebook.com');
 requireText(inboxApi, ".eq('user_id', user.id)");
 requireText(inboxApi, 'createSignedUrl');
 requireText(inboxUi, 'WhatsApp → FabricTrad dashboard');
-requireText(inboxUi, 'SELLER CATALOG UPLOAD');"""
+requireText(inboxUi, 'Open WhatsApp with FORMAT');
+requireText(inboxUi, 'Predefined product format');
+requireText(inboxUi, 'Save seller WhatsApp identity');"""
 
 text, count = old_pattern.subn(new_block, text, count=1)
 if count != 1:
     raise SystemExit(f'Expected one legacy seller WhatsApp verifier block, found {count}.')
+
+# Current Gupshup webhook is intentionally public and acknowledges with an empty 204.
+text = text.replace(
+    "requireText(readiness, 'WhatsApp forged-token probe');",
+    "requireText(readiness, 'WhatsApp public callback probe');",
+)
 
 # Ensure the newly required resources are included in the read/existence sweep.
 needle = "  webhook,\n"
@@ -83,4 +91,4 @@ if "  sellerCatalog,\n" not in text:
     text = text.replace(needle, insert, 1)
 
 path.write_text(text)
-print('WhatsApp regression verifier aligned with strict seller catalogue routing.')
+print('WhatsApp regression verifier aligned with strict seller FORMAT flow and public callback.')
