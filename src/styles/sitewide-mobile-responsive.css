@@ -60,6 +60,23 @@ body {
   max-width: 100%;
 }
 
+/* The authenticated buyer search and primary navigation were both competing
+   for the centre grid track. Explicit placement prevents the search from
+   creating an implicit fourth column and widening desktop buyer routes. */
+@media (min-width: 768px) {
+  .ft-buyer-header .ft-buyer-search {
+    grid-column: 2;
+    grid-row: 1;
+    width: 100%;
+    min-width: 0;
+    justify-self: stretch;
+  }
+
+  .ft-buyer-header .ft-header-primary-nav {
+    display: none !important;
+  }
+}
+
 /* Native horizontal scrollers should feel like mobile UI, not clipped desktop UI. */
 .ft-root :where(.overflow-x-auto, .overflow-x-scroll, [data-horizontal-scroll='true']) {
   overscroll-behavior-inline: contain;
