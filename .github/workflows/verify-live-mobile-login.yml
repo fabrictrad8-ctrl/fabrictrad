@@ -1,0 +1,90 @@
+name: Verify live mobile login
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/verify-live-mobile-login.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  mobile-login:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund --package-lock=false --legacy-peer-deps
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Verify login at real phone widths
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import { chromium } from '@playwright/test';
+
+          const browser = await chromium.launch({ headless: true });
+          const sizes = [
+            { width: 360, height: 800, name: '360x800' },
+            { width: 393, height: 873, name: '393x873' },
+            { width: 412, height: 915, name: '412x915' },
+          ];
+
+          try {
+            for (const size of sizes) {
+              const page = await browser.newPage({
+                viewport: { width: size.width, height: size.height },
+                deviceScaleFactor: 1,
+                isMobile: true,
+                hasTouch: true,
+              });
+              await page.goto(`https://fabrictrad.com/login?mobile-geometry=${Date.now()}-${size.name}`, {
+                waitUntil: 'networkidle',
+                timeout: 45000,
+              });
+
+              const result = await page.evaluate(() => {
+                const visual = document.querySelector('.ft-auth-visual');
+                const stage = document.querySelector('.ft-auth-stage');
+                const card = document.querySelector('.ft-auth-card');
+                const submit = document.querySelector('.ft-auth-submit');
+                const lang = document.querySelector('[data-sitewide-language-control], .fixed.bottom-4.right-4');
+                const rect = (el) => el ? el.getBoundingClientRect() : null;
+                const bodyWidth = document.documentElement.scrollWidth;
+                return {
+                  viewportWidth: window.innerWidth,
+                  bodyWidth,
+                  visualDisplay: visual ? getComputedStyle(visual).display : null,
+                  stage: rect(stage),
+                  card: rect(card),
+                  submit: rect(submit),
+                  language: rect(lang),
+                };
+              });
+
+              const inside = (box) => box && box.left >= -1 && box.right <= size.width + 1 && box.width <= size.width + 1;
+              if (result.bodyWidth > size.width + 1) {
+                throw new Error(`${size.name}: horizontal overflow ${result.bodyWidth}px > ${size.width}px`);
+              }
+              if (result.visualDisplay !== 'none') {
+                throw new Error(`${size.name}: desktop auth visual is still visible (${result.visualDisplay})`);
+              }
+              if (!inside(result.stage)) throw new Error(`${size.name}: auth stage escapes viewport: ${JSON.stringify(result.stage)}`);
+              if (!inside(result.card)) throw new Error(`${size.name}: auth card escapes viewport: ${JSON.stringify(result.card)}`);
+              if (!inside(result.submit)) throw new Error(`${size.name}: submit button escapes viewport: ${JSON.stringify(result.submit)}`);
+
+              console.log('MOBILE LOGIN GEOMETRY PASS', size.name, JSON.stringify(result));
+              await page.close();
+            }
+          } finally {
+            await browser.close();
+          }
+          NODE
