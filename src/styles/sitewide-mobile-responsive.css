@@ -87,6 +87,8 @@ body {
   .ft-root :where([role='dialog'], dialog) {
     width: min(680px, calc(100vw - 24px));
     max-width: calc(100vw - 24px) !important;
+    max-height: calc(100vh - 24px) !important;
+    max-height: calc(100svh - 24px) !important;
     max-height: calc(100dvh - 24px) !important;
     overflow-y: auto;
     overscroll-behavior: contain;
@@ -104,6 +106,8 @@ body {
 
   body,
   .ft-root {
+    min-height: 100vh;
+    min-height: 100svh;
     min-height: 100dvh;
   }
 
@@ -116,12 +120,14 @@ body {
     touch-action: manipulation;
   }
 
-  /* Header / mobile drawer */
+  /* Header / mobile drawer. Reset legacy offsets that pushed the hamburger
+     outside 360px Samsung/Android viewports. */
   .ft-commerce-header .ft-header-inner {
     min-height: 60px;
     height: 60px;
     gap: 8px !important;
-    padding-inline: 12px !important;
+    padding-left: max(10px, env(safe-area-inset-left)) !important;
+    padding-right: max(10px, env(safe-area-inset-right)) !important;
   }
 
   .ft-commerce-header .ft-header-brand {
@@ -129,9 +135,24 @@ body {
     max-width: calc(100vw - 72px);
   }
 
+  .ft-mobile-menu-trigger {
+    position: relative !important;
+    inset: auto !important;
+    right: auto !important;
+    left: auto !important;
+    margin-left: auto !important;
+    margin-right: 0 !important;
+    transform: none !important;
+    flex: 0 0 44px !important;
+    width: 44px !important;
+    max-width: 44px !important;
+  }
+
   .ft-mobile-commerce-menu {
     width: min(92vw, 380px) !important;
     max-width: 100vw !important;
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
     padding-bottom: max(16px, env(safe-area-inset-bottom));
     overscroll-behavior: contain;
   }
@@ -142,6 +163,8 @@ body {
 
   /* Seller/admin shells */
   .ft-admin-shell {
+    min-height: 100vh;
+    min-height: 100svh;
     min-height: 100dvh;
     overflow-x: clip;
   }
@@ -152,7 +175,8 @@ body {
     min-height: 60px;
     height: auto !important;
     gap: 6px !important;
-    padding-inline: 10px !important;
+    padding-left: max(10px, env(safe-area-inset-left)) !important;
+    padding-right: max(10px, env(safe-area-inset-right)) !important;
   }
 
   .ft-admin-header > .ml-auto {
@@ -176,14 +200,15 @@ body {
 
   .ft-admin-main {
     overflow-x: clip;
-    padding-left: 12px !important;
-    padding-right: 12px !important;
+    padding-left: max(10px, env(safe-area-inset-left)) !important;
+    padding-right: max(10px, env(safe-area-inset-right)) !important;
     padding-bottom: max(96px, calc(env(safe-area-inset-bottom) + 80px)) !important;
   }
 
   .ft-admin-sidebar.fixed {
     width: min(88vw, 304px) !important;
     max-width: 100vw !important;
+    padding-left: env(safe-area-inset-left);
     padding-bottom: env(safe-area-inset-bottom);
   }
 
@@ -219,13 +244,18 @@ body {
   .ft-root :where([role='dialog'], dialog) {
     width: calc(100vw - 20px) !important;
     max-width: calc(100vw - 20px) !important;
+    max-height: calc(100vh - 20px) !important;
+    max-height: calc(100svh - 20px) !important;
     max-height: calc(100dvh - 20px) !important;
     margin: 10px auto !important;
     border-radius: 16px;
   }
 
-  /* Keep fixed mobile navigation and floating CTAs clear of the home indicator. */
+  /* Keep fixed mobile navigation and floating CTAs clear of Android gesture
+     bars and iPhone home indicators / display cutouts. */
   .ft-root nav.fixed.inset-x-0.bottom-0 {
+    padding-left: max(6px, env(safe-area-inset-left)) !important;
+    padding-right: max(6px, env(safe-area-inset-right)) !important;
     padding-bottom: max(6px, env(safe-area-inset-bottom)) !important;
   }
 
@@ -248,11 +278,12 @@ body {
 }
 
 /* -------------------------------------------------------------------------- */
-/* Small phones                                                               */
+/* Small phones: Galaxy S23/S24 class, iPhone SE, compact Android              */
 /* -------------------------------------------------------------------------- */
 @media (max-width: 430px) {
   .ft-commerce-header .ft-header-inner {
-    padding-inline: 10px !important;
+    padding-left: max(10px, env(safe-area-inset-left)) !important;
+    padding-right: max(10px, env(safe-area-inset-right)) !important;
   }
 
   .ft-mobile-commerce-menu {
@@ -261,8 +292,8 @@ body {
   }
 
   .ft-admin-main {
-    padding-left: 10px !important;
-    padding-right: 10px !important;
+    padding-left: max(10px, env(safe-area-inset-left)) !important;
+    padding-right: max(10px, env(safe-area-inset-right)) !important;
   }
 
   .ft-root :where(.ft-card, .glass-card, .stat-card) {
@@ -275,11 +306,26 @@ body {
   }
 }
 
+/* Extra-narrow foldables / compact Android cover screens. */
+@media (max-width: 359px) {
+  .ft-commerce-header .ft-header-inner {
+    gap: 4px !important;
+    padding-inline: 8px !important;
+  }
+
+  .ft-root :where(.ft-card, .glass-card, .stat-card) {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+}
+
 /* Short landscape phones: drawers/modals must remain scrollable. */
 @media (max-width: 900px) and (max-height: 520px) and (orientation: landscape) {
   .ft-mobile-commerce-menu,
   .ft-admin-sidebar.fixed,
   .ft-root :where([role='dialog'], dialog) {
+    max-height: 100vh !important;
+    max-height: 100svh !important;
     max-height: 100dvh !important;
     overflow-y: auto !important;
   }
