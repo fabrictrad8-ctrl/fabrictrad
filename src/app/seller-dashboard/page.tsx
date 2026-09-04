@@ -191,7 +191,7 @@ export default function SellerDashboardPage() {
       </Suspense>
       <Link
         href="/seller-product-rules"
-        className="fixed bottom-24 right-4 z-40 inline-flex min-h-12 items-center gap-2 rounded-full border border-primary/30 bg-card/95 px-4 py-3 text-xs font-800 text-primary shadow-xl backdrop-blur-xl transition hover:-translate-y-0.5 hover:bg-primary hover:text-white md:bottom-6 md:right-6"
+        className="ft-seller-rules-fab fixed bottom-24 right-4 z-40 inline-flex min-h-12 items-center gap-2 rounded-full border border-primary/30 bg-card/95 px-4 py-3 text-xs font-800 text-primary shadow-xl backdrop-blur-xl transition hover:-translate-y-0.5 hover:bg-primary hover:text-white md:bottom-6 md:right-6"
         aria-label="Open product buyer quantity rules"
       >
         <Icon name="AdjustmentsHorizontalIcon" size={17} />
