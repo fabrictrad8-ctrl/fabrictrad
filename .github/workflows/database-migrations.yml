@@ -8,10 +8,12 @@ on:
   push:
     branches:
       - main
+      - 'agent/database-recovery-*'
     paths:
       - 'supabase/migrations/**'
       - '.github/workflows/database-migrations.yml'
   workflow_dispatch:
+  workflow_call:
   schedule:
     - cron: '47 3 * * *'
       timezone: 'Asia/Kolkata'
