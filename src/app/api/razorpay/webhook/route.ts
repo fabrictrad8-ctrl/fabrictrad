@@ -1,3 +1,4 @@
+import { reconcileMarketplacePayment } from '@/lib/server/paymentReconciliation';
 import crypto from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
@@ -38,7 +39,6 @@ const entityFrom = (event: JsonObject, name: string): JsonObject => {
   const wrapper = payload?.[name] as JsonObject | undefined;
   return (wrapper?.entity as JsonObject | undefined) || wrapper || {};
 };
-const roundMoney = (value: number) => Math.round(value * 100) / 100;
 
 async function recordDeadLetter(
   key: string,
@@ -154,97 +154,8 @@ export async function POST(request: NextRequest) {
     return catalog ? normalizePayment(catalog, 'catalog', 'catalog_order_id') : null;
   };
 
-  const reconcileOrder = async (payment: PaymentRecord) => {
-    const paymentTable =
-      payment.kind === 'bulk' ? 'bulk_order_payments' : 'catalog_order_payments';
-    const orderTable = payment.kind === 'bulk' ? 'bulk_orders' : 'catalog_order_requests';
-    const foreignKey = payment.kind === 'bulk' ? 'bulk_order_id' : 'catalog_order_id';
-    const totalColumn = payment.kind === 'bulk' ? 'net_total' : 'total_amount';
-    const paymentsResult = await admin
-      .from(paymentTable)
-      .select('amount,refunded_amount,status')
-      .eq(foreignKey, payment.fabrictradOrderId);
-    const orderResult = payment.kind === 'bulk'
-      ? await admin
-          .from('bulk_orders')
-          .select('id,status,net_total,gross_total,gst_total,seller_id')
-          .eq('id', payment.fabrictradOrderId)
-          .maybeSingle()
-      : await admin
-          .from('catalog_order_requests')
-          .select('id,status,total_amount,gst_amount,gst_rate,seller_id')
-          .eq('id', payment.fabrictradOrderId)
-          .maybeSingle();
-    const payments = paymentsResult.data;
-    const paymentsError = paymentsResult.error;
-    const order = orderResult.data as Record<string, unknown> | null;
-    const orderError = orderResult.error;
-    if (paymentsError || orderError || !order) {
-      throw paymentsError || orderError || new Error('FabricTrad order was not found during reconciliation.');
-    }
-
-    const captured = (payments || [])
-      .filter((item) =>
-        ['captured', 'partially_refunded', 'refunded'].includes(String(item.status))
-      )
-      .reduce((sum, item) => sum + Number(item.amount || 0), 0);
-    const refunded = (payments || []).reduce(
-      (sum, item) => sum + Number(item.refunded_amount || 0),
-      0
-    );
-    const netPaid = Math.max(0, roundMoney(captured - refunded));
-    const total = roundMoney(Number(order[totalColumn] || 0));
-    const paymentStatus =
-      captured > 0 && refunded + 0.01 >= captured
-        ? 'refunded'
-        : refunded > 0
-          ? 'partially_refunded'
-          : netPaid + 0.01 >= total
-            ? 'paid'
-            : netPaid > 0
-              ? 'partial'
-              : 'unpaid';
-
-    const patch: Record<string, unknown> = {
-      amount_paid: roundMoney(captured),
-      amount_refunded: roundMoney(refunded),
-      payment_status: paymentStatus,
-      updated_at: new Date().toISOString(),
-    };
-    if (paymentStatus === 'paid') {
-      patch.status = 'paid';
-      if (payment.kind === 'catalog') patch.paid_at = new Date().toISOString();
-    }
-    const { error: updateError } = await admin
-      .from(orderTable)
-      .update(patch)
-      .eq('id', payment.fabrictradOrderId);
-    if (updateError) throw updateError;
-
-    const gstAmount = Number(
-      payment.kind === 'bulk' ? order.gst_total || 0 : order.gst_amount || 0
-    );
-    const taxableValue = Number(
-      payment.kind === 'bulk'
-        ? order.gross_total || Math.max(0, total - gstAmount)
-        : Math.max(0, total - gstAmount)
-    );
-    const effectiveGstRate =
-      payment.kind === 'catalog'
-        ? Number(order.gst_rate || 0)
-        : taxableValue > 0
-          ? roundMoney((gstAmount / taxableValue) * 100)
-          : 0;
-
-    return {
-      order,
-      captured: roundMoney(captured),
-      refunded: roundMoney(refunded),
-      paymentStatus,
-      gstAmount,
-      effectiveGstRate,
-    };
-  };
+  const reconcileOrder = (payment: PaymentRecord) =>
+    reconcileMarketplacePayment(admin, payment.kind, payment.fabrictradOrderId);
 
   try {
     if (eventType === 'payment.authorized' || eventType === 'payment.captured') {
@@ -358,7 +269,8 @@ export async function POST(request: NextRequest) {
             last_webhook_at: timestamp,
             updated_at: timestamp,
           })
-          .eq('id', payment.id);
+          .eq('id', payment.id)
+          .in('status', ['initiated', 'authorized', 'failed']);
         if (error) throw error;
 
         const orderTable = payment.kind === 'bulk' ? 'bulk_orders' : 'catalog_order_requests';
@@ -390,69 +302,20 @@ export async function POST(request: NextRequest) {
       } else {
         const payment = await findPaymentByPaymentId(paymentId);
         if (!payment) throw new Error('FabricTrad payment record for refund not found.');
-        if (refundAmount > roundMoney(payment.amount - payment.refundedAmount)) {
-          throw new Error('Refund webhook amount exceeds the stored refundable balance.');
-        }
-
-        const table = payment.kind === 'bulk' ? 'bulk_order_payments' : 'catalog_order_payments';
-        const timestamp = new Date().toISOString();
-        if (eventType === 'refund.created') {
-          const { error } = await admin
-            .from(table)
-            .update({
-              refund_status: 'requested',
-              refund_requested_amount: refundAmount,
-              last_refund_request_id: refundId,
-              last_webhook_event: eventType,
-              last_webhook_at: timestamp,
-              updated_at: timestamp,
-            })
-            .eq('id', payment.id);
-          if (error) throw error;
-        } else if (eventType === 'refund.failed') {
-          const { error } = await admin
-            .from(table)
-            .update({
-              refund_status: 'failed',
-              refund_requested_amount: 0,
-              last_refund_request_id: refundId,
-              failure_reason: String(entity.error_description || 'Refund failed').slice(0, 1000),
-              last_webhook_event: eventType,
-              last_webhook_at: timestamp,
-              updated_at: timestamp,
-            })
-            .eq('id', payment.id);
-          if (error) throw error;
-        } else {
-          const nextRefunded = Math.min(
-            payment.amount,
-            roundMoney(payment.refundedAmount + refundAmount)
-          );
-          const nextStatus =
-            nextRefunded + 0.01 >= payment.amount ? 'refunded' : 'partially_refunded';
-          const { error } = await admin
-            .from(table)
-            .update({
-              status: nextStatus,
-              refunded_amount: nextRefunded,
-              refund_status: 'processed',
-              refund_requested_amount: 0,
-              last_refund_request_id: refundId,
-              last_webhook_event: eventType,
-              last_webhook_at: timestamp,
-              updated_at: timestamp,
-            })
-            .eq('id', payment.id);
-          if (error) throw error;
-          await reconcileOrder({ ...payment, refundedAmount: nextRefunded });
-
-          await admin
-            .from('payment_ledger')
-            .update({
-              razorpay_refund_id: refundId,
-              reconciliation_status: 'pending',
-            })
+        const { error } = await admin.rpc('record_marketplace_refund', {
+          p_kind: payment.kind,
+          p_payment_id: payment.id,
+          p_refund_id: refundId,
+          p_amount: refundAmount,
+          p_status: eventType.slice('refund.'.length),
+        });
+        if (error) throw error;
+        if (eventType === 'refund.processed') {
+          await reconcileOrder(payment);
+          const { error: ledgerError } = await admin.from('payment_ledger')
+            .update({ razorpay_refund_id: refundId, reconciliation_status: 'pending' })
             .eq('razorpay_payment_id', paymentId);
+          if (ledgerError) throw ledgerError;
         }
       }
     } else if (eventType === 'transfer.processed') {

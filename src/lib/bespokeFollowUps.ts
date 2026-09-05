@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/admin';
+import { BUYER_WHATSAPP_ENABLED } from '@/lib/commercePolicy';
 import { sendGupshupTemplate, sendGupshupText } from '@/lib/gupshupWhatsApp';
 
 const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || 'https://fabrictrad.com').replace(/\/$/, '');
@@ -269,6 +270,9 @@ async function processOne(job: FollowUpJob) {
 }
 
 export async function processDueBespokeFollowUps(limit = 40) {
+  if (!BUYER_WHATSAPP_ENABLED) {
+    return { due: 0, sent: 0, failed: 0, cancelled: 0, disabled: true };
+  }
   const admin = createAdminClient();
   const staleBefore = new Date(Date.now() - 15 * 60 * 1000).toISOString();
   const recoveredAt = new Date().toISOString();

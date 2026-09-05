@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { BodyLimitError, readLimitedBody } from '@/lib/limitedBody';
 import { imageEdit } from '@rocketnew/llm-sdk';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
@@ -15,8 +16,7 @@ type DrapeRequest = {
   modelImage?: string;
   garmentId?: string;
   fit?: string;
-  fabricImage?: string;
-  fabricName?: string;
+  photoConsent?: boolean;
   styleName?: string;
 };
 
@@ -58,8 +58,6 @@ const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 const MAX_REQUEST_BYTES = 12 * 1024 * 1024;
 const MAX_FABRIC_REFERENCES = 2;
 const MAX_REDIRECTS = 4;
-const DEMO_COOKIE_NAME = 'fabrictrad_demo_role';
-const USAGE_COOKIE_NAME = 'fabrictrad_ai_drape_usage';
 const ALLOWED_MIME = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const DEFAULT_REMOTE_HOSTS = new Set([
@@ -270,7 +268,7 @@ async function inputToBlob(input: string, label = 'reference'): Promise<ImageInp
     throw new DrapeClientError('Image must be smaller than 8 MB.', 400, 'IMAGE_TOO_LARGE');
   }
 
-  const buffer = Buffer.from(await response.arrayBuffer());
+  const buffer = await readLimitedBody(response.body, MAX_IMAGE_BYTES);
   if (buffer.byteLength < 1 || buffer.byteLength > MAX_IMAGE_BYTES) {
     throw new DrapeClientError('Image must be smaller than 8 MB.', 400, 'IMAGE_TOO_LARGE');
   }
@@ -336,6 +334,15 @@ async function resolveListingFabric(
     );
   }
 
+  const { data: seller, error: sellerError } = await supabase.from('seller_profiles')
+    .select('id,user_id').eq('id', product.seller_id).eq('is_active', true).maybeSingle();
+  const { data: sellerAccess } = seller
+    ? await supabase.from('user_profiles').select('is_active,can_sell').eq('id', seller.user_id).maybeSingle()
+    : { data: null };
+  if (sellerError || !sellerAccess?.is_active || !sellerAccess?.can_sell) {
+    throw new DrapeClientError('This seller is unavailable for AI try-on.', 404, 'SELLER_UNAVAILABLE');
+  }
+
   let variant: Record<string, unknown> | null = null;
   if (variantId) {
     const { data, error } = await supabase
@@ -384,14 +391,11 @@ async function resolveListingFabric(
     : [];
   const parentMedia = sortedMedia.filter((row) => !row.variant_id);
 
-  const imageUrls = uniqueUrls([
-    variantMedia.map((row) => row.public_url),
-    variant?.image_url,
-    variant?.image_urls,
-    parentMedia.map((row) => row.public_url),
-    product.image_url,
-    product.image_urls,
-  ]).slice(0, MAX_FABRIC_REFERENCES);
+  // A selected colour must never silently borrow a different colour's photo.
+  const imageUrls = uniqueUrls(variantId
+    ? [variantMedia.map((row) => row.public_url), variant?.image_url, variant?.image_urls]
+    : [parentMedia.map((row) => row.public_url), product.image_url, product.image_urls]
+  ).slice(0, MAX_FABRIC_REFERENCES);
 
   if (!imageUrls.length) {
     throw new DrapeClientError(
@@ -420,53 +424,6 @@ async function resolveListingFabric(
     details: details.slice(0, 300),
     imageUrls,
   };
-}
-
-const todayUtc = () => new Date().toISOString().slice(0, 10);
-
-async function signUsage(payload: string, secret: string) {
-  const key = await crypto.subtle.importKey(
-    'raw',
-    new TextEncoder().encode(secret),
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['sign']
-  );
-  const signature = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(payload));
-  return Buffer.from(signature).toString('base64url');
-}
-
-async function readUsageCookie(request: NextRequest, secret: string) {
-  const value = request.cookies.get(USAGE_COOKIE_NAME)?.value;
-  if (!value) return 0;
-  const [encodedPayload, suppliedSignature] = value.split('.');
-  if (!encodedPayload || !suppliedSignature) return 0;
-
-  let payload: string;
-  try {
-    payload = Buffer.from(encodedPayload, 'base64url').toString('utf8');
-  } catch {
-    return 0;
-  }
-
-  const expectedSignature = await signUsage(payload, secret);
-  if (expectedSignature !== suppliedSignature) return 0;
-  const [day, rawCount] = payload.split(':');
-  if (day !== todayUtc()) return 0;
-  return safeInteger(rawCount, 0, 0, 100);
-}
-
-async function writeUsageCookie(response: NextResponse, count: number, secret: string) {
-  const payload = `${todayUtc()}:${count}`;
-  const encodedPayload = Buffer.from(payload).toString('base64url');
-  const signature = await signUsage(payload, secret);
-  response.cookies.set(USAGE_COOKIE_NAME, `${encodedPayload}.${signature}`, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    path: '/',
-    maxAge: 60 * 60 * 30,
-  });
 }
 
 function resolveGarment(body: DrapeRequest) {
@@ -678,10 +635,7 @@ export async function POST(request: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  const demoRole = request.cookies.get(DEMO_COOKIE_NAME)?.value;
-  const isDemoBuyer = !user && demoRole === 'buyer';
-
-  if (!user && !isDemoBuyer) {
+  if (!user) {
     return NextResponse.json(
       { error: 'Buyer authentication is required.', code: 'BUYER_AUTH_REQUIRED' },
       { status: 401 }
@@ -691,10 +645,10 @@ export async function POST(request: NextRequest) {
   if (user) {
     const { data: buyerAccess, error: accessError } = await supabase
       .from('user_profiles')
-      .select('can_buy,is_active')
+      .select('role,can_buy,is_active')
       .eq('id', user.id)
       .maybeSingle();
-    if (accessError || !buyerAccess?.is_active || !buyerAccess?.can_buy) {
+    if (accessError || buyerAccess?.role !== 'buyer' || !buyerAccess?.is_active || !buyerAccess?.can_buy) {
       return NextResponse.json(
         { error: 'Buyer access is required for AI try-on.', code: 'BUYER_ACCESS_REQUIRED' },
         { status: 403 }
@@ -703,11 +657,22 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const body = (await request.json()) as DrapeRequest;
+    let body: DrapeRequest;
+    try {
+      const raw = await readLimitedBody(request.body, MAX_REQUEST_BYTES);
+      body = JSON.parse(new TextDecoder().decode(raw));
+      if (!body || typeof body !== 'object' || Array.isArray(body)) throw new SyntaxError();
+    } catch (error) {
+      if (error instanceof BodyLimitError) throw error;
+      throw new DrapeClientError('Invalid try-on request.', 400, 'INVALID_REQUEST');
+    }
     const subjectMode: SubjectMode = body.subjectMode === 'ai_model' ? 'ai_model' : 'own_photo';
     const modelGender: ModelGender = body.modelGender === 'man' ? 'man' : 'woman';
 
-    if (subjectMode === 'own_photo' && !body.modelImage) {
+    if (subjectMode === 'own_photo' && body.photoConsent !== true) {
+      throw new DrapeClientError('Permission to process this photo is required.', 400, 'PHOTO_CONSENT_REQUIRED');
+    }
+    if (subjectMode === 'own_photo' && (typeof body.modelImage !== 'string' || !body.modelImage)) {
       throw new DrapeClientError(
         'Choose or upload a person photo first.',
         400,
@@ -715,26 +680,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    let fabricReference: FabricReference;
-    if (body.productId) {
-      fabricReference = await resolveListingFabric(
-        createAdminClient(),
-        body.productId,
-        body.variantId
-      );
-    } else if (body.fabricImage) {
-      fabricReference = {
-        name: String(body.fabricName || 'Selected textile').slice(0, 160),
-        variantName: null,
-        details: '',
-        imageUrls: [body.fabricImage],
-      };
-    } else {
-      throw new DrapeClientError(
-        'Select a live FabricTrad product before generating a try-on.',
-        400,
-        'PRODUCT_REQUIRED'
-      );
+    if (typeof body.productId !== 'string' || !body.productId) {
+      throw new DrapeClientError('Select a live FabricTrad product before generating a try-on.', 400, 'PRODUCT_REQUIRED');
+    }
+    const fabricReference = await resolveListingFabric(createAdminClient(), body.productId, body.variantId);
+
+    const { data: quotaAllowed, error: quotaError } = await supabase.rpc('consume_api_quota', {
+      p_feature: 'ai_drape',
+      p_daily_limit: safeInteger(process.env.AI_DRAPE_DAILY_LIMIT, 10, 1, 100),
+    });
+    if (quotaError) {
+      console.error('AI drape quota unavailable', { code: quotaError.code });
+      throw new DrapeClientError('AI try-on is temporarily unavailable. Please retry later.', 503, 'AI_QUOTA_UNAVAILABLE');
+    }
+    if (quotaAllowed !== true) {
+      throw new DrapeClientError('Daily AI image limit reached.', 429, 'AI_DAILY_LIMIT_REACHED');
     }
 
     console.info('AI drape preparing references', {
@@ -764,47 +724,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const cookieSecret = process.env.AI_DRAPE_COOKIE_SECRET || openAiKey || geminiKey!;
-    let cookieQuotaUsed = false;
-    let usageCount = 0;
-
-    if (user) {
-      const { data: quotaAllowed, error: quotaError } = await supabase.rpc('consume_api_quota', {
-        p_feature: 'ai_drape',
-        p_daily_limit: safeInteger(process.env.AI_DRAPE_DAILY_LIMIT, 10, 1, 100),
-      });
-      if (quotaError) {
-        console.warn(
-          'AI drape database quota unavailable; using signed browser quota.',
-          quotaError.message
-        );
-        cookieQuotaUsed = true;
-      } else if (!quotaAllowed) {
-        return NextResponse.json(
-          { error: 'Daily AI image limit reached.', code: 'AI_DAILY_LIMIT_REACHED' },
-          { status: 429 }
-        );
-      }
-    } else {
-      cookieQuotaUsed = true;
-    }
-
-    if (cookieQuotaUsed) {
-      usageCount = await readUsageCookie(request, cookieSecret);
-      const cookieLimit = isDemoBuyer
-        ? safeInteger(process.env.AI_DRAPE_DEMO_DAILY_LIMIT, 2, 1, 5)
-        : safeInteger(process.env.AI_DRAPE_FALLBACK_DAILY_LIMIT, 3, 1, 10);
-      if (usageCount >= cookieLimit) {
-        return NextResponse.json(
-          {
-            error: 'Daily AI image limit reached for this browser.',
-            code: 'AI_BROWSER_DAILY_LIMIT_REACHED',
-          },
-          { status: 429 }
-        );
-      }
-    }
-
     const styleName = resolveGarment(body);
     const prompt = buildPrompt(
       fabricReference,
@@ -813,7 +732,6 @@ export async function POST(request: NextRequest) {
       subjectMode,
       modelGender
     );
-    const providerErrors: Array<{ provider: string; message: string }> = [];
     let generated: GeneratedDrape | null = null;
 
     if (openAiKey) {
@@ -821,8 +739,6 @@ export async function POST(request: NextRequest) {
         generated = await generateWithOpenAI(person, fabricInputs, prompt, openAiKey);
       } catch (error) {
         if (error instanceof DrapeClientError) throw error;
-        const message = error instanceof Error ? error.message : 'OpenAI image generation failed.';
-        providerErrors.push({ provider: 'OpenAI', message });
         console.error('OpenAI drape generation failed:', error);
       }
     }
@@ -831,8 +747,6 @@ export async function POST(request: NextRequest) {
       try {
         generated = await generateWithGemini(person, fabricInputs, prompt, geminiKey);
       } catch (error) {
-        const message = error instanceof Error ? error.message : 'Gemini image generation failed.';
-        providerErrors.push({ provider: 'Gemini', message });
         console.error('Gemini drape generation failed:', error);
       }
     }
@@ -840,12 +754,9 @@ export async function POST(request: NextRequest) {
     if (!generated) {
       return NextResponse.json(
         {
-          error: openAiKey
-            ? 'OpenAI GPT Image received the drape request but could not produce a result. Please retry.'
-            : 'AI virtual try-on generation failed. Please retry.',
+          error: 'AI virtual try-on could not produce a result. Please retry.',
           code: 'AI_PROVIDER_GENERATION_FAILED',
           providerAttempted: openAiKey ? 'OpenAI' : geminiKey ? 'Gemini' : null,
-          providerError: providerErrors[0]?.message || null,
         },
         { status: 502 }
       );
@@ -873,11 +784,11 @@ export async function POST(request: NextRequest) {
       { headers: { 'Cache-Control': 'no-store, max-age=0' } }
     );
 
-    if (cookieQuotaUsed) {
-      await writeUsageCookie(response, usageCount + 1, cookieSecret);
-    }
     return response;
   } catch (error) {
+    if (error instanceof BodyLimitError) {
+      return NextResponse.json({ error: 'Image or request is too large.', code: 'REQUEST_TOO_LARGE' }, { status: 413 });
+    }
     if (error instanceof DrapeClientError) {
       return NextResponse.json(
         { error: error.message, code: error.code || 'DRAPE_CLIENT_ERROR' },

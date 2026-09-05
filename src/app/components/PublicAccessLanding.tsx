@@ -6,7 +6,6 @@ import Icon from '@/components/ui/AppIcon';
 import PreferenceControls from '@/components/PreferenceControls';
 import { useAppPreferences } from '@/contexts/AppPreferencesContext';
 import { getPublicLandingCopy } from '@/lib/publicLandingTranslations';
-import { whatsappStartUrl } from '@/lib/bespokeWorkflow';
 
 const capabilityIcons = ['MagnifyingGlassIcon', 'BuildingStorefrontIcon', 'SparklesIcon'] as const;
 const trustIcons = ['ShieldCheckIcon', 'CreditCardIcon', 'TruckIcon'] as const;
@@ -16,7 +15,7 @@ export default function PublicAccessLanding() {
   const copy = getPublicLandingCopy(language);
 
   return (
-    <main id="main-content" className="ft-future-landing min-h-screen overflow-hidden text-slate-900">
+    <main className="ft-future-landing min-h-screen overflow-hidden text-slate-900">
       <header className="ft-future-topbar">
         <div className="ft-future-nav">
           <Link href="/" className="ft-future-brand" aria-label="FabricTrad home">
@@ -65,14 +64,6 @@ export default function PublicAccessLanding() {
             <Link href="/how-to-use/start" className="ft-secondary-action rounded-xl">
               {copy.watchHowItWorks}
             </Link>
-            <a
-              href={whatsappStartUrl()}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#25D366] px-5 py-3 text-sm font-850 text-white shadow-sm transition hover:brightness-95"
-            >
-              <Icon name="ChatBubbleLeftRightIcon" size={17} /> WhatsApp +91 79772 86898
-            </a>
           </div>
 
           <div className="ft-future-trustline">

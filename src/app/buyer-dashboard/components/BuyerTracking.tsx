@@ -1,4 +1,5 @@
 'use client';
+import { validTrackingUrl } from '@/lib/shippingValidation';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Icon from '@/components/ui/AppIcon';
@@ -184,7 +185,7 @@ export default function BuyerTracking() {
 
                   <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-xl bg-muted p-3">
                     <p className="text-xs text-muted-foreground">Last update: {new Date(shipment.updated_at).toLocaleString('en-IN')}</p>
-                    {shipment.tracking_url && <a href={shipment.tracking_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs font-800 text-primary hover:underline"><Icon name="ArrowTopRightOnSquareIcon" size={12} /> Open courier tracking</a>}
+                    {shipment.tracking_url && validTrackingUrl(shipment.tracking_url) && <a href={shipment.tracking_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs font-800 text-primary hover:underline"><Icon name="ArrowTopRightOnSquareIcon" size={12} /> Open courier tracking</a>}
                   </div>
                 </div>
               </article>

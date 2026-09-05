@@ -12,6 +12,7 @@ node_modules/
 .open-next/
 out/
 build/
+dist/
 
 # Logs
 npm-debug.log*

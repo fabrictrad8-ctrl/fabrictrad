@@ -1,3 +1,5 @@
+import { readLimitedBody } from '@/lib/limitedBody';
+
 const GUPSHUP_MESSAGE_URL = 'https://api.gupshup.io/wa/api/v1/msg';
 const GUPSHUP_TEMPLATE_URL = 'https://api.gupshup.io/wa/api/v1/template/msg';
 
@@ -148,7 +150,8 @@ export async function downloadGupshupMedia(mediaUrl: string, maxBytes: number) {
   if (!response.ok) throw new Error(`gupshup_media_download_${response.status}`);
   const declared = Number(response.headers.get('content-length') || 0);
   if (declared > maxBytes) throw new Error('media_too_large');
-  const buffer = Buffer.from(await response.arrayBuffer());
+  const bytes = await readLimitedBody(response.body, Math.min(maxBytes, 20 * 1024 * 1024));
+  const buffer = Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   if (!buffer.length || buffer.length > maxBytes) throw new Error('media_too_large');
   const mime = String(response.headers.get('content-type') || 'application/octet-stream')
     .split(';')[0]

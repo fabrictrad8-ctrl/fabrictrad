@@ -2,7 +2,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { downloadGupshupMedia, sendGupshupText } from '@/lib/gupshupWhatsApp';
 
 const MEDIA_BUCKET = 'seller-product-media';
-const MAX_MEDIA_BYTES = 50 * 1024 * 1024;
+const MAX_MEDIA_BYTES = 20 * 1024 * 1024;
 const SESSION_MINUTES = 30;
 
 export const SELLER_CATALOG_REQUIRED_FIELDS = [
@@ -148,6 +148,9 @@ const numericFields = new Set<keyof SellerCatalogDraft>([
 
 const clean = (value: unknown, max = 1000) =>
   (typeof value === 'string' ? value.trim() : '').replace(/\s+/g, ' ').slice(0, max);
+
+export const normalizeSellerCatalogText = (value: unknown) =>
+  (typeof value === 'string' ? value : '').replace(/\r\n?/g, '\n').trim().slice(0, 12_000);
 
 const normalizePhone = (value: unknown) => {
   const digits = typeof value === 'string' ? value.replace(/\D/g, '') : '';
@@ -347,7 +350,8 @@ async function attachMediaToProduct(identity: SellerIdentity, productId: string,
     ? product.image_urls.map((item: unknown) => String(item)).filter(Boolean)
     : [];
   const newUrls = media.map((item) => item.publicUrl).filter((url) => !existingUrls.includes(url));
-  const mergedUrls = [...existingUrls, ...newUrls].slice(0, 20);
+  const imageUrls = media.filter((item) => item.mimeType.startsWith('image/')).map((item) => item.publicUrl);
+  const mergedUrls = Array.from(new Set([...existingUrls, ...imageUrls])).slice(0, 20);
 
   if (newUrls.length) {
     const rows = media
@@ -405,7 +409,7 @@ async function saveInboundAudit(
       wa_message_id: incoming.id,
       from_phone: identity.whatsappNo,
       message_type: incoming.type,
-      message_text: clean(incoming.text, 12_000) || null,
+      message_text: normalizeSellerCatalogText(incoming.text) || null,
       media_id: incoming.mediaUrl || null,
       media_storage_path: values.storagePath || null,
       media_mime_type: values.mimeType || null,
@@ -431,6 +435,9 @@ async function handleMedia(identity: SellerIdentity, incoming: SellerCatalogInco
   }
 
   const downloaded = await downloadGupshupMedia(incoming.mediaUrl, MAX_MEDIA_BYTES);
+  if (!['image/jpeg', 'image/png', 'image/webp', 'video/mp4', 'video/webm', 'video/quicktime'].includes(downloaded.mime)) {
+    throw new Error('unsupported_downloaded_media_type');
+  }
   const extension = extensionFor(downloaded.mime);
   const storagePath = `whatsapp/${identity.sellerId}/${incoming.id}.${extension}`;
   const admin = createAdminClient();
@@ -480,7 +487,7 @@ async function handleMedia(identity: SellerIdentity, incoming: SellerCatalogInco
 }
 
 async function handleText(identity: SellerIdentity, incoming: SellerCatalogIncoming) {
-  const text = clean(incoming.text, 12_000);
+  const text = normalizeSellerCatalogText(incoming.text);
   const command = text.toLowerCase();
   if (!text || ['format', 'template', 'help', 'add product', 'catalog format', 'catalogue format'].includes(command)) {
     await saveInboundAudit(identity, incoming, { status: 'format_sent' });
@@ -534,7 +541,7 @@ async function handleText(identity: SellerIdentity, incoming: SellerCatalogIncom
 
   const queuedMedia = Array.isArray(session?.pending_media) ? (session?.pending_media as PendingMedia[]) : [];
   const explicitImage = merged.image_url && /^https:\/\//i.test(merged.image_url) ? merged.image_url : null;
-  const mediaUrls = queuedMedia.map((item) => item.publicUrl);
+  const mediaUrls = queuedMedia.filter((item) => item.mimeType.startsWith('image/')).map((item) => item.publicUrl);
   const imageUrls = Array.from(new Set([...(explicitImage ? [explicitImage] : []), ...mediaUrls])).slice(0, 20);
   const saleChannel = merged.sale_channel as 'b2b' | 'retail' | 'both';
   const moq = Math.max(1, Math.trunc(merged.moq || 1));
@@ -561,6 +568,7 @@ async function handleText(identity: SellerIdentity, incoming: SellerCatalogIncom
       origin_city: clean(merged.origin_city, 120) || null,
       origin_state: clean(merged.origin_state, 120) || null,
       status: merged.status || 'draft',
+      approval_status: 'pending',
       source: 'whatsapp',
       source_reference: incoming.id,
       sale_channel: saleChannel,
@@ -614,13 +622,16 @@ export async function tryHandleSellerCatalogMessage(incoming: SellerCatalogIncom
   const admin = createAdminClient();
   const { data: existing } = await admin
     .from('whatsapp_catalog_ingestions')
-    .select('id')
+    .select('id,status')
     .eq('wa_message_id', incoming.id)
     .maybeSingle();
-  if (existing?.id) return { handled: true as const, duplicate: true };
+  if (existing?.id && existing.status !== 'failed') return { handled: true as const, duplicate: true };
 
   try {
     if (incoming.mediaUrl) {
+      if (Object.keys(parseSellerCatalogFormat(normalizeSellerCatalogText(incoming.text))).length) {
+        await handleText(identity, incoming);
+      }
       await handleMedia(identity, incoming);
     } else {
       await handleText(identity, incoming);

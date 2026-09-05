@@ -17,6 +17,7 @@ const config = [
       '.open-next/**',
       'out/**',
       'build/**',
+      'dist/**',
       'coverage/**',
       'public/**',
       'next-env.d.ts',

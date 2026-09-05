@@ -128,7 +128,7 @@ export default function BuyerStoreClaimGate({ children }: Props) {
             <p className="text-xs font-800 uppercase tracking-[0.14em] text-primary">Required onboarding step</p>
             <h2 className="mt-1 text-xl font-900 text-foreground">Reserve your FabricTrad store name</h2>
             <p className="mt-2 text-sm leading-6 text-muted-foreground">
-              Every retail buyer gets a unique public store identity. Two accounts cannot use the same normalized name, and the same identity can be recognised when you message FabricTrad from your registered WhatsApp number.
+              Every retail buyer gets a unique public store identity. Two accounts cannot use the same normalized name. Manage your orders and support from your buyer dashboard.
             </p>
           </div>
         </div>

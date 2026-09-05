@@ -151,7 +151,7 @@ export default function PhoneCollectionPage() {
   }
 
   return (
-    <main id="main-content" className="gradient-hero flex min-h-screen flex-col items-center justify-center px-4 py-10">
+    <main className="gradient-hero flex min-h-screen flex-col items-center justify-center px-4 py-10">
       <section className="w-full max-w-md">
         <div className="mb-7 text-center">
           <div className="mb-4 inline-flex items-center gap-2">

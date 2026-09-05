@@ -199,8 +199,20 @@ export async function POST(request: NextRequest) {
     return json({ error: 'Authentication is required to submit the seller application.' }, 401);
   }
 
-  const role = user.app_metadata?.role || user.user_metadata?.role;
-  if (role !== 'seller') return json({ error: 'This account is not registered as a seller.' }, 403);
+  const { data: sellerAccess, error: sellerAccessError } = await serverClient
+    .from('user_profiles')
+    .select('role,is_active,can_sell')
+    .eq('id', user.id)
+    .maybeSingle();
+  if (sellerAccessError) {
+    return json({ error: 'Seller access could not be verified right now.' }, 503);
+  }
+  if (sellerAccess?.is_active === false) {
+    return json({ error: 'This account is inactive.' }, 403);
+  }
+  if (!sellerAccess || (sellerAccess.role !== 'seller' && sellerAccess.can_sell !== true)) {
+    return json({ error: 'This account is not registered as a seller.' }, 403);
+  }
 
   const client = admin || serverClient;
   try {

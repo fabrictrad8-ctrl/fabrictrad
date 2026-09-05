@@ -5,7 +5,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-const MEDIA_BUCKET = 'seller-whatsapp-inbox';
+const MEDIA_BUCKET = 'seller-product-media';
 
 const json = (body: Record<string, unknown>, status = 200) =>
   NextResponse.json(body, {
@@ -22,10 +22,11 @@ export async function GET() {
 
   const { data: seller, error: sellerError } = await supabase
     .from('seller_profiles')
-    .select('id')
+    .select('id,is_active')
     .eq('user_id', user.id)
     .maybeSingle();
-  if (sellerError || !seller?.id) {
+  const { data: profile } = await supabase.from('user_profiles').select('can_sell,is_active').eq('id', user.id).maybeSingle();
+  if (sellerError || !seller?.id || seller.is_active !== true || profile?.is_active !== true || profile?.can_sell !== true) {
     return json({ error: 'Complete seller onboarding before using WhatsApp catalog sync.' }, 403);
   }
 

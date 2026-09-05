@@ -89,7 +89,6 @@ export default function ProductInfoV2() {
   const [buyerType, setBuyerType] = useState<BuyerType>('end_user');
   const [buyerGstin, setBuyerGstin] = useState<string | null>(null);
   const [buyerGstinStatus, setBuyerGstinStatus] = useState('not_provided');
-  const [sellerGstinVerified, setSellerGstinVerified] = useState(false);
   const [productPolicy, setProductPolicy] = useState<PolicyRow | null>(null);
   const [variantPolicy, setVariantPolicy] = useState<PolicyRow | null>(null);
   const [company, setCompany] = useState<Company | null>(null);
@@ -117,7 +116,6 @@ export default function ProductInfoV2() {
         let resolvedProductPolicy: PolicyRow | null = null;
         let resolvedVariantPolicy: PolicyRow | null = null;
         let resolvedCatalogRule: CatalogRule | null = null;
-        let resolvedSellerGstinVerified = false;
 
         if (user?.id) {
           const { data: buyer, error: buyerError } = await supabase
@@ -189,18 +187,6 @@ export default function ProductInfoV2() {
             resolvedVariantPolicy = variantRow as PolicyRow | null;
           }
 
-          if (product.sellerId) {
-            const { data: seller, error: sellerError } = await supabase
-              .from('seller_profiles')
-              .select('gstin_status,gstin_verified')
-              .eq('id', product.sellerId)
-              .eq('is_active', true)
-              .maybeSingle();
-            if (sellerError) throw sellerError;
-            resolvedSellerGstinVerified =
-              seller?.gstin_status === 'active' || seller?.gstin_verified === true;
-          }
-
           if (resolvedBuyerType === 'retail_store' && product.sellerId) {
             const { data: catalogData, error: catalogError } = await supabase
               .from('seller_catalogs')
@@ -251,7 +237,6 @@ export default function ProductInfoV2() {
         setProductPolicy(resolvedProductPolicy);
         setVariantPolicy(resolvedVariantPolicy);
         setCatalogRule(resolvedCatalogRule);
-        setSellerGstinVerified(resolvedSellerGstinVerified);
       } catch (caught) {
         if (mounted) {
           toast.error(caught instanceof Error ? caught.message : 'Buyer rules could not be loaded.');

@@ -297,9 +297,9 @@ for (const routeCase of routes) {
     }
 
     await expect(page.locator('body')).not.toContainText(/Application error|Internal Server Error|This page could not be found|NEXT_NOT_FOUND/i);
-    await expect(page.locator('main').first()).toBeVisible();
     await expect(page.locator('.ft-skip-link')).toHaveCount(1);
-    await expect(page.locator('main#main-content').first()).toHaveCount(1);
+    await expect(page.locator('#main-content')).toHaveCount(1);
+    await expect(page.locator('#main-content main').first()).toBeVisible();
 
     const duplicateIds = await page.evaluate(() => {
       const seen = new Set<string>();

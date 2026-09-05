@@ -108,12 +108,11 @@ export default function RootLayout({
       <body className="ft-root">
         <AuthProvider>
           <AppPreferencesProvider>
-            <RouteExperienceEnhancer />
             <AppClientEnhancements />
             <PageContinuity />
             <PublicHowToUseNavigation />
             <SitewideLanguageControl />
-            {children}
+            <RouteExperienceEnhancer>{children}</RouteExperienceEnhancer>
           </AppPreferencesProvider>
         </AuthProvider>
       </body>

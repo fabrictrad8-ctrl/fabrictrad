@@ -24,7 +24,7 @@ async function authSeller() {
     admin.from('user_profiles').select('id,email,full_name,phone,can_sell,is_active').eq('id', user.id).maybeSingle(),
     admin.from('seller_profiles').select('id,user_id,contact_name,contact_email,contact_phone,whatsapp_no,is_active').eq('user_id', user.id).maybeSingle(),
   ]);
-  if (!profile?.id || !seller?.id || profile.can_sell !== true || seller.is_active !== true) return null;
+  if (!profile?.id || !seller?.id || profile.is_active !== true || profile.can_sell !== true || seller.is_active !== true) return null;
   return { user, profile, seller, admin };
 }
 

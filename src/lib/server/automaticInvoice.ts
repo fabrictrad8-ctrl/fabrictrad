@@ -165,11 +165,14 @@ export async function ensureAutomaticInvoice(input: AutomaticInvoiceInput) {
   }
 
   const attemptedAt = new Date().toISOString();
-  await input.admin
+  const { data: claim, error: claimError } = await input.admin
     .from('seller_tax_invoices')
     .update({ email_status: 'sending', email_attempted_at: attemptedAt, email_last_error: null, updated_at: attemptedAt })
     .eq('id', invoice.id)
-    .neq('email_status', 'sent');
+    .neq('email_status', 'sent')
+    .or(`email_status.neq.sending,email_attempted_at.lt.${new Date(Date.now() - 180_000).toISOString()}`)
+    .select('id').maybeSingle();
+  if (claimError || !claim) return { invoice, emailed: false, error: 'Invoice delivery is already in progress or could not be reserved.' };
 
   const body = buildInvoiceEmail(invoice);
   const from = (process.env.INVOICE_FROM_EMAIL || 'billing@fabrictrad.com').trim();
@@ -201,7 +204,7 @@ export async function ensureAutomaticInvoice(input: AutomaticInvoiceInput) {
     if (!response.ok || !result.id) throw new Error(result.message || result.error || `Resend returned HTTP ${response.status}`);
 
     const sentAt = new Date().toISOString();
-    await input.admin
+    const { error: receiptError } = await input.admin
       .from('seller_tax_invoices')
       .update({
         email_status: 'sent',
@@ -212,6 +215,7 @@ export async function ensureAutomaticInvoice(input: AutomaticInvoiceInput) {
         updated_at: sentAt,
       })
       .eq('id', invoice.id);
+    if (receiptError) throw new Error('Email provider accepted the invoice, but its receipt could not be saved. Retry uses the same invoice identifier.');
     return { invoice: { ...invoice, email_status: 'sent', email_provider_id: result.id }, emailed: true, error: null };
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Invoice email delivery failed.';

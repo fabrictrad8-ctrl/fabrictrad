@@ -1,6 +1,5 @@
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
-import { configuredAdminEmail } from '@/lib/adminAccess';
 import { createClient } from '@/lib/supabase/server';
 
 export const dynamic = 'force-dynamic';

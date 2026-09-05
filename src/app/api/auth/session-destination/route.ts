@@ -44,15 +44,20 @@ const destinationFor = (role: AccountRole, requestedNext: string | null) => {
   return '/marketplace';
 };
 
-const metadataRole = (user: {
-  app_metadata?: Record<string, unknown>;
-  user_metadata?: Record<string, unknown>;
-}): AccountRole => {
-  const value = user.app_metadata?.role || user.user_metadata?.role;
+const trustedMetadataRole = (user: { app_metadata?: Record<string, unknown> }): AccountRole => {
+  const value = user.app_metadata?.role;
   return value === 'seller' || value === 'admin_staff' || value === 'super_admin'
     ? value
     : 'buyer';
 };
+
+const requestedOnboardingRole = (user: {
+  app_metadata?: Record<string, unknown>;
+  user_metadata?: Record<string, unknown>;
+}): 'buyer' | 'seller' =>
+  user.app_metadata?.role === 'seller' || user.user_metadata?.role === 'seller'
+    ? 'seller'
+    : 'buyer';
 
 const accountRole = (profile: ProfileRow | null, fallback: AccountRole): AccountRole =>
   profile?.role === 'seller' ||
@@ -71,8 +76,9 @@ export async function GET(request: NextRequest) {
 
   if (userError || !user) return json({ authenticated: false }, 401);
 
-  const fallbackRole = metadataRole(user);
-  const metadataRequestedRole = fallbackRole === 'seller' ? 'seller' : 'buyer';
+  const fallbackRole = trustedMetadataRole(user);
+  // The signup choice may guide profile creation, but it never grants route access.
+  const metadataRequestedRole = requestedOnboardingRole(user);
 
   const loadWorkspace = async () => {
     const profileResult = await supabase

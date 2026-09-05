@@ -163,14 +163,15 @@ export async function middleware(request: NextRequest) {
     return withRefreshedCookies(NextResponse.redirect(loginUrl), response);
   }
 
-  const role = profile?.role || user.app_metadata?.role || user.user_metadata?.role || 'buyer';
+  // user_metadata is editable by the signed-in user and must never grant a workspace.
+  const role = profile?.role || user.app_metadata?.role || 'buyer';
   const hasAdminRole = role === 'admin_staff' || role === 'super_admin';
   const isAdmin =
     normalizedEmail === configuredAdminEmail() &&
     profile?.is_active === true &&
     hasAdminRole;
-  const canBuy = !hasAdminRole && (profile?.can_buy ?? true);
-  const canSell = !hasAdminRole && (profile?.can_sell ?? role === 'seller');
+  const canBuy = !hasAdminRole && (profile?.can_buy ?? role === 'buyer');
+  const canSell = !hasAdminRole && (profile?.can_sell ?? false);
 
   if (isAdminApi && !isAdmin) {
     return adminApiError('This account is not authorised for FabricTrad administration.', 403);

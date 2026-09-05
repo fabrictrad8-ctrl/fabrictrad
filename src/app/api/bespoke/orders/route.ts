@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
   };
   const productId = typeof body.productId === 'string' && body.productId ? body.productId : null;
   const storeId = typeof body.storeId === 'string' && body.storeId ? body.storeId : null;
-  const source = body.source === 'whatsapp' ? 'whatsapp' : 'website';
+  const source = 'website';
   const admin = createAdminClient();
 
   if (productId) {

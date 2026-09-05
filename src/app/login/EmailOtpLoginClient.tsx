@@ -40,7 +40,7 @@ const defaultDestinationForRole = (role?: AccountRole | null) =>
   role === 'admin_staff' || role === 'super_admin'
     ? '/admin-portal'
     : role === 'seller'
-      ? '/account'
+      ? '/seller-dashboard'
       : '/marketplace';
 
 const destinationForRole = (role?: AccountRole | null, requestedNext?: string | null) => {
@@ -322,21 +322,21 @@ export default function EmailOtpLoginClient() {
 
             {mode === 'login' ? (
               <form className="mt-6 space-y-5" onSubmit={handleLogin}>
-                <label className="block text-sm font-650">
+                <label className="block text-sm font-650" htmlFor="login-email">
                   Email
-                  <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" required className="ft-auth-field mt-2 px-4 py-3.5 outline-none" placeholder="you@business.com" />
+                  <input id="login-email" name="email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" required className="ft-auth-field mt-2 px-4 py-3.5 outline-none" placeholder="you@business.com" />
                 </label>
 
-                <label className="block text-sm font-650">
+                <div className="block text-sm font-650">
                   <span className="flex items-center justify-between gap-4">
-                    <span>Password</span>
+                    <label htmlFor="login-password">Password</label>
                     <button type="button" onClick={openForgotPassword} className="text-xs font-800 text-orange-700 hover:text-orange-900">Forgot password?</button>
                   </span>
                   <span className="relative mt-2 block">
-                    <input type={showPassword ? 'text' : 'password'} value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" required className="ft-auth-field w-full px-4 py-3.5 pr-16 outline-none" placeholder="Enter your password" />
-                    <button type="button" onClick={() => setShowPassword((current) => !current)} className="absolute inset-y-0 right-0 px-4 text-xs font-750 text-slate-500 hover:text-slate-900">{showPassword ? 'Hide' : 'Show'}</button>
+                    <input id="login-password" name="password" type={showPassword ? 'text' : 'password'} value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" required className="ft-auth-field w-full px-4 py-3.5 pr-16 outline-none" placeholder="Enter your password" />
+                    <button type="button" onClick={() => setShowPassword((current) => !current)} aria-controls="login-password" aria-pressed={showPassword} aria-label={showPassword ? 'Hide password' : 'Show password'} className="absolute inset-y-0 right-0 px-4 text-xs font-750 text-slate-500 hover:text-slate-900">{showPassword ? 'Hide' : 'Show'}</button>
                   </span>
-                </label>
+                </div>
 
                 <button type="submit" disabled={submitting || googleSubmitting} className="ft-auth-submit px-4 py-3.5 disabled:cursor-not-allowed disabled:opacity-60">
                   {submitting ? 'Opening your account…' : requestedNext ? 'Sign in and continue' : 'Continue to FabricTrad'}
@@ -383,8 +383,8 @@ export default function EmailOtpLoginClient() {
                     <button type="button" onClick={() => setShowNewPassword((current) => !current)} className="absolute inset-y-0 right-0 px-4 text-xs font-750 text-slate-500 hover:text-slate-900">{showNewPassword ? 'Hide' : 'Show'}</button>
                   </span>
                 </label>
-                <label className="block text-sm font-650">Confirm new password
-                  <input type={showNewPassword ? 'text' : 'password'} value={confirmNewPassword} onChange={(event) => setConfirmNewPassword(event.target.value)} autoComplete="new-password" minLength={8} required className="ft-auth-field mt-2 px-4 py-3.5 outline-none" placeholder="Repeat your new password" />
+                <label className="block text-sm font-650" htmlFor="confirm-recovery-password">Confirm new password
+                  <input id="confirm-recovery-password" type={showNewPassword ? 'text' : 'password'} value={confirmNewPassword} onChange={(event) => setConfirmNewPassword(event.target.value)} autoComplete="new-password" minLength={8} required className="ft-auth-field mt-2 px-4 py-3.5 outline-none" placeholder="Repeat your new password" />
                 </label>
                 <button type="submit" disabled={submitting} className="ft-auth-submit px-4 py-3.5 disabled:opacity-60">{submitting ? 'Setting new password…' : 'Set new password'}</button>
                 <button type="button" onClick={backToSignIn} disabled={submitting} className="w-full text-sm text-slate-500 hover:text-slate-900">Cancel and return to sign in</button>

@@ -52,6 +52,7 @@ export async function fetchRazorpayPayment(input: {
         Accept: 'application/json',
       },
       cache: 'no-store',
+      signal: AbortSignal.timeout(15_000),
     }
   );
 

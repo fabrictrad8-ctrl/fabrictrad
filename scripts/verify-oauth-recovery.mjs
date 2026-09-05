@@ -81,9 +81,9 @@ assert(
   accountLogin.includes("role === 'admin_staff' || role === 'super_admin'") &&
     accountLogin.includes("? '/admin-portal'") &&
     accountLogin.includes("role === 'seller'") &&
-    accountLogin.includes("? '/account'") &&
+    accountLogin.includes("? '/seller-dashboard'") &&
     accountLogin.includes(": '/marketplace'"),
-  'Buyer accounts must open the marketplace while administrators retain the admin portal.'
+  'Each account role must open its authoritative workspace.'
 );
 assert(!accountLogin.includes("type LoginRole = 'buyer' | 'seller'"), 'Login must not require the user to choose a duplicate buyer/seller identity.');
 assert(middleware.includes("'/auth/reset-password'"), 'The public recovery page must load before browser auth tokens are persisted.');
@@ -172,7 +172,7 @@ assert(adminLayout.includes('AdminCommandSearch'), 'Administrator shell must inc
 assert(adminLayout.includes('AdminCustomers'), 'Administrator shell must include customer management.');
 assert(adminLayout.includes('ProfileMenu'), 'Administrator shell must expose the authenticated account menu.');
 assert(adminLayout.includes("window.location.replace('/admin-login')"), 'Administrator shell must provide reliable logout.');
-assert(adminOverview.includes("from('orders')") && adminOverview.includes("from('payments')"), 'Administrator home must use live order and payment data.');
+assert(adminOverview.includes("rpc('admin_marketplace_totals'") && adminOverview.includes("from('admin_marketplace_orders')"), 'Administrator home must use the complete live marketplace ledger.');
 assert(adminOverview.includes("from('seller_products')") && adminOverview.includes("from('seller_profiles')"), 'Administrator home must use live seller and product data.');
 assert(adminSearch.includes("from('user_profiles')") && adminSearch.includes("from('seller_products')"), 'Global search must query real account and product records.');
 assert(adminCustomers.includes("from('user_profiles')"), 'Customer management must use live profile records.');

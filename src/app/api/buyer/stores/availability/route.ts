@@ -63,9 +63,18 @@ export async function GET(request: NextRequest) {
       message: 'That store name is already taken. Choose one of these available names or try another.',
     });
   } catch (error) {
+    console.error('Buyer store-name availability check failed', {
+      code:
+        typeof error === 'object' && error && 'code' in error
+          ? String(error.code)
+          : 'availability_check_failed',
+    });
     return json(
-      { error: error instanceof Error ? error.message : 'Store-name availability could not be checked.' },
-      500
+      {
+        error: 'Store-name availability could not be checked right now. Please try again.',
+        code: 'store_availability_unavailable',
+      },
+      503
     );
   }
 }

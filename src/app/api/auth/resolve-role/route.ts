@@ -24,22 +24,33 @@ export async function POST() {
     return noStoreJson({ error: 'Authentication is required.' }, 401);
   }
 
-  const email = user.email?.trim().toLowerCase() || '';
-  if (isConfiguredAdminEmail(email)) {
-    if (!user.email_confirmed_at) {
-      return noStoreJson({ error: 'Verify the email code before continuing.' }, 403);
-    }
-    return noStoreJson({ role: 'super_admin' });
+  const { data: profile, error: profileError } = await supabase
+    .from('user_profiles')
+    .select('role,is_active')
+    .eq('id', user.id)
+    .maybeSingle();
+
+  if (profileError) {
+    return noStoreJson({ error: 'Account access could not be verified right now.' }, 503);
   }
 
-  // Password sign-in already loads the current profile before calling this route. Reading the
-  // signed user claims avoids a second database round trip; middleware still enforces active status
-  // and the authoritative profile role on the destination request.
-  const role = isAccountRole(user.app_metadata?.role)
-    ? user.app_metadata.role
-    : isAccountRole(user.user_metadata?.role)
-      ? user.user_metadata.role
-      : 'buyer';
+  if (!profile || !isAccountRole(profile.role)) {
+    return noStoreJson(
+      { error: 'Account setup is incomplete.', code: 'profile_setup_required' },
+      409
+    );
+  }
+  if (profile.is_active === false) {
+    return noStoreJson({ error: 'This account is inactive.' }, 403);
+  }
+
+  const email = user.email?.trim().toLowerCase() || '';
+  const adminRole = profile.role === 'admin_staff' || profile.role === 'super_admin';
+  if (adminRole && (!isConfiguredAdminEmail(email) || !user.email_confirmed_at)) {
+    return noStoreJson({ error: 'Administrator access could not be verified.' }, 403);
+  }
+
+  const role = profile.role;
 
   return noStoreJson({ role });
 }

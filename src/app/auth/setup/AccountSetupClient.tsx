@@ -87,7 +87,7 @@ export default function AccountSetupClient() {
   const busy = state === 'working' || state === 'retrying';
 
   return (
-    <main id="main-content" className="relative flex min-h-screen items-center justify-center overflow-hidden px-5 py-12 sm:px-8">
+    <main className="relative flex min-h-screen items-center justify-center overflow-hidden px-5 py-12 sm:px-8">
       <div aria-hidden="true" className="pointer-events-none absolute inset-0 opacity-80">
         <div className="absolute left-[8%] top-[12%] h-52 w-52 rounded-full bg-primary/15 blur-3xl" />
         <div className="absolute bottom-[8%] right-[7%] h-64 w-64 rounded-full bg-orange-300/10 blur-3xl" />

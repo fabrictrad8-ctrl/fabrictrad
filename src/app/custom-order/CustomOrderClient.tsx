@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import AppLogo from '@/components/ui/AppLogo';
-import Icon from '@/components/ui/AppIcon';
 import { useAuth } from '@/contexts/AuthContext';
 import { createClient } from '@/lib/supabase/client';
 import { BESPOKE_STAGES, BESPOKE_STAGE_LABELS, type BespokeStage } from '@/lib/bespokeWorkflow';
@@ -78,8 +77,6 @@ declare global {
   }
 }
 
-const whatsappNumber = String(process.env.NEXT_PUBLIC_WHATSAPP_BUSINESS_NUMBER || '917977286898').replace(/\D/g, '');
-const whatsappHref = (message: string) => `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(message)}`;
 
 const asText = (value: unknown) => (typeof value === 'string' ? value : '');
 const money = (value: unknown) => `₹${Number(value || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -363,22 +360,14 @@ export default function CustomOrderClient() {
           <div className="flex items-start gap-3">
             <AppLogo size={42} />
             <div>
-              <p className="text-xs font-800 uppercase tracking-[0.18em] text-primary">WhatsApp-first custom commerce</p>
+              <p className="text-xs font-800 uppercase tracking-[0.18em] text-primary">Custom commerce</p>
               <h1 className="mt-1 text-2xl font-900 tracking-tight text-foreground sm:text-3xl">FabricTrad Custom Order Studio</h1>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-                Continue the same order on the website or WhatsApp. Digital steps are automated; human handoff is limited to physical measurement, design approval, fitting/trial, alteration, or customer service.
+                Manage your custom order here, including appointments, design approval, payment, fitting and customer support. WhatsApp is reserved for seller product uploads.
               </p>
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            <a
-              href={whatsappHref(order?.id ? 'STATUS' : 'CATALOGUE')}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-2 rounded-xl bg-[#25D366] px-4 py-2.5 text-sm font-800 text-white hover:opacity-90"
-            >
-              <Icon name="ChatBubbleLeftRightIcon" size={17} /> WhatsApp +91 79772 86898
-            </a>
             <Link href="/buyer-dashboard" className="btn-secondary px-4 py-2.5 text-sm">Buyer dashboard</Link>
           </div>
         </div>
@@ -567,11 +556,11 @@ export default function CustomOrderClient() {
               <div className="mt-5 space-y-4">
                 <label className="block text-sm font-700">Rating<select value={reviewRating} onChange={(event) => setReviewRating(Number(event.target.value))} className="input-base mt-1.5 w-full rounded-xl px-3 py-2.5"><option value={5}>5 — Excellent</option><option value={4}>4 — Good</option><option value={3}>3 — Okay</option><option value={2}>2 — Poor</option><option value={1}>1 — Very poor</option></select></label>
                 <textarea value={reviewText} onChange={(event) => setReviewText(event.target.value)} rows={4} className="input-base w-full rounded-xl px-4 py-3 text-sm" placeholder="Optional comments" />
-                <button disabled={busy} onClick={() => void run(async () => { await patchOrder({ action: 'review', reviewRating, reviewText }); }, 'Review saved. Automated follow-up scheduled.')} className="btn-primary px-4 py-2.5 text-sm">Submit review</button>
+                <button disabled={busy} onClick={() => void run(async () => { await patchOrder({ action: 'review', reviewRating, reviewText }); }, 'Review saved. Thank you.')} className="btn-primary px-4 py-2.5 text-sm">Submit review</button>
               </div>
             )}
 
-            {currentStage === 'follow_up' && <StatusCard title="Automated follow-up" status="scheduled" text="FabricTrad will follow up digitally after delivery. You can start a new order or request human support anytime." />}
+            {currentStage === 'follow_up' && <StatusCard title="After your order" status="available" text="You can start a new order or request help here anytime." />}
             {currentStage === 'completed' && <StatusCard title="Order complete" status="completed" text="This journey is complete. Start another custom order whenever you need." />}
           </section>
 
@@ -581,9 +570,8 @@ export default function CustomOrderClient() {
               {selectedProduct ? <><h3 className="mt-2 font-900 text-foreground">{selectedProduct.name}</h3><p className="mt-1 text-xs text-muted-foreground">SKU {selectedProduct.sku} · {selectedProduct.category}</p><p className="mt-3 text-sm font-800 text-foreground">{money(selectedProduct.price_per_unit)}{selectedProduct.unit ? `/${selectedProduct.unit}` : ''}</p></> : <p className="mt-2 text-sm text-muted-foreground">Product will appear after selection.</p>}
             </div>
             <div className="rounded-3xl border border-border bg-card p-5 shadow-sm">
-              <p className="text-xs font-800 uppercase tracking-widest text-primary">Continue on WhatsApp</p>
-              <p className="mt-2 text-sm leading-6 text-muted-foreground">Send STATUS, reference images, fabric choices or customization details to the same automation number.</p>
-              <a href={whatsappHref('STATUS')} target="_blank" rel="noreferrer" className="mt-4 inline-flex w-full justify-center rounded-xl bg-[#25D366] px-4 py-3 text-sm font-900 text-white">Open WhatsApp</a>
+              <p className="text-xs font-800 uppercase tracking-widest text-primary">Your order stays here</p>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">Return to this page for order progress, reference images and customization details. Buyer orders are managed on the website, not WhatsApp.</p>
             </div>
             <div className="rounded-3xl border border-border bg-card p-5 shadow-sm">
               <p className="text-xs font-800 uppercase tracking-widest text-primary">Need a person?</p>

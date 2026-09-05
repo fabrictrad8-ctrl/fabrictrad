@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import AppImage from '@/components/ui/AppImage';
 import Icon from '@/components/ui/AppIcon';
 import { useAuth } from '@/contexts/AuthContext';
@@ -66,6 +66,8 @@ export default function FlagshipVirtualDrapeStudio() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const cameraRequestRef = useRef(0);
+  const generationRef = useRef<AbortController | null>(null);
   const resultRef = useRef<HTMLDivElement>(null);
 
   const [subjectMode, setSubjectMode] = useState<SubjectMode>('own_photo');
@@ -79,9 +81,6 @@ export default function FlagshipVirtualDrapeStudio() {
   const [result, setResult] = useState<string | null>(null);
   const [analysis, setAnalysis] = useState('');
   const [provider, setProvider] = useState('');
-  const [modelUsed, setModelUsed] = useState('');
-  const [apiUsed, setApiUsed] = useState('');
-  const [requestId, setRequestId] = useState('');
   const [loading, setLoading] = useState(false);
   const [generationStage, setGenerationStage] = useState('');
   const [error, setError] = useState('');
@@ -111,12 +110,25 @@ export default function FlagshipVirtualDrapeStudio() {
   const productStyleLabel = drapeProductStyleLabel(productStyle);
 
   const stopCamera = () => {
+    cameraRequestRef.current += 1;
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
     setCameraActive(false);
   };
 
-  useEffect(() => () => stopCamera(), []);
+  useEffect(() => () => {
+    cameraRequestRef.current += 1;
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    generationRef.current?.abort();
+    generationRef.current = null;
+  }, []);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!cameraActive || !video || !streamRef.current) return;
+    video.srcObject = streamRef.current;
+    void video.play().catch(() => setCameraError('Camera preview could not start. Please upload a photo.'));
+  }, [cameraActive]);
 
   useEffect(() => {
     let cancelled = false;
@@ -144,15 +156,20 @@ export default function FlagshipVirtualDrapeStudio() {
     };
   }, []);
 
-  const clearResult = () => {
+  const clearResult = useCallback(() => {
+    generationRef.current?.abort();
+    generationRef.current = null;
+    setLoading(false);
+    setGenerationStage('');
     setResult(null);
     setAnalysis('');
     setProvider('');
-    setModelUsed('');
-    setApiUsed('');
-    setRequestId('');
     setError('');
-  };
+  }, []);
+
+  useEffect(() => {
+    clearResult();
+  }, [product.rawProductId, product.selectedVariantId, productStyle, fit, subjectMode, modelGender, personImage, photoConsent, clearResult]);
 
   const chooseMode = (mode: SubjectMode) => {
     stopCamera();
@@ -190,18 +207,18 @@ export default function FlagshipVirtualDrapeStudio() {
     setSubjectMode('own_photo');
     try {
       stopCamera();
+      const cameraRequest = cameraRequestRef.current;
+      if (!navigator.mediaDevices?.getUserMedia) throw new Error('Camera unavailable');
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: 'user', width: { ideal: 960 }, height: { ideal: 1280 } },
         audio: false,
       });
+      if (cameraRequest !== cameraRequestRef.current) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
       streamRef.current = stream;
       setCameraActive(true);
-      requestAnimationFrame(() => {
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          void videoRef.current.play().catch(() => undefined);
-        }
-      });
     } catch {
       setCameraError('Camera access was blocked. Allow camera permission or upload a photo instead.');
     }
@@ -238,27 +255,29 @@ export default function FlagshipVirtualDrapeStudio() {
     if (subjectMode === 'own_photo' && !photoConsent) {
       return setError('Confirm that you own this photo or have permission to use it.');
     }
-    if (serviceStatus?.configured === false) return setError('The OpenAI try-on service is temporarily unavailable.');
+    if (serviceStatus?.configured === false) return setError('The AI try-on service is temporarily unavailable.');
 
     setLoading(true);
     setGenerationStage(
       subjectMode === 'own_photo'
-        ? 'Preparing your photo and the exact seller textile…'
-        : `Preparing an AI ${modelGender} model and the exact seller textile…`
+        ? 'Preparing your photo and the selected seller textile…'
+        : `Preparing an AI ${modelGender} model and the selected seller textile…`
     );
     const controller = new AbortController();
+    generationRef.current?.abort();
+    generationRef.current = controller;
     const timeout = window.setTimeout(() => controller.abort(), 180_000);
     const stageOne = window.setTimeout(
       () =>
-        setGenerationStage(
+        generationRef.current === controller && setGenerationStage(
           subjectMode === 'own_photo'
-            ? 'OpenAI GPT Image is preserving your identity and constructing the garment…'
-            : `OpenAI GPT Image is creating a photorealistic ${modelGender} model wearing this textile…`
+            ? 'Creating a styling preview from your photo…'
+            : `AI is creating a ${modelGender} model wearing this textile…`
         ),
       6500
     );
     const stageTwo = window.setTimeout(
-      () => setGenerationStage('Finishing fit, folds, lighting and textile details…'),
+      () => generationRef.current === controller && setGenerationStage('Finishing fit, folds, lighting and textile details…'),
       18000
     );
 
@@ -274,6 +293,7 @@ export default function FlagshipVirtualDrapeStudio() {
           subjectMode,
           modelGender: subjectMode === 'ai_model' ? modelGender : undefined,
           modelImage: subjectMode === 'own_photo' ? personImage : undefined,
+          photoConsent: subjectMode === 'own_photo' ? photoConsent : undefined,
           garmentId: drapeProductStyleApiId(productStyle),
           styleName: drapeProductStylePrompt(productStyle),
           fit,
@@ -283,6 +303,7 @@ export default function FlagshipVirtualDrapeStudio() {
       if (!response.ok || !payload.image) {
         throw new Error(payload.error || 'The AI service did not return a drape image.');
       }
+      if (generationRef.current !== controller) return;
       setResult(payload.image);
       setAnalysis(
         payload.analysis ||
@@ -291,13 +312,11 @@ export default function FlagshipVirtualDrapeStudio() {
             : `Generated on an AI ${modelGender} model using this approved seller textile.`)
       );
       setProvider(payload.provider || 'OpenAI');
-      setModelUsed(payload.model || serviceStatus?.model || '');
-      setApiUsed(payload.apiUsed || serviceStatus?.apiUsed || 'OpenAI Images API');
-      setRequestId(payload.providerRequestId || '');
       requestAnimationFrame(() =>
         resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
       );
     } catch (caught) {
+      if (generationRef.current !== controller) return;
       setError(
         caught instanceof DOMException && caught.name === 'AbortError'
           ? 'AI generation timed out. Please retry.'
@@ -309,8 +328,11 @@ export default function FlagshipVirtualDrapeStudio() {
       window.clearTimeout(timeout);
       window.clearTimeout(stageOne);
       window.clearTimeout(stageTwo);
-      setLoading(false);
-      setGenerationStage('');
+      if (generationRef.current === controller) {
+        generationRef.current = null;
+        setLoading(false);
+        setGenerationStage('');
+      }
     }
   };
 
@@ -332,10 +354,10 @@ export default function FlagshipVirtualDrapeStudio() {
               <Icon name="SparklesIcon" size={14} /> FabricTrad AI Virtual Drape
             </div>
             <h2 className="mt-3 text-2xl font-900 tracking-tight sm:text-3xl lg:text-4xl">
-              See this exact seller textile worn by you or an AI model
+              Preview this textile on your photo or an AI model
             </h2>
             <p className="mt-3 max-w-2xl text-sm leading-6 text-white/70 sm:text-base">
-              Choose your own photo or an AI-generated woman/man model. Both options use the real seller textile references and the server-side OpenAI Images API.
+              Choose your own photo or an AI-generated model. This is an AI styling preview: colours, patterns and body details may vary. It does not measure fit or recommend a size.
             </p>
           </div>
           <div className="min-w-[235px] rounded-2xl border border-white/10 bg-white/[0.06] p-4 backdrop-blur">
@@ -343,20 +365,13 @@ export default function FlagshipVirtualDrapeStudio() {
               <span className={`h-2.5 w-2.5 rounded-full ${serviceStatus?.configured ? 'bg-success' : serviceStatus === null ? 'bg-warning' : 'bg-error'}`} />
               <p className="text-sm font-800">
                 {serviceStatus === null
-                  ? 'Checking OpenAI…'
+                  ? 'Checking availability…'
                   : serviceStatus.configured
-                    ? 'OpenAI API connected'
-                    : 'OpenAI unavailable'}
+                    ? 'AI preview available'
+                    : 'AI preview unavailable'}
               </p>
             </div>
-            <p className="mt-1 text-xs text-white/55">
-              {serviceStatus?.model ? `Model: ${serviceStatus.model}` : 'GPT Image'}
-            </p>
-            <p className="mt-1 text-[11px] text-white/45">
-              {serviceStatus?.credentialConfigured
-                ? 'Server key: connected securely'
-                : 'Server key status unavailable'}
-            </p>
+            <p className="mt-1 text-xs text-white/55">Photo preview · AI generated</p>
           </div>
         </div>
       </header>
@@ -380,7 +395,7 @@ export default function FlagshipVirtualDrapeStudio() {
               <div>
                 <p className="text-sm font-900 text-foreground">Use my own photo</p>
                 <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                  Upload or take a photo. OpenAI preserves your identity and dresses you in the seller textile.
+                  Upload or take a photo to preview a garment inspired by the seller’s textile.
                 </p>
               </div>
             </div>
@@ -402,7 +417,7 @@ export default function FlagshipVirtualDrapeStudio() {
               <div>
                 <p className="text-sm font-900 text-foreground">AI-generated model</p>
                 <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                  No personal photo needed. Generate a realistic woman or man model wearing the exact textile.
+                  No personal photo needed. Preview the textile on an AI-generated woman or man.
                 </p>
               </div>
             </div>
@@ -506,7 +521,7 @@ export default function FlagshipVirtualDrapeStudio() {
                   onChange={(event) => setPhotoConsent(event.target.checked)}
                   className="mt-0.5 h-5 w-5 rounded border-border text-primary"
                 />
-                <span>I own this photo or have permission to use it for this AI try-on.</span>
+                <span>I own this photo or have permission to send it to FabricTrad’s AI providers (OpenAI or Google Gemini) to generate this preview.</span>
               </label>
             </>
           ) : (
@@ -532,7 +547,7 @@ export default function FlagshipVirtualDrapeStudio() {
                 ))}
               </div>
               <div className="mt-3 rounded-xl border border-success/20 bg-success/5 p-3 text-xs leading-5 text-muted-foreground">
-                OpenAI generates a new adult {modelGender} fashion model and dresses that model using the approved seller textile references. No personal photo is sent.
+                AI generates a new adult {modelGender} fashion model and dresses that model using the approved seller textile references. No personal photo is sent.
               </div>
             </>
           )}
@@ -550,7 +565,7 @@ export default function FlagshipVirtualDrapeStudio() {
             <span className="inline-flex items-center justify-center gap-2">
               <Icon name="SparklesIcon" size={18} />
               {loading
-                ? 'Generating with OpenAI…'
+                ? 'Generating AI preview…'
                 : subjectMode === 'own_photo'
                   ? 'Generate on my photo'
                   : `Generate on AI ${modelGender} model`}
@@ -572,7 +587,7 @@ export default function FlagshipVirtualDrapeStudio() {
               <div className="relative h-[68vh] min-h-[420px] max-h-[760px] w-full max-w-xl">
                 <PersonImage src={personImage} alt="Your photo before AI try-on" />
                 <div className="absolute inset-x-4 bottom-4 rounded-2xl border border-white/10 bg-black/65 p-4 text-center text-xs leading-5 text-white/75 backdrop-blur">
-                  Press <strong className="text-white">Generate on my photo</strong>. Your photo and the approved seller textile are sent to OpenAI together.
+                  Press <strong className="text-white">Generate on my photo</strong>. Your photo and the selected textile references are sent to our AI provider together.
                 </div>
               </div>
             ) : (
@@ -585,8 +600,8 @@ export default function FlagshipVirtualDrapeStudio() {
                 </h3>
                 <p className="mt-2 text-sm leading-6 text-white/55">
                   {subjectMode === 'own_photo'
-                    ? 'Upload a standing photo, select the fit and generate. OpenAI uses the seller’s real textile references.'
-                    : `Choose ${modelGender === 'woman' ? 'woman or man' : 'man or woman'}, select the fit and generate. OpenAI creates the model and the garment from the seller’s real textile references.`}
+                    ? 'Upload a standing photo, select the fit and generate. AI uses the seller’s textile references.'
+                    : `Choose ${modelGender === 'woman' ? 'woman or man' : 'man or woman'}, select the fit and generate. AI creates the model and garment from the seller’s textile references.`}
                 </p>
               </div>
             )}
@@ -595,8 +610,8 @@ export default function FlagshipVirtualDrapeStudio() {
               <div className="absolute inset-0 flex items-center justify-center bg-[#0c1320]/88 p-6 backdrop-blur-sm">
                 <div className="max-w-sm text-center">
                   <div className="mx-auto h-11 w-11 animate-spin rounded-full border-4 border-primary/25 border-t-primary" />
-                  <p className="mt-5 text-base font-900 text-white">Generating through OpenAI</p>
-                  <p className="mt-2 text-sm leading-6 text-white/60">{generationStage || 'OpenAI GPT Image is generating the drape…'}</p>
+                  <p className="mt-5 text-base font-900 text-white">Generating your preview</p>
+                  <p className="mt-2 text-sm leading-6 text-white/60">{generationStage || 'AI is generating the drape…'}</p>
                 </div>
               </div>
             )}
@@ -613,14 +628,8 @@ export default function FlagshipVirtualDrapeStudio() {
                   Regenerate
                 </button>
               </div>
-              <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
-                <span className="rounded-full bg-muted px-2.5 py-1">API: {apiUsed || serviceStatus?.apiUsed || 'OpenAI Images API'}</span>
-                {provider && <span className="rounded-full bg-muted px-2.5 py-1">Provider: {provider}</span>}
-                {modelUsed && <span className="rounded-full bg-muted px-2.5 py-1">Model: {modelUsed}</span>}
-                {requestId && <span className="rounded-full bg-muted px-2.5 py-1">OpenAI request: {requestId.slice(0, 18)}…</span>}
-              </div>
-              <p className="mt-3 text-[11px] leading-5 text-muted-foreground">
-                The API key remains on the FabricTrad server. The browser receives the generated image and request metadata, never the secret key.
+              <p className="mt-3 text-xs leading-5 text-muted-foreground">
+                Compare with the original listing photos before buying. Generated folds, colours, patterns and fit are illustrative.
               </p>
             </div>
           )}

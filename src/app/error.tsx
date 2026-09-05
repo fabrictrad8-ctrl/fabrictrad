@@ -19,7 +19,7 @@ export default function ErrorPage({
   }, [error]);
 
   return (
-    <main id="main-content" className="flex min-h-[70vh] items-center justify-center bg-background px-5 py-12">
+    <main className="flex min-h-[70vh] items-center justify-center bg-background px-5 py-12">
       <section className="w-full max-w-xl rounded-3xl border border-border bg-card p-7 text-center shadow-xl sm:p-10">
         <div className="mx-auto flex w-fit items-center gap-3">
           <AppLogo size={42} />

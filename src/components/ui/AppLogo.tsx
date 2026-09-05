@@ -103,16 +103,6 @@ const AppLogo = memo(function AppLogo({
           style={{ width: `${renderedWidth}px`, height: `${size}px` }}
         />
       )}
-      <style>{`
-        .ft-header-brand > [data-fabrictrad-brand-logo='official-uploaded-logo'] + span,
-        .ft-future-brand > [data-fabrictrad-brand-logo='official-uploaded-logo'] + span,
-        .ft-future-footer [data-fabrictrad-brand-logo='official-uploaded-logo'] + span {
-          display: none !important;
-        }
-        .ft-mobile-commerce-menu [data-fabrictrad-brand-logo='official-uploaded-logo'] + div > p:first-child {
-          display: none !important;
-        }
-      `}</style>
     </div>
   );
 });

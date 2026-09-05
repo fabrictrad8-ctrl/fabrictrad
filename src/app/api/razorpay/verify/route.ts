@@ -10,7 +10,7 @@ import {
 import { getRazorpayCredentials } from '@/lib/razorpayCredentials';
 import { ensureAutomaticInvoice } from '@/lib/server/automaticInvoice';
 
-type PaymentKind = 'bulk' | 'catalog';
+import { reconcileMarketplacePayment } from '@/lib/server/paymentReconciliation';
 type VerifyBody = {
   razorpay_order_id?: unknown;
   razorpay_payment_id?: unknown;
@@ -22,88 +22,6 @@ const json = (body: Record<string, unknown>, status = 200) =>
     status,
     headers: { 'Cache-Control': 'no-store, max-age=0' },
   });
-
-const roundMoney = (value: number) => Math.round(value * 100) / 100;
-
-async function reconcileOrderPayment(input: {
-  admin: ReturnType<typeof createAdminClient>;
-  kind: PaymentKind;
-  orderId: string;
-}) {
-  const paymentTable = input.kind === 'catalog' ? 'catalog_order_payments' : 'bulk_order_payments';
-  const orderTable = input.kind === 'catalog' ? 'catalog_order_requests' : 'bulk_orders';
-  const foreignKey = input.kind === 'catalog' ? 'catalog_order_id' : 'bulk_order_id';
-
-  const paymentsResult = await input.admin
-    .from(paymentTable)
-    .select('amount,refunded_amount,status')
-    .eq(foreignKey, input.orderId);
-  const orderResult =
-    input.kind === 'catalog'
-      ? await input.admin
-          .from('catalog_order_requests')
-          .select('id,status,total_amount')
-          .eq('id', input.orderId)
-          .maybeSingle()
-      : await input.admin
-          .from('bulk_orders')
-          .select('id,status,net_total')
-          .eq('id', input.orderId)
-          .maybeSingle();
-
-  if (paymentsResult.error || orderResult.error || !orderResult.data) {
-    throw (
-      paymentsResult.error ||
-      orderResult.error ||
-      new Error('The FabricTrad order is unavailable for reconciliation.')
-    );
-  }
-
-  const payments = paymentsResult.data || [];
-  const order = orderResult.data as Record<string, unknown>;
-  const captured = payments
-    .filter((payment) =>
-      ['captured', 'partially_refunded', 'refunded'].includes(String(payment.status))
-    )
-    .reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
-  const refunded = payments.reduce(
-    (sum, payment) => sum + Number(payment.refunded_amount || 0),
-    0
-  );
-  const netPaid = Math.max(0, roundMoney(captured - refunded));
-  const total = roundMoney(
-    Number(input.kind === 'catalog' ? order.total_amount : order.net_total || 0)
-  );
-  const paymentStatus =
-    refunded >= captured && captured > 0
-      ? 'refunded'
-      : refunded > 0
-        ? 'partially_refunded'
-        : netPaid + 0.01 >= total
-          ? 'paid'
-          : netPaid > 0
-            ? 'partial'
-            : 'unpaid';
-
-  const patch: Record<string, unknown> = {
-    amount_paid: roundMoney(captured),
-    amount_refunded: roundMoney(refunded),
-    payment_status: paymentStatus,
-    updated_at: new Date().toISOString(),
-  };
-  if (paymentStatus === 'paid') patch.status = 'paid';
-  const { error: orderUpdateError } = await input.admin
-    .from(orderTable)
-    .update(patch)
-    .eq('id', input.orderId);
-  if (orderUpdateError) throw orderUpdateError;
-
-  return {
-    paymentStatus,
-    amountPaid: roundMoney(captured),
-    amountRefunded: roundMoney(refunded),
-  };
-}
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
@@ -172,7 +90,7 @@ export async function POST(request: NextRequest) {
   const { keyId, keySecret } = credentials;
 
   const admin = createAdminClient();
-  let kind: PaymentKind | null = null;
+  let kind: 'bulk' | 'catalog' | null = null;
   let record: Record<string, unknown> | null = null;
 
   const { data: catalogPayment } = await admin
@@ -239,13 +157,13 @@ export async function POST(request: NextRequest) {
   }
 
   const paymentTable = kind === 'catalog' ? 'catalog_order_payments' : 'bulk_order_payments';
-  const nextStatus = payment.status === 'captured' || payment.captured ? 'captured' : 'authorized';
-  const capturedAt = nextStatus === 'captured' ? new Date().toISOString() : null;
+  const providerStatus = payment.status === 'captured' || payment.captured ? 'captured' : 'authorized';
+  const capturedAt = providerStatus === 'captured' ? new Date().toISOString() : null;
   const update: Record<string, unknown> = {
     razorpay_payment_id: payment.id,
     razorpay_signature: signature,
-    status: nextStatus,
-    captured_amount: nextStatus === 'captured' ? paiseToRupees(payment.amount) : null,
+    status: providerStatus,
+    captured_amount: providerStatus === 'captured' ? paiseToRupees(payment.amount) : null,
     payment_method: payment.method || null,
     razorpay_fee_actual: paiseToRupees(payment.fee),
     razorpay_tax_actual: paiseToRupees(payment.tax),
@@ -253,16 +171,15 @@ export async function POST(request: NextRequest) {
     updated_at: new Date().toISOString(),
   };
   if (capturedAt) update.captured_at = capturedAt;
-  const { error: updateError } = await admin
+  const { data: savedPayment, error: updateError } = await admin
     .from(paymentTable)
     .update(update)
-    .eq('id', String(record.id));
-  if (updateError) return json({ error: 'Payment confirmation could not be stored.' }, 503);
+    .eq('id', String(record.id))
+    .select('status,captured_at').single();
+  if (updateError || !savedPayment) return json({ error: 'Payment confirmation could not be stored.' }, 503);
 
-  const reconciliation =
-    nextStatus === 'captured'
-      ? await reconcileOrderPayment({ admin, kind, orderId: fabrictradOrderId })
-      : null;
+  const nextStatus = String(savedPayment.status);
+  const reconciliation = await reconcileMarketplacePayment(admin, kind, fabrictradOrderId);
 
   const automaticInvoice =
     nextStatus === 'captured' && reconciliation?.paymentStatus === 'paid'
@@ -271,7 +188,7 @@ export async function POST(request: NextRequest) {
           kind,
           orderId: fabrictradOrderId,
           paymentId: payment.id,
-          capturedAt,
+          capturedAt: savedPayment.captured_at,
         })
       : null;
 
@@ -296,6 +213,8 @@ export async function POST(request: NextRequest) {
             ? 'Payment captured, order reconciled and invoice generated.'
             : 'Payment captured and order reconciled. Invoice generation requires seller billing details to be complete.'
           : 'Payment captured and order records reconciled.'
-        : 'Payment authorised. Capture confirmation will be completed by the signed webhook.',
+        : nextStatus === 'authorized'
+          ? 'Payment authorised. Capture confirmation will be completed by the signed webhook.'
+          : 'Payment record verified. Refund status is shown in your order.',
   });
 }

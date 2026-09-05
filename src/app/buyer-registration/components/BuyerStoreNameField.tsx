@@ -35,7 +35,13 @@ export default function BuyerStoreNameField({ value, onChange, disabled = false 
           signal: controller.signal,
         });
         const payload = (await response.json().catch(() => ({}))) as Availability;
-        if (!controller.signal.aborted) setAvailability(payload);
+        if (!controller.signal.aborted) {
+          setAvailability(
+            response.ok || payload.error
+              ? payload
+              : { error: 'Could not check this name right now. Please try again.' }
+          );
+        }
       } catch (error) {
         if (!controller.signal.aborted && !(error instanceof DOMException && error.name === 'AbortError')) {
           setAvailability({ error: 'Could not check this name right now.' });
@@ -70,7 +76,7 @@ export default function BuyerStoreNameField({ value, onChange, disabled = false 
         aria-describedby="store-name-help store-name-status"
       />
       <p id="store-name-help" className="mt-1.5 text-[11px] leading-5 text-muted-foreground">
-        This is your public FabricTrad store identity. Store names are unique across FabricTrad and can also be recognised from your registered WhatsApp number.
+        This is your public FabricTrad store identity. Store names are unique across FabricTrad.
       </p>
       <div id="store-name-status" aria-live="polite" className="mt-2 min-h-5 text-xs">
         {checking ? (

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import toast from 'react-hot-toast';
@@ -120,7 +120,7 @@ export default function MarketplaceGrid() {
 
   useEffect(() => { trackFunnelStep('marketplace_view', { page: 'marketplace' }); }, []);
 
-  const loadProducts = async () => {
+  const loadProducts = useCallback(async () => {
     setLoading(true);
     setError('');
     const supabase = createClient();
@@ -144,9 +144,9 @@ export default function MarketplaceGrid() {
 
     setProducts((rows || []).map((row) => mapSellerProduct(row as Record<string, unknown>, names.get(row.seller_id) || 'Verified FabricTrad Seller')));
     setLoading(false);
-  };
+  }, [profile?.account_kind]);
 
-  useEffect(() => { void loadProducts(); }, [profile?.account_kind]);
+  useEffect(() => { void loadProducts(); }, [loadProducts]);
 
   const params = useMemo(() => new URLSearchParams(searchParams.toString()), [searchParams]);
   const sort = params.get('sort') || 'relevance';

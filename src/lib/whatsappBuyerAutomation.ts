@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/admin';
+import { BUYER_WHATSAPP_ENABLED } from '@/lib/commercePolicy';
 import { downloadGupshupMedia, sendGupshupText } from '@/lib/gupshupWhatsApp';
 import { storeKey, storeSuggestionSeeds, validateStoreName } from '@/lib/buyerStores';
 
@@ -82,6 +83,7 @@ export async function sendBuyerWhatsAppText(
   userId?: string | null,
   appNameOverride?: string | null
 ) {
+  if (!BUYER_WHATSAPP_ENABLED) return null;
   const result = await sendGupshupText(
     toRaw,
     text.slice(0, 4000),
@@ -298,6 +300,7 @@ const appointmentTypeForStage = (
 export async function handleBuyerWhatsAppMessage(
   message: MetaMessage
 ): Promise<{ handled: boolean }> {
+  if (!BUYER_WHATSAPP_ENABLED) return { handled: false };
   const sendBuyerReply = (
     toRaw: string,
     text: string,

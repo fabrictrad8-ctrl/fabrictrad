@@ -40,6 +40,20 @@
   animation: ft-route-enter var(--ft-motion-slow) var(--ft-ease-emphasized) both;
 }
 
+.ft-route-content {
+  min-width: 0;
+}
+
+/* Keep duplicate fallback wordmarks out of both the layout and accessibility tree. */
+.ft-header-brand > [data-fabrictrad-brand-logo='official-uploaded-logo'] + span,
+.ft-future-brand > [data-fabrictrad-brand-logo='official-uploaded-logo'] + span,
+.ft-future-footer [data-fabrictrad-brand-logo='official-uploaded-logo'] + span {
+  display: none !important;
+}
+.ft-mobile-commerce-menu [data-fabrictrad-brand-logo='official-uploaded-logo'] + div > p:first-child {
+  display: none !important;
+}
+
 @keyframes ft-route-enter {
   from {
     opacity: 0.01;
@@ -197,7 +211,7 @@
 .ft-shell main,
 [data-role-shell] main,
 .ft-storefront main,
-main#main-content {
+#main-content {
   scroll-margin-top: 76px;
 }
 

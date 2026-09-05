@@ -214,7 +214,7 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  const role = profile?.role || user.app_metadata?.role || user.user_metadata?.role || 'buyer';
+  const role = profile?.role || user.app_metadata?.role || 'buyer';
   if (role === 'admin_staff' || role === 'super_admin') return json({ ready: true, role });
 
   const { data: buyerProfile } = await serverClient

@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import Icon from '@/components/ui/AppIcon';
 import OrderLifecyclePanel from '@/components/commerce/OrderLifecyclePanel';
-import { createClient } from '@/lib/supabase/client';
+import { validTrackingUrl } from '@/lib/shippingValidation';
 import {
   firstOrderItem,
   formatMoney,
@@ -124,12 +124,12 @@ export default function SellerOrders() {
       return;
     }
     const draft = delivery[order.id] || emptyDelivery;
-    if (draft.partner === 'own' && (!draft.courierName.trim() || !draft.awbNumber.trim())) {
-      toast.error('Courier name and AWB / tracking number are required.');
+    if (draft.partner === 'own' && (!draft.courierName.trim() || !draft.awbNumber.trim() || !draft.trackingUrl.trim())) {
+      toast.error('Courier name, AWB and tracking link are required.');
       return;
     }
-    if (draft.trackingUrl && !/^https?:\/\//i.test(draft.trackingUrl)) {
-      toast.error('Tracking URL must start with http:// or https://.');
+    if (draft.partner === 'own' && !validTrackingUrl(draft.trackingUrl)) {
+      toast.error('Enter a valid HTTPS shipment-tracking link.');
       return;
     }
     if (!order.seller_id || !order.buyer_id) {
@@ -140,25 +140,12 @@ export default function SellerOrders() {
     setBusyId(order.id);
     try {
       if (draft.partner === 'own') {
-        const supabase = createClient();
-        const { error: shipmentError } = await supabase.from('seller_shipments').upsert(
-          {
-            order_id: order.id,
-            bulk_order_id: order.id,
-            catalog_order_id: null,
-            seller_id: order.seller_id,
-            buyer_id: order.buyer_id,
-            courier_type: 'local',
-            courier_name: draft.courierName.trim(),
-            awb_number: draft.awbNumber.trim(),
-            tracking_url: draft.trackingUrl.trim() || null,
-            estimated_delivery: draft.estimatedDelivery || null,
-            status: 'pending',
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: 'bulk_order_id' }
-        );
-        if (shipmentError) throw shipmentError;
+        const response = await fetch('/api/seller/shipments', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin',
+          body: JSON.stringify({ ...draft, orderId: order.id, orderType: 'bulk', status: 'pending' }),
+        });
+        const result = await response.json();
+        if (!response.ok || !result.success) throw new Error(result.error || 'Could not save delivery details.');
       }
       setDelivery((current) => ({ ...current, [order.id]: { ...draft, saved: true } }));
       toast.success('Delivery details saved securely for this paid order.');
@@ -193,15 +180,15 @@ export default function SellerOrders() {
         const result = (await response.json().catch(() => ({}))) as { error?: string };
         if (!response.ok) throw new Error(result.error || 'Shiprocket booking failed.');
       } else {
-        const supabase = createClient();
-        const { error } = await supabase
-          .from('seller_shipments')
-          .update({ status: 'in_transit', updated_at: new Date().toISOString() })
-          .eq('bulk_order_id', order.id)
-          .eq('seller_id', order.seller_id);
-        if (error) throw error;
+        const response = await fetch('/api/seller/shipments', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin',
+          body: JSON.stringify({ ...draft, orderId: order.id, orderType: 'bulk', status: 'in_transit' }),
+        });
+        const result = await response.json();
+        if (!response.ok || !result.success) throw new Error(result.error || 'Could not dispatch this order.');
       }
-      await updateOrder(order.id, { status: 'shipped' });
+      if (draft.partner === 'shiprocket') await updateOrder(order.id, { status: 'shipped' });
+      else await refresh();
       toast.success(
         draft.partner === 'shiprocket'
           ? 'Shiprocket pickup created and order marked shipped.'

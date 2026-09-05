@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import Icon from '@/components/ui/AppIcon';
 
@@ -25,6 +25,9 @@ type Overview = {
     openDisputes: number;
     shipmentExceptions: number;
     unresolvedErrors: number;
+    invoiceEmailsPending: number;
+    whatsappFailures: number;
+    sellersMissingPayoutAccount: number;
   };
   orderStatus: Record<string, number>;
   inventory: {
@@ -66,7 +69,7 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  const load = async (selectedRange = range) => {
+  const load = useCallback(async (selectedRange: Range) => {
     setLoading(true);
     setError('');
     try {
@@ -83,17 +86,17 @@ export default function AdminDashboard() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     void load(range);
-  }, [range]);
+  }, [load, range]);
 
   const metrics = useMemo(
     () => [
       { label: 'Orders', value: String(overview?.metrics.orders || 0), detail: 'Orders created in period', icon: 'ShoppingBagIcon', tone: 'text-primary bg-primary/10' },
-      { label: 'Gross merchandise value', value: money(overview?.metrics.gmv || 0), detail: 'Captured or authorised payments', icon: 'CurrencyRupeeIcon', tone: 'text-success bg-success/10' },
-      { label: 'Platform commission', value: money(overview?.metrics.commission || 0), detail: 'Estimated from configured rate', icon: 'ReceiptPercentIcon', tone: 'text-secondary bg-secondary/10' },
+      { label: 'Gross captured payments', value: money(overview?.metrics.gmv || 0), detail: 'Before refunds; not bank settlement', icon: 'CurrencyRupeeIcon', tone: 'text-success bg-success/10' },
+      { label: 'Recorded commission', value: money(overview?.metrics.commission || 0), detail: 'Catalogue and bulk payment ledger', icon: 'ReceiptPercentIcon', tone: 'text-secondary bg-secondary/10' },
       { label: 'New accounts', value: String(overview?.metrics.registrations || 0), detail: 'Buyer, seller and staff profiles', icon: 'UserPlusIcon', tone: 'text-blue-700 bg-blue-500/10' },
       { label: 'Seller applications', value: String(overview?.metrics.sellerApplications || 0), detail: 'Applications created in period', icon: 'BuildingStorefrontIcon', tone: 'text-purple-700 bg-purple-500/10' },
       { label: 'New listings', value: String(overview?.metrics.listings || 0), detail: 'Products submitted in period', icon: 'TagIcon', tone: 'text-amber-700 bg-amber-500/10' },
@@ -109,6 +112,9 @@ export default function AdminDashboard() {
       { label: 'Resolve disputes', count: overview?.tasks.openDisputes || 0, href: '/admin-portal?tab=activity', icon: 'FlagIcon', urgent: true },
       { label: 'Shipment exceptions', count: overview?.tasks.shipmentExceptions || 0, href: '/admin-portal?tab=fulfillment', icon: 'TruckIcon', urgent: true },
       { label: 'Unresolved platform errors', count: overview?.tasks.unresolvedErrors || 0, href: '/admin-portal?tab=errors', icon: 'ExclamationTriangleIcon', urgent: true },
+      { label: 'Invoice emails needing attention', count: overview?.tasks.invoiceEmailsPending || 0, href: '/admin-portal?tab=orders', icon: 'EnvelopeIcon', urgent: true },
+      { label: 'Seller WhatsApp processing failures', count: overview?.tasks.whatsappFailures || 0, href: '/admin-portal?tab=sellers', icon: 'ChatBubbleLeftRightIcon', urgent: true },
+      { label: 'Sellers missing payout accounts', count: overview?.tasks.sellersMissingPayoutAccount || 0, href: '/admin-portal?tab=sellers', icon: 'BanknotesIcon', urgent: true },
     ],
     [overview]
   );
@@ -143,7 +149,7 @@ export default function AdminDashboard() {
                 {option.label}
               </button>
             ))}
-            <button type="button" onClick={() => void load()} disabled={loading} className="ft-icon-button" aria-label="Refresh administrator home">
+            <button type="button" onClick={() => void load(range)} disabled={loading} className="ft-icon-button" aria-label="Refresh administrator home">
               <Icon name="ArrowPathIcon" size={17} className={loading ? 'animate-spin' : ''} />
             </button>
           </div>
@@ -154,7 +160,7 @@ export default function AdminDashboard() {
         <div role="alert" className="rounded-2xl border border-error/20 bg-error/10 px-4 py-4 text-sm text-error">
           <div className="flex items-center justify-between gap-4">
             <span>{error}</span>
-            <button type="button" onClick={() => void load()} className="font-800 underline">Retry</button>
+            <button type="button" onClick={() => void load(range)} className="font-800 underline">Retry</button>
           </div>
         </div>
       )}

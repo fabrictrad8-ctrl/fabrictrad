@@ -1,12 +1,9 @@
 import { after, NextRequest, NextResponse } from 'next/server';
-import { tryHandleSellerCatalogMessage } from '@/lib/whatsappSellerCatalog';
+import { enqueueSellerWhatsAppMessages, processSellerWhatsAppQueue, type WhatsAppMessage } from '@/lib/server/sellerWhatsappQueue';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { FABRICTRAD_GUPSHUP_APP_NAME, sendGupshupText } from '@/lib/gupshupWhatsApp';
+import { FABRICTRAD_GUPSHUP_APP_NAME } from '@/lib/gupshupWhatsApp';
 import { isGupshupV3Webhook, normalizeGupshupV3 } from '@/lib/gupshupWebhookV3';
-import {
-  handleBuyerWhatsAppMessage,
-  sendBuyerWhatsAppText,
-} from '@/lib/whatsappBuyerAutomation';
+import { whatsappWebhookAuthorized } from '@/lib/whatsappWebhookAuth';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -15,16 +12,6 @@ export const maxDuration = 60;
 const MAX_WEBHOOK_BYTES = 1024 * 1024;
 const DELIVERY_STATES = new Set(['enqueued', 'failed', 'sent', 'delivered', 'read', 'deleted']);
 
-type WhatsAppMessage = {
-  id?: string;
-  appName?: string;
-  from?: string;
-  type?: string;
-  text?: { body?: string };
-  image?: { id?: string; caption?: string; mime_type?: string };
-  video?: { id?: string; caption?: string; mime_type?: string };
-  document?: { id?: string; caption?: string; filename?: string; mime_type?: string };
-};
 
 type GupshupEvent = {
   app?: string;
@@ -155,144 +142,6 @@ async function readWebhookBody(request: NextRequest) {
   return new TextDecoder().decode(body);
 }
 
-const normalizePhone = (value: unknown) => {
-  const digits = typeof value === 'string' ? value.replace(/\D/g, '') : '';
-  const lastTen = digits.slice(-10);
-  return /^[6-9][0-9]{9}$/.test(lastTen) ? lastTen : '';
-};
-
-const extractText = (message: WhatsAppMessage) => {
-  if (message.type === 'text') return String(message.text?.body || '').trim();
-  if (message.type === 'image') return String(message.image?.caption || '').trim();
-  if (message.type === 'video') return String(message.video?.caption || '').trim();
-  if (message.type === 'document') return String(message.document?.caption || '').trim();
-  return '';
-};
-
-const extractMedia = (message: WhatsAppMessage) => {
-  if (message.type === 'image' && message.image?.id) {
-    return { id: message.image.id, mime: message.image.mime_type || 'image/jpeg' };
-  }
-  if (message.type === 'video' && message.video?.id) {
-    return { id: message.video.id, mime: message.video.mime_type || 'video/mp4' };
-  }
-  if (message.type === 'document' && message.document?.id) {
-    return { id: message.document.id, mime: message.document.mime_type || 'application/pdf' };
-  }
-  return null;
-};
-
-async function acknowledgeSeller(
-  to: string,
-  text: string,
-  appNameOverride?: string | null
-) {
-  try {
-    await sendGupshupText(to, text, false, appNameOverride);
-    return true;
-  } catch (error) {
-    console.error('Seller WhatsApp acknowledgement failed', {
-      code: error instanceof Error ? error.message : 'provider_error',
-    });
-    return false;
-  }
-}
-
-async function ingestSellerMessage(message: WhatsAppMessage): Promise<boolean> {
-  const media = extractMedia(message);
-  const result = await tryHandleSellerCatalogMessage({
-    id: String(message.id || '').trim(),
-    from: String(message.from || '').trim(),
-    appName: message.appName || null,
-    type: String(message.type || 'unknown'),
-    text: extractText(message),
-    mediaUrl: media?.id || null,
-    mediaMimeType: media?.mime || null,
-  });
-  return result.handled;
-}
-
-async function processMessage(message: WhatsAppMessage) {
-  // Exact seller WhatsApp identity wins before buyer automation. This prevents a
-  // dual-workspace account from having catalogue uploads consumed as buyer chat.
-  const sellerHandled = await ingestSellerMessage(message);
-  if (sellerHandled) return;
-  await handleBuyerWhatsAppMessage(message);
-}
-
-async function recordProcessingFailure(message: WhatsAppMessage, error: unknown) {
-  const waMessageId = String(message.id || '').trim();
-  const fromRaw = String(message.from || '').trim();
-  if (!waMessageId) return;
-  const reason = (error instanceof Error ? error.message : 'unknown').slice(0, 1000);
-  const admin = createAdminClient();
-  const { data: buyerMessage } = await admin
-    .from('whatsapp_buyer_messages')
-    .select('id,user_id,bespoke_order_id')
-    .eq('wa_message_id', waMessageId)
-    .maybeSingle();
-
-  if (buyerMessage?.id) {
-    await admin
-      .from('whatsapp_buyer_messages')
-      .update({ processing_status: 'failed', error_message: reason })
-      .eq('id', buyerMessage.id);
-    if (buyerMessage.bespoke_order_id) {
-      await admin
-        .from('bespoke_orders')
-        .update({
-          human_action_required: true,
-          human_action_reason: 'customer_service',
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', buyerMessage.bespoke_order_id);
-    }
-    await admin
-      .from('whatsapp_buyer_sessions')
-      .update({
-        human_handoff_required: true,
-        human_handoff_reason: 'message_processing_failed',
-        updated_at: new Date().toISOString(),
-      })
-      .eq('whatsapp_phone', normalizePhone(fromRaw));
-    await sendBuyerWhatsAppText(
-      fromRaw,
-      'We saved your message, but an automated step could not finish. FabricTrad customer service has been flagged with your order context; you do not need to resend sensitive details.',
-      buyerMessage.bespoke_order_id,
-      buyerMessage.user_id,
-      message.appName
-    );
-    return;
-  }
-
-  await admin
-    .from('whatsapp_catalog_ingestions')
-    .update({ status: 'failed', error_message: reason, updated_at: new Date().toISOString() })
-    .eq('wa_message_id', waMessageId);
-  await acknowledgeSeller(
-    fromRaw,
-    'FabricTrad saved your WhatsApp upload but could not finish processing it. It has been flagged for seller-support review.',
-    message.appName
-  );
-}
-
-async function processMessageWithFailureHandling(message: WhatsAppMessage) {
-  try {
-    await processMessage(message);
-  } catch (error) {
-    console.error('WhatsApp message processing failed', {
-      messageId: message.id || null,
-      code: error instanceof Error ? error.message : 'unknown',
-    });
-    await recordProcessingFailure(message, error).catch((recordError) => {
-      console.error('WhatsApp processing failure could not be recorded', {
-        messageId: message.id || null,
-        code: recordError instanceof Error ? recordError.message : 'unknown',
-      });
-    });
-  }
-}
-
 async function processDeliveryEvent(event: GupshupEvent) {
   if (event.type !== 'message-event' || !event.payload) return;
   const payload = event.payload;
@@ -351,6 +200,9 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  if (!whatsappWebhookAuthorized(request, process.env.GUPSHUP_WEBHOOK_SECRET)) {
+    return new NextResponse(null, { status: 401, headers: { 'Cache-Control': 'no-store' } });
+  }
   // Gupshup requires a publicly reachable webhook that immediately returns an
   // empty 2xx. FabricTrad supports both current Meta-format v3 callbacks and
   // legacy Gupshup-format v2 callbacks while processing work asynchronously.
@@ -373,6 +225,11 @@ export async function POST(request: NextRequest) {
       expectedSourceNumber: process.env.GUPSHUP_SOURCE_NUMBER,
     });
 
+    try {
+      await enqueueSellerWhatsAppMessages(normalized.messages);
+    } catch {
+      return new NextResponse(null, { status: 503 });
+    }
     if (normalized.deliveryEvents.length || normalized.messages.length) {
       after(async () => {
         for (const deliveryEvent of normalized.deliveryEvents) {
@@ -383,7 +240,7 @@ export async function POST(request: NextRequest) {
           });
         }
         for (const message of normalized.messages) {
-          await processMessageWithFailureHandling(message);
+          await processSellerWhatsAppQueue(message.id);
         }
       });
     }
@@ -417,8 +274,13 @@ export async function POST(request: NextRequest) {
 
   const message = normalizeGupshupMessage(event);
   if (message) {
+    try {
+      await enqueueSellerWhatsAppMessages([message]);
+    } catch {
+      return new NextResponse(null, { status: 503 });
+    }
     after(async () => {
-      await processMessageWithFailureHandling(message);
+      await processSellerWhatsAppQueue(message.id);
     });
   }
 

@@ -5,6 +5,7 @@ import toast from 'react-hot-toast';
 import Icon from '@/components/ui/AppIcon';
 import { useAuth } from '@/contexts/AuthContext';
 import { createClient } from '@/lib/supabase/client';
+import { validTrackingUrl } from '@/lib/shippingValidation';
 import { firstOrderItem, formatMoney, useSellerBulkOrders } from '@/lib/hooks/useAccountOrders';
 
 type OrderKind = 'bulk' | 'catalog';
@@ -69,6 +70,7 @@ export default function SellerCourierSettings() {
     awbNumber: '',
     trackingUrl: '',
     estimatedDelivery: '',
+    status: 'in_transit',
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -138,7 +140,7 @@ export default function SellerCourierSettings() {
     const bulk: OrderOption[] = bulkOrders
       .filter(
         (order) =>
-          order.status === 'paid' && order.payment_status === 'paid' && Boolean(order.buyer_id)
+          ['paid', 'shipped', 'delivered'].includes(String(order.status)) && order.payment_status === 'paid' && Boolean(order.buyer_id)
       )
       .map((order) => ({
         id: order.id,
@@ -184,11 +186,13 @@ export default function SellerCourierSettings() {
         awbNumber: selectedShipment.awb_number || '',
         trackingUrl: selectedShipment.tracking_url || '',
         estimatedDelivery: selectedShipment.estimated_delivery || '',
+        status: selectedShipment.status || 'in_transit',
       });
     } else {
-      setForm({ courierName: '', awbNumber: '', trackingUrl: '', estimatedDelivery: '' });
+      setSelectedCourier('local');
+      setForm({ courierName: '', awbNumber: '', trackingUrl: '', estimatedDelivery: '', status: 'in_transit' });
     }
-  }, [selectedShipment]);
+  }, [selectedShipment, selectedOrder?.id]);
 
   const createShiprocket = async () => {
     if (!selectedOrder) return;
@@ -232,37 +236,23 @@ export default function SellerCourierSettings() {
 
   const saveLocal = async () => {
     if (!selectedOrder || !sellerId) return;
-    if (!form.courierName.trim() || !form.awbNumber.trim()) {
-      return toast.error('Courier name and AWB / tracking number are required.');
+    if (!form.courierName.trim() || !form.awbNumber.trim() || !form.trackingUrl.trim()) {
+      return toast.error('Courier name, AWB and shipment-tracking link are required.');
     }
-    if (form.trackingUrl && !/^https?:\/\//i.test(form.trackingUrl)) {
-      return toast.error('Tracking URL must begin with http:// or https://.');
+    if (!validTrackingUrl(form.trackingUrl)) {
+      return toast.error('Enter a valid HTTPS shipment-tracking link.');
     }
 
     setSaving(true);
     try {
-      const supabase = createClient();
-      const payload = {
-        order_id: selectedOrder.id,
-        seller_id: sellerId,
-        buyer_id: selectedOrder.buyerId,
-        bulk_order_id: selectedOrder.kind === 'bulk' ? selectedOrder.id : null,
-        catalog_order_id: selectedOrder.kind === 'catalog' ? selectedOrder.id : null,
-        courier_type: 'local',
-        courier_name: form.courierName.trim(),
-        awb_number: form.awbNumber.trim(),
-        tracking_url: form.trackingUrl.trim() || null,
-        estimated_delivery: form.estimatedDelivery || null,
-        status: 'in_transit',
-        updated_at: new Date().toISOString(),
-      };
-      const conflict = selectedOrder.kind === 'bulk' ? 'bulk_order_id' : 'catalog_order_id';
-      const { error: saveError } = await supabase
-        .from('seller_shipments')
-        .upsert(payload, { onConflict: conflict });
-      if (saveError) throw saveError;
+      const response = await fetch('/api/seller/shipments', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin',
+        body: JSON.stringify({ ...form, orderId: selectedOrder.id, orderType: selectedOrder.kind }),
+      });
+      const result = await response.json();
+      if (!response.ok || !result.success) throw new Error(result.error || 'Shipment could not be saved.');
       toast.success('Courier details saved. The buyer can now track the shipment.');
-      await load();
+      await Promise.all([load(), refreshBulk()]);
     } catch (caught) {
       toast.error(caught instanceof Error ? caught.message : 'Shipment details could not be saved.');
     } finally {
@@ -277,9 +267,9 @@ export default function SellerCourierSettings() {
       <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="ft-route-kicker">Fulfilment</p>
-          <h1 className="mt-1 text-2xl font-800 text-foreground">Shipping automation</h1>
+          <h1 className="mt-1 text-2xl font-800 text-foreground">Shipping by order</h1>
           <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
-            FabricTrad reuses the seller pickup profile and buyer delivery profile automatically. No address, phone, email, GSTIN or product details need to be re-entered in the courier panel.
+            Choose Shiprocket or any third-party courier for each order. Your choice applies only to the selected order. For your own courier, add the AWB and tracking link so the buyer can follow delivery.
           </p>
         </div>
         <button
@@ -425,7 +415,7 @@ export default function SellerCourierSettings() {
             )}
           </div>
 
-          {selectedShipment ? (
+          {selectedShipment && (
             <div className="space-y-4 rounded-2xl border border-success/20 bg-success/5 p-4">
               <div className="flex items-start gap-3">
                 <Icon name="CheckCircleIcon" size={20} className="mt-0.5 text-success" />
@@ -464,9 +454,10 @@ export default function SellerCourierSettings() {
                 )}
               </div>
             </div>
-          ) : (
+          )}
+          {(!selectedShipment || (selectedShipment.courier_type === 'local' && selectedShipment.status !== 'delivered')) && (
             <>
-              <div className="mb-5 grid gap-3 sm:grid-cols-2">
+              {!selectedShipment && <div className="mb-5 grid gap-3 sm:grid-cols-2">
                 <button type="button" onClick={() => setSelectedCourier('shiprocket')} className={`rounded-xl border-2 p-4 text-left ${selectedCourier === 'shiprocket' ? 'border-primary bg-primary/5' : 'border-border'}`}>
                   <div className="flex items-center gap-2">
                     <Icon name="BoltIcon" size={18} className="text-primary" />
@@ -483,13 +474,13 @@ export default function SellerCourierSettings() {
                 <button type="button" onClick={() => setSelectedCourier('local')} className={`rounded-xl border-2 p-4 text-left ${selectedCourier === 'local' ? 'border-secondary bg-secondary/5' : 'border-border'}`}>
                   <div className="flex items-center gap-2">
                     <Icon name="MapPinIcon" size={18} className="text-secondary" />
-                    <span className="text-sm font-800">Manual / local transporter</span>
+                    <span className="text-sm font-800">My courier / third-party provider</span>
                   </div>
                   <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                    Keep this fallback for transporters or local couriers not connected through Shiprocket.
+                    Book with any provider you choose and share the AWB and tracking link for this order.
                   </p>
                 </button>
-              </div>
+              </div>}
 
               {selectedCourier === 'shiprocket' ? (
                 <div className="rounded-xl border border-primary/20 bg-primary/5 p-4">
@@ -509,8 +500,9 @@ export default function SellerCourierSettings() {
                 <div className="grid gap-3 rounded-xl border border-border p-4 sm:grid-cols-2">
                   <label className="text-xs font-700">Courier / transporter *<input value={form.courierName} onChange={(event) => setForm({ ...form, courierName: event.target.value })} className="input-base mt-1.5 w-full rounded-xl px-3 py-2.5 text-sm" placeholder="Local transporter, Blue Dart…" /></label>
                   <label className="text-xs font-700">AWB / tracking number *<input value={form.awbNumber} onChange={(event) => setForm({ ...form, awbNumber: event.target.value })} className="input-base mt-1.5 w-full rounded-xl px-3 py-2.5 text-sm" /></label>
-                  <label className="text-xs font-700">Tracking URL<input type="url" value={form.trackingUrl} onChange={(event) => setForm({ ...form, trackingUrl: event.target.value })} className="input-base mt-1.5 w-full rounded-xl px-3 py-2.5 text-sm" placeholder="https://…" /></label>
+                  <label className="text-xs font-700">Shipment tracking link *<input required type="url" value={form.trackingUrl} onChange={(event) => setForm({ ...form, trackingUrl: event.target.value })} className="input-base mt-1.5 w-full rounded-xl px-3 py-2.5 text-sm" placeholder="https://…" /></label>
                   <label className="text-xs font-700">Estimated delivery<input type="date" value={form.estimatedDelivery} onChange={(event) => setForm({ ...form, estimatedDelivery: event.target.value })} className="input-base mt-1.5 w-full rounded-xl px-3 py-2.5 text-sm" /></label>
+                  <label className="text-sm font-700">Shipment status<select value={form.status} onChange={event => setForm({ ...form, status: event.target.value })} className="input-base mt-1.5 w-full rounded-xl px-3 py-2.5 text-sm"><option value="pending">Packed / awaiting dispatch</option><option value="in_transit">In transit</option><option value="out_for_delivery">Out for delivery</option>{selectedShipment && <option value="delivered">Delivered</option>}</select></label>
                   <button type="button" onClick={() => void saveLocal()} disabled={saving} className="btn-primary sm:col-span-2 flex min-h-12 items-center justify-center gap-2 rounded-xl py-3 text-sm disabled:opacity-50">
                     <Icon name="CloudArrowUpIcon" size={16} />
                     {saving ? 'Saving…' : 'Save shipment & notify buyer'}

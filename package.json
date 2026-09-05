@@ -43,7 +43,7 @@
     "warning": "🚨 CRITICAL: DO NOT REMOVE OR MODIFY ABOVE DEPENDENCIES - Required for Next.js 15 TypeScript app functionality"
   },
   "scripts": {
-    "dev": "next dev -p 3000",
+    "dev": "node scripts/start-dev.mjs",
     "build": "next build",
     "start": "next start -p ${PORT:-3000}",
     "lint": "eslint .",
@@ -58,7 +58,8 @@
     "verify:seller-onboarding": "node scripts/verify-seller-onboarding.mjs",
     "verify:razorpay": "node scripts/verify-razorpay-config.mjs",
     "verify:whatsapp": "node scripts/verify-mobile-whatsapp.mjs",
-    "check": "npm run verify:oauth-recovery && npm run verify:public-home && npm run verify:database-security && npm run verify:seller-onboarding && npm run verify:whatsapp && npm run type-check && npm run lint && npm run build",
+    "verify:marketplace": "node --test scripts/test-marketplace.mjs",
+    "check": "npm run verify:oauth-recovery && npm run verify:public-home && npm run verify:database-security && npm run verify:seller-onboarding && npm run verify:whatsapp && npm run verify:marketplace && npm run type-check && npm run lint && npm run build",
     "build:sites": "opennextjs-cloudflare build --config wrangler.jsonc && node scripts/patch-opennext-worker.mjs",
     "deploy:sites": "opennextjs-cloudflare deploy --config wrangler.jsonc",
     "preview:sites": "opennextjs-cloudflare preview --config wrangler.jsonc",

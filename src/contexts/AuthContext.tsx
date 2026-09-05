@@ -236,8 +236,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     setSession(data.session);
     setUser(data.user);
-    let accountRole =
-      data.user?.app_metadata?.role || data.user?.user_metadata?.role || 'buyer';
+    let accountRole = data.user?.app_metadata?.role || 'buyer';
 
     if (data.user) {
       const provisionResponse = await fetch('/api/auth/provision-account', {

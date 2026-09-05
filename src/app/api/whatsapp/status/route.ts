@@ -22,15 +22,18 @@ export async function GET() {
     reviewRequest: Boolean(process.env.WHATSAPP_TEMPLATE_REVIEW_REQUEST),
     postDeliveryFollowUp: Boolean(process.env.WHATSAPP_TEMPLATE_POST_DELIVERY_FOLLOW_UP),
   };
-  const webhookReady = true;
+  const webhookReady = String(process.env.GUPSHUP_WEBHOOK_SECRET || '').length >= 32;
   const channelReady = channel.apiKey && channel.appName && channel.sourceNumber;
   const interactiveRepliesReady = channelReady && webhookReady;
   const templatesReady = Object.values(templates).every(Boolean);
-  const proactiveAutomationReady = channelReady && templatesReady;
+  const proactiveAutomationReady = false;
 
   return NextResponse.json(
     {
       provider: 'gupshup',
+      audience: 'sellers_only',
+      buyerMessagingEnabled: false,
+      purpose: 'seller_product_uploads',
       configured: interactiveRepliesReady,
       channelReady,
       interactiveRepliesReady,
@@ -49,7 +52,7 @@ export async function GET() {
         path: '/api/integrations/whatsapp/webhook',
         payloadFormat: 'meta_v3_with_gupshup_v2_fallback',
         access: 'public',
-        validation: 'provider_identity_source_number_and_event_shape',
+        validation: 'shared_secret_and_provider_identity',
         appIdValidation: channel.appId ? 'exact' : 'presence',
         sourceNumberValidation: 'exact',
         acknowledgement: 'empty_204',
