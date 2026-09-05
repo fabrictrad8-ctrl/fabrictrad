@@ -5,12 +5,13 @@
   "businessNumber": "917977286898",
   "channelFieldsPresent": {
     "apiKey": true,
+    "appId": false,
     "appName": true,
     "sourceNumber": true,
     "wabaId": false
   },
   "channelReady": true,
-  "checkedAt": "2026-09-04T09:05:02.979419+00:00",
+  "checkedAt": "2026-09-05T13:59:40.688321+00:00",
   "configured": true,
   "http": {
     "getBodyEmpty": true,
@@ -35,10 +36,13 @@
   "webhook": {
     "access": "public",
     "acknowledgement": "empty_204",
+    "appIdValidation": "presence",
+    "maxPayloadBytes": 1048576,
     "path": "/api/integrations/whatsapp/webhook",
     "payloadFormat": "meta_v3_with_gupshup_v2_fallback",
+    "sourceNumberValidation": "exact",
     "url": "https://fabrictrad.com/api/integrations/whatsapp/webhook",
-    "validation": "meta_v3_and_gupshup_v2_event_shapes"
+    "validation": "provider_identity_source_number_and_event_shape"
   },
   "webhookLive": true,
   "webhookReady": true,
