@@ -13,7 +13,7 @@ parser.add_argument('--work', required=True)
 parser.add_argument('--audio-only', action='store_true')
 args = parser.parse_args()
 root = Path(__file__).resolve().parents[1]
-work = Path(args.work); work.mkdir(parents=True, exist_ok=True)
+work = Path(args.work).resolve(); work.mkdir(parents=True, exist_ok=True)
 output = root / 'public' / 'guides'; output.mkdir(parents=True, exist_ok=True)
 source = json.loads((root / 'scripts/guide-narration.json').read_text())
 font_files = {'en': 'Latin.ttf', 'hi': 'Devanagari.ttf', 'gu': 'Gujarati.ttf'}
@@ -21,7 +21,9 @@ labels = {'en': {'buyer': 'BUYER GUIDE', 'seller': 'SELLER GUIDE', 'step': 'STEP
 paths = {'account': ['Create account', 'Buyer / Seller'], 'login': ['Sign in', 'Language'], 'discover': ['Marketplace', 'Product details'], 'drape': ['Product details', 'Virtual Drape'], 'payment': ['Cart', 'Order', 'Razorpay'], 'tracking': ['Buyer dashboard', 'Orders / Tracking'], 'catalogue': ['Seller dashboard', 'Upload / Inventory'], 'bank': ['Seller dashboard', 'Earnings', 'Payout account'], 'split': ['Buyer payment', 'Seller 90%', 'FabricTrad 10%'], 'whatsapp': ['Seller number', 'Catalogue assistant', 'Review draft'], 'shipping': ['Paid order', 'Choose carrier', 'AWB + tracking link'], 'earnings': ['Orders / Invoices', 'Earnings', 'Transfer status'], 'help': ['Dashboard', 'Support / Disputes']}
 
 def run(command):
-    subprocess.run(command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+    result = subprocess.run(command, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+    if result.returncode:
+        raise RuntimeError(result.stderr.decode(errors='replace')[-4000:])
 
 def duration(path):
     return float(subprocess.check_output(['ffprobe','-v','error','-show_entries','format=duration','-of','default=nw=1:nk=1',str(path)]))
@@ -43,9 +45,11 @@ engine.espeak_Synth.argtypes = [ctypes.c_char_p, ctypes.c_size_t, ctypes.c_uint,
 def voice(job):
     role, lang, i, chapter = job
     dest = work / f'{role}-{lang}-{i:02}.wav'
-    if dest.exists() and dest.stat().st_size > 1000:
-        return role, lang, i, 'reused'
     speech = chapter[lang][0] + '. ' + chapter[lang][1]
+    fingerprint = hashlib.sha256((lang + ':espeakng-loader-0.2.4:145-140:85:' + speech).encode()).hexdigest()
+    cache_key = dest.with_suffix('.sha256')
+    if dest.exists() and dest.stat().st_size > 1000 and cache_key.exists() and cache_key.read_text() == fingerprint:
+        return role, lang, i, 'reused'
     if engine.espeak_SetVoiceByName(lang.encode()) != 0: raise ValueError(f'Voice unavailable: {lang}')
     engine.espeak_SetParameter(1, 145 if lang == 'en' else 140, 0)
     engine.espeak_SetParameter(2, 85, 0)
@@ -57,6 +61,7 @@ def voice(job):
     if len(pcm) < 1000: raise RuntimeError('Offline synthesis returned empty audio')
     with wave.open(str(dest), 'wb') as wav:
         wav.setnchannels(1); wav.setsampwidth(2); wav.setframerate(sample_rate); wav.writeframes(pcm)
+    cache_key.write_text(fingerprint)
     return role, lang, i, 'generated'
 
 jobs = [(role, lang, i, chapter) for role, chapters in source.items() for lang in font_files for i, chapter in enumerate(chapters)]
