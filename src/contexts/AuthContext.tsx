@@ -160,7 +160,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       if (!cancelled) setLoading(false);
     };
 
-    void initialize();
+    void initialize().catch(() => {
+      if (!cancelled) setLoading(false);
+    });
 
     return () => {
       cancelled = true;

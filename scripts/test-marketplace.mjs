@@ -151,6 +151,23 @@ test('admin operations deny buyer sessions', async () => {
   assert.equal(response.status, 403);
 });
 
+test('an admin role without an approved email OTP session cannot use privileged APIs', async () => {
+  const f = fixture({ profile: { role: 'super_admin' }, rpcResult: { data: false, error: null } });
+  const response = await f.load('src/app/api/admin/orders/route.ts').GET(new next.NextRequest('https://fabrictrad.test/api/admin/orders'));
+  assert.equal(response.status, 403);
+  assert.equal(f.calls.filter(call => call.name === 'is_admin').length, 1);
+});
+
+test('admin access fails closed if the session policy cannot be verified', async () => {
+  const f = fixture({ profile: { role: 'admin_staff' } });
+  assert.equal(await f.load('src/lib/server/requireAdministrator.ts').requireAdministrator(), false);
+});
+
+test('active administrators with a verified email OTP session pass the access guard', async () => {
+  const f = fixture({ profile: { role: 'super_admin' }, rpcResult: { data: true, error: null } });
+  assert.equal(await f.load('src/lib/server/requireAdministrator.ts').requireAdministrator(), true);
+});
+
 const invoice = { id: productId, invoice_number: 'AUDIT-INV-1', email_status: 'pending',
   email_recipient: 'buyer@example.test', recipient: { name: 'Buyer <example>' }, supplier: { tradeName: 'Test supplier' },
   payment_reference: 'pay_fixture', lines: [{ description: 'Cotton <script>', quantity: 1, unit: 'piece', lineTotal: 100 }],

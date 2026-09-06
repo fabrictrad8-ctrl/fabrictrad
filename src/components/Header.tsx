@@ -81,10 +81,10 @@ export default function Header() {
   const publicNavLinks = useMemo<NavLink[]>(
     () => [
       { label: t('nav.marketplace'), href: '/marketplace', icon: 'ShoppingBagIcon' },
-      { label: 'Custom order', href: '/custom-order', icon: 'ChatBubbleLeftRightIcon' },
-      { label: 'Categories', href: '/categories', icon: 'Squares2X2Icon' },
-      { label: 'AI Drape', href: '/product-detail#drape-on', icon: 'SparklesIcon' },
-      { label: 'Vendors', href: '/vendors', icon: 'BuildingStorefrontIcon' },
+      { label: t('nav.customOrder'), href: '/custom-order', icon: 'ChatBubbleLeftRightIcon' },
+      { label: t('nav.categories'), href: '/categories', icon: 'Squares2X2Icon' },
+      { label: t('drape.eyebrow'), href: '/product-detail#drape-on', icon: 'SparklesIcon' },
+      { label: t('nav.vendors'), href: '/vendors', icon: 'BuildingStorefrontIcon' },
     ],
     [t]
   );
@@ -92,21 +92,21 @@ export default function Header() {
   const buyerNavLinks = useMemo<NavLink[]>(
     () => [
       { label: t('nav.marketplace'), href: '/marketplace', icon: 'ShoppingBagIcon' },
-      { label: 'Custom order', href: '/custom-order', icon: 'ChatBubbleLeftRightIcon' },
-      { label: 'Categories', href: '/categories', icon: 'Squares2X2Icon' },
-      { label: 'Vendors', href: '/vendors', icon: 'BuildingStorefrontIcon' },
-      { label: 'Requirements', href: '/buyer-requirements', icon: 'MegaphoneIcon' },
+      { label: t('nav.customOrder'), href: '/custom-order', icon: 'ChatBubbleLeftRightIcon' },
+      { label: t('nav.categories'), href: '/categories', icon: 'Squares2X2Icon' },
+      { label: t('nav.vendors'), href: '/vendors', icon: 'BuildingStorefrontIcon' },
+      { label: t('nav.requirements'), href: '/buyer-requirements', icon: 'MegaphoneIcon' },
     ],
     [t]
   );
 
   const sellerNavLinks = useMemo<NavLink[]>(
     () => [
-      { label: 'Seller dashboard', href: '/seller-dashboard', icon: 'HomeIcon' },
-      { label: 'Products', href: '/seller-dashboard?tab=inventory', icon: 'ArchiveBoxIcon' },
-      { label: 'Orders', href: '/seller-dashboard?tab=orders', icon: 'ClipboardDocumentListIcon' },
+      { label: t('nav.sellerDashboard'), href: '/seller-dashboard', icon: 'HomeIcon' },
+      { label: t('nav.products'), href: '/seller-dashboard?tab=inventory', icon: 'ArchiveBoxIcon' },
+      { label: t('nav.orders'), href: '/seller-dashboard?tab=orders', icon: 'ClipboardDocumentListIcon' },
     ],
-    []
+    [t]
   );
 
   const navLinks = useMemo<NavLink[]>(() => {
@@ -123,37 +123,37 @@ export default function Header() {
     if (!isLoggedIn) return [];
     if (isAdmin) {
       return [
-        { label: 'Admin overview', href: '/admin-portal', icon: 'ChartPieIcon' },
-        { label: 'Review sellers', href: '/admin-portal?tab=sellers', icon: 'ShieldCheckIcon' },
-        { label: 'Orders', href: '/admin-portal?tab=orders', icon: 'ClipboardDocumentListIcon' },
-        { label: 'Payments', href: '/admin-portal?tab=payments', icon: 'CreditCardIcon' },
+        { label: t('nav.adminOverview'), href: '/admin-portal', icon: 'ChartPieIcon' },
+        { label: t('nav.reviewSellers'), href: '/admin-portal?tab=sellers', icon: 'ShieldCheckIcon' },
+        { label: t('nav.orders'), href: '/admin-portal?tab=orders', icon: 'ClipboardDocumentListIcon' },
+        { label: t('nav.payments'), href: '/admin-portal?tab=payments', icon: 'CreditCardIcon' },
       ];
     }
 
     const links: NavLink[] = [];
     if (canBuy) {
       links.push(
-        { label: 'Open buyer workspace', href: '/marketplace', icon: 'ShoppingBagIcon' },
-        { label: 'Buyer dashboard', href: '/buyer-dashboard', icon: 'HomeIcon' },
-        { label: 'Custom order studio', href: '/custom-order', icon: 'ChatBubbleLeftRightIcon' }
+        { label: t('nav.marketplace'), href: '/marketplace', icon: 'ShoppingBagIcon' },
+        { label: t('nav.buyerDashboard'), href: '/buyer-dashboard', icon: 'HomeIcon' },
+        { label: t('nav.customOrder'), href: '/custom-order', icon: 'ChatBubbleLeftRightIcon' }
       );
     }
     if (canSell) {
       links.push(
-        { label: 'Open seller workspace', href: '/seller-dashboard', icon: 'BuildingStorefrontIcon' },
-        { label: 'Products & inventory', href: '/seller-dashboard?tab=inventory', icon: 'ArchiveBoxIcon' }
+        { label: t('nav.sellerDashboard'), href: '/seller-dashboard', icon: 'BuildingStorefrontIcon' },
+        { label: t('nav.products'), href: '/seller-dashboard?tab=inventory', icon: 'ArchiveBoxIcon' }
       );
     } else if (canBuy) {
-      links.push({ label: 'Activate selling', href: '/seller-registration', icon: 'PlusCircleIcon' });
+      links.push({ label: t('roles.joinSeller'), href: '/seller-registration', icon: 'PlusCircleIcon' });
     }
-    links.push({ label: 'Account overview', href: '/account', icon: 'UserCircleIcon' });
+    links.push({ label: t('nav.account'), href: '/account', icon: 'UserCircleIcon' });
     return links;
-  }, [canBuy, canSell, isAdmin, isLoggedIn]);
+  }, [canBuy, canSell, isAdmin, isLoggedIn, t]);
 
   const quickAction = isAdmin
-    ? { label: 'Review sellers', href: '/admin-portal?tab=sellers', icon: 'ShieldCheckIcon' }
+    ? { label: t('nav.reviewSellers'), href: '/admin-portal?tab=sellers', icon: 'ShieldCheckIcon' }
     : sellerContext && canSell
-      ? { label: 'Add product', href: '/seller-dashboard?tab=upload', icon: 'PlusIcon' }
+      ? { label: t('nav.addProduct'), href: '/seller-dashboard?tab=upload', icon: 'PlusIcon' }
       : null;
 
   const brandHref = isAdmin
@@ -227,11 +227,11 @@ export default function Header() {
                 type="search"
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
-                placeholder="Search fabrics, colours, GSM, vendors or SKU"
-                aria-label="Search FabricTrad marketplace"
+                placeholder={t('nav.search')}
+                aria-label={t('nav.searchButton')}
                 className="min-w-0 flex-1 bg-white px-4 text-sm text-slate-900 outline-none placeholder:text-slate-500"
               />
-              <button type="submit" className="ft-buyer-search-submit" aria-label="Search marketplace">
+              <button type="submit" className="ft-buyer-search-submit" aria-label={t('nav.searchButton')}>
                 <Icon name="MagnifyingGlassIcon" size={20} />
               </button>
             </form>
@@ -396,7 +396,7 @@ export default function Header() {
                     type="search"
                     value={searchQuery}
                     onChange={(event) => setSearchQuery(event.target.value)}
-                    placeholder="Search fabrics, colours or vendors"
+                    placeholder={t('nav.search')}
                     className="min-w-0 flex-1 bg-transparent px-3 text-sm outline-none"
                   />
                   <button type="submit" className="ft-search-submit px-4 text-sm font-750">Go</button>
@@ -447,7 +447,7 @@ export default function Header() {
                     {(isAdmin || buyerContext || sellerContext) && (
                       <Link href={notificationsHref} onClick={closeMenus} className="ft-mobile-menu-link">
                         <Icon name="BellIcon" size={18} />
-                        <span>Notifications</span>
+                        <span>{t('nav.notifications')}</span>
                       </Link>
                     )}
                   </div>
@@ -464,7 +464,7 @@ export default function Header() {
               {isLoggedIn ? (
                 <button type="button" onClick={handleSignOut} className="ft-secondary-action flex w-full items-center justify-center gap-2 px-4 py-3 text-sm">
                   <Icon name="ArrowRightOnRectangleIcon" size={17} />
-                  Sign out
+                  {t('nav.signOut')}
                 </button>
               ) : (
                 <div className="grid gap-2">

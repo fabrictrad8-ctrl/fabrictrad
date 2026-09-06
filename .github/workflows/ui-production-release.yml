@@ -9,11 +9,16 @@ on:
 permissions:
   contents: write
 
-# Dedicated UI release path. It intentionally has no shared concurrency group,
-# so audit/status commits cannot cancel a real Cloudflare deployment.
-# Release marker: seller WhatsApp catalogue + mobile auth 2026-09-04.
+concurrency:
+  group: fabrictrad-production-worker
+  cancel-in-progress: false
+
 jobs:
+  database:
+    if: ${{ github.event_name == 'workflow_dispatch' || (!contains(github.event.head_commit.message, '[skip deploy]') && !contains(github.event.head_commit.message, '[skip ui deploy]')) }}
+    uses: ./.github/workflows/database-migrations.yml
   release-ui:
+    needs: database
     if: ${{ github.event_name == 'workflow_dispatch' || (!contains(github.event.head_commit.message, '[skip deploy]') && !contains(github.event.head_commit.message, '[skip ui deploy]')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -97,7 +102,7 @@ jobs:
           test "$login_code" = '200'
           test "$howto_code" = '200'
           test "$logo_code" = '200'
-          grep -Fq 'fabrictrad-official-logo-2026-08-30' /tmp/fabrictrad-home.html
+          grep -Fq 'fabrictrad-textile-showroom-2026-09-05' /tmp/fabrictrad-home.html
           file /tmp/fabrictrad-logo.png | grep -Fq 'PNG image data, 984 x 220'
 
       - name: Verify the visible top-left logo in a real browser
@@ -116,6 +121,8 @@ jobs:
             viewport: { width: 1440, height: 900 },
             deviceScaleFactor: 1,
           });
+          const pageErrors = [];
+          page.on('pageerror', error => pageErrors.push(error.message));
 
           try {
             await page.goto(`https://fabrictrad.com/?brand-check=${Date.now()}`, {
@@ -145,6 +152,15 @@ jobs:
             if (!box || box.width < 120 || box.height < 25) {
               throw new Error(`Visible header logo is missing or too small: ${JSON.stringify(box)}`);
             }
+
+            const language = page.locator('[data-language-control="embedded"] select').first();
+            await language.selectOption('hi');
+            await page.locator('html[lang="hi"]').waitFor();
+            await language.selectOption('en');
+            await page.locator('html[lang="en"]').waitFor();
+            const textile = await page.locator('img[src*="textile-showroom"]').evaluate(img => ({ complete: img.complete, width: img.naturalWidth }));
+            if (!textile.complete || textile.width < 400) throw new Error('The new textile image did not load');
+            if (pageErrors.length) throw new Error(`Live page runtime errors: ${pageErrors.join('; ')}`);
 
             const header = page.locator('header').first();
             await header.screenshot({ path: 'test-results/live-brand/fabrictrad-live-header.png' });

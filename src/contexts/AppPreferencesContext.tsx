@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { SUPPORTED_LANGUAGES, type SupportedLanguageCode } from '@/lib/india';
@@ -28,31 +28,39 @@ function isLanguage(value: unknown): value is SupportedLanguageCode {
 export function AppPreferencesProvider({ children }: { children: React.ReactNode }) {
   const { user, profile, isDemoAccount, refreshProfile } = useAuth();
   const [language, setLanguageState] = useState<SupportedLanguageCode>('en');
+  const preferenceQueue = useRef<Promise<void>>(Promise.resolve());
+  const profileLanguageLoadedFor = useRef<string | null>(null);
+  const languageChosenLocally = useRef(false);
 
   useEffect(() => {
-    const storedLanguage = window.localStorage.getItem(LANGUAGE_KEY);
+    let storedLanguage: string | null = null;
+    try { storedLanguage = window.localStorage.getItem(LANGUAGE_KEY); } catch { /* Storage can be disabled. */ }
     if (isLanguage(storedLanguage)) setLanguageState(storedLanguage);
 
     // The current commerce release is intentionally light-only. This clears old
     // device/account dark preferences that produced low-contrast mixed surfaces.
-    window.localStorage.setItem(THEME_KEY, 'light');
+    try { window.localStorage.setItem(THEME_KEY, 'light'); } catch { /* Keep the in-memory preference. */ }
     document.documentElement.classList.remove('dark');
     document.documentElement.dataset.theme = 'light';
     document.documentElement.style.colorScheme = 'light';
   }, []);
 
   useEffect(() => {
-    if (isLanguage(profile?.preferred_language)) {
-      setLanguageState(profile.preferred_language);
-      window.localStorage.setItem(LANGUAGE_KEY, profile.preferred_language);
+    if (!user) profileLanguageLoadedFor.current = null;
+    if (user && profile && profileLanguageLoadedFor.current !== user.id) {
+      profileLanguageLoadedFor.current = user.id;
+      if (!languageChosenLocally.current && isLanguage(profile.preferred_language)) {
+        setLanguageState(profile.preferred_language);
+        try { window.localStorage.setItem(LANGUAGE_KEY, profile.preferred_language); } catch { /* Optional device storage. */ }
+      }
     }
 
     // Do not let a stale preferred_theme value reactivate the unaudited dark UI.
-    window.localStorage.setItem(THEME_KEY, 'light');
+    try { window.localStorage.setItem(THEME_KEY, 'light'); } catch { /* Optional device storage. */ }
     document.documentElement.classList.remove('dark');
     document.documentElement.dataset.theme = 'light';
     document.documentElement.style.colorScheme = 'light';
-  }, [profile?.preferred_language, profile?.preferred_theme]);
+  }, [profile, user]);
 
   useEffect(() => {
     document.documentElement.lang = language;
@@ -73,20 +81,25 @@ export function AppPreferencesProvider({ children }: { children: React.ReactNode
 
   const setTheme = useCallback(
     (_next: ThemePreference) => {
-      window.localStorage.setItem(THEME_KEY, 'light');
+      try { window.localStorage.setItem(THEME_KEY, 'light'); } catch { /* Optional device storage. */ }
       document.documentElement.classList.remove('dark');
       document.documentElement.dataset.theme = 'light';
       document.documentElement.style.colorScheme = 'light';
-      void persistProfilePreference({ preferred_theme: 'light' });
+      void persistProfilePreference({ preferred_theme: 'light' }).catch(() => undefined);
     },
     [persistProfilePreference]
   );
 
   const setLanguage = useCallback(
     async (next: SupportedLanguageCode) => {
+      if (!isLanguage(next)) return;
+      languageChosenLocally.current = true;
       setLanguageState(next);
-      window.localStorage.setItem(LANGUAGE_KEY, next);
-      await persistProfilePreference({ preferred_language: next });
+      try { window.localStorage.setItem(LANGUAGE_KEY, next); } catch { /* Language switching still works for this visit. */ }
+      // Serialize rapid selections so a slower earlier request cannot overwrite the latest choice.
+      preferenceQueue.current = preferenceQueue.current.catch(() => undefined)
+        .then(() => persistProfilePreference({ preferred_language: next }));
+      await preferenceQueue.current.catch(() => undefined);
     },
     [persistProfilePreference]
   );

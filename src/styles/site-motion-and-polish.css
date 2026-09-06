@@ -9,6 +9,70 @@
   --ft-ease-emphasized: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+/* Shared textile palette and readable controls. This is the final design layer. */
+html:not(.dark) body.ft-root {
+  --background: #f7f8fb;
+  --foreground: #172741;
+  --primary: #233f69;
+  --primary-foreground: #fff;
+  --secondary: #172741;
+  --ring: #233f69;
+  --border: #dce2eb;
+  --muted: #eff2f7;
+  --muted-foreground: #526078;
+  --ft-page: #f7f8fb;
+  --ft-ink: #172741;
+  --ft-muted: #526078;
+  --ft-line: #dce2eb;
+  --ft-orange: #b65a24;
+  --ft-orange-strong: #944315;
+  font-size: 16px;
+}
+.ft-language-picker { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; min-height: 44px; padding-inline: 10px; border: 1px solid var(--border); border-radius: 10px; background: #fff; }
+.ft-root .ft-language-picker select { min-height: 42px; width: auto; max-width: 168px; padding: 4px 2px; border: 0; border-radius: 4px; background: transparent; font-size: 14px; font-weight: 600; cursor: pointer; }
+.ft-language-picker.is-compact select { max-width: 100px; }
+html:not([lang='en']) .ft-root :where(h1, h2, h3, h4, p, label, button, a, span) { letter-spacing: normal !important; text-transform: none !important; }
+html:not([lang='en']) .ft-root :where(h1, h2, h3) { line-height: 1.4 !important; }
+html:not(.dark) .ft-root :where(input, textarea)::placeholder { color: #68758a; }
+html:not(.dark) .ft-root :where(input, select, textarea):focus-visible { border-color: #233f69 !important; box-shadow: 0 0 0 3px rgb(35 63 105 / .12) !important; }
+html:not(.dark) .ft-showroom { background: #fbfaf7 !important; }
+html:not(.dark) .ft-showroom::before { display: none !important; }
+html:not(.dark) .ft-showroom .ft-future-nav { background: rgb(255 255 255 / .96) !important; border-radius: 16px !important; box-shadow: 0 4px 24px rgb(23 39 65 / .05) !important; }
+.ft-showroom .ft-future-hero { width: min(1320px, calc(100% - 64px)); min-height: 0 !important; padding-top: clamp(120px, 10vw, 160px) !important; padding-bottom: clamp(36px, 5vw, 80px) !important; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important; gap: clamp(28px, 4vw, 64px) !important; align-items: center; }
+html:not(.dark) .ft-showroom .ft-future-kicker { padding: 0 !important; border: 0 !important; background: transparent !important; color: #8b461c !important; font-size: 14px !important; line-height: 1.6; letter-spacing: .025em; }
+.ft-showroom .ft-future-hero h1 { font-size: clamp(40px, 4.4vw, 66px) !important; line-height: 1.1 !important; letter-spacing: -.045em; }
+html:not(.dark) .ft-showroom .ft-future-hero h1 em { color: #9b4b1f !important; background: none !important; -webkit-text-fill-color: currentColor !important; font-style: normal; }
+.ft-showroom .ft-future-hero-copy { font-size: 17px !important; line-height: 1.8 !important; max-width: 58ch; }
+html:not(.dark) .ft-root .ft-primary-action { background: #233f69 !important; color: #fff !important; border: 1px solid #233f69 !important; box-shadow: 0 4px 12px rgb(35 63 105 / .12) !important; }
+html:not(.dark) .ft-root .ft-primary-action:hover { background: #172e50 !important; }
+html:not(.dark) .ft-root .ft-secondary-action { color: #233f69 !important; background: #fff !important; border: 1px solid #cad3df !important; }
+.ft-textile-visual { position: relative; width: 100%; min-height: 450px; aspect-ratio: 1.15; overflow: hidden; border-radius: 22px; background: #233f69; box-shadow: 0 24px 56px rgb(23 39 65 / .14); }
+.ft-textile-image { object-fit: cover; }
+.ft-textile-caption { position: absolute; inset: auto 20px 20px; display: flex; gap: 14px; align-items: center; padding: 20px; border-radius: 12px; background: #fff; color: #172741; box-shadow: 0 8px 30px rgb(0 0 0 / .1); }
+.ft-textile-caption svg { flex-shrink: 0; color: #9b4b1f; }
+.ft-textile-caption strong { font-size: 17px; }
+.ft-textile-caption p { margin-top: 4px; font-size: 14px; line-height: 1.6; color: #526078; }
+.ft-showroom .ft-future-trustline { flex-wrap: wrap; gap: 12px 20px; font-size: 14px; }
+.ft-showroom :where(.text-xs) { font-size: 14px !important; line-height: 1.6; }
+.ft-showroom :where(section p.text-sm, .ft-future-panel p) { font-size: 16px !important; line-height: 1.75; }
+html:not(.dark) .ft-showroom .ft-future-panel { border-radius: 16px !important; box-shadow: none !important; background: #fff !important; }
+html:not(.dark) .ft-showroom .ft-future-panel-icon { background: #eef2f8 !important; color: #233f69 !important; }
+@media (max-width: 1000px) { .ft-showroom .ft-future-navlinks { display: none !important; } }
+@media (max-width: 900px) {
+  .ft-showroom .ft-future-hero { grid-template-columns: minmax(0, 1fr) !important; width: calc(100% - 40px); }
+  .ft-textile-visual { min-height: 280px; max-height: 420px; aspect-ratio: 1.6; }
+  .ft-showroom .ft-future-hero h1 { font-size: clamp(38px, 8vw, 58px) !important; }
+}
+@media (max-width: 480px) {
+  .ft-showroom .ft-future-hero { padding-top: 180px !important; }
+  .ft-showroom .ft-future-nav { flex-wrap: wrap; gap: 12px !important; padding: 12px !important; }
+  .ft-showroom .ft-future-nav > .ml-auto { width: 100%; margin-left: 0; justify-content: space-between; }
+  .ft-showroom .ft-future-nav .ft-primary-action { padding-inline: 10px; }
+  .ft-textile-caption { inset: auto 12px 12px; padding: 14px; }
+  .ft-showroom .ft-future-hero-actions { align-items: stretch; }
+  .ft-showroom .ft-future-hero-actions a { flex: 1 1 100%; text-align: center; justify-content: center; }
+}
+
 .ft-skip-link {
   position: fixed;
   inset-block-start: 10px;

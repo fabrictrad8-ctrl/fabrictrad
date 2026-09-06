@@ -1,8 +1,10 @@
 import type { SupportedLanguageCode } from '@/lib/india';
+import { translateCommerce, type CommerceTranslationKey } from './commerceTranslations';
 
 const en = {
   'nav.marketplace': 'Marketplace',
   'nav.categories': 'Categories',
+  'nav.customOrder': 'Custom order',
   'nav.vendors': 'Verified sellers',
   'nav.requirements': 'Requirements',
   'nav.dashboard': 'My dashboard',
@@ -68,8 +70,8 @@ const en = {
   'form.theme': 'Appearance',
 } as const;
 
-export type TranslationKey = keyof typeof en;
-type Dictionary = Partial<Record<TranslationKey, string>>;
+export type TranslationKey = keyof typeof en | CommerceTranslationKey;
+type Dictionary = Partial<Record<keyof typeof en, string>>;
 
 const dictionaries: Record<SupportedLanguageCode, Dictionary> = {
   en,
@@ -198,5 +200,5 @@ const dictionaries: Record<SupportedLanguageCode, Dictionary> = {
 };
 
 export function translate(language: SupportedLanguageCode, key: TranslationKey): string {
-  return dictionaries[language]?.[key] || en[key];
+  return translateCommerce(language, key) || dictionaries[language]?.[key as keyof typeof en] || en[key as keyof typeof en];
 }
