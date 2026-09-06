@@ -260,3 +260,8 @@ end
 $baseline$;
 
 -- shopify_order_item_purchase_rule is installed by its recorded 20260828 migration.
+-- These two nullable order fields were also present in production without a
+-- recorded migration. The settlement trigger below depends on both fields.
+alter table public.orders
+  add column if not exists payment_status text,
+  add column if not exists fulfillment_status text;
