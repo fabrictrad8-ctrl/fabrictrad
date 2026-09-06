@@ -19,7 +19,7 @@ function DashboardRouteState({
   actionLabel: string;
 }) {
   return (
-    <div className="ft-shell flex min-h-screen items-center justify-center px-4 py-10">
+    <main className="ft-shell flex min-h-screen items-center justify-center px-4 py-10">
       <div className="ft-card w-full max-w-md p-6 text-center sm:p-8">
         <div className="mb-6 flex items-center justify-center gap-2">
           <AppLogo size={36} />
@@ -34,18 +34,18 @@ function DashboardRouteState({
           {actionLabel}
         </Link>
       </div>
-    </div>
+    </main>
   );
 }
 
 export default function SellerDashboardPage() {
-  const { user, profile, loading, isDemoAccount, refreshProfile } = useAuth();
+  const { user, profile, loading, profileLoading, isDemoAccount, refreshProfile } = useAuth();
   const router = useRouter();
   const [accountReady, setAccountReady] = useState(false);
   const [accountError, setAccountError] = useState('');
 
   useEffect(() => {
-    if (loading || !user || accountReady) return;
+    if (loading || profileLoading || !user || accountReady) return;
 
     if (isDemoAccount || profile) {
       setAccountReady(true);
@@ -74,7 +74,7 @@ export default function SellerDashboardPage() {
     return () => {
       cancelled = true;
     };
-  }, [accountReady, isDemoAccount, loading, profile, refreshProfile, user]);
+  }, [accountReady, isDemoAccount, loading, profileLoading, profile, refreshProfile, user]);
 
   useEffect(() => {
     if (loading) return;
@@ -114,12 +114,12 @@ export default function SellerDashboardPage() {
 
   if (loading || (user && !profile && !accountReady)) {
     return (
-      <div className="ft-shell flex min-h-screen items-center justify-center px-4">
+      <main aria-busy="true" aria-label="Loading workspace" className="ft-shell flex min-h-screen items-center justify-center px-4">
         <div className="flex flex-col items-center gap-4 text-center">
           <div className="h-8 w-8 animate-spin rounded-full border-2 border-secondary border-t-transparent" />
           <p className="text-sm font-600 text-muted-foreground">Preparing your seller workspace…</p>
         </div>
-      </div>
+      </main>
     );
   }
 

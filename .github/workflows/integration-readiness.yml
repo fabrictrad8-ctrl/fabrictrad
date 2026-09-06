@@ -112,9 +112,7 @@ jobs:
             grep -q '"interactiveRepliesReady":true' /tmp/whatsapp.json || fail 'WhatsApp inbound/reply automation is not ready.'
             grep -q '"webhookReady":true' /tmp/whatsapp.json || fail 'WhatsApp webhook readiness is false.'
             grep -q '"businessNumber":"917977286898"' /tmp/whatsapp.json || fail 'WhatsApp is not bound to the FabricTrad business number.'
-            if ! grep -q '"templatesReady":true' /tmp/whatsapp.json; then
-              warn 'Interactive WhatsApp is live, but one or more approved proactive reminder templates are still missing.'
-            fi
+            grep -q '"buyerMessagingEnabled":false' /tmp/whatsapp.json || fail 'Buyer WhatsApp messaging must remain disabled.'
           fi
 
           webhook_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
@@ -136,13 +134,11 @@ jobs:
             --header 'Content-Type: application/json' \
             --data '{"type":"user-event","version":2,"app":"__fabrictrad_readiness_probe__","payload":{"type":"sandbox-start"}}' \
             "$base_url/api/integrations/whatsapp/webhook" || true)
-          echo "WhatsApp public callback probe: HTTP ${whatsapp_webhook_status} (expected 204)"
-          if [ "$whatsapp_webhook_status" != '204' ]; then
+          echo "WhatsApp public callback probe: HTTP ${whatsapp_webhook_status} (expected 401)"
+          if [ "$whatsapp_webhook_status" != '401' ]; then
             head -c 1200 /tmp/whatsapp-webhook.out || true
             echo
-            fail "WhatsApp public callback returned HTTP ${whatsapp_webhook_status}; expected 204."
-          elif [ -s /tmp/whatsapp-webhook.out ]; then
-            fail 'WhatsApp public callback returned a non-empty response body; Gupshup expects an empty 2xx acknowledgement.'
+            fail "Unauthenticated WhatsApp callback returned HTTP ${whatsapp_webhook_status}; expected 401."
           fi
 
           assert_cookie_cannot_unlock buyer '/buyer-dashboard' 'login'

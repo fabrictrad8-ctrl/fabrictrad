@@ -169,7 +169,15 @@ drop trigger restore_catalog_order_stock_on_cancel_trigger on public.catalog_ord
 -- All buyer order creation uses the ownership-checked submission RPC.
 drop policy buyers_create_catalog_order_requests on public.catalog_order_requests;
 
-drop policy "Buyers manage own bulk orders" on public.bulk_orders;
+drop policy if exists "Buyers manage own bulk orders" on public.bulk_orders;
+-- Older checkouts contain these policies; production had already retired them.
+-- Remove them on rebuild so permissive policies cannot bypass the new guards.
+drop policy if exists buyers_read_own_bulk_orders on public.bulk_orders;
+drop policy if exists buyers_create_draft_bulk_orders on public.bulk_orders;
+drop policy if exists buyers_update_own_bulk_orders on public.bulk_orders;
+drop policy if exists sellers_read_assigned_bulk_orders on public.bulk_orders;
+drop policy if exists sellers_update_assigned_bulk_orders on public.bulk_orders;
+drop policy if exists admins_manage_bulk_orders on public.bulk_orders;
 create policy buyers_read_own_bulk_orders on public.bulk_orders for select to authenticated
   using(buyer_id=auth.uid() and public.can_current_user_buy());
 create policy buyers_cancel_unpaid_bulk_orders on public.bulk_orders for update to authenticated

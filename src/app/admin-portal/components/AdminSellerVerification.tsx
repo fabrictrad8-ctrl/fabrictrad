@@ -189,7 +189,7 @@ export default function AdminSellerVerification() {
         reject_gstin: 'GSTIN review rejected.',
         approve_document: 'Document approved.',
         reject_document: 'Document rejected.',
-        verify_bank: 'Settlement bank details verified.',
+        verify_bank: 'Razorpay verification confirmed.',
         reject_bank: 'Settlement bank review rejected.',
         approve_seller: 'Seller approved and selling activated.',
         reject_seller: 'Seller application rejected.',
@@ -355,7 +355,7 @@ export default function AdminSellerVerification() {
                   <p className="mt-1 text-xs text-muted-foreground">{selected.bank ? `${selected.bank.account_number_masked || 'Account'} · ${selected.bank.ifsc_code || 'No IFSC'}` : 'Bank details not submitted'}</p>
                   {selected.applicationSubmitted && selected.seller.verification_status !== 'verified' && selected.bank && !selected.bank.is_verified && (
                     <div className="mt-3 flex flex-wrap gap-2">
-                      <button disabled={working} onClick={() => void act('verify_bank')} className="btn-primary px-3 py-2 text-xs">Verify bank</button>
+                      <button disabled={working} onClick={() => void act('verify_bank')} className="btn-primary px-3 py-2 text-xs">Check Razorpay verification</button>
                       <button disabled={working} onClick={() => rejectWithReason('reject_bank')} className="rounded-lg border border-error/30 px-3 py-2 text-xs font-800 text-error">Reject bank</button>
                     </div>
                   )}

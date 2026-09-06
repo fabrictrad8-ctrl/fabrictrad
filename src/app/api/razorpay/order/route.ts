@@ -1,4 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { randomUUID } from 'node:crypto';
+import { MARKETPLACE_SPLIT_VERSION, marketplaceSplit, marketplaceTransfer, validMarketplaceTransfers } from '@/lib/marketplaceSplit';
+import { requireSellerPayout, razorpayRequest, RouteSetupError } from '@/lib/server/razorpayRoute';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { rupeesToPaise } from '@/lib/razorpayIntegrity';
@@ -16,6 +19,7 @@ type RazorpayOrderSnapshot = {
   currency?: string;
   status?: string;
   error?: { code?: string; description?: string };
+  transfers?: unknown;
 };
 
 class RazorpayOrderError extends Error {
@@ -51,8 +55,7 @@ async function createRazorpayOrder(input: {
   amountPaise: number;
   receipt: string;
   notes: Record<string, string>;
-  transferAccount?: string | null;
-  transferAmountPaise?: number;
+  transferAccount: string;
 }) {
   if (!Number.isInteger(input.amountPaise) || input.amountPaise < 100) {
     throw new RazorpayOrderError(
@@ -68,16 +71,7 @@ async function createRazorpayOrder(input: {
     receipt: input.receipt.slice(0, 40),
     notes: input.notes,
   };
-  if (input.transferAccount && Number(input.transferAmountPaise || 0) > 0) {
-    payload.transfers = [
-      {
-        account: input.transferAccount,
-        amount: input.transferAmountPaise,
-        currency: 'INR',
-        on_hold: true,
-      },
-    ];
-  }
+  payload.transfers = [marketplaceTransfer(input.amountPaise, input.transferAccount)];
 
   let response: Response;
   try {
@@ -132,6 +126,7 @@ async function inspectExistingRazorpayOrder(input: {
   keySecret: string;
   razorpayOrderId: string;
   amountPaise: number;
+  transferAccount: string;
 }) {
   let response: Response;
   try {
@@ -184,9 +179,11 @@ async function inspectExistingRazorpayOrder(input: {
   const amountMatches = Number(result.amount) === input.amountPaise;
   const currencyMatches = result.currency === 'INR';
   const idMatches = result.id === input.razorpayOrderId;
+  const transferResult = await razorpayRequest<{ items?: unknown[] }>(`/v1/orders/${encodeURIComponent(input.razorpayOrderId)}/transfers`);
+  const transferMatches = validMarketplaceTransfers(transferResult, input.amountPaise, input.transferAccount);
   const reusableStatus = ['created', 'attempted'].includes(providerStatus);
 
-  if (idMatches && amountMatches && currencyMatches && reusableStatus) {
+  if (idMatches && amountMatches && currencyMatches && reusableStatus && transferMatches) {
     return { reusable: true, providerStatus } as const;
   }
 
@@ -357,14 +354,29 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  let transferAccount: string;
+  try { transferAccount = await requireSellerPayout(String(order.seller_id)); }
+  catch (error) {
+    return json({ error: error instanceof Error ? error.message : 'Seller payout verification is unavailable.', code: error instanceof RouteSetupError ? error.code : 'SELLER_PAYOUT_UNAVAILABLE' }, error instanceof RouteSetupError ? error.status : 503);
+  }
+  const checkoutToken = randomUUID();
+  const { data: claimed, error: claimError } = await admin.rpc('claim_marketplace_checkout', { p_order_type: orderType, p_order_id: orderId, p_token: checkoutToken });
+  if (claimError) return json({ error: 'Checkout could not be reserved safely.' }, 503);
+  if (!claimed) return json({ error: 'Another checkout request is in progress. Please retry shortly.', code: 'CHECKOUT_IN_PROGRESS' }, 409);
+  try {
   const { data: existing } = await admin
     .from(paymentTable)
-    .select('id,razorpay_order_id,amount,currency,status')
+    .select('id,razorpay_order_id,amount,currency,status,split_version,transfer_account_id')
     .eq(orderForeignKey, orderId)
     .in('status', ['initiated', 'authorized'])
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
+
+  if (existing?.status === 'authorized') return json({ error: 'A payment is awaiting capture. Please wait for reconciliation.', code: 'PAYMENT_CAPTURE_PENDING' }, 409);
+  if (existing && (existing.split_version !== MARKETPLACE_SPLIT_VERSION || existing.transfer_account_id !== transferAccount)) {
+    return json({ error: 'This earlier checkout needs review by FabricTrad before payment. A new payment has not been created.', code: 'LEGACY_CHECKOUT_REVIEW_REQUIRED' }, 409);
+  }
 
   if (
     existing?.razorpay_order_id &&
@@ -377,6 +389,7 @@ export async function POST(request: NextRequest) {
         keySecret,
         razorpayOrderId: existing.razorpay_order_id,
         amountPaise,
+        transferAccount,
       });
 
       if (inspection.reusable) {
@@ -405,17 +418,7 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      await admin
-        .from(paymentTable)
-        .update({
-          status: 'failed',
-          failure_reason:
-            inspection.reason === 'not_visible_to_active_credentials'
-              ? 'Stale Razorpay order: it is not visible to the currently active production credentials.'
-              : 'Stale Razorpay order: provider amount, currency, identity, or status no longer matches.',
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', existing.id);
+      return json({ error: 'The existing checkout could not be verified. FabricTrad must reconcile it before creating another payment.', code: 'CHECKOUT_REVIEW_REQUIRED' }, 409);
     } catch (error) {
       const providerError =
         error instanceof RazorpayOrderError
@@ -427,29 +430,15 @@ export async function POST(request: NextRequest) {
       );
     }
   } else if (existing?.id) {
-    await admin
-      .from(paymentTable)
-      .update({
-        status: 'failed',
-        failure_reason: 'Superseded because the server-calculated amount due changed.',
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', existing.id);
+    return json({ error: 'An earlier payment session is active for a different amount. Please contact FabricTrad before paying.', code: 'CHECKOUT_REVIEW_REQUIRED' }, 409);
   }
 
-  const commissionRate = safeRate(process.env.PLATFORM_COMMISSION_RATE, 0.1, 0.5);
+  const split = marketplaceSplit(amountPaise);
   const commissionGstRate = safeRate(process.env.PLATFORM_COMMISSION_GST_RATE, 0.18, 0.5);
-  const estimatedProcessingRate = safeRate(process.env.RAZORPAY_PROCESSING_RATE, 0.02, 0.1);
-  const platformCommission = roundMoney(amountDue * commissionRate);
-  const gstOnCommission = roundMoney(platformCommission * commissionGstRate);
-  const estimatedProcessingFee = roundMoney(amountDue * estimatedProcessingRate);
-  const sellerPayable = Math.max(
-    0,
-    roundMoney(amountDue - platformCommission - gstOnCommission - estimatedProcessingFee)
-  );
-
-  const routeEnabled =
-    seller.settlement_eligible === true && Boolean(seller.razorpay_linked_account_id);
+  const platformCommissionPaise = Math.round(split.platformPaise / (1 + commissionGstRate));
+  const platformCommission = platformCommissionPaise / 100;
+  const gstOnCommission = (split.platformPaise - platformCommissionPaise) / 100;
+  const sellerPayable = split.sellerPaise / 100;
   let razorpayOrder;
   try {
     razorpayOrder = await createRazorpayOrder({
@@ -464,8 +453,7 @@ export async function POST(request: NextRequest) {
         seller_id: String(order.seller_id),
         payment_purpose: requestedDeposit ? 'deposit' : firstPayment ? 'full' : 'balance',
       },
-      transferAccount: routeEnabled ? seller.razorpay_linked_account_id : null,
-      transferAmountPaise: routeEnabled ? rupeesToPaise(sellerPayable) : 0,
+      transferAccount,
     });
   } catch (error) {
     const providerError =
@@ -485,10 +473,14 @@ export async function POST(request: NextRequest) {
     currency: 'INR',
     status: 'initiated',
     platform_commission: platformCommission,
-    razorpay_fee: estimatedProcessingFee,
+    razorpay_fee: 0, // Provider fees are borne by FabricTrad and recorded separately on capture.
     gst_on_commission: gstOnCommission,
     seller_payable: sellerPayable,
-    transfer_status: routeEnabled ? 'created_on_hold' : 'not_configured',
+    transfer_status: 'pending_capture',
+    split_version: MARKETPLACE_SPLIT_VERSION,
+    platform_retained: split.platformPaise / 100,
+    transfer_account_id: transferAccount,
+    transfer_amount_paise: split.sellerPaise,
     updated_at: new Date().toISOString(),
   };
   const { error: insertError } = await admin.from(paymentTable).insert(paymentPayload);
@@ -501,6 +493,11 @@ export async function POST(request: NextRequest) {
     });
     return json({ error: 'The payment order could not be recorded safely. Please retry.' }, 503);
   }
+
+  try {
+    const transfers = await razorpayRequest<{ items?: unknown[] }>(`/v1/orders/${encodeURIComponent(String(razorpayOrder.id))}/transfers`);
+    if (!validMarketplaceTransfers(transfers, amountPaise, transferAccount)) return json({ error: 'Razorpay did not confirm the seller transfer. Checkout has been paused for review.', code: 'ROUTE_TRANSFER_NOT_CONFIRMED' }, 503);
+  } catch { return json({ error: 'The seller transfer could not be confirmed. Please retry this checkout shortly.', code: 'ROUTE_TRANSFER_NOT_CONFIRMED' }, 503); }
 
   return json({
     keyId,
@@ -515,4 +512,7 @@ export async function POST(request: NextRequest) {
     remainingAfterPayment: roundMoney(remaining - amountDue),
     reused: false,
   });
+  } finally {
+    await admin.rpc('release_marketplace_checkout', { p_order_type: orderType, p_order_id: orderId, p_token: checkoutToken });
+  }
 }

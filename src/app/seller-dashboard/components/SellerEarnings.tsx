@@ -5,6 +5,7 @@ import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxi
 import Icon from '@/components/ui/AppIcon';
 import { useAuth } from '@/contexts/AuthContext';
 import { createClient } from '@/lib/supabase/client';
+import SellerPayoutAccount from './SellerPayoutAccount';
 
 type PaymentRow = {
   id: string;
@@ -30,7 +31,7 @@ type SellerState = {
   linkedAccountId: string | null;
 };
 
-const settledStatuses = new Set(['processed', 'settled', 'transferred', 'completed']);
+const settledStatuses = new Set(['processed', 'settled']);
 const capturedStatuses = new Set(['captured', 'partially_refunded', 'refunded']);
 
 const money = (value: number) =>
@@ -143,7 +144,7 @@ export default function SellerEarnings() {
   }, [user?.id]);
 
   useEffect(() => {
-    void load();
+    void load().catch(() => { setError('Earnings could not be loaded. Please refresh.'); setLoading(false); });
   }, [load]);
 
   const captured = useMemo(
@@ -158,13 +159,13 @@ export default function SellerEarnings() {
   const refunds = captured.reduce((sum, payment) => sum + payment.refundedAmount, 0);
   const fees = captured.reduce(
     (sum, payment) =>
-      sum + payment.platformCommission + payment.razorpayFee + payment.gstOnCommission,
+      sum + Math.max(0, payment.amount - payment.sellerPayable),
     0
   );
   const sellerEarned = captured.reduce((sum, payment) => sum + netSellerPayable(payment), 0);
   const settled = captured.filter(
     (payment) =>
-      Boolean(payment.transferId) ||
+      Boolean(payment.transferId) &&
       settledStatuses.has(String(payment.transferStatus || '').toLowerCase())
   );
   const settledAmount = settled.reduce((sum, payment) => sum + netSellerPayable(payment), 0);
@@ -215,9 +216,10 @@ export default function SellerEarnings() {
         </button>
       </div>
 
+      <SellerPayoutAccount />
       {seller && !seller.settlementEligible && (
         <div className="mb-5 rounded-2xl border border-warning/20 bg-warning/10 p-4 text-sm text-warning">
-          Settlement is not enabled for this seller yet. Captured payments will be recorded correctly, but automated transfer requires an eligible linked account.
+          Seller approval is pending. Checkout requires both an approved seller and a Razorpay-verified payout bank.
         </div>
       )}
       {error && <div className="mb-5 rounded-2xl border border-error/20 bg-error/5 p-4 text-sm text-error">{error}</div>}
@@ -269,7 +271,7 @@ export default function SellerEarnings() {
           <section className="rounded-2xl border border-border bg-card p-5">
             <h2 className="text-sm font-800 text-foreground">Captured-payment deductions</h2>
             <div className="mt-4 grid gap-3 sm:grid-cols-3">
-              <div className="rounded-xl bg-muted/40 p-4"><p className="text-xs text-muted-foreground">Platform + processing + commission GST</p><p className="mt-1 text-xl font-800 text-foreground">{money(fees)}</p></div>
+              <div className="rounded-xl bg-muted/40 p-4"><p className="text-xs text-muted-foreground">FabricTrad share (all inclusive)</p><p className="mt-1 text-xl font-800 text-foreground">{money(fees)}</p></div>
               <div className="rounded-xl bg-error/5 p-4"><p className="text-xs text-muted-foreground">Refunded</p><p className="mt-1 text-xl font-800 text-error">{money(refunds)}</p></div>
               <div className="rounded-xl bg-success/5 p-4"><p className="text-xs text-muted-foreground">Net seller payable</p><p className="mt-1 text-xl font-800 text-success">{money(sellerEarned)}</p></div>
             </div>
@@ -286,8 +288,8 @@ export default function SellerEarnings() {
 
       {activeSection === 'history' && (
         <section className="overflow-hidden rounded-2xl border border-border bg-card">
-          <div className="border-b border-border px-5 py-4"><h2 className="text-sm font-800">Completed transfers</h2><p className="mt-1 text-xs text-muted-foreground">Only captured payments with a saved Razorpay transfer or settled status are shown.</p></div>
-          {settled.length ? <div className="divide-y divide-border">{settled.map((payment) => <div key={payment.id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-4"><div><p className="mono-id">{payment.transferId || payment.id}</p><p className="mt-1 text-xs text-muted-foreground">Order {payment.orderId.slice(0, 8).toUpperCase()} · {new Date(payment.capturedAt || payment.createdAt).toLocaleString('en-IN')}</p></div><div className="text-right"><p className="text-sm font-800 text-success">{money(netSellerPayable(payment))}</p><p className="mt-1 text-xs text-success">Transferred</p></div></div>)}</div> : <div className="px-5 py-10 text-center"><Icon name="CheckCircleIcon" size={30} className="mx-auto text-muted-foreground" /><p className="mt-2 text-sm font-800">No completed transfers yet</p></div>}
+          <div className="border-b border-border px-5 py-4"><h2 className="text-sm font-800">Completed transfers</h2><p className="mt-1 text-xs text-muted-foreground">A processed transfer credits your Razorpay linked account. Bank settlement is shown only when Razorpay confirms it.</p></div>
+          {settled.length ? <div className="divide-y divide-border">{settled.map((payment) => <div key={payment.id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-4"><div><p className="mono-id">{payment.transferId || payment.id}</p><p className="mt-1 text-xs text-muted-foreground">Order {payment.orderId.slice(0, 8).toUpperCase()} · {new Date(payment.capturedAt || payment.createdAt).toLocaleString('en-IN')}</p></div><div className="text-right"><p className="text-sm font-800 text-success">{money(netSellerPayable(payment))}</p><p className="mt-1 text-xs text-success">{payment.transferStatus === 'settled' ? 'Bank settlement confirmed' : 'Transferred to Razorpay linked account'}</p></div></div>)}</div> : <div className="px-5 py-10 text-center"><Icon name="CheckCircleIcon" size={30} className="mx-auto text-muted-foreground" /><p className="mt-2 text-sm font-800">No completed transfers yet</p></div>}
         </section>
       )}
     </div>

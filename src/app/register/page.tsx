@@ -3,102 +3,45 @@
 import Link from 'next/link';
 import AppLogo from '@/components/ui/AppLogo';
 import Icon from '@/components/ui/AppIcon';
+import PreferenceControls from '@/components/PreferenceControls';
+import { useAppPreferences } from '@/contexts/AppPreferencesContext';
 
 const options = [
-  {
-    href: '/buyer-registration?type=end_user',
-    icon: 'UserIcon' as const,
-    badge: 'Fastest · no documents',
-    title: 'Buy for myself',
-    description: 'For tailoring, weddings, events, household use or smaller personal orders.',
-    points: ['No business documents required', 'Order from personal-buyer enabled listings', 'Add delivery details only when needed'],
-    accent: 'orange',
-    action: 'Create personal buyer access',
-  },
-  {
-    href: '/buyer-registration?type=retail_store',
-    icon: 'ShoppingBagIcon' as const,
-    badge: 'Business buyer',
-    title: 'Buy for my shop',
-    description: 'For retailers and businesses sourcing fabrics for resale, projects or repeat purchasing.',
-    points: ['Wholesale purchasing workspace', 'GST details only when applicable', 'Saved orders, invoices and sourcing tools'],
-    accent: 'cyan',
-    action: 'Create retail-store access',
-  },
-  {
-    href: '/seller-registration',
-    icon: 'BuildingStorefrontIcon' as const,
-    badge: 'Verified seller',
-    title: 'Sell on FabricTrad',
-    description: 'For textile businesses listing products, receiving orders and managing fulfilment.',
-    points: ['Seller approval before publishing', 'Seller verification and GSTIN workflow', 'Catalogue, orders, payouts and shipping'],
-    accent: 'blue',
-    action: 'Activate seller workspace',
-  },
-];
-
-const accentClass: Record<string, string> = {
-  orange: 'text-orange-800 bg-orange-50 border-orange-200',
-  cyan: 'text-cyan-800 bg-cyan-50 border-cyan-200',
-  blue: 'text-blue-800 bg-blue-50 border-blue-200',
-};
+  { href: '/buyer-registration?type=end_user', icon: 'UserIcon', title: 'register.personal', description: 'register.personalCopy' },
+  { href: '/buyer-registration?type=retail_store', icon: 'ShoppingBagIcon', title: 'register.retail', description: 'register.retailCopy' },
+  { href: '/seller-registration', icon: 'BuildingStorefrontIcon', title: 'register.sell', description: 'register.sellCopy' },
+] as const;
 
 export default function RegisterPage() {
+  const { t } = useAppPreferences();
   return (
-    <main className="ft-future-landing min-h-screen">
+    <main className="ft-future-landing ft-showroom min-h-screen">
       <header className="ft-future-topbar">
         <div className="ft-future-nav">
-          <Link href="/" className="ft-future-brand">
-            <AppLogo size={34} />
-            <span>FabricTrad</span>
-          </Link>
-          <div className="ml-auto flex items-center gap-2">
-            <Link href="/login" className="ft-secondary-action inline-flex min-h-10 items-center px-4 text-sm font-800">Sign in</Link>
+          <Link href="/" className="ft-future-brand" aria-label="FabricTrad"><AppLogo size={34} /></Link>
+          <div className="ml-auto flex items-center gap-3">
+            <PreferenceControls compact />
+            <Link href="/login" className="ft-secondary-action inline-flex min-h-11 items-center rounded-xl px-4 text-sm font-800">{t('nav.signIn')}</Link>
           </div>
         </div>
       </header>
-
-      <section className="relative z-[2] mx-auto w-full max-w-[1320px] px-4 pb-20 pt-32 sm:px-6 lg:px-8 lg:pt-40">
+      <section className="relative z-[2] mx-auto w-full max-w-[1240px] px-5 pb-20 pt-32 sm:px-8 lg:pt-40">
         <div className="mx-auto max-w-3xl text-center">
-          <div className="ft-future-kicker mx-auto">Choose your starting workspace</div>
-          <h1 className="mt-6 text-balance text-5xl font-850 leading-[.98] tracking-[-0.055em] text-foreground sm:text-6xl lg:text-7xl">One account. Start with what you need today.</h1>
-          <p className="mx-auto mt-6 max-w-2xl text-sm leading-7 text-muted-foreground sm:text-base">Personal buyers can start without business paperwork. Shops and sellers complete only the additional verification needed for business workflows. You can unlock another workspace later without registering a second account.</p>
+          <p className="text-sm font-700 text-primary">{t('register.kicker')}</p>
+          <h1 className="mt-5 text-balance text-4xl font-850 leading-tight tracking-tight text-foreground sm:text-6xl">{t('register.title')}</h1>
+          <p className="mx-auto mt-6 max-w-2xl text-base leading-8 text-muted-foreground">{t('register.copy')}</p>
         </div>
-
-        <div className="mt-12 grid gap-4 lg:grid-cols-3">
+        <div className="mt-12 grid gap-5 lg:grid-cols-3">
           {options.map((option) => (
-            <Link key={option.href} href={option.href} className="group relative overflow-hidden rounded-[24px] border border-border bg-card/95 p-6 shadow-2xl shadow-black/10 backdrop-blur-xl transition hover:-translate-y-1 hover:border-primary/40 hover:bg-card sm:p-7">
-              <div className="absolute -right-16 -top-16 h-40 w-40 rounded-full bg-orange-400/10 blur-3xl transition group-hover:bg-orange-400/20" />
-              <div className="relative">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className={`flex h-12 w-12 items-center justify-center rounded-2xl border ${accentClass[option.accent]}`}>
-                    <Icon name={option.icon} size={23} />
-                  </div>
-                  <span className={`rounded-full border px-3 py-1 text-[10px] font-850 uppercase tracking-[0.12em] ${accentClass[option.accent]}`}>{option.badge}</span>
-                </div>
-                <h2 className="mt-7 text-2xl font-850 tracking-tight text-foreground">{option.title}</h2>
-                <p className="mt-3 min-h-[70px] text-sm leading-6 text-muted-foreground">{option.description}</p>
-                <div className="mt-6 space-y-3">
-                  {option.points.map((item) => (
-                    <div key={item} className="flex items-start gap-2.5 text-sm text-foreground">
-                      <Icon name="CheckCircleIcon" size={17} className="mt-0.5 shrink-0 text-emerald-700" />
-                      <span>{item}</span>
-                    </div>
-                  ))}
-                </div>
-                <span className="mt-8 inline-flex items-center gap-2 text-sm font-850 text-primary">
-                  {option.action}
-                  <Icon name="ArrowRightIcon" size={15} className="transition-transform group-hover:translate-x-1" />
-                </span>
-              </div>
+            <Link key={option.href} href={option.href} className="ft-resource-card group flex flex-col rounded-2xl border border-border bg-card p-7 text-foreground shadow-sm">
+              <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-primary/10 text-primary"><Icon name={option.icon} size={26} /></div>
+              <h2 className="mt-7 text-2xl font-800">{t(option.title)}</h2>
+              <p className="mb-8 mt-4 text-base leading-8 text-muted-foreground">{t(option.description)}</p>
+              <span className="mt-auto inline-flex items-center gap-3 text-sm font-800 text-primary">{t('nav.createAccount')}<Icon name="ArrowRightIcon" size={18} /></span>
             </Link>
           ))}
         </div>
-
-        <div className="mx-auto mt-7 flex max-w-3xl flex-col items-center justify-between gap-3 rounded-2xl border border-border bg-card/95 p-4 text-center backdrop-blur-xl sm:flex-row sm:text-left">
-          <p className="text-sm text-muted-foreground">Already have any FabricTrad account? Do not register again. Sign in and use the workspaces approved for that account.</p>
-          <Link href="/login" className="shrink-0 text-sm font-850 text-primary hover:underline">Sign in instead</Link>
-        </div>
+        <div className="mt-10 text-center"><Link href="/login" className="inline-flex min-h-11 items-center rounded-lg px-5 text-base font-700 text-primary underline underline-offset-4">{t('nav.signIn')}</Link></div>
       </section>
     </main>
   );

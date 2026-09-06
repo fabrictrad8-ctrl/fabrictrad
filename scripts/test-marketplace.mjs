@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
 import { createRequire } from 'node:module';
+import { createHmac } from 'node:crypto';
 import ts from 'typescript';
 const require = createRequire(import.meta.url);
 const root = process.cwd();
@@ -21,16 +22,18 @@ function fixture(options = {}) {
     seller_product_variants: options.variant || null,
     seller_product_media: [],
     seller_tax_invoices: options.invoice || null,
+    ...options.records,
   };
   const client = {
     auth: { getUser: async () => ({ data: { user: options.anonymous ? null : { id: userId } } }) },
     from: (table) => {
       const result = { data: records[table] ?? null, error: null };
-      const chain = { select() { return this; }, eq() { return this; }, neq() { return this; }, or() { return this; }, update(values) { calls.push({ table, values }); return this; }, order() { return this; }, maybeSingle: async () => result, then: (resolve) => Promise.resolve(result).then(resolve) };
+      const chain = { select() { return this; }, in() { return this; }, limit() { return this; }, upsert(values) { calls.push({ table, upsert: values }); return this; }, insert(values) { calls.push({ table, insert: values }); return this; }, eq() { return this; }, neq() { return this; }, or() { return this; }, update(values) { calls.push({ table, values }); return this; }, order() { return this; }, maybeSingle: async () => result, single: async () => result, then: (resolve) => Promise.resolve(result).then(resolve) };
       return chain;
     },
     rpc: async (name, args) => {
       calls.push({ name, args });
+      if (options.rpc) return options.rpc(name, args);
       return options.rpcResult || { data: null, error: { code: 'UNAVAILABLE', message: 'Unavailable' } };
     },
   };
@@ -46,6 +49,7 @@ function fixture(options = {}) {
     const localRequire = (name) => {
       if (name === '@/lib/supabase/server') return { createClient: async () => client };
       if (name === '@/lib/supabase/admin') return { createAdminClient: () => client };
+      if (name === '@/lib/razorpayCredentials' && options.razorpay) return { getRazorpayCredentials: async () => ({ keyId: 'rzp_live_fixture', keySecret: 'fixture-secret-with-32-characters' }) };
       if (name === '@/lib/gupshupWhatsApp') return { sendGupshupText: () => { throw new Error('Unexpected send'); } };
       if (name === '@rocketnew/llm-sdk') return { imageEdit: () => { throw new Error('Unexpected provider generation'); } };
       if (name.startsWith('@/')) return load('src/' + name.slice(2) + '.ts');
@@ -151,6 +155,23 @@ test('admin operations deny buyer sessions', async () => {
   assert.equal(response.status, 403);
 });
 
+test('an admin role without an approved email OTP session cannot use privileged APIs', async () => {
+  const f = fixture({ profile: { role: 'super_admin' }, rpcResult: { data: false, error: null } });
+  const response = await f.load('src/app/api/admin/orders/route.ts').GET(new next.NextRequest('https://fabrictrad.test/api/admin/orders'));
+  assert.equal(response.status, 403);
+  assert.equal(f.calls.filter(call => call.name === 'is_admin').length, 1);
+});
+
+test('admin access fails closed if the session policy cannot be verified', async () => {
+  const f = fixture({ profile: { role: 'admin_staff' } });
+  assert.equal(await f.load('src/lib/server/requireAdministrator.ts').requireAdministrator(), false);
+});
+
+test('active administrators with a verified email OTP session pass the access guard', async () => {
+  const f = fixture({ profile: { role: 'super_admin' }, rpcResult: { data: true, error: null } });
+  assert.equal(await f.load('src/lib/server/requireAdministrator.ts').requireAdministrator(), true);
+});
+
 const invoice = { id: productId, invoice_number: 'AUDIT-INV-1', email_status: 'pending',
   email_recipient: 'buyer@example.test', recipient: { name: 'Buyer <example>' }, supplier: { tradeName: 'Test supplier' },
   payment_reference: 'pay_fixture', lines: [{ description: 'Cotton <script>', quantity: 1, unit: 'piece', lineTotal: 100 }],
@@ -194,4 +215,90 @@ test('missing email credentials records configuration failure without sending', 
     } }, kind: 'catalog', orderId: productId, paymentId: 'pay_fixture',
   });
   assert.equal(result.emailed, false); assert.equal(updates[0].email_status, 'not_configured');
+});
+
+
+const payoutBank = { account_number: '123456789012', ifsc_code: 'HDFC0000001', beneficiary_name: 'QA Seller' };
+const routeAccount = { seller_id: 'seller', linked_account_id: 'acc_fixture', product_id: 'acc_prd_fixture', setup_state: 'submitted', bank_last4: '9012', bank_ifsc: payoutBank.ifsc_code, bank_fingerprint: createHmac('sha256', 'fixture-secret-with-32-characters').update(`fabrictrad-bank-v1:${payoutBank.ifsc_code}:${payoutBank.account_number}`).digest('hex'), updated_at: '2026-09-06T00:00:00Z' };
+function checkoutFixture(options = {}) {
+  const requests = [];
+  const f = fixture({ razorpay: true, records: {
+    buyer_profiles: { id: userId },
+    seller_profiles: { id: 'seller', user_id: 'seller-user', is_active: true, gstin_verified: true, verification_status: 'verified' },
+    catalog_order_requests: { id: productId, buyer_id: userId, seller_id: 'seller', status: 'accepted', total_amount: 100, amount_paid: 0, amount_refunded: 0, deposit_percent: 100 },
+    seller_payout_accounts: options.account === undefined ? routeAccount : options.account,
+    catalog_order_payments: options.existing || null,
+  }, rpc: async () => ({ data: true, error: null }), fetch: async (url, init = {}) => {
+    requests.push({ url, init });
+    if (url.endsWith('/products/acc_prd_fixture')) return Response.json({ id: 'acc_prd_fixture', account_id: 'acc_fixture', product_name: 'route', activation_status: options.activation || 'activated', requirements: options.requirements || [], active_configuration: { settlements: options.bank || payoutBank } });
+    if (url.endsWith('/v2/accounts/acc_fixture')) return Response.json({ id: 'acc_fixture', type: 'route', status: options.accountStatus || 'created' });
+    if (url.endsWith('/transfers')) return Response.json({ items: [{ recipient: 'acc_fixture', amount: 9000, currency: 'INR', on_hold: false, status: 'created' }] });
+    if (url.endsWith('/v1/orders') && init.method === 'POST') return Response.json({ id: 'order_fixture', amount: 10000, currency: 'INR', status: 'created' });
+    throw new Error('Unexpected provider call');
+  } });
+  return { ...f, requests };
+}
+const checkoutRequest = () => new next.NextRequest('https://fabrictrad.test/api/razorpay/order', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ orderId: productId, orderType: 'catalog' }) });
+
+test('90/10 allocations preserve every paise without additional seller deductions', () => {
+  const { marketplaceSplit, marketplaceTransfer } = fixture().load('src/lib/marketplaceSplit.ts');
+  for (const amount of [100, 101, 105, 10000, 100000, 1000000, 99999999]) {
+    const split = marketplaceSplit(amount);
+    assert.equal(split.sellerPaise + split.platformPaise, amount);
+    assert.ok(Math.abs(split.sellerPaise - amount * 0.9) <= 0.50001);
+    assert.equal(marketplaceTransfer(amount, 'acc_fixture').on_hold, false);
+  }
+  assert.equal(marketplaceSplit(10000).sellerPaise, 9000);
+  for (const amount of [0, -1, 99, 100.2, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1]) assert.throws(() => marketplaceSplit(amount));
+});
+
+test('checkout fails closed when seller has no provider-verified payout account', async () => {
+  const f = checkoutFixture({ account: null });
+  const response = await f.load('src/app/api/razorpay/order/route.ts').POST(checkoutRequest());
+  assert.equal(response.status, 409); assert.equal((await response.json()).code, 'SELLER_PAYOUT_NOT_READY');
+  assert.equal(f.requests.length, 0); assert.equal(f.calls.filter(c => c.insert).length, 0);
+});
+
+for (const scenario of [{ activation: 'under_review' }, { accountStatus: 'suspended' }, { bank: { ...payoutBank, account_number: '999999999012' } }, { requirements: [{ status: 'required', field_reference: 'kyc.pan' }] }]) {
+  test('checkout blocks pending, suspended, mismatched or incomplete provider verification: ' + JSON.stringify(scenario), async () => {
+    const f = checkoutFixture(scenario);
+    assert.equal((await f.load('src/app/api/razorpay/order/route.ts').POST(checkoutRequest())).status, 409);
+    assert.equal(f.requests.filter(r => r.init.method === 'POST').length, 0);
+  });
+}
+
+test('verified checkout sends and persists 90% seller allocation without a settlement hold', async () => {
+  const f = checkoutFixture();
+  const response = await f.load('src/app/api/razorpay/order/route.ts').POST(checkoutRequest());
+  assert.equal(response.status, 200);
+  const provider = JSON.parse(f.requests.find(r => r.init.method === 'POST').init.body);
+  assert.equal(provider.amount, 10000); assert.equal(provider.transfers.length, 1);
+  assert.deepEqual(provider.transfers[0], { account: 'acc_fixture', amount: 9000, currency: 'INR', on_hold: false });
+  const saved = f.calls.find(c => c.table === 'catalog_order_payments' && c.insert).insert;
+  assert.equal(saved.seller_payable, 90); assert.equal(saved.platform_retained, 10); assert.equal(saved.razorpay_fee, 0);
+  assert.equal(Math.round((saved.platform_commission + saved.gst_on_commission) * 100), 1000);
+  assert.equal(saved.transfer_account_id, 'acc_fixture');
+});
+
+test('legacy unsplit checkout is never reused or silently replaced with a second payable order', async () => {
+  const f = checkoutFixture({ existing: { id: 'payment-fixture', razorpay_order_id: 'order_old', amount: 100, currency: 'INR', status: 'initiated', split_version: null } });
+  const response = await f.load('src/app/api/razorpay/order/route.ts').POST(checkoutRequest());
+  assert.equal(response.status, 409); assert.equal((await response.json()).code, 'LEGACY_CHECKOUT_REVIEW_REQUIRED');
+  assert.equal(f.requests.filter(r => r.init.method === 'POST').length, 0);
+});
+
+test('bank setup requires a seller and never accepts a buyer session', async () => {
+  const f = fixture();
+  const response = await f.load('src/app/api/seller/payout-account/route.ts').POST(new next.NextRequest('https://fabrictrad.test/api/seller/payout-account', { method: 'POST', body: '{}' }));
+  assert.equal(response.status, 403);
+});
+
+test('a transfer ID alone cannot be mistaken for bank settlement', () => {
+  const { transferState } = fixture().load('src/lib/server/routeTransferReconciliation.ts');
+  const transfer = { id: 'trf_fixture', source: 'pay_fixture', recipient: 'acc_fixture', amount: 9000, currency: 'INR', status: 'created', amount_reversed: 0 };
+  assert.equal(transferState(transfer), 'created');
+  assert.equal(transferState({ ...transfer, status: 'processed' }), 'processed');
+  assert.equal(transferState({ ...transfer, status: 'processed', settlement_status: 'settled', recipient_settlement_id: 'setl_fixture' }), 'settled');
+  assert.equal(transferState({ ...transfer, status: 'processed', amount_reversed: 1000 }), 'partially_reversed');
+  assert.equal(transferState({ ...transfer, status: 'processed', amount_reversed: 9000 }), 'reversed');
 });

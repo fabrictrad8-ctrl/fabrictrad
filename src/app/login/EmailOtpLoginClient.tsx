@@ -2,9 +2,12 @@
 
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
+import PreferenceControls from '@/components/PreferenceControls';
+import { useAppPreferences } from '@/contexts/AppPreferencesContext';
+import { getPublicLandingCopy } from '@/lib/publicLandingTranslations';
 import { useRouter, useSearchParams } from 'next/navigation';
 import AppLogo from '@/components/ui/AppLogo';
-import Icon from '@/components/ui/AppIcon';
 import { useAuth } from '@/contexts/AuthContext';
 
 type ScreenMode = 'login' | 'forgot';
@@ -60,39 +63,22 @@ function GoogleMark() {
 }
 
 function AuthVisual() {
+  const { language } = useAppPreferences();
+  const copy = getPublicLandingCopy(language);
   return (
-    <section className="ft-auth-visual" aria-label="FabricTrad account experience">
-      <Link href="/" className="ft-auth-brandline" aria-label="FabricTrad home">
-        <AppLogo size={44} />
-        <span>FabricTrad</span>
-      </Link>
-
-      <div className="ft-auth-graphic" aria-hidden="true">
-        <span className="ft-auth-swatch" />
-        <span className="ft-auth-swatch" />
-        <span className="ft-auth-swatch" />
-        <span className="ft-auth-node n1" />
-        <span className="ft-auth-node n2" />
-        <span className="ft-auth-node n3" />
-      </div>
-
-      <p className="ft-auth-eyebrow">One account for textile commerce</p>
-      <h1 className="ft-auth-title">Source, sell and run your textile business from one place.</h1>
-      <p className="ft-auth-subtitle">
-        A single verified account opens the workspaces you are approved to use. Buyers get a search-first marketplace and order tracking; sellers get products, orders, payments, shipping and analytics without duplicate accounts.
-      </p>
-
-      <div className="ft-auth-flow" aria-label="How sign in works">
-        <div className="ft-auth-flow-card"><strong>1</strong><span>Sign in with your registered account</span></div>
-        <div className="ft-auth-flow-card"><strong>2</strong><span>FabricTrad detects your approved workspaces</span></div>
-        <div className="ft-auth-flow-card"><strong>3</strong><span>Continue directly to buying or selling</span></div>
-      </div>
+    <section className="ft-auth-visual" aria-label="FabricTrad">
+      <Link href="/" className="ft-auth-brandline" aria-label="FabricTrad"><AppLogo size={44} /></Link>
+      <div className="relative my-8 h-48 overflow-hidden rounded-2xl"><Image src="/images/textile-showroom.webp" alt="" fill sizes="(max-width: 900px) 100vw, 500px" className="object-cover" /></div>
+      <p className="ft-auth-eyebrow">{copy.kicker}</p>
+      <h1 className="ft-auth-title">{copy.titleLead} {copy.titleAccent}</h1>
+      <p className="ft-auth-subtitle">{copy.heroCopy}</p>
     </section>
   );
 }
 
 export default function EmailOtpLoginClient() {
   const router = useRouter();
+  const { t } = useAppPreferences();
   const searchParams = useSearchParams();
   const {
     signInWithGoogle,
@@ -290,10 +276,10 @@ export default function EmailOtpLoginClient() {
   };
 
   const recoveryDescription = recoveryStep === 'email'
-    ? 'Enter your registered email to receive a one-time password.'
+    ? t('auth.recoveryEmailCopy')
     : recoveryStep === 'otp'
-      ? 'Enter the newest OTP sent to your registered email.'
-      : 'Your email has been verified. Create a new password.';
+      ? t('auth.recoveryCodeCopy')
+      : t('auth.recoveryPasswordCopy');
 
   if (loading) {
     return <main className="ft-auth-page flex min-h-screen items-center justify-center"><div className="h-9 w-9 animate-spin rounded-full border-2 border-orange-600 border-t-transparent" /></main>;
@@ -309,11 +295,12 @@ export default function EmailOtpLoginClient() {
             <AppLogo size={36} /><span className="text-lg font-850 text-slate-900">FabricTrad</span>
           </div>
           <div className="ft-auth-card">
-            <p className="ft-auth-kicker">{mode === 'login' ? 'Account sign in' : 'Password recovery'}</p>
-            <h2 id="auth-title" className="mt-2">{mode === 'login' ? 'Welcome back' : 'Reset your password'}</h2>
+            <div className="mb-5 flex justify-end"><PreferenceControls compact /></div>
+            <p className="ft-auth-kicker">{mode === 'login' ? t('nav.signIn') : t('auth.reset')}</p>
+            <h2 id="auth-title" className="mt-2">{mode === 'login' ? t('auth.welcome') : t('auth.reset')}</h2>
             <p className="ft-auth-copy mt-2 text-sm leading-6">
               {mode === 'login'
-                ? requestedNext ? 'Sign in to continue to the page you selected.' : 'Use the email and password registered with your FabricTrad account.'
+                ? t('auth.loginCopy')
                 : recoveryDescription}
             </p>
 
@@ -323,77 +310,73 @@ export default function EmailOtpLoginClient() {
             {mode === 'login' ? (
               <form className="mt-6 space-y-5" onSubmit={handleLogin}>
                 <label className="block text-sm font-650" htmlFor="login-email">
-                  Email
+                  {t('auth.email')}
                   <input id="login-email" name="email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" required className="ft-auth-field mt-2 px-4 py-3.5 outline-none" placeholder="you@business.com" />
                 </label>
 
                 <div className="block text-sm font-650">
                   <span className="flex items-center justify-between gap-4">
-                    <label htmlFor="login-password">Password</label>
-                    <button type="button" onClick={openForgotPassword} className="text-xs font-800 text-orange-700 hover:text-orange-900">Forgot password?</button>
+                    <label htmlFor="login-password">{t('auth.password')}</label>
+                    <button type="button" onClick={openForgotPassword} className="text-xs font-800 text-orange-700 hover:text-orange-900">{t('auth.forgot')}</button>
                   </span>
                   <span className="relative mt-2 block">
-                    <input id="login-password" name="password" type={showPassword ? 'text' : 'password'} value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" required className="ft-auth-field w-full px-4 py-3.5 pr-16 outline-none" placeholder="Enter your password" />
-                    <button type="button" onClick={() => setShowPassword((current) => !current)} aria-controls="login-password" aria-pressed={showPassword} aria-label={showPassword ? 'Hide password' : 'Show password'} className="absolute inset-y-0 right-0 px-4 text-xs font-750 text-slate-500 hover:text-slate-900">{showPassword ? 'Hide' : 'Show'}</button>
+                    <input id="login-password" name="password" type={showPassword ? 'text' : 'password'} value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" required className="ft-auth-field w-full px-4 py-3.5 pr-16 outline-none" placeholder={t('auth.enterPassword')} />
+                    <button type="button" onClick={() => setShowPassword((current) => !current)} aria-controls="login-password" aria-pressed={showPassword} aria-label={`${showPassword ? t('auth.hide') : t('auth.show')} ${t('auth.password')}`} className="absolute inset-y-0 right-0 px-4 text-xs font-750 text-slate-500 hover:text-slate-900">{showPassword ? t('auth.hide') : t('auth.show')}</button>
                   </span>
                 </div>
 
                 <button type="submit" disabled={submitting || googleSubmitting} className="ft-auth-submit px-4 py-3.5 disabled:cursor-not-allowed disabled:opacity-60">
-                  {submitting ? 'Opening your account…' : requestedNext ? 'Sign in and continue' : 'Continue to FabricTrad'}
+                  {submitting ? t('auth.loading') : t('auth.continue')}
                 </button>
 
                 {googleAuthEnabled && (
                   <>
-                    <div className="flex items-center gap-3 text-xs text-slate-400"><span className="h-px flex-1 bg-slate-200" /><span>or</span><span className="h-px flex-1 bg-slate-200" /></div>
-                    <button type="button" onClick={handleGoogle} disabled={submitting || googleSubmitting} className="ft-auth-google flex w-full items-center justify-center gap-3 px-4 py-3.5 font-750 disabled:opacity-60"><GoogleMark /> {googleSubmitting ? 'Connecting…' : 'Continue with Google'}</button>
+                    <div className="flex items-center gap-3 text-xs text-slate-400"><span className="h-px flex-1 bg-slate-200" /><span>{t('auth.or')}</span><span className="h-px flex-1 bg-slate-200" /></div>
+                    <button type="button" onClick={handleGoogle} disabled={submitting || googleSubmitting} className="ft-auth-google flex w-full items-center justify-center gap-3 px-4 py-3.5 font-750 disabled:opacity-60"><GoogleMark /> {googleSubmitting ? t('auth.loading') : t('auth.google')}</button>
                   </>
                 )}
 
-                <div className="ft-auth-info px-4 py-3 text-xs leading-5">
-                  <Icon name="InformationCircleIcon" size={15} className="mr-1 inline text-orange-600" />
-                  One account can use both buyer and seller workspaces after verification. You do not need to register again or use a second mobile number.
-                </div>
               </form>
             ) : recoveryStep === 'email' ? (
               <div className="mt-6 space-y-5">
-                <label className="block text-sm font-650" htmlFor="recovery-email">Registered email
+                <label className="block text-sm font-650" htmlFor="recovery-email">{t('auth.email')}
                   <input id="recovery-email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" required className="ft-auth-field mt-2 px-4 py-3.5 outline-none" placeholder="you@business.com" />
                 </label>
                 <button type="button" onClick={sendPasswordResetOtp} disabled={submitting || resendSeconds > 0 || !email.trim()} className="ft-auth-submit px-4 py-3.5 disabled:cursor-not-allowed disabled:opacity-60">
-                  {submitting ? 'Sending OTP…' : resendSeconds > 0 ? `Try again in ${resendSeconds}s` : 'Send OTP to email'}
+                  {submitting ? t('auth.loading') : resendSeconds > 0 ? `${t('auth.loading')} (${resendSeconds})` : t('auth.sendCode')}
                 </button>
-                <button type="button" onClick={backToSignIn} className="w-full text-sm font-800 text-orange-700 hover:text-orange-900">Back to sign in</button>
+                <button type="button" onClick={backToSignIn} className="w-full text-sm font-800 text-orange-700 hover:text-orange-900">{t('auth.back')}</button>
               </div>
             ) : recoveryStep === 'otp' ? (
               <form className="mt-6 space-y-5" onSubmit={verifyPasswordResetOtp}>
-                <div className="ft-auth-info px-4 py-3 text-sm">Code sent to <span className="font-800 text-slate-900">{normalizedEmail}</span></div>
-                <label className="block text-sm font-650" htmlFor="password-reset-otp">Email OTP
-                  <input id="password-reset-otp" value={otp} onChange={(event) => setOtp(event.target.value.replace(/\D/g, '').slice(0, MAX_EMAIL_OTP_LENGTH))} inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6,10}" minLength={MIN_EMAIL_OTP_LENGTH} maxLength={MAX_EMAIL_OTP_LENGTH} required className="ft-auth-field mt-2 h-14 px-4 text-center text-2xl font-850 tracking-[0.28em] outline-none" placeholder="Enter code" />
+                <div className="ft-auth-info px-4 py-3 text-sm"><span className="font-800 text-slate-900">{normalizedEmail}</span></div>
+                <label className="block text-sm font-650" htmlFor="password-reset-otp">{t('auth.code')}
+                  <input id="password-reset-otp" value={otp} onChange={(event) => setOtp(event.target.value.replace(/\D/g, '').slice(0, MAX_EMAIL_OTP_LENGTH))} inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6,10}" minLength={MIN_EMAIL_OTP_LENGTH} maxLength={MAX_EMAIL_OTP_LENGTH} required className="ft-auth-field mt-2 h-14 px-4 text-center text-2xl font-850 tracking-[0.28em] outline-none" placeholder="000000" />
                 </label>
-                <button type="submit" disabled={submitting || !otpReady} className="ft-auth-submit px-4 py-3.5 disabled:opacity-60">{submitting ? 'Verifying OTP…' : 'Verify OTP'}</button>
-                <button type="button" onClick={sendPasswordResetOtp} disabled={submitting || resendSeconds > 0} className="w-full text-sm font-800 text-orange-700 disabled:text-slate-400">{resendSeconds > 0 ? `Send a new OTP in ${resendSeconds}s` : 'Send a new OTP'}</button>
-                <button type="button" onClick={changeRecoveryEmail} disabled={submitting} className="w-full text-sm text-slate-500 hover:text-slate-900">Change email address</button>
-                <button type="button" onClick={backToSignIn} disabled={submitting} className="w-full text-sm text-slate-500 hover:text-slate-900">Back to sign in</button>
+                <button type="submit" disabled={submitting || !otpReady} className="ft-auth-submit px-4 py-3.5 disabled:opacity-60">{submitting ? t('auth.loading') : t('auth.verifyCode')}</button>
+                <button type="button" onClick={sendPasswordResetOtp} disabled={submitting || resendSeconds > 0} className="w-full text-sm font-800 text-orange-700 disabled:text-slate-400">{resendSeconds > 0 ? `${t('auth.loading')} (${resendSeconds})` : t('auth.sendCode')}</button>
+                <button type="button" onClick={changeRecoveryEmail} disabled={submitting} className="w-full text-sm text-slate-500 hover:text-slate-900">{t('auth.changeEmail')}</button>
+                <button type="button" onClick={backToSignIn} disabled={submitting} className="w-full text-sm text-slate-500 hover:text-slate-900">{t('auth.back')}</button>
               </form>
             ) : (
               <form className="mt-6 space-y-5" onSubmit={saveRecoveredPassword}>
-                <label className="block text-sm font-650" htmlFor="new-recovery-password">New password
+                <label className="block text-sm font-650" htmlFor="new-recovery-password">{t('auth.newPassword')}
                   <span className="relative mt-2 block">
-                    <input id="new-recovery-password" type={showNewPassword ? 'text' : 'password'} value={newPassword} onChange={(event) => setNewPassword(event.target.value)} autoComplete="new-password" minLength={8} required className="ft-auth-field w-full px-4 py-3.5 pr-16 outline-none" placeholder="At least 8 characters" />
-                    <button type="button" onClick={() => setShowNewPassword((current) => !current)} className="absolute inset-y-0 right-0 px-4 text-xs font-750 text-slate-500 hover:text-slate-900">{showNewPassword ? 'Hide' : 'Show'}</button>
+                    <input id="new-recovery-password" type={showNewPassword ? 'text' : 'password'} value={newPassword} onChange={(event) => setNewPassword(event.target.value)} autoComplete="new-password" minLength={8} required className="ft-auth-field w-full px-4 py-3.5 pr-16 outline-none" placeholder={t('auth.passwordLength')} />
+                    <button type="button" onClick={() => setShowNewPassword((current) => !current)} aria-controls="new-recovery-password" aria-pressed={showNewPassword} className="absolute inset-y-0 right-0 px-4 text-xs font-750 text-slate-500 hover:text-slate-900">{showNewPassword ? t('auth.hide') : t('auth.show')}</button>
                   </span>
                 </label>
-                <label className="block text-sm font-650" htmlFor="confirm-recovery-password">Confirm new password
-                  <input id="confirm-recovery-password" type={showNewPassword ? 'text' : 'password'} value={confirmNewPassword} onChange={(event) => setConfirmNewPassword(event.target.value)} autoComplete="new-password" minLength={8} required className="ft-auth-field mt-2 px-4 py-3.5 outline-none" placeholder="Repeat your new password" />
+                <label className="block text-sm font-650" htmlFor="confirm-recovery-password">{t('auth.confirmPassword')}
+                  <input id="confirm-recovery-password" type={showNewPassword ? 'text' : 'password'} value={confirmNewPassword} onChange={(event) => setConfirmNewPassword(event.target.value)} autoComplete="new-password" minLength={8} required className="ft-auth-field mt-2 px-4 py-3.5 outline-none" placeholder={t('auth.confirmPassword')} />
                 </label>
-                <button type="submit" disabled={submitting} className="ft-auth-submit px-4 py-3.5 disabled:opacity-60">{submitting ? 'Setting new password…' : 'Set new password'}</button>
-                <button type="button" onClick={backToSignIn} disabled={submitting} className="w-full text-sm text-slate-500 hover:text-slate-900">Cancel and return to sign in</button>
+                <button type="submit" disabled={submitting} className="ft-auth-submit px-4 py-3.5 disabled:opacity-60">{submitting ? t('auth.loading') : t('auth.savePassword')}</button>
+                <button type="button" onClick={backToSignIn} disabled={submitting} className="w-full text-sm text-slate-500 hover:text-slate-900">{t('auth.back')}</button>
               </form>
             )}
 
             <div className="mt-6 grid gap-3 border-t border-slate-200 pt-5 text-center text-sm">
-              <Link href="/register" className="font-800 text-orange-700 hover:text-orange-900">Create a FabricTrad account</Link>
-              <Link href="/admin-login" className="text-slate-500 hover:text-slate-900">Administrator sign in</Link>
+              <Link href="/register" className="font-800 text-orange-700 hover:text-orange-900">{t('nav.createAccount')}</Link>
+              <Link href="/admin-login" className="text-slate-500 hover:text-slate-900">{t('auth.adminSignIn')}</Link>
             </div>
           </div>
         </section>

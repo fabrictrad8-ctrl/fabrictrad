@@ -1,3 +1,5 @@
+import { MARKETPLACE_SPLIT_VERSION, marketplaceSplit, marketplaceTransfer, validMarketplaceTransfers } from '@/lib/marketplaceSplit';
+import { requireSellerPayout, razorpayRequest, RouteSetupError } from '@/lib/server/razorpayRoute';
 import { randomUUID } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
@@ -56,7 +58,7 @@ export async function POST(request: NextRequest) {
   const admin = createAdminClient();
   const { data: order, error: orderError } = await admin
     .from('bespoke_orders')
-    .select('id,user_id,stage,quoted_amount,advance_amount,paid_amount,balance_amount,payment_status')
+    .select('id,user_id,seller_id,stage,quoted_amount,advance_amount,paid_amount,balance_amount,payment_status')
     .eq('id', orderId)
     .eq('user_id', auth.user.id)
     .maybeSingle();
@@ -65,6 +67,13 @@ export async function POST(request: NextRequest) {
   if (!['advance_or_full_payment', 'balance_payment'].includes(String(order.stage))) {
     return json({ error: 'This custom order is not ready for payment.' }, 409);
   }
+
+  if (!order.seller_id) return json({ error: 'FabricTrad must assign and verify the seller before payment.', code: 'SELLER_PAYOUT_NOT_READY' }, 409);
+  const { data: seller } = await admin.from('seller_profiles').select('is_active,gstin_verified,verification_status').eq('id', order.seller_id).maybeSingle();
+  if (!seller?.is_active || !seller.gstin_verified || !['approved', 'verified', 'active'].includes(seller.verification_status)) return json({ error: 'Seller verification is incomplete.' }, 409);
+  let transferAccount: string;
+  try { transferAccount = await requireSellerPayout(order.seller_id); }
+  catch (error) { return json({ error: error instanceof Error ? error.message : 'Seller payout verification failed.', code: error instanceof RouteSetupError ? error.code : 'SELLER_PAYOUT_UNAVAILABLE' }, error instanceof RouteSetupError ? error.status : 503); }
 
   const quoted = roundMoney(Number(order.quoted_amount || 0));
   const paid = roundMoney(Number(order.paid_amount || 0));
@@ -100,7 +109,7 @@ export async function POST(request: NextRequest) {
 
   const { data: activePayment } = await admin
     .from('bespoke_payments')
-    .select('id,razorpay_order_id,razorpay_payment_id,payment_purpose,amount,currency,status,created_at')
+    .select('id,razorpay_order_id,razorpay_payment_id,payment_purpose,amount,currency,status,created_at,split_version,transfer_account_id')
     .eq('bespoke_order_id', orderId)
     .in('status', ['initiated', 'authorized'])
     .order('created_at', { ascending: false })
@@ -108,6 +117,7 @@ export async function POST(request: NextRequest) {
     .maybeSingle();
 
   if (activePayment?.id) {
+    if (activePayment.split_version !== MARKETPLACE_SPLIT_VERSION || activePayment.transfer_account_id !== transferAccount) return json({ error: 'The earlier checkout requires review before payment.', code: 'LEGACY_CHECKOUT_REVIEW_REQUIRED' }, 409);
     if (activePayment.status === 'authorized') {
       return json(
         {
@@ -166,6 +176,8 @@ export async function POST(request: NextRequest) {
         Number(provider.amount) === amountPaise &&
         ['created', 'attempted'].includes(providerStatus)
       ) {
+        const transfers = await razorpayRequest(`/v1/orders/${encodeURIComponent(providerOrderId)}/transfers`).catch(() => null);
+        if (!validMarketplaceTransfers(transfers, amountPaise, transferAccount)) return json({ error: 'The seller transfer could not be confirmed.', code: 'ROUTE_TRANSFER_NOT_CONFIRMED' }, 503);
         await admin
           .from('bespoke_orders')
           .update({
@@ -211,6 +223,8 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  const split = marketplaceSplit(amountPaise);
+  const platformNetPaise = Math.round(split.platformPaise / 1.18);
   const reservationId = `pending_${randomUUID()}`;
   const { data: reservation, error: reservationError } = await admin
     .from('bespoke_payments')
@@ -223,6 +237,14 @@ export async function POST(request: NextRequest) {
       currency: 'INR',
       status: 'initiated',
       provider_status: 'reserving',
+      split_version: MARKETPLACE_SPLIT_VERSION,
+      transfer_account_id: transferAccount,
+      transfer_amount_paise: split.sellerPaise,
+      seller_payable: split.sellerPaise / 100,
+      platform_retained: split.platformPaise / 100,
+      platform_commission: platformNetPaise / 100,
+      gst_on_commission: (split.platformPaise - platformNetPaise) / 100,
+      transfer_status: 'pending_capture',
     })
     .select('id')
     .single();
@@ -246,6 +268,7 @@ export async function POST(request: NextRequest) {
     body: JSON.stringify({
       amount: amountPaise,
       currency: 'INR',
+      transfers: [marketplaceTransfer(amountPaise, transferAccount)],
       receipt: `besp_${orderId.replace(/-/g, '').slice(0, 12)}_${purpose}_${Date.now().toString().slice(-6)}`.slice(0, 40),
       notes: {
         fabrictrad_order_type: 'bespoke',
@@ -316,6 +339,9 @@ export async function POST(request: NextRequest) {
       500
     );
   }
+
+  const transfers = await razorpayRequest(`/v1/orders/${encodeURIComponent(provider.id)}/transfers`).catch(() => null);
+  if (!validMarketplaceTransfers(transfers, amountPaise, transferAccount)) return json({ error: 'The seller transfer could not be confirmed. Checkout is paused.', code: 'ROUTE_TRANSFER_NOT_CONFIRMED' }, 503);
 
   return json({
     keyId: credentials.keyId,

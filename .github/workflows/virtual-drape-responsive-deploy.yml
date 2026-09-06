@@ -2,14 +2,6 @@ name: Virtual drape responsive UI deploy
 
 # Dedicated production path for the responsive Virtual Drape workspace.
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'src/app/product-detail/page.tsx'
-      - 'src/app/product-detail/virtual-drape-responsive.module.css'
-      - 'src/app/product-detail/components/HybridVirtualDrapeStudio.tsx'
-      - 'src/app/product-detail/components/InteractiveFabricMannequin3D.tsx'
-      - '.github/workflows/virtual-drape-responsive-deploy.yml'
   workflow_dispatch:
 
 permissions:
@@ -17,8 +9,8 @@ permissions:
   statuses: write
 
 concurrency:
-  group: fabrictrad-virtual-drape-responsive-deploy
-  cancel-in-progress: true
+  group: fabrictrad-production-worker
+  cancel-in-progress: false
 
 jobs:
   build-deploy-verify:
