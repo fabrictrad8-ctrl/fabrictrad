@@ -2,6 +2,12 @@ import { test, expect } from '@playwright/test';
 
 test('each role and language loads its own playable narration and transcript', async ({ page }) => {
   test.setTimeout(90_000);
+  const mediaResponse = await page.request.get('/guides/buyer-en.mp4', { headers: { Range: 'bytes=0-1023' } });
+  expect(mediaResponse.status()).toBe(206);
+  expect(mediaResponse.headers()['content-type']).toContain('video/mp4');
+  const captionsResponse = await page.request.get('/guides/buyer-en.vtt');
+  expect(captionsResponse.status()).toBe(200);
+  expect(await captionsResponse.text()).toMatch(/^WEBVTT/);
   await page.goto('/how-to-use?role=buyer&audio=en');
   for (const role of ['buyer', 'seller']) {
     await page.getByRole('tab', { name: role === 'buyer' ? 'Buyer' : 'Seller', exact: true }).click();

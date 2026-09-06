@@ -63,6 +63,11 @@ const localRequest = (request: NextRequest) => {
 
 export async function middleware(request: NextRequest) {
   const { pathname, searchParams } = request.nextUrl;
+  // These six published tutorials and their captions must be playable before signup.
+  // Keep the exception limited to the named public guide assets.
+  if (/^\/guides\/(buyer|seller)-(en|hi|gu)\.(mp4|vtt|webp)$/.test(pathname)) {
+    return NextResponse.next({ request });
+  }
   const isAdminApi = pathname.startsWith('/api/admin');
   const isBuyerRegistrationResume =
     pathname === '/buyer-registration' && searchParams.get('resume') === '1';
