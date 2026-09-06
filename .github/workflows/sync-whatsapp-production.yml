@@ -19,6 +19,7 @@ jobs:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: aa4ff7a482130e543f176e2d73c93f45
       GUPSHUP_API_KEY: ${{ secrets.GUPSHUP_API_KEY }}
+      GUPSHUP_WEBHOOK_SECRET: ${{ secrets.GUPSHUP_WEBHOOK_SECRET }}
       GUPSHUP_APP_NAME: ${{ secrets.GUPSHUP_APP_NAME || vars.GUPSHUP_APP_NAME || 'Fabrictrad' }}
       GUPSHUP_SOURCE_NUMBER: ${{ secrets.GUPSHUP_SOURCE_NUMBER || vars.GUPSHUP_SOURCE_NUMBER }}
       GUPSHUP_APP_ID: ${{ secrets.GUPSHUP_APP_ID || vars.GUPSHUP_APP_ID }}
@@ -44,6 +45,7 @@ jobs:
           [ -n "${CLOUDFLARE_API_TOKEN:-}" ] || { echo '::error::CLOUDFLARE_API_TOKEN is not configured.'; exit 1; }
           required=(
             GUPSHUP_API_KEY
+            GUPSHUP_WEBHOOK_SECRET
             GUPSHUP_APP_NAME
             GUPSHUP_SOURCE_NUMBER
           )
@@ -92,6 +94,7 @@ jobs:
             if [ -n "${!name:-}" ]; then put_secret "$name"; fi
           }
           put_secret GUPSHUP_API_KEY
+          put_secret GUPSHUP_WEBHOOK_SECRET
           put_secret GUPSHUP_APP_NAME
           put_secret GUPSHUP_SOURCE_NUMBER
           put_secret_if_present GUPSHUP_APP_ID
@@ -112,7 +115,7 @@ jobs:
             const fs=require("node:fs");
             const rows=JSON.parse(fs.readFileSync("/tmp/worker-secrets.json","utf8"));
             const names=new Set(rows.map(x=>x.name));
-            const required=["GUPSHUP_API_KEY","GUPSHUP_APP_NAME","GUPSHUP_SOURCE_NUMBER"];
+            const required=["GUPSHUP_API_KEY","GUPSHUP_WEBHOOK_SECRET","GUPSHUP_APP_NAME","GUPSHUP_SOURCE_NUMBER"];
             const templates=[
               "WHATSAPP_TEMPLATE_APPOINTMENT_REMINDER","WHATSAPP_TEMPLATE_PAYMENT_REMINDER",
               "WHATSAPP_TEMPLATE_TRIAL_REMINDER","WHATSAPP_TEMPLATE_DELIVERY_UPDATE",
@@ -132,5 +135,5 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          gh workflow run force-deploy-current-worker.yml --repo "$GITHUB_REPOSITORY" --ref main
+          gh workflow run ui-production-release.yml --repo "$GITHUB_REPOSITORY" --ref main
           echo 'Guarded production deployment dispatched.'

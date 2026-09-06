@@ -112,7 +112,7 @@ export default function AppClientEnhancements() {
           },
           {
             label: 'Custom order studio',
-            description: 'Continue a tailoring order on web or WhatsApp',
+            description: 'Manage a custom order on FabricTrad',
             href: '/custom-order',
             icon: 'ChatBubbleLeftRightIcon',
             keywords: 'custom bespoke tailoring whatsapp measurement fitting',

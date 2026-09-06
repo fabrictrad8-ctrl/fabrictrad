@@ -219,7 +219,7 @@ try {
       // fixed language selector previously covered the submit button.
       if (route === '/login' && device.width <= 767) {
         const submit = page.locator('.ft-auth-submit').first();
-        const language = page.locator('[data-sitewide-language-control]').first();
+        const language = page.locator('[data-language-control] select').first();
         const brand = page
           .locator('.ft-auth-card-wrap [data-fabrictrad-brand-logo]')
           .first();

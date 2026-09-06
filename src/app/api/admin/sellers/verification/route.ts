@@ -354,6 +354,10 @@ export async function PATCH(request: NextRequest) {
   if (!seller) return json({ error: 'Seller application not found.' }, 404);
 
   try {
+    if (action === 'verify_bank') {
+      const { ready } = await refreshPayoutAccount(sellerId);
+      if (!ready) return json({ error: 'Razorpay must activate the seller’s submitted bank account before it can be verified. Ask the seller to complete Payout account setup in Earnings.' }, 409);
+    }
     if (action === 'approve_seller') {
       if (seller.verification_status === 'verified') {
         return json({ updated: true, action, sellerId, alreadyApproved: true });
@@ -406,3 +410,4 @@ export async function PATCH(request: NextRequest) {
     );
   }
 }
+import { refreshPayoutAccount } from '@/lib/server/razorpayRoute';

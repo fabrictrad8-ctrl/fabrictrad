@@ -1,3 +1,4 @@
+import { reconcileRouteTransfer } from '@/lib/server/routeTransferReconciliation';
 import { reconcileMarketplacePayment } from '@/lib/server/paymentReconciliation';
 import crypto from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
@@ -318,26 +319,11 @@ export async function POST(request: NextRequest) {
           if (ledgerError) throw ledgerError;
         }
       }
-    } else if (eventType === 'transfer.processed') {
+    } else if (['transfer.processed', 'transfer.failed', 'transfer.reversed', 'transfer.settled'].includes(eventType)) {
       const entity = entityFrom(event, 'transfer');
       const transferId = String(entity.id || '');
-      const source = String(entity.source || '');
-      if (transferId && source) {
-        const timestamp = new Date().toISOString();
-        for (const table of ['bulk_order_payments', 'catalog_order_payments']) {
-          const { error } = await admin
-            .from(table)
-            .update({
-              razorpay_transfer_id: transferId,
-              transfer_status: 'processed',
-              last_webhook_event: eventType,
-              last_webhook_at: timestamp,
-              updated_at: timestamp,
-            })
-            .or(`razorpay_order_id.eq.${source},razorpay_payment_id.eq.${source}`);
-          if (error) throw error;
-        }
-      }
+      if (!transferId) throw new Error('Transfer webhook is missing its reference.');
+      await reconcileRouteTransfer(transferId);
     }
 
     const { error: eventError } = await admin.from('webhook_events').insert({

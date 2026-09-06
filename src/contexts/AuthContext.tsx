@@ -5,6 +5,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useRef,
   useState,
 } from 'react';
 import { createClient } from '../lib/supabase/client';
@@ -99,9 +100,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [profileLoading, setProfileLoading] = useState(false);
   const [supabase] = useState(() => createClient());
   const isDemoAccount = false;
+  const profileRequest = useRef(0);
 
   const loadProfile = useCallback(
     async (userId: string) => {
+      const requestId = ++profileRequest.current;
       setProfileLoading(true);
       try {
         const { data, error } = await supabase
@@ -111,10 +114,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           .maybeSingle();
         if (error) throw error;
         const nextProfile = (data as UserProfile | null) ?? null;
-        setProfile(nextProfile);
+        if (requestId === profileRequest.current) setProfile(nextProfile);
         return nextProfile;
       } finally {
-        setProfileLoading(false);
+        if (requestId === profileRequest.current) setProfileLoading(false);
       }
     },
     [supabase]
@@ -160,7 +163,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       if (!cancelled) setLoading(false);
     };
 
-    void initialize();
+    void initialize().catch(() => {
+      if (!cancelled) setLoading(false);
+    });
 
     return () => {
       cancelled = true;
@@ -354,7 +359,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     return loadProfile(user.id);
   };
 
-  const refreshProfile = async () => {
+  const refreshProfile = useCallback(async () => {
     if (!user) return;
     await fetch('/api/auth/provision-account', {
       method: 'POST',
@@ -367,7 +372,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       body: '{}',
     }).catch(() => undefined);
     await loadProfile(user.id);
-  };
+  }, [loadProfile, session?.access_token, user]);
 
   const updatePhone = async (phone: string) => {
     if (!user) throw new Error('Not authenticated');

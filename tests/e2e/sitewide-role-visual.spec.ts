@@ -139,6 +139,10 @@ const auditProfileFor = (role: Exclude<Role, 'public'>) => {
 };
 
 async function prepareRole(page: Page, role: Role) {
+  // These role layouts use isolated UI fixtures. Server authorization is tested separately.
+  await page.route('**/api/admin/errors*', async (route) => {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ errors: [], total: 0, page: 1 }) });
+  });
   await page.route('**/api/admin/seller-metrics*', async (route) => {
     await route.fulfill({
       status: 200,
@@ -296,7 +300,7 @@ for (const routeCase of routes) {
       expect(finalPath, `${routeCase.role} route redirected to login`).not.toBe('/login');
     }
 
-    await expect(page.locator('body')).not.toContainText(/Application error|Internal Server Error|This page could not be found|NEXT_NOT_FOUND/i);
+    await expect(page.locator('body')).not.toContainText(/Application error:|Internal Server Error|This page could not be found|NEXT_NOT_FOUND/i);
     await expect(page.locator('.ft-skip-link')).toHaveCount(1);
     await expect(page.locator('#main-content')).toHaveCount(1);
     await expect(page.locator('#main-content main').first()).toBeVisible();

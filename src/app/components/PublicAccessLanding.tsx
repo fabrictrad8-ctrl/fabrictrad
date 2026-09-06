@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import AppLogo from '@/components/ui/AppLogo';
 import Icon from '@/components/ui/AppIcon';
 import PreferenceControls from '@/components/PreferenceControls';
@@ -11,11 +12,11 @@ const capabilityIcons = ['MagnifyingGlassIcon', 'BuildingStorefrontIcon', 'Spark
 const trustIcons = ['ShieldCheckIcon', 'CreditCardIcon', 'TruckIcon'] as const;
 
 export default function PublicAccessLanding() {
-  const { language } = useAppPreferences();
+  const { language, t } = useAppPreferences();
   const copy = getPublicLandingCopy(language);
 
   return (
-    <main className="ft-future-landing min-h-screen overflow-hidden text-slate-900">
+    <main className="ft-future-landing ft-showroom min-h-screen overflow-hidden text-slate-900">
       <header className="ft-future-topbar">
         <div className="ft-future-nav">
           <Link href="/" className="ft-future-brand" aria-label="FabricTrad home">
@@ -26,7 +27,7 @@ export default function PublicAccessLanding() {
           <nav className="ft-future-navlinks" aria-label="Public navigation">
             <a href="#platform">{copy.navPlatform}</a>
             <a href="#capabilities">{copy.navCapabilities}</a>
-            <Link href="/custom-order">Custom order</Link>
+            <Link href="/custom-order">{t('nav.customOrder')}</Link>
             <Link href="/how-to-use/start">{copy.navHowToUse}</Link>
             <a href="#trust">{copy.navTrust}</a>
           </nav>
@@ -73,21 +74,11 @@ export default function PublicAccessLanding() {
           </div>
         </div>
 
-        <div className="ft-future-orbit" aria-hidden="true">
-          <div className="ft-future-core">
-            <div className="ft-future-core-inner" />
-          </div>
-          <div className="ft-future-float-card c1">
-            <strong><span className="dot" />{copy.buyerMarketplace}</strong>
-            <p>{copy.buyerMarketplaceCopy}</p>
-          </div>
-          <div className="ft-future-float-card c2">
-            <strong><span className="dot" />{copy.sellerOperations}</strong>
-            <p>{copy.sellerOperationsCopy}</p>
-          </div>
-          <div className="ft-future-float-card c3">
-            <strong><span className="dot" />{copy.aiVirtualDrape}</strong>
-            <p>{copy.aiVirtualDrapeCopy}</p>
+        <div className="ft-textile-visual">
+          <Image src="/images/textile-showroom.webp" alt="" fill priority sizes="(max-width: 900px) 100vw, 50vw" className="ft-textile-image" />
+          <div className="ft-textile-caption">
+            <Icon name="BuildingStorefrontIcon" size={24} />
+            <div><strong>{copy.buyerMarketplace}</strong><p>{copy.buyerMarketplaceCopy}</p></div>
           </div>
         </div>
       </section>
@@ -181,7 +172,7 @@ export default function PublicAccessLanding() {
           <nav className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-slate-600" aria-label="Footer navigation">
             <Link href="/how-to-use/start" className="hover:text-slate-950">{copy.footerHowToUse}</Link>
             <Link href="/help" className="hover:text-slate-950">{copy.footerHelp}</Link>
-            <Link href="/custom-order" className="hover:text-slate-950">Custom order</Link>
+            <Link href="/custom-order" className="hover:text-slate-950">{t('nav.customOrder')}</Link>
             <Link href="/privacy" className="hover:text-slate-950">{copy.footerPrivacy}</Link>
             <Link href="/terms" className="hover:text-slate-950">{copy.footerTerms}</Link>
             <Link href="/login" className="font-800 text-orange-700 hover:text-orange-900">{copy.signIn}</Link>

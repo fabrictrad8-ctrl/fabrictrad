@@ -1,5 +1,6 @@
 # Dependencies
 node_modules/
+/node_modules
 
 # Environment files (commit only the documented example)
 .env
@@ -35,3 +36,6 @@ test-results/
 .vscode/
 .idea/
 turbo/
+
+# Supabase CLI local state
+supabase/.temp/

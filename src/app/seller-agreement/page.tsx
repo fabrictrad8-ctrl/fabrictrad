@@ -31,7 +31,7 @@ const sections = [
     title: 'Packing, shipping and RTO',
     bullets: [
       'Use packing suitable for the textile, value, weather and courier method. Seller-side packing costs remain your responsibility unless your commercial plan expressly states otherwise.',
-      'Use the shipment record provided by FabricTrad. When an integrated courier is configured, create the courier shipment from the paid order; otherwise record the real courier, AWB/tracking reference and ETA using the supported fallback.',
+      'Use the shipment record provided by FabricTrad. When an integrated courier is configured, create the courier shipment from the paid order; you may also choose any other shipment provider separately for each order and record its real name, AWB, HTTPS tracking link and ETA.',
       'Courier, local-delivery, transporter and Return to Origin charges may be allocated according to the shipment terms and cause of the failed delivery. FabricTrad does not guarantee third-party courier performance.',
       'Do not mark an order fulfilled before the actual shipment/delivery state supports that status.',
     ],
@@ -48,7 +48,7 @@ const sections = [
   {
     title: 'Platform fees and settlement',
     paragraphs: [
-      'FabricTrad may charge transaction commission, subscription fees, courier-handling/platform service charges and clearly disclosed promotional fees. Gateway processing charges and applicable taxes may also affect settlement according to the commercial terms. Seller payable should be derived from the captured transaction and itemised deductions rather than from an undisclosed net figure.',
+      'For marketplace buyer payments, the seller allocation is 90% and FabricTrad retains an all-inclusive 10% share. Payment-processing costs and tax on FabricTrad’s commission are accounted for within the platform share, without an additional deduction from the seller’s 90%. Amounts are rounded to the nearest paise. Refunds and transfer reversals are recorded separately. Razorpay bank settlement follows the applicable provider schedule and requires an activated, verified payout account.',
     ],
   },
   {

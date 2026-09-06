@@ -1,0 +1,3 @@
+drop index if exists public.seller_shipments_operational_order_uniq;
+alter table public.seller_shipments drop constraint if exists seller_shipments_operational_order_id_key;
+alter table public.seller_shipments add constraint seller_shipments_operational_order_id_key unique (operational_order_id);

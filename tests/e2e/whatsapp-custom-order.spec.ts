@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-test('public WhatsApp custom-order entry renders and points to the official number', async ({ page }) => {
+test('public buying routes keep WhatsApp reserved for sellers', async ({ page }) => {
   const pageErrors: string[] = [];
   page.on('pageerror', (error) => pageErrors.push(error.message));
 
@@ -8,9 +8,7 @@ test('public WhatsApp custom-order entry renders and points to the official numb
   await expect(page.locator('body')).not.toHaveText('');
   await expect(page.locator('[data-nextjs-dialog]')).toHaveCount(0);
 
-  const whatsapp = page.getByRole('link', { name: /WhatsApp \+91 79772 86898/i });
-  await expect(whatsapp).toBeVisible();
-  await expect(whatsapp).toHaveAttribute('href', /https:\/\/wa\.me\/917977286898\?text=CATALOGUE/);
+  await expect(page.locator('a[href*="wa.me"], a[href*="api.whatsapp.com"]')).toHaveCount(0);
   await expect(page.getByRole('link', { name: 'Custom order' }).first()).toHaveAttribute(
     'href',
     '/custom-order'

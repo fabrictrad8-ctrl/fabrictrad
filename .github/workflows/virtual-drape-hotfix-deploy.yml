@@ -2,16 +2,6 @@
 name: Virtual drape hotfix deploy
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'src/app/api/ai/drape-on/**'
-      - 'src/lib/supabase/admin.ts'
-      - 'src/app/product-detail/page.tsx'
-      - 'src/app/product-detail/virtual-drape-responsive.module.css'
-      - 'src/app/product-detail/components/ModernFabricDrapeViewer.tsx'
-      - 'src/app/product-detail/components/FlagshipVirtualDrapeStudio.tsx'
-      - '.github/workflows/virtual-drape-hotfix-deploy.yml'
   workflow_dispatch:
 
 permissions:
@@ -19,8 +9,8 @@ permissions:
   statuses: write
 
 concurrency:
-  group: fabrictrad-virtual-drape-hotfix
-  cancel-in-progress: true
+  group: fabrictrad-production-worker
+  cancel-in-progress: false
 
 jobs:
   deploy-and-verify:

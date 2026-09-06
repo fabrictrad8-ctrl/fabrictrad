@@ -2,15 +2,6 @@
 name: Logistics and Shiprocket deploy
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'src/app/api/logistics/tracking-webhook/**'
-      - 'src/app/api/shiprocket/**'
-      - 'src/lib/shiprocketCredentials.ts'
-      - 'src/app/seller-dashboard/components/SellerCourierSettings.tsx'
-      - 'supabase/migrations/*shiprocket*'
-      - '.github/workflows/logistics-webhook-hotfix-deploy.yml'
   workflow_dispatch:
 
 permissions:
@@ -18,8 +9,8 @@ permissions:
   statuses: write
 
 concurrency:
-  group: fabrictrad-logistics-shiprocket
-  cancel-in-progress: true
+  group: fabrictrad-production-worker
+  cancel-in-progress: false
 
 jobs:
   deploy-and-verify:

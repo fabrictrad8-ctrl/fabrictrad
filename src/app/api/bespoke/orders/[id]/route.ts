@@ -1,3 +1,4 @@
+import { requireAdministrator } from '@/lib/server/requireAdministrator';
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
@@ -25,6 +26,7 @@ type AppointmentType = 'physical_measurement' | 'design_approval' | 'trial_fitti
 type PatchBody = {
   action?: BuyerAction | 'admin_update';
   productId?: string | null;
+  sellerId?: string;
   referenceImagePath?: string | null;
   referenceImageMeta?: Record<string, unknown>;
   fabricSelection?: Record<string, unknown>;
@@ -102,7 +104,7 @@ export async function GET(_request: NextRequest, context: RouteContext) {
   const { id } = await context.params;
   const access = await currentUser();
   if (!access.user) return json({ error: 'Authentication required.' }, 401);
-  const isAdmin = ['admin_staff', 'super_admin'].includes(String(access.profile?.role || ''));
+  const isAdmin = ['admin_staff', 'super_admin'].includes(String(access.profile?.role || '')) && await requireAdministrator();
   const admin = createAdminClient();
   let query = admin.from('bespoke_orders').select('*').eq('id', id);
   if (!isAdmin) query = query.eq('user_id', access.user.id);
@@ -122,7 +124,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
   const access = await currentUser();
   if (!access.user) return json({ error: 'Authentication required.' }, 401);
   if (!access.profile?.is_active) return json({ error: 'Active account required.' }, 403);
-  const isAdmin = ['admin_staff', 'super_admin'].includes(String(access.profile.role || ''));
+  const isAdmin = ['admin_staff', 'super_admin'].includes(String(access.profile.role || '')) && await requireAdministrator();
   if (!isAdmin && access.profile.can_buy === false) return json({ error: 'Buyer access required.' }, 403);
 
   const body = (await request.json().catch(() => ({}))) as PatchBody;
@@ -153,6 +155,12 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
   if (body.action === 'admin_update') {
     if (!isAdmin) return json({ error: 'Admin access required.' }, 403);
+    if (body.sellerId !== undefined) {
+      if (Number(order.paid_amount) > 0 || order.razorpay_order_id) return json({ error: 'The seller cannot change after checkout has started.' }, 409);
+      const { data: seller } = await admin.from('seller_profiles').select('id,is_active,gstin_verified,verification_status').eq('id', body.sellerId).maybeSingle();
+      if (!seller?.is_active || !seller.gstin_verified || !['verified', 'approved', 'active'].includes(seller.verification_status)) return json({ error: 'Choose an approved active seller.' }, 400);
+      updates.seller_id = seller.id;
+    }
     if (body.stage && isBespokeStage(body.stage)) {
       if (body.stage === 'advance_or_full_payment' && safeMoney(body.quotedAmount ?? order.quoted_amount) <= 0) {
         return json({ error: 'Set a positive quotation before opening payment.' }, 400);
@@ -162,10 +170,10 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     if (body.quotation) updates.quotation = safeObject(body.quotation);
     if (body.quotedAmount !== undefined) updates.quoted_amount = safeMoney(body.quotedAmount);
     if (body.advanceAmount !== undefined) updates.advance_amount = safeMoney(body.advanceAmount);
-    if (body.paidAmount !== undefined) updates.paid_amount = safeMoney(body.paidAmount);
-    if (body.balanceAmount !== undefined) updates.balance_amount = safeMoney(body.balanceAmount);
+    if (body.paidAmount !== undefined || body.balanceAmount !== undefined || body.paymentStatus !== undefined) return json({ error: 'Payment balances are reconciled from Razorpay and cannot be edited manually.' }, 400);
+
     if (body.paymentChoice) updates.payment_choice = body.paymentChoice;
-    if (body.paymentStatus) updates.payment_status = body.paymentStatus;
+
     if (body.stitchingStatus) updates.stitching_status = body.stitchingStatus;
     if (body.embroideryStatus) updates.embroidery_status = body.embroideryStatus;
     if (typeof body.humanActionRequired === 'boolean') updates.human_action_required = body.humanActionRequired;
@@ -176,13 +184,14 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     if (!body.productId) return json({ error: 'Choose a catalogue product.' }, 400);
     const { data: product } = await admin
       .from('seller_products')
-      .select('id,status,approval_status')
+      .select('id,seller_id,status,approval_status')
       .eq('id', body.productId)
       .eq('status', 'active')
       .eq('approval_status', 'approved')
       .maybeSingle();
     if (!product?.id) return json({ error: 'That catalogue product is not available.' }, 400);
     updates.product_id = product.id;
+    updates.seller_id = product.seller_id;
     updates.stage = 'reference_image';
   } else if (body.action === 'reference_image') {
     if (!body.referenceImagePath) {

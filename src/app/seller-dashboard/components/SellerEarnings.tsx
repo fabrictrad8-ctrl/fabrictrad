@@ -5,6 +5,7 @@ import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxi
 import Icon from '@/components/ui/AppIcon';
 import { useAuth } from '@/contexts/AuthContext';
 import { createClient } from '@/lib/supabase/client';
+import SellerPayoutAccount from './SellerPayoutAccount';
 
 type PaymentRow = {
   id: string;
@@ -20,6 +21,8 @@ type PaymentRow = {
   status: string;
   transferStatus: string | null;
   transferId: string | null;
+  transferAmountPaise: number | null;
+  transferReversedPaise: number;
   paymentMethod: string | null;
   capturedAt: string | null;
   createdAt: string;
@@ -30,7 +33,7 @@ type SellerState = {
   linkedAccountId: string | null;
 };
 
-const settledStatuses = new Set(['processed', 'settled', 'transferred', 'completed']);
+const settledStatuses = new Set(['processed', 'settled', 'partially_reversed', 'reversed']);
 const capturedStatuses = new Set(['captured', 'partially_refunded', 'refunded']);
 
 const money = (value: number) =>
@@ -50,6 +53,16 @@ const netSellerPayable = (payment: PaymentRow) => {
   const retainedCapture = Math.max(0, payment.capturedAmount - payment.refundedAmount);
   return payment.sellerPayable * Math.min(1, retainedCapture / payment.capturedAmount);
 };
+
+const confirmedTransferred = (payment: PaymentRow) => {
+  if (!payment.transferId || !settledStatuses.has(String(payment.transferStatus || '').toLowerCase())) return 0;
+  return Math.max(0, (payment.transferAmountPaise ?? Math.round(payment.sellerPayable * 100)) - payment.transferReversedPaise) / 100;
+};
+const outstandingTransfer = (payment: PaymentRow) => Math.max(0, netSellerPayable(payment) - confirmedTransferred(payment));
+const transferLabel = (payment: PaymentRow) => payment.transferStatus === 'settled' ? 'Bank settlement confirmed'
+  : payment.transferStatus === 'reversed' ? 'Transfer fully returned from linked account'
+  : payment.transferStatus === 'partially_reversed' ? 'Part of the transfer returned from linked account'
+  : 'Transferred to Razorpay linked account';
 
 export default function SellerEarnings() {
   const { user } = useAuth();
@@ -92,7 +105,7 @@ export default function SellerEarnings() {
     const catalogIds = (catalogOrders || []).map((row) => row.id);
     const bulkIds = (bulkOrders || []).map((row) => row.id);
     const fields =
-      'id,amount,captured_amount,refunded_amount,platform_commission,razorpay_fee,razorpay_fee_actual,gst_on_commission,seller_payable,status,transfer_status,razorpay_transfer_id,payment_method,captured_at,created_at';
+      'id,amount,captured_amount,refunded_amount,platform_commission,razorpay_fee,razorpay_fee_actual,gst_on_commission,seller_payable,status,transfer_status,razorpay_transfer_id,transfer_amount_paise,transfer_amount_reversed_paise,payment_method,captured_at,created_at';
 
     const catalogPromise = catalogIds.length
       ? supabase
@@ -129,6 +142,8 @@ export default function SellerEarnings() {
       status: String(row.status || ''),
       transferStatus: row.transfer_status ? String(row.transfer_status) : null,
       transferId: row.razorpay_transfer_id ? String(row.razorpay_transfer_id) : null,
+      transferAmountPaise: row.transfer_amount_paise == null ? null : Number(row.transfer_amount_paise),
+      transferReversedPaise: Number(row.transfer_amount_reversed_paise || 0),
       paymentMethod: row.payment_method ? String(row.payment_method) : null,
       capturedAt: row.captured_at ? String(row.captured_at) : null,
       createdAt: String(row.created_at),
@@ -143,7 +158,7 @@ export default function SellerEarnings() {
   }, [user?.id]);
 
   useEffect(() => {
-    void load();
+    void load().catch(() => { setError('Earnings could not be loaded. Please refresh.'); setLoading(false); });
   }, [load]);
 
   const captured = useMemo(
@@ -158,18 +173,18 @@ export default function SellerEarnings() {
   const refunds = captured.reduce((sum, payment) => sum + payment.refundedAmount, 0);
   const fees = captured.reduce(
     (sum, payment) =>
-      sum + payment.platformCommission + payment.razorpayFee + payment.gstOnCommission,
+      sum + Math.max(0, payment.amount - payment.sellerPayable),
     0
   );
   const sellerEarned = captured.reduce((sum, payment) => sum + netSellerPayable(payment), 0);
   const settled = captured.filter(
     (payment) =>
-      Boolean(payment.transferId) ||
+      Boolean(payment.transferId) &&
       settledStatuses.has(String(payment.transferStatus || '').toLowerCase())
   );
-  const settledAmount = settled.reduce((sum, payment) => sum + netSellerPayable(payment), 0);
-  const pending = captured.filter((payment) => !settled.includes(payment));
-  const pendingAmount = pending.reduce((sum, payment) => sum + netSellerPayable(payment), 0);
+  const settledAmount = settled.reduce((sum, payment) => sum + confirmedTransferred(payment), 0);
+  const pending = captured.filter((payment) => outstandingTransfer(payment) > 0.004);
+  const pendingAmount = pending.reduce((sum, payment) => sum + outstandingTransfer(payment), 0);
 
   const monthRows = useMemo(() => {
     const rows = new Map<string, { month: string; earnings: number }>();
@@ -215,9 +230,10 @@ export default function SellerEarnings() {
         </button>
       </div>
 
+      <SellerPayoutAccount />
       {seller && !seller.settlementEligible && (
         <div className="mb-5 rounded-2xl border border-warning/20 bg-warning/10 p-4 text-sm text-warning">
-          Settlement is not enabled for this seller yet. Captured payments will be recorded correctly, but automated transfer requires an eligible linked account.
+          Seller approval is pending. Checkout requires both an approved seller and a Razorpay-verified payout bank.
         </div>
       )}
       {error && <div className="mb-5 rounded-2xl border border-error/20 bg-error/5 p-4 text-sm text-error">{error}</div>}
@@ -227,7 +243,7 @@ export default function SellerEarnings() {
           ['Gross Razorpay captured', loading ? '—' : money(grossCaptured), 'CurrencyRupeeIcon', 'text-primary'],
           ['Captured seller payable', loading ? '—' : money(sellerEarned), 'BanknotesIcon', 'text-success'],
           ['Pending settlement', loading ? '—' : money(pendingAmount), 'ClockIcon', 'text-warning'],
-          ['Transferred', loading ? '—' : money(settledAmount), 'CheckCircleIcon', 'text-success'],
+          ['Net transferred to linked account', loading ? '—' : money(settledAmount), 'CheckCircleIcon', 'text-success'],
         ].map(([label, value, icon, color]) => (
           <div key={String(label)} className="rounded-2xl border border-border bg-card p-4">
             <Icon name={String(icon)} size={20} className={String(color)} />
@@ -269,7 +285,7 @@ export default function SellerEarnings() {
           <section className="rounded-2xl border border-border bg-card p-5">
             <h2 className="text-sm font-800 text-foreground">Captured-payment deductions</h2>
             <div className="mt-4 grid gap-3 sm:grid-cols-3">
-              <div className="rounded-xl bg-muted/40 p-4"><p className="text-xs text-muted-foreground">Platform + processing + commission GST</p><p className="mt-1 text-xl font-800 text-foreground">{money(fees)}</p></div>
+              <div className="rounded-xl bg-muted/40 p-4"><p className="text-xs text-muted-foreground">FabricTrad share (all inclusive)</p><p className="mt-1 text-xl font-800 text-foreground">{money(fees)}</p></div>
               <div className="rounded-xl bg-error/5 p-4"><p className="text-xs text-muted-foreground">Refunded</p><p className="mt-1 text-xl font-800 text-error">{money(refunds)}</p></div>
               <div className="rounded-xl bg-success/5 p-4"><p className="text-xs text-muted-foreground">Net seller payable</p><p className="mt-1 text-xl font-800 text-success">{money(sellerEarned)}</p></div>
             </div>
@@ -280,14 +296,14 @@ export default function SellerEarnings() {
       {activeSection === 'pending' && (
         <section className="overflow-hidden rounded-2xl border border-border bg-card">
           <div className="border-b border-border px-5 py-4"><h2 className="text-sm font-800">Pending settlement</h2><p className="mt-1 text-xs text-muted-foreground">{pending.length} captured payment{pending.length === 1 ? '' : 's'} without a completed transfer.</p></div>
-          {pending.length ? <div className="divide-y divide-border">{pending.map((payment) => <div key={payment.id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-4"><div><p className="mono-id">{payment.orderType === 'catalog' ? 'FT-CAT' : 'FT-BULK'}-{payment.orderId.slice(0, 8).toUpperCase()}</p><p className="mt-1 text-xs text-muted-foreground">{payment.paymentMethod || 'Payment method not recorded'} · {new Date(payment.capturedAt || payment.createdAt).toLocaleString('en-IN')}</p></div><div className="text-right"><p className="text-sm font-800 text-success">{money(netSellerPayable(payment))}</p><p className="mt-1 text-xs capitalize text-muted-foreground">{String(payment.transferStatus || 'pending').replaceAll('_', ' ')}</p></div></div>)}</div> : <div className="px-5 py-10 text-center"><Icon name="ClockIcon" size={30} className="mx-auto text-muted-foreground" /><p className="mt-2 text-sm font-800">No pending settlements</p></div>}
+          {pending.length ? <div className="divide-y divide-border">{pending.map((payment) => <div key={payment.id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-4"><div><p className="mono-id">{payment.orderType === 'catalog' ? 'FT-CAT' : 'FT-BULK'}-{payment.orderId.slice(0, 8).toUpperCase()}</p><p className="mt-1 text-xs text-muted-foreground">{payment.paymentMethod || 'Payment method not recorded'} · {new Date(payment.capturedAt || payment.createdAt).toLocaleString('en-IN')}</p></div><div className="text-right"><p className="text-sm font-800 text-success">{money(outstandingTransfer(payment))}</p><p className="mt-1 text-xs capitalize text-muted-foreground">{String(payment.transferStatus || 'pending').replaceAll('_', ' ')}</p></div></div>)}</div> : <div className="px-5 py-10 text-center"><Icon name="ClockIcon" size={30} className="mx-auto text-muted-foreground" /><p className="mt-2 text-sm font-800">No pending settlements</p></div>}
         </section>
       )}
 
       {activeSection === 'history' && (
         <section className="overflow-hidden rounded-2xl border border-border bg-card">
-          <div className="border-b border-border px-5 py-4"><h2 className="text-sm font-800">Completed transfers</h2><p className="mt-1 text-xs text-muted-foreground">Only captured payments with a saved Razorpay transfer or settled status are shown.</p></div>
-          {settled.length ? <div className="divide-y divide-border">{settled.map((payment) => <div key={payment.id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-4"><div><p className="mono-id">{payment.transferId || payment.id}</p><p className="mt-1 text-xs text-muted-foreground">Order {payment.orderId.slice(0, 8).toUpperCase()} · {new Date(payment.capturedAt || payment.createdAt).toLocaleString('en-IN')}</p></div><div className="text-right"><p className="text-sm font-800 text-success">{money(netSellerPayable(payment))}</p><p className="mt-1 text-xs text-success">Transferred</p></div></div>)}</div> : <div className="px-5 py-10 text-center"><Icon name="CheckCircleIcon" size={30} className="mx-auto text-muted-foreground" /><p className="mt-2 text-sm font-800">No completed transfers yet</p></div>}
+          <div className="border-b border-border px-5 py-4"><h2 className="text-sm font-800">Completed transfers</h2><p className="mt-1 text-xs text-muted-foreground">A processed transfer credits your Razorpay linked account. Bank settlement is shown only when Razorpay confirms it.</p></div>
+          {settled.length ? <div className="divide-y divide-border">{settled.map((payment) => <div key={payment.id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-4"><div><p className="mono-id">{payment.transferId || payment.id}</p><p className="mt-1 text-xs text-muted-foreground">Order {payment.orderId.slice(0, 8).toUpperCase()} · {new Date(payment.capturedAt || payment.createdAt).toLocaleString('en-IN')}</p></div><div className="text-right"><p className="text-sm font-800 text-success">{money(confirmedTransferred(payment))}</p><p className="mt-1 text-xs text-success">{transferLabel(payment)}</p></div></div>)}</div> : <div className="px-5 py-10 text-center"><Icon name="CheckCircleIcon" size={30} className="mx-auto text-muted-foreground" /><p className="mt-2 text-sm font-800">No completed transfers yet</p></div>}
         </section>
       )}
     </div>

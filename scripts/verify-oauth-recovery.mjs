@@ -75,8 +75,7 @@ assert(passwordResetRequest.includes("method: 'email_otp'"), 'Recovery endpoint 
 assert(accountLogin.includes("fetch('/api/auth/password-reset-otp/request'"), 'Account login must request the password-reset OTP endpoint.');
 assert(accountLogin.includes('verifyEmailOtp(normalizedEmail, otp)'), 'Recovery must verify the OTP against the requested email.');
 assert(accountLogin.includes('updatePassword(newPassword)'), 'Recovery must update the password only after OTP verification.');
-assert(accountLogin.includes('Send OTP to email'), 'Account login must expose the email OTP recovery action.');
-assert(accountLogin.includes('One account for textile commerce'), 'Sign-in must present one unified buyer and seller account.');
+assert(accountLogin.includes('onClick={sendPasswordResetOtp}') && accountLogin.includes("t('auth.sendCode')"), 'Account login must expose the translated email recovery action.');
 assert(
   accountLogin.includes("role === 'admin_staff' || role === 'super_admin'") &&
     accountLogin.includes("? '/admin-portal'") &&

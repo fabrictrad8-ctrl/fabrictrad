@@ -545,6 +545,9 @@ async function generateWithOpenAI(
         'OPENAI_MODERATION_BLOCKED'
       );
     }
+    if (/insufficient_quota|billing_hard_limit|no credits remaining|credit balance/i.test(`${payload.error?.code || ''} ${payload.error?.message || ''}`)) {
+      throw new DrapeClientError('Virtual Drape is temporarily unavailable. You can continue shopping and try again once the service is restored.', 503, 'AI_PROVIDER_CREDITS_REQUIRED');
+    }
     throw new Error(payload.error?.message || `OpenAI GPT Image returned HTTP ${response.status}.`);
   }
 
