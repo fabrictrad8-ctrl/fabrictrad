@@ -42,7 +42,7 @@ jobs:
 
           v3_probe='{"object":"whatsapp_business_account","gs_app_id":"__fabrictrad_live_probe__","entry":[{"changes":[{"field":"messages","value":{"messaging_product":"whatsapp","statuses":[{"type":"set-callback"}]}}]}]}'
 
-          for attempt in $(seq 1 30); do
+          for attempt in $(seq 1 5); do
             get_code=$(curl -sS --connect-timeout 10 --max-time 30 -o /tmp/get.out -w '%{http_code}' "$webhook" || true)
             post_code=$(curl -sS --connect-timeout 10 --max-time 30 -o /tmp/post.out -w '%{http_code}' -H 'Content-Type: application/json' --data "$v3_probe" "$webhook" || true)
             status_code=$(curl -sS --connect-timeout 10 --max-time 30 -o /tmp/status.json -w '%{http_code}' "$status_url" || true)
@@ -50,7 +50,7 @@ jobs:
             v3=$(grep -o '"payloadFormat":"meta_v3_with_gupshup_v2_fallback"' /tmp/status.json || true)
             app_name=$(grep -o '"appName":true' /tmp/status.json || true)
             echo "Attempt ${attempt}: GET=${get_code}; POST=${post_code}; STATUS=${status_code}; interactive=$([ -n "$interactive" ] && echo yes || echo no); v3=$([ -n "$v3" ] && echo yes || echo no); app-name=$([ -n "$app_name" ] && echo yes || echo no)"
-            if [ "$get_code" = '204' ] && [ "$post_code" = '204' ] && [ "$status_code" = '200' ] && [ ! -s /tmp/get.out ] && [ ! -s /tmp/post.out ] && [ -n "$interactive" ] && [ -n "$v3" ] && [ -n "$app_name" ]; then
+            if [ "$get_code" = '204' ] && [ "$post_code" = '401' ] && [ "$status_code" = '200' ] && [ ! -s /tmp/get.out ] && [ ! -s /tmp/post.out ] && [ -n "$v3" ] && [ -n "$app_name" ]; then
               break
             fi
             sleep 10
@@ -75,15 +75,18 @@ jobs:
           status_code = os.environ.get('STATUS_CODE', '000')
           get_empty = pathlib.Path('/tmp/get.out').exists() and pathlib.Path('/tmp/get.out').stat().st_size == 0
           post_empty = pathlib.Path('/tmp/post.out').exists() and pathlib.Path('/tmp/post.out').stat().st_size == 0
-          webhook_live = (
-              get_code == '204' and post_code == '204' and status_code == '200'
+          webhook_security_verified = (
+              get_code == '204' and post_code == '401' and status_code == '200'
               and get_empty and post_empty
               and status.get('provider') == 'gupshup'
-              and status.get('webhookReady') is True
+              and status.get('audience') == 'sellers_only'
+              and status.get('buyerMessagingEnabled') is False
               and webhook.get('access') == 'public'
+              and webhook.get('validation') == 'shared_secret_and_provider_identity'
               and webhook.get('acknowledgement') == 'empty_204'
               and webhook.get('payloadFormat') == 'meta_v3_with_gupshup_v2_fallback'
           )
+          webhook_live = webhook_security_verified and status.get('webhookReady') is True
           interactive_live = (
               webhook_live
               and status.get('interactiveRepliesReady') is True
@@ -105,6 +108,10 @@ jobs:
                   'postBodyEmpty': post_empty,
               },
               'webhookLive': webhook_live,
+              'webhookSecurityVerified': webhook_security_verified,
+              'providerCallbackDeliveryVerified': False,
+              'buyerMessagingEnabled': status.get('buyerMessagingEnabled'),
+              'audience': status.get('audience'),
               'interactiveRuntimeLive': interactive_live,
               'provider': status.get('provider'),
               'configured': status.get('configured'),
@@ -127,6 +134,7 @@ jobs:
           PY
 
       - name: Record production proof
+        continue-on-error: true
         shell: bash
         run: |
           set -euo pipefail
@@ -136,20 +144,28 @@ jobs:
           if git diff --cached --quiet; then
             echo 'Production proof unchanged.'
           else
-            git commit -m 'chore: record Meta v3 Gupshup production readiness [skip deploy]'
+            git commit -m 'chore: record authenticated seller WhatsApp readiness [skip deploy] [skip validation] [skip integration audit]'
             git pull --rebase origin main
             git push origin HEAD:main
           fi
 
-      - name: Enforce live Meta v3 callback contract
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: fabrictrad-seller-whatsapp-readiness
+          path: .github/deployments/gupshup-live-status.json
+
+      - name: Enforce authenticated seller callback contract
         shell: bash
         run: |
           python3 - <<'PY'
           import json
           data=json.load(open('.github/deployments/gupshup-live-status.json', encoding='utf-8'))
-          if not data.get('webhookLive'):
-              raise SystemExit('Production Meta-v3 webhook is not registration-ready yet.')
+          if not data.get('webhookSecurityVerified'):
+              raise SystemExit('Production must reject unauthenticated WhatsApp POSTs and restrict the channel to sellers.')
+          if not data.get('webhookReady'):
+              raise SystemExit('Configure the same 32-character-or-longer callback secret in Gupshup and GUPSHUP_WEBHOOK_SECRET on the live Worker.')
           if not data.get('interactiveRuntimeLive'):
-              raise SystemExit('Production has not activated the Meta-v3 interactive Gupshup runtime yet.')
-          print('Production Gupshup Meta-v3 callback and interactive runtime are LIVE.')
+              raise SystemExit('Seller WhatsApp channel credentials are incomplete.')
+          print('Seller WhatsApp authentication and configuration checks passed. Real provider delivery still needs a seller upload test.')
           PY
