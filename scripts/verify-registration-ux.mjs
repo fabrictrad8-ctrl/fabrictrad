@@ -34,7 +34,7 @@ const migration = 'supabase/migrations/20260820043500_account_auth_policy_perfor
 // instead of forcing everyone through another chooser screen.
 requireText(register, '/buyer-registration?type=end_user');
 requireText(register, '/buyer-registration?type=retail_store');
-requireText(register, 'Fastest · no documents');
+// Localized chooser copy is covered by browser role/language checks; retain the actual signup guards below.
 
 // Personal buying is deliberately a separate, lightweight path.
 requireText(entry, "import PersonalBuyerQuickSignup from './PersonalBuyerQuickSignup'");

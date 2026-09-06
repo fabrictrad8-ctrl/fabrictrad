@@ -1,0 +1,98 @@
+name: Build and verify multilingual guide videos
+
+on:
+  push:
+    branches: [agent/razorpay-route-and-guide-languages]
+    paths:
+      - 'scripts/guide-narration.json'
+      - 'scripts/build-narrated-guides.py'
+      - 'src/components/NarratedGuideVideo.tsx'
+      - 'tests/e2e/narrated-guides.spec.ts'
+      - '.github/workflows/narrated-guides.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: fabrictrad-narrated-guides
+  cancel-in-progress: false
+
+jobs:
+  guides:
+    if: github.ref == 'refs/heads/agent/razorpay-route-and-guide-languages'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install build dependencies
+        run: |
+          npm install --no-audit --no-fund --package-lock=false --legacy-peer-deps
+          python -m pip install Pillow==12.3.0 espeakng-loader==0.2.4
+          sudo apt-get update -qq
+          sudo apt-get install -y ffmpeg
+      - name: Prepare public fonts and official logo
+        run: |
+          python - <<'PY'
+          import urllib.request
+          from pathlib import Path
+          fonts = Path('guide-fonts'); fonts.mkdir(exist_ok=True)
+          assets = {
+            'Latin.ttf': 'notosans/NotoSans%5Bwdth,wght%5D.ttf',
+            'Devanagari.ttf': 'notosansdevanagari/NotoSansDevanagari%5Bwdth,wght%5D.ttf',
+            'Gujarati.ttf': 'notosansgujarati/NotoSansGujarati%5Bwdth,wght%5D.ttf',
+          }
+          for name, path in assets.items():
+            urllib.request.urlretrieve('https://raw.githubusercontent.com/google/fonts/main/ofl/' + path, fonts / name)
+          urllib.request.urlretrieve('https://cdn.shopify.com/s/files/1/0841/4966/6010/files/fabrictrad-logo-horizontal.png?v=1788032519', 'public/images/fabrictrad-logo-horizontal.png')
+          PY
+      - name: Generate narration locally without a speech service
+        run: python scripts/build-narrated-guides.py --fonts guide-fonts --work guide-work
+      - name: Verify media files
+        run: |
+          python - <<'PY'
+          import hashlib, json, subprocess
+          from pathlib import Path
+          manifest = json.loads(Path('public/guides/manifest.json').read_text())
+          for role in ('buyer', 'seller'):
+            for language, tag in {'en': 'eng', 'hi': 'hin', 'gu': 'guj'}.items():
+              item = manifest['videos'][role][language]
+              path = Path('public' + item['src'])
+              assert 1000 < path.stat().st_size < 25 * 1024 * 1024
+              assert hashlib.sha256(path.read_bytes()).hexdigest() == item['sha256']
+              probe = json.loads(subprocess.check_output(['ffprobe', '-v', 'error', '-show_streams', '-of', 'json', str(path)]))
+              audio = next(s for s in probe['streams'] if s['codec_type'] == 'audio')
+              assert audio['codec_name'] == 'aac' and audio['tags']['language'] == tag
+              assert Path('public' + item['captions']).read_text().startswith('WEBVTT')
+              print(role, language, item['duration'], 'seconds: verified')
+          PY
+      - name: Build production Worker
+        run: npm run build:sites
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Verify language selection and playback on desktop, tablet and mobile
+        run: npx playwright test tests/e2e/narrated-guides.spec.ts
+      - name: Preserve verified guide assets in the source branch
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add public/guides public/images/fabrictrad-logo-horizontal.png
+          if ! git diff --cached --quiet; then
+            git commit -m 'Add verified English Hindi Gujarati buyer and seller guides'
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: fabrictrad-multilingual-guide-proof
+          path: |
+            public/guides
+            playwright-report
+            test-results/sitewide

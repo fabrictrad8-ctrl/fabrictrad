@@ -129,7 +129,7 @@ jobs:
               waitUntil: 'domcontentloaded',
               timeout: 30000,
             });
-            await page.waitForTimeout(2500);
+            await page.locator('html[data-fabrictrad-ready="true"]').waitFor({ timeout: 20000 });
 
             const logo = page.locator(`header img[src*="${expected}"]`).first();
             await logo.waitFor({ state: 'visible', timeout: 20000 });
@@ -169,6 +169,11 @@ jobs:
               JSON.stringify({ url: page.url(), details, box }, null, 2) + '\n',
             );
             console.log('VISIBLE OFFICIAL FABRICTRAD LOGO VERIFIED', JSON.stringify({ details, box }));
+          } catch (error) {
+            await page.screenshot({ path: 'test-results/live-brand/failure.png', fullPage: true }).catch(() => undefined);
+            fs.writeFileSync('test-results/live-brand/failure.html', await page.content());
+            fs.writeFileSync('test-results/live-brand/errors.json', JSON.stringify(pageErrors, null, 2));
+            throw error;
           } finally {
             await browser.close();
           }

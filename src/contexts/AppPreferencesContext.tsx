@@ -33,6 +33,11 @@ export function AppPreferencesProvider({ children }: { children: React.ReactNode
   const languageChosenLocally = useRef(false);
 
   useEffect(() => {
+    document.documentElement.dataset.fabrictradReady = 'true';
+    return () => { delete document.documentElement.dataset.fabrictradReady; };
+  }, []);
+
+  useEffect(() => {
     let storedLanguage: string | null = null;
     try { storedLanguage = window.localStorage.getItem(LANGUAGE_KEY); } catch { /* Storage can be disabled. */ }
     if (isLanguage(storedLanguage)) setLanguageState(storedLanguage);

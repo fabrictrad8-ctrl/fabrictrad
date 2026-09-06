@@ -96,7 +96,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning data-fabrictrad-release={PRODUCTION_UI_RELEASE}>
+    <html lang="en" suppressHydrationWarning data-scroll-behavior="smooth" data-fabrictrad-release={PRODUCTION_UI_RELEASE}>
       <head>
         <meta name="fabrictrad-release" content={PRODUCTION_UI_RELEASE} />
         <script

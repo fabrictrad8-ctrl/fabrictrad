@@ -1,0 +1,96 @@
+{
+  "buyer": [
+    {
+      "screen": "account",
+      "en": ["Create your buyer account", "Open FabricTrad and choose Create account. Choose Buy for myself for personal purchases, or Buy for my shop for a business. Personal buyers do not need business documents. Shop buyers enter their business details and complete the checks shown. Keep your registered email and contact number up to date."],
+      "hi": ["अपना खरीदार खाता बनाएँ", "फैब्रिक ट्रेड खोलें और खाता बनाएँ चुनें। निजी खरीदारी के लिए अपने लिए खरीदें, और व्यवसाय के लिए अपनी दुकान के लिए खरीदें चुनें। निजी खरीदार को व्यवसाय के दस्तावेज़ नहीं चाहिए। दुकान के खरीदार अपना व्यवसाय विवरण भरें और बताए गए सत्यापन पूरे करें। अपना पंजीकृत ईमेल और संपर्क नंबर सही रखें।"],
+      "gu": ["તમારું ખરીદદાર ખાતું બનાવો", "ફેબ્રિક ટ્રેડ ખોલો અને ખાતું બનાવો પસંદ કરો. વ્યક્તિગત ખરીદી માટે મારા માટે ખરીદો, અને વ્યવસાય માટે મારી દુકાન માટે ખરીદો પસંદ કરો. વ્યક્તિગત ખરીદદારને વ્યવસાયના દસ્તાવેજો જરૂરી નથી. દુકાનના ખરીદદારોએ વ્યવસાયની વિગતો ભરીને બતાવેલી ચકાસણી પૂર્ણ કરવી. તમારું નોંધાયેલ ઈમેલ અને સંપર્ક નંબર સાચાં રાખો."]
+    },
+    {
+      "screen": "login",
+      "en": ["Sign in and choose a language", "Sign in using your registered email and password. If you forget your password, use the recovery option on the sign-in page. The language control changes the website text. On How to Use, choose Buyer, then English, Hindi or Gujarati for the narrated guide. You can pause, seek or turn on captions."],
+      "hi": ["साइन इन करें और भाषा चुनें", "अपने पंजीकृत ईमेल और पासवर्ड से साइन इन करें। पासवर्ड भूलने पर साइन इन पेज का पासवर्ड रिकवरी विकल्प इस्तेमाल करें। भाषा का विकल्प वेबसाइट का पाठ बदलता है। उपयोग कैसे करें पेज पर खरीदार चुनें, फिर आवाज़ वाले मार्गदर्शन के लिए अंग्रेज़ी, हिंदी या गुजराती चुनें। वीडियो रोक सकते हैं, आगे पीछे कर सकते हैं और उपशीर्षक चालू कर सकते हैं।"],
+      "gu": ["સાઇન ઇન કરો અને ભાષા પસંદ કરો", "તમારા નોંધાયેલ ઈમેલ અને પાસવર્ડથી સાઇન ઇન કરો. પાસવર્ડ ભૂલી જાઓ તો સાઇન ઇન પેજ પર પાસવર્ડ પાછો મેળવવાનો વિકલ્પ વાપરો. ભાષાનો વિકલ્પ વેબસાઇટનું લખાણ બદલે છે. કેવી રીતે વાપરવું પેજ પર ખરીદદાર પસંદ કરો, પછી અવાજવાળા માર્ગદર્શન માટે અંગ્રેજી, હિન્દી અથવા ગુજરાતી પસંદ કરો. વિડિયો રોકી શકો છો, આગળ પાછળ કરી શકો છો અને સબટાઇટલ ચાલુ કરી શકો છો."]
+    },
+    {
+      "screen": "discover",
+      "en": ["Find and inspect fabric", "After signing in, open Marketplace. Search by product or seller, and use categories and filters to narrow the choices. Open a product to inspect its photographs, colour variants, price, unit, available stock and minimum quantity. Check the seller and dispatch details before choosing the exact variant you want."],
+      "hi": ["कपड़ा खोजें और विवरण देखें", "साइन इन करने के बाद मार्केटप्लेस खोलें। उत्पाद या विक्रेता के नाम से खोजें। श्रेणियों और फ़िल्टर से विकल्प कम करें। उत्पाद खोलकर उसकी तस्वीरें, रंग, कीमत, इकाई, उपलब्ध स्टॉक और न्यूनतम मात्रा देखें। अपना रंग या वैरिएंट चुनने से पहले विक्रेता और भेजने के समय की जानकारी जाँचें।"],
+      "gu": ["કાપડ શોધો અને વિગતો જુઓ", "સાઇન ઇન કર્યા પછી માર્કેટપ્લેસ ખોલો. ઉત્પાદન અથવા વિક્રેતાના નામથી શોધો. શ્રેણીઓ અને ફિલ્ટરથી પસંદગીઓ ઓછી કરો. ઉત્પાદન ખોલીને તેના ફોટા, રંગો, કિંમત, એકમ, ઉપલબ્ધ જથ્થો અને ઓછામાં ઓછી ખરીદીની માત્રા જુઓ. તમારો રંગ અથવા વેરિઅન્ટ પસંદ કરતાં પહેલાં વિક્રેતા અને મોકલવાના સમયની વિગતો તપાસો."]
+    },
+    {
+      "screen": "drape",
+      "en": ["Explore Virtual Drape", "On supported products, open Virtual Drape. Choose the exact colour, then an AI model or your own photograph. Give photo consent before uploading a personal image. Generated previews are illustrative and do not guarantee fit or exact colour. Generation requires available service credits. A service-unavailable message means a preview has not been generated."],
+      "hi": ["वर्चुअल ड्रेप देखें", "जिन उत्पादों में यह सुविधा है, वहाँ वर्चुअल ड्रेप खोलें। सही रंग चुनें, फिर ए आई मॉडल या अपनी तस्वीर चुनें। अपनी तस्वीर अपलोड करने से पहले सहमति दें। बनाया गया चित्र केवल अंदाज़ा दिखाता है, सही फ़िट या बिल्कुल सही रंग की गारंटी नहीं देता। चित्र बनाने के लिए सेवा में क्रेडिट उपलब्ध होना ज़रूरी है। सेवा उपलब्ध नहीं है का संदेश आने पर नया चित्र नहीं बना है।"],
+      "gu": ["વર્ચ્યુઅલ ડ્રેપ અજમાવો", "જે ઉત્પાદનમાં આ સુવિધા હોય ત્યાં વર્ચ્યુઅલ ડ્રેપ ખોલો. યોગ્ય રંગ પસંદ કરો, પછી એ આઈ મોડેલ અથવા તમારો ફોટો પસંદ કરો. વ્યક્તિગત ફોટો અપલોડ કરતાં પહેલાં સંમતિ આપો. બનાવેલો ફોટો માત્ર અંદાજ બતાવે છે, ચોક્કસ ફિટ અથવા બિલકુલ સાચા રંગની ખાતરી આપતો નથી. ફોટો બનાવવા માટે સેવામાં ક્રેડિટ ઉપલબ્ધ હોવી જરૂરી છે. સેવા ઉપલબ્ધ નથી એવો સંદેશ આવે તો નવો ફોટો બન્યો નથી."]
+    },
+    {
+      "screen": "payment",
+      "en": ["Place the order and pay", "Choose the quantity, add the product to your cart and review the delivery details. Submit the order request. When the seller accepts and payment becomes available, use FabricTrad's Razorpay checkout. A seller must have an approved payout bank before checkout opens. Pay the amount shown once, and wait for payment confirmation before retrying a pending transaction."],
+      "hi": ["ऑर्डर दें और भुगतान करें", "मात्रा चुनें, उत्पाद कार्ट में जोड़ें और डिलीवरी का विवरण जाँचें। ऑर्डर अनुरोध भेजें। विक्रेता स्वीकार करे और भुगतान उपलब्ध हो, तब फैब्रिक ट्रेड के रेज़रपे चेकआउट से भुगतान करें। चेकआउट खुलने से पहले विक्रेता का भुगतान पाने वाला बैंक सत्यापित होना चाहिए। दिखाई गई राशि का एक बार भुगतान करें। लंबित भुगतान दोबारा करने से पहले पुष्टि का इंतज़ार करें।"],
+      "gu": ["ઓર્ડર આપો અને ચુકવણી કરો", "માત્રા પસંદ કરો, ઉત્પાદન કાર્ટમાં ઉમેરો અને ડિલિવરીની વિગતો તપાસો. ઓર્ડરની વિનંતી મોકલો. વિક્રેતા સ્વીકારે અને ચુકવણી ઉપલબ્ધ થાય ત્યારે ફેબ્રિક ટ્રેડના રેઝરપે ચેકઆઉટથી ચૂકવો. ચેકઆઉટ ખૂલે તે પહેલાં વિક્રેતાનું ચુકવણી મેળવવાનું બેંક ખાતું ચકાસાયેલું હોવું જોઈએ. બતાવેલી રકમ એક વાર ચૂકવો. બાકી રહેલી ચુકવણી ફરી કરતાં પહેલાં તેની પુષ્ટિની રાહ જુઓ."]
+    },
+    {
+      "screen": "tracking",
+      "en": ["Track delivery and open invoices", "Open your buyer dashboard and choose Orders or Tracking. Each shipment shows the carrier selected for that order, its AWB number and the tracking link. Different orders may use different carriers. Open the order's invoice or receipt when available. Keep your delivery address and email correct so documents and updates reach the right place."],
+      "hi": ["डिलीवरी और इनवॉइस देखें", "खरीदार डैशबोर्ड में ऑर्डर या ट्रैकिंग खोलें। हर शिपमेंट में उस ऑर्डर के लिए चुना गया कूरियर, ए डब्ल्यू बी नंबर और ट्रैकिंग लिंक मिलता है। अलग ऑर्डर के लिए अलग कूरियर हो सकता है। उपलब्ध होने पर ऑर्डर की इनवॉइस या रसीद खोलें। अपना डिलीवरी पता और ईमेल सही रखें ताकि दस्तावेज़ और जानकारी सही जगह पहुँचें।"],
+      "gu": ["ડિલિવરી અને ઇનવોઇસ જુઓ", "ખરીદદાર ડેશબોર્ડમાં ઓર્ડર અથવા ટ્રેકિંગ ખોલો. દરેક શિપમેન્ટમાં તે ઓર્ડર માટે પસંદ કરેલો કુરિયર, એ ડબલ્યુ બી નંબર અને ટ્રેકિંગ લિંક મળે છે. જુદા ઓર્ડર માટે જુદા કુરિયર હોઈ શકે છે. ઉપલબ્ધ હોય ત્યારે ઓર્ડરનું ઇનવોઇસ અથવા રસીદ ખોલો. તમારું ડિલિવરી સરનામું અને ઈમેલ સાચાં રાખો જેથી દસ્તાવેજો અને માહિતી યોગ્ય જગ્યાએ પહોંચે."]
+    },
+    {
+      "screen": "help",
+      "en": ["Get help with an order", "Use the website's order conversation, support or dispute tools if something needs attention. Keep the order reference and relevant photos together. Check the return and exchange policy for the product before buying. Buyer WhatsApp shopping is currently unavailable; use the website for purchases and order support. You are ready to explore FabricTrad."],
+      "hi": ["ऑर्डर के लिए मदद लें", "मदद चाहिए तो वेबसाइट पर ऑर्डर की बातचीत, सहायता या विवाद का विकल्प इस्तेमाल करें। ऑर्डर नंबर और ज़रूरी तस्वीरें संभालकर रखें। खरीदने से पहले उत्पाद की वापसी और एक्सचेंज नीति पढ़ें। खरीदारों के लिए व्हाट्सऐप से खरीदारी अभी उपलब्ध नहीं है। खरीदारी और ऑर्डर की सहायता के लिए वेबसाइट इस्तेमाल करें। अब आप फैब्रिक ट्रेड पर खरीदारी शुरू कर सकते हैं।"],
+      "gu": ["ઓર્ડર માટે મદદ મેળવો", "મદદ જોઈએ તો વેબસાઇટ પર ઓર્ડરની વાતચીત, સહાય અથવા વિવાદનો વિકલ્પ વાપરો. ઓર્ડર નંબર અને જરૂરી ફોટા સાચવી રાખો. ખરીદતાં પહેલાં ઉત્પાદનની પરત અને એક્સચેન્જ નીતિ વાંચો. ખરીદદારો માટે વોટ્સએપથી ખરીદી હાલમાં ઉપલબ્ધ નથી. ખરીદી અને ઓર્ડરની સહાય માટે વેબસાઇટ વાપરો. હવે તમે ફેબ્રિક ટ્રેડ પર ખરીદી શરૂ કરી શકો છો."]
+    }
+  ],
+  "seller": [
+    {
+      "screen": "account",
+      "en": ["Register your seller business", "Open Create account and choose Sell on FabricTrad. Enter your business and contact details, GSTIN and the documents requested. Submit the application and follow the verification status in your seller workspace. Complete missing information or respond to a review request. Listings and payments become available only after the required checks are complete."],
+      "hi": ["विक्रेता व्यवसाय पंजीकृत करें", "खाता बनाएँ खोलें और फैब्रिक ट्रेड पर बेचें चुनें। व्यवसाय और संपर्क का विवरण, जी एस टी आई एन और माँगे गए दस्तावेज़ भरें। आवेदन भेजें और विक्रेता डैशबोर्ड में सत्यापन की स्थिति देखें। अधूरी जानकारी पूरी करें या समीक्षा का जवाब दें। ज़रूरी जाँच पूरी होने के बाद ही लाइव लिस्टिंग और भुगतान की सुविधा मिलती है।"],
+      "gu": ["વિક્રેતા વ્યવસાય નોંધાવો", "ખાતું બનાવો ખોલો અને ફેબ્રિક ટ્રેડ પર વેચો પસંદ કરો. વ્યવસાય અને સંપર્કની વિગતો, જી એસ ટી આઈ એન અને માંગેલા દસ્તાવેજો આપો. અરજી મોકલો અને વિક્રેતા ડેશબોર્ડમાં ચકાસણીની સ્થિતિ જુઓ. અધૂરી માહિતી પૂરી કરો અથવા સમીક્ષાનો જવાબ આપો. જરૂરી તપાસ પૂર્ણ થયા પછી જ લાઇવ લિસ્ટિંગ અને ચુકવણીની સુવિધા મળે છે."]
+    },
+    {
+      "screen": "bank",
+      "en": ["Connect your payout bank", "In the seller dashboard, open Earnings, then Payout account. Enter your full bank number twice, IFSC, account holder name and the authorised representative's details. The full bank number from registration was not retained, so enter it again here. Accept the terms and submit to Razorpay. Refresh verification until Razorpay confirms activation; a manual admin review alone does not enable payouts."],
+      "hi": ["भुगतान पाने वाला बैंक जोड़ें", "विक्रेता डैशबोर्ड में कमाई खोलें, फिर भुगतान प्राप्त करने का बैंक खाता चुनें। पूरा बैंक खाता नंबर दो बार, आई एफ एस सी, खाताधारक का नाम और अधिकृत प्रतिनिधि का विवरण भरें। पंजीकरण के समय पूरा बैंक नंबर सहेजा नहीं गया था, इसलिए यहाँ फिर दर्ज करें। शर्तें स्वीकार करके रेज़रपे को भेजें। रेज़रपे के सक्रिय करने तक सत्यापन की स्थिति देखें। केवल एडमिन की सामान्य समीक्षा से भुगतान चालू नहीं होता।"],
+      "gu": ["ચુકવણી મેળવવાનું બેંક ખાતું જોડો", "વિક્રેતા ડેશબોર્ડમાં કમાણી ખોલો, પછી ચુકવણી મેળવવાનું બેંક ખાતું પસંદ કરો. સંપૂર્ણ બેંક ખાતા નંબર બે વાર, આઈ એફ એસ સી, ખાતાધારકનું નામ અને અધિકૃત પ્રતિનિધિની વિગતો આપો. નોંધણી વખતે સંપૂર્ણ બેંક નંબર સાચવ્યો નહોતો, તેથી અહીં ફરી દાખલ કરો. શરતો સ્વીકારીને રેઝરપેને મોકલો. રેઝરપે સક્રિય કરે ત્યાં સુધી ચકાસણીની સ્થિતિ જુઓ. માત્ર એડમિનની સામાન્ય સમીક્ષાથી ચુકવણી ચાલુ થતી નથી."]
+    },
+    {
+      "screen": "split",
+      "en": ["Understand your 90% share", "For each new marketplace buyer payment, ninety percent is allocated to your Razorpay linked account and FabricTrad retains ten percent. For example, a one thousand rupee payment allocates nine hundred rupees to you and one hundred rupees to FabricTrad. Payment processing costs and tax on FabricTrad's commission come from the platform share. Bank settlement follows Razorpay's applicable schedule."],
+      "hi": ["अपना 90 प्रतिशत हिस्सा समझें", "मार्केटप्लेस में खरीदार के हर नए भुगतान का नब्बे प्रतिशत आपके रेज़रपे लिंक्ड खाते के लिए तय होता है और दस प्रतिशत फैब्रिक ट्रेड रखता है। उदाहरण के लिए, एक हज़ार रुपये के भुगतान में नौ सौ रुपये आपके और एक सौ रुपये फैब्रिक ट्रेड के होते हैं। भुगतान प्रक्रिया का खर्च और फैब्रिक ट्रेड के कमीशन का कर प्लेटफ़ॉर्म के हिस्से से आता है। बैंक में राशि रेज़रपे के लागू समय के अनुसार आती है।"],
+      "gu": ["તમારો 90 ટકા હિસ્સો સમજો", "માર્કેટપ્લેસમાં ખરીદદારની દરેક નવી ચુકવણીનો નેવું ટકા ભાગ તમારા રેઝરપે લિંક્ડ ખાતા માટે નક્કી થાય છે અને દસ ટકા ફેબ્રિક ટ્રેડ રાખે છે. ઉદાહરણ તરીકે, એક હજાર રૂપિયાની ચુકવણીમાં નવસો રૂપિયા તમારા અને એકસો રૂપિયા ફેબ્રિક ટ્રેડના થાય છે. ચુકવણી પ્રક્રિયાનો ખર્ચ અને ફેબ્રિક ટ્રેડના કમિશનનો કર પ્લેટફોર્મના હિસ્સામાંથી આવે છે. બેંકમાં રકમ રેઝરપેના લાગુ સમય મુજબ જમા થાય છે."]
+    },
+    {
+      "screen": "catalogue",
+      "en": ["Add products and variants", "Open Upload or Add product. Enter an accurate product name, SKU, category, price, sale unit, stock and minimum quantity. Add clear product photographs and any supported product video. Give every colour variant its own matching photograph and available quantity. Save the product, complete any review required and use Inventory to keep stock current."],
+      "hi": ["उत्पाद और रंग जोड़ें", "अपलोड या उत्पाद जोड़ें खोलें। सही उत्पाद नाम, एस के यू, श्रेणी, कीमत, बिक्री की इकाई, स्टॉक और न्यूनतम मात्रा भरें। साफ़ तस्वीरें और उपलब्ध सुविधा के अनुसार उत्पाद का वीडियो जोड़ें। हर रंग के लिए उसी रंग की तस्वीर और उपलब्ध मात्रा दें। उत्पाद सहेजें, ज़रूरी समीक्षा पूरी करें और इन्वेंटरी में स्टॉक सही रखें।"],
+      "gu": ["ઉત્પાદન અને રંગો ઉમેરો", "અપલોડ અથવા ઉત્પાદન ઉમેરો ખોલો. સાચું ઉત્પાદન નામ, એસ કે યુ, શ્રેણી, કિંમત, વેચાણનો એકમ, જથ્થો અને ઓછામાં ઓછી માત્રા આપો. સ્પષ્ટ ફોટા અને ઉપલબ્ધ સુવિધા મુજબ ઉત્પાદનનો વિડિયો ઉમેરો. દરેક રંગ માટે તે જ રંગનો ફોટો અને ઉપલબ્ધ માત્રા આપો. ઉત્પાદન સાચવો, જરૂરી સમીક્ષા પૂર્ણ કરો અને ઇન્વેન્ટરીમાં જથ્થો સાચો રાખો."]
+    },
+    {
+      "screen": "whatsapp",
+      "en": ["Use seller WhatsApp uploads", "WhatsApp product uploads are reserved for sellers. Use your registered seller number and the product format shown in the seller catalogue assistant. Include the product details and matching media, then review the resulting draft before publishing. This requires the seller WhatsApp service to be configured. WhatsApp is not currently a buyer shopping channel."],
+      "hi": ["विक्रेता व्हाट्सऐप अपलोड", "व्हाट्सऐप से उत्पाद अपलोड करने की सुविधा केवल विक्रेताओं के लिए है। अपने पंजीकृत विक्रेता नंबर और कैटलॉग असिस्टेंट में दिखाए गए उत्पाद प्रारूप का उपयोग करें। उत्पाद का विवरण और सही तस्वीरें भेजें। प्रकाशित करने से पहले बने ड्राफ्ट की जाँच करें। इसके लिए विक्रेता व्हाट्सऐप सेवा का सेटअप पूरा होना चाहिए। व्हाट्सऐप अभी खरीदारों की खरीदारी का माध्यम नहीं है।"],
+      "gu": ["વિક્રેતા વોટ્સએપ અપલોડ", "વોટ્સએપથી ઉત્પાદન અપલોડ કરવાની સુવિધા માત્ર વિક્રેતાઓ માટે છે. તમારા નોંધાયેલ વિક્રેતા નંબર અને કેટલોગ આસિસ્ટન્ટમાં બતાવેલા ઉત્પાદનના ફોર્મેટનો ઉપયોગ કરો. ઉત્પાદનની વિગતો અને યોગ્ય ફોટા મોકલો. પ્રકાશિત કરતાં પહેલાં બનેલો ડ્રાફ્ટ તપાસો. આ માટે વિક્રેતા વોટ્સએપ સેવાનું સેટઅપ પૂર્ણ હોવું જોઈએ. વોટ્સએપ હાલમાં ખરીદદારોની ખરીદીનું માધ્યમ નથી."]
+    },
+    {
+      "screen": "shipping",
+      "en": ["Choose shipping for each order", "In Orders, accept only quantities you can fulfil and wait for confirmed full payment before dispatch. Choose Shiprocket or another shipment provider for that specific order. For another provider, enter its real name, the AWB number and a secure HTTPS tracking link for the buyer. Keep the shipment status and expected delivery date current. The provider choice is independent for every order."],
+      "hi": ["हर ऑर्डर का कूरियर चुनें", "ऑर्डर में केवल उतनी मात्रा स्वीकार करें जितनी भेज सकते हैं। भेजने से पहले पूरे भुगतान की पुष्टि का इंतज़ार करें। उस ऑर्डर के लिए शिपरॉकेट या कोई दूसरा शिपमेंट प्रदाता चुनें। दूसरे प्रदाता के लिए उसका सही नाम, ए डब्ल्यू बी नंबर और खरीदार के लिए सुरक्षित एच टी टी पी एस ट्रैकिंग लिंक भरें। शिपमेंट की स्थिति और अनुमानित डिलीवरी तारीख सही रखें। हर ऑर्डर के लिए प्रदाता अलग चुना जा सकता है।"],
+      "gu": ["દરેક ઓર્ડરનો કુરિયર પસંદ કરો", "ઓર્ડરમાં એટલી જ માત્રા સ્વીકારો જેટલી મોકલી શકો. મોકલતાં પહેલાં સંપૂર્ણ ચુકવણીની પુષ્ટિની રાહ જુઓ. તે ઓર્ડર માટે શિપરોકેટ અથવા બીજો શિપમેન્ટ પ્રદાતા પસંદ કરો. બીજા પ્રદાતા માટે તેનું સાચું નામ, એ ડબલ્યુ બી નંબર અને ખરીદદાર માટે સુરક્ષિત એચ ટી ટી પી એસ ટ્રેકિંગ લિંક આપો. શિપમેન્ટની સ્થિતિ અને અંદાજિત ડિલિવરી તારીખ સાચી રાખો. દરેક ઓર્ડર માટે પ્રદાતા અલગ પસંદ કરી શકાય છે."]
+    },
+    {
+      "screen": "earnings",
+      "en": ["Check invoices and earnings", "Use the order record to check the invoice and shipment details. Keep your legal seller name, address, GSTIN and product tax information correct. In Earnings, captured payments, refunds and seller allocations are shown separately. Transfer created does not mean paid to your bank. Processed means transferred to the linked account; bank settlement needs a separate provider confirmation."],
+      "hi": ["इनवॉइस और कमाई देखें", "ऑर्डर रिकॉर्ड में इनवॉइस और शिपमेंट का विवरण जाँचें। विक्रेता का कानूनी नाम, पता, जी एस टी आई एन और उत्पाद के कर की जानकारी सही रखें। कमाई में प्राप्त भुगतान, रिफंड और विक्रेता का हिस्सा अलग दिखते हैं। ट्रांसफ़र बन जाने का मतलब बैंक में पैसा मिलना नहीं है। प्रोसेस्ड का मतलब लिंक्ड खाते में ट्रांसफ़र है। बैंक सेटलमेंट के लिए प्रदाता की अलग पुष्टि ज़रूरी है।"],
+      "gu": ["ઇનવોઇસ અને કમાણી જુઓ", "ઓર્ડર રેકોર્ડમાં ઇનવોઇસ અને શિપમેન્ટની વિગતો તપાસો. વિક્રેતાનું કાનૂની નામ, સરનામું, જી એસ ટી આઈ એન અને ઉત્પાદનની કર માહિતી સાચી રાખો. કમાણીમાં મળેલી ચુકવણી, રિફંડ અને વિક્રેતાનો હિસ્સો અલગ દેખાય છે. ટ્રાન્સફર બની જવાનો અર્થ બેંકમાં પૈસા મળ્યા એવો નથી. પ્રોસેસ્ડનો અર્થ લિંક્ડ ખાતામાં ટ્રાન્સફર છે. બેંક સેટલમેન્ટ માટે પ્રદાતાની અલગ પુષ્ટિ જરૂરી છે."]
+    },
+    {
+      "screen": "help",
+      "en": ["Keep your workspace up to date", "Review notifications, customer questions and disputes regularly. Keep product availability, your pickup address and business contact information current. Use the website's language selector for your preferred interface language. If payout verification needs clarification, correct the details or contact FabricTrad. Never mark an unpaid order as paid or a shipment as delivered before the records confirm it."],
+      "hi": ["अपना डैशबोर्ड सही रखें", "सूचनाएँ, खरीदार के सवाल और विवाद नियमित रूप से देखें। उत्पाद की उपलब्धता, पिकअप पता और व्यवसाय की संपर्क जानकारी सही रखें। अपनी पसंद की भाषा के लिए वेबसाइट का भाषा विकल्प इस्तेमाल करें। भुगतान सत्यापन में स्पष्टीकरण माँगा जाए तो जानकारी सुधारें या फैब्रिक ट्रेड से संपर्क करें। रिकॉर्ड की पुष्टि से पहले बिना भुगतान वाले ऑर्डर को भुगतान हुआ या शिपमेंट को डिलीवर हुआ न बताएँ।"],
+      "gu": ["તમારું ડેશબોર્ડ સાચું રાખો", "સૂચનાઓ, ખરીદદારના પ્રશ્નો અને વિવાદો નિયમિત જુઓ. ઉત્પાદનની ઉપલબ્ધતા, પિકઅપ સરનામું અને વ્યવસાયની સંપર્ક માહિતી સાચી રાખો. પસંદની ભાષા માટે વેબસાઇટનો ભાષા વિકલ્પ વાપરો. ચુકવણીની ચકાસણીમાં સ્પષ્ટતા માંગવામાં આવે તો વિગતો સુધારો અથવા ફેબ્રિક ટ્રેડનો સંપર્ક કરો. રેકોર્ડની પુષ્ટિ પહેલાં ચુકવણી વગરના ઓર્ડરને ચૂકવાયેલો અથવા શિપમેન્ટને પહોંચેલો ન બતાવો."]
+    }
+  ]
+}
