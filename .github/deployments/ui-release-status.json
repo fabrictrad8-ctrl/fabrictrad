@@ -1,11 +1,11 @@
 {
-  "sourceCommit": "a4bbbe95336baf9040e69805a7f87c6148e05fa3",
-  "recordedAt": "2026-09-06T15:31:29.273Z",
+  "sourceCommit": "f8c45e526e6abba181fb9a6b1b36e181ba6ccc35",
+  "recordedAt": "2026-09-07T03:58:08.618Z",
   "install": "success",
   "sourceVerification": "success",
   "workerBuild": "success",
   "cloudflareAuthentication": "success",
   "workerDeployment": "success",
   "publicUiSmoke": "success",
-  "visibleOfficialLogo": "failure"
+  "visibleOfficialLogo": "success"
 }
