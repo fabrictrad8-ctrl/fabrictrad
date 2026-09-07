@@ -1,3 +1,4 @@
+import { parseBespokeInvoiceDetails } from '@/lib/bespokeInvoiceDetails';
 import { MARKETPLACE_SPLIT_VERSION, marketplaceSplit, marketplaceTransfer, validMarketplaceTransfers } from '@/lib/marketplaceSplit';
 import { requireSellerPayout, fetchOrderRouteTransfers, RouteSetupError } from '@/lib/server/razorpayRoute';
 import { randomUUID } from 'node:crypto';
@@ -58,7 +59,7 @@ export async function POST(request: NextRequest) {
   const admin = createAdminClient();
   const { data: order, error: orderError } = await admin
     .from('bespoke_orders')
-    .select('id,user_id,seller_id,stage,quoted_amount,advance_amount,paid_amount,balance_amount,payment_status')
+    .select('id,user_id,seller_id,stage,quoted_amount,advance_amount,paid_amount,balance_amount,payment_status,quotation')
     .eq('id', orderId)
     .eq('user_id', auth.user.id)
     .maybeSingle();
@@ -67,6 +68,10 @@ export async function POST(request: NextRequest) {
   if (!['advance_or_full_payment', 'balance_payment'].includes(String(order.stage))) {
     return json({ error: 'This custom order is not ready for payment.' }, 409);
   }
+
+  if (!parseBespokeInvoiceDetails(order.quotation?.invoice)) return json({
+    error: 'FabricTrad must complete the quotation billing details before accepting payment.', code: 'INVOICE_DETAILS_REQUIRED',
+  }, 409);
 
   if (!order.seller_id) return json({ error: 'FabricTrad must assign and verify the seller before payment.', code: 'SELLER_PAYOUT_NOT_READY' }, 409);
   const { data: seller } = await admin.from('seller_profiles').select('is_active,gstin_verified,verification_status').eq('id', order.seller_id).maybeSingle();

@@ -1,3 +1,5 @@
+import { parseBespokeInvoiceDetails } from '@/lib/bespokeInvoiceDetails';
+import { requireAdministrator } from '@/lib/server/requireAdministrator';
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
@@ -11,6 +13,7 @@ type AdminAction =
   | 'confirm_appointment'
   | 'complete_appointment'
   | 'publish_quote'
+  | 'save_invoice_details'
   | 'start_stitching'
   | 'stitching_to_embroidery'
   | 'stitching_to_trial'
@@ -29,6 +32,7 @@ const money = (value: unknown) => {
 };
 
 async function requireAdmin() {
+  if (!await requireAdministrator()) return null;
   const supabase = await createClient();
   const { data: auth } = await supabase.auth.getUser();
   if (!auth.user) return null;
@@ -53,6 +57,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
     quotedAmount?: number;
     advanceAmount?: number;
     quoteNotes?: string;
+    invoiceDetails?: unknown;
   };
   const action = String(body.action || '') as AdminAction;
   const admin = createAdminClient();
@@ -135,6 +140,10 @@ export async function POST(request: NextRequest, context: RouteContext) {
         update.human_action_reason = 'alteration';
       }
     }
+  } else if (action === 'save_invoice_details') {
+    const invoice = parseBespokeInvoiceDetails(body.invoiceDetails);
+    if (!invoice) return json({ error: 'Complete the invoice description, HSN/SAC, supply type and GST rate.' }, 400);
+    update.quotation = { ...(order.quotation || {}), invoice };
   } else if (action === 'publish_quote') {
     if (String(order.stage) !== 'quotation') {
       return json({ error: 'The order must complete measurement/design approval before payment can open.' }, 409);
@@ -145,6 +154,8 @@ export async function POST(request: NextRequest, context: RouteContext) {
     if (!Number.isFinite(advanceAmount) || advanceAmount < 0 || advanceAmount >= quotedAmount) {
       return json({ error: 'Advance must be zero or lower than the total quotation.' }, 400);
     }
+    const invoice = parseBespokeInvoiceDetails(body.invoiceDetails);
+    if (!invoice) return json({ error: 'Enter the item description, HSN/SAC, supply type and GST rate for the quotation.' }, 400);
     update.stage = 'advance_or_full_payment';
     update.quoted_amount = quotedAmount;
     update.advance_amount = advanceAmount;
@@ -153,6 +164,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
     update.payment_status = Number(order.paid_amount || 0) > 0 ? 'part_paid' : 'unpaid';
     update.quotation = {
       ...(order.quotation && typeof order.quotation === 'object' ? order.quotation : {}),
+      invoice,
       notes: String(body.quoteNotes || '').trim().slice(0, 2000) || null,
       published_at: now,
       published_by: adminUser.id,

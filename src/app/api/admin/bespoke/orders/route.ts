@@ -1,3 +1,4 @@
+import { requireAdministrator } from '@/lib/server/requireAdministrator';
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
@@ -13,6 +14,7 @@ export async function GET(request: NextRequest) {
   const { data: auth } = await supabase.auth.getUser();
   if (!auth.user) return json({ error: 'Authentication required.' }, 401);
 
+  if (!await requireAdministrator()) return json({ error: 'Verified administrator session required.' }, 403);
   const admin = createAdminClient();
   const { data: profile, error: profileError } = await admin
     .from('user_profiles')

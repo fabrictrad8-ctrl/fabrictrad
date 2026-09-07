@@ -17,18 +17,20 @@ export async function GET(request: NextRequest) {
   } = await supabase.auth.getUser();
   if (!user) return json({ error: 'Authentication required.' }, 401);
 
-  const catalogOrderId = request.nextUrl.searchParams.get('catalogOrderId')?.trim();
-  const invoiceId = request.nextUrl.searchParams.get('invoiceId')?.trim();
-  if (!catalogOrderId && !invoiceId) {
-    return json({ error: 'Provide an invoice or catalogue order reference.' }, 400);
+  const choices = [
+    ['invoiceId', 'id'], ['catalogOrderId', 'catalog_order_id'],
+    ['bulkOrderId', 'bulk_order_id'], ['bespokeOrderId', 'bespoke_order_id'],
+  ] as const;
+  const provided = choices.map(([key, column]) => ({ column, value: request.nextUrl.searchParams.get(key)?.trim() }))
+    .filter(item => item.value);
+  if (provided.length !== 1 || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(provided[0].value!)) {
+    return json({ error: 'Provide one valid invoice or order reference.' }, 400);
   }
-
-  let query = supabase.from('seller_tax_invoices').select('*');
-  query = invoiceId ? query.eq('id', invoiceId) : query.eq('catalog_order_id', catalogOrderId!);
-  const { data, error } = await query.maybeSingle();
-  if (error) return json({ error: 'The seller invoice could not be loaded.' }, 503);
-  if (!data) return json({ invoice: null }, 200);
-  return json({ invoice: data });
+  // The authenticated client retains invoice RLS for buyers, sellers and OTP admins.
+  const { data, error } = await supabase.from('seller_tax_invoices').select('*')
+    .eq(provided[0].column, provided[0].value!).order('issued_at', { ascending: false }).limit(100);
+  if (error) return json({ error: 'Order documents could not be loaded.' }, 503);
+  return json({ invoice: data?.[0] || null, invoices: data || [] });
 }
 
 export async function POST(request: NextRequest) {

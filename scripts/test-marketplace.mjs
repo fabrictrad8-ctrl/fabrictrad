@@ -341,3 +341,46 @@ test('provider rejection never exposes a bank number or PAN in a seller error', 
     assert.ok(!error.message.includes(validBankSetup.contactPan));
   }
 });
+
+test('custom quotations require explicit tax classification, including an explicit zero rate', () => {
+  const { parseBespokeInvoiceDetails: parse } = fixture().load('src/lib/bespokeInvoiceDetails.ts');
+  const details = { description: 'Tailoring service', hsnCode: '998822', gstRate: 18, supplyType: 'services' };
+  assert.equal(parse(details).gstRate, 18);
+  assert.equal(parse({ ...details, gstRate: 0 }).gstRate, 0);
+  for (const bad of [null, {}, { ...details, gstRate: '' }, { ...details, gstRate: null }, { ...details, gstRate: NaN }, { ...details, gstRate: 101 }, { ...details, gstRate: 5.123 }, { ...details, hsnCode: 'abc' }, { ...details, supplyType: '' }]) assert.equal(parse(bad), null);
+});
+
+test('custom checkout refuses incomplete invoice details before contacting Razorpay', async () => {
+  const f = fixture({ records: { bespoke_orders: { id: productId, user_id: userId, seller_id: 'seller', stage: 'advance_or_full_payment', quoted_amount: 1180, quotation: {} } } });
+  const response = await f.load('src/app/api/bespoke/payment/order/route.ts').POST(request({ orderId: productId }));
+  assert.equal(response.status, 409);
+  assert.equal((await response.json()).code, 'INVOICE_DETAILS_REQUIRED');
+  assert.equal(f.calls.some(call => call.table === 'bespoke_payments'), false);
+});
+
+test('custom capture emails distinguish payment receipt and final invoice with separate idempotency keys', async () => {
+  const sends = [];
+  const receipt = { ...invoice, id: 'receipt-fixture', invoice_number: 'FR/26-27/000001', document_type: 'payment_receipt', total_amount: 590, document_metadata: { paymentPurpose: 'advance', balanceAtIssue: 590 } };
+  const final = { ...invoice, id: 'final-fixture', invoice_number: 'FT/26-27/000002', document_type: 'tax_invoice', total_amount: 1180 };
+  const f = fixture({ env: { RESEND_API_KEY: 'test-email-key' }, fetch: async (url, init) => { sends.push({ url, init }); return new Response(JSON.stringify({ id: 'accepted-' + sends.length }), { status: 200 }); } });
+  const admin = { rpc: async () => ({ data: { documents: [receipt, final], invoiceError: null }, error: null }), from: () => {
+    const chain = { update() { return this; }, eq() { return this; }, neq() { return this; }, or() { return this; }, select() { return this; }, maybeSingle: async () => ({ data: { id: 'reserved' }, error: null }), then: r => Promise.resolve({ error: null }).then(r) }; return chain;
+  } };
+  const result = await f.load('src/lib/server/automaticInvoice.ts').ensureBespokePaymentDocuments({ admin, orderId: productId, paymentId: 'pay-fixture' });
+  assert.equal(result.documents.length, 2); assert.equal(result.emailed, true);
+  assert.equal(sends[0].init.headers['Idempotency-Key'], 'fabrictrad-invoice/receipt-fixture');
+  assert.equal(sends[1].init.headers['Idempotency-Key'], 'fabrictrad-invoice/final-fixture');
+  const first = JSON.parse(sends[0].init.body); const second = JSON.parse(sends[1].init.body);
+  assert.match(first.subject, /payment receipt/); assert.match(first.html, /Balance at issue: ₹590/);
+  assert.match(second.subject, /tax invoice/); assert.match(second.text, /Invoice total: ₹1,180/);
+  assert.ok(!first.html.includes('Your final FabricTrad invoice has been generated'));
+});
+
+test('an invoice URL requires authentication and does not reveal an inaccessible invoice', async () => {
+  const context = { params: Promise.resolve({ invoiceId: productId }) };
+  const req = new next.NextRequest('https://fabrictrad.test/api/invoices/' + productId);
+  const anonymous = await fixture({ anonymous: true }).load('src/app/api/invoices/[invoiceId]/route.ts').GET(req, context);
+  assert.equal(anonymous.status, 307); assert.match(anonymous.headers.get('Location'), /\/login\?/);
+  const other = await fixture().load('src/app/api/invoices/[invoiceId]/route.ts').GET(req, context);
+  assert.equal(other.status, 404);
+});

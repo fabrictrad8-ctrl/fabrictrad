@@ -107,14 +107,12 @@ export default function OrderLifecyclePanel({
         .select('id,courier_type,courier_name,awb_number,tracking_url,estimated_delivery,status,updated_at')
         .eq(shipmentColumn, orderId)
         .maybeSingle(),
-      orderKind === 'catalog'
-        ? supabase
+      supabase
             .from('seller_tax_invoices')
             .select('*')
-            .eq('catalog_order_id', orderId)
+            .eq(orderKind === 'catalog' ? 'catalog_order_id' : 'bulk_order_id', orderId)
             .eq('status', 'issued')
-            .maybeSingle()
-        : Promise.resolve({ data: null, error: null }),
+            .maybeSingle(),
     ]);
 
     if (!paymentResult.error) setPayment((paymentResult.data || null) as PaymentRecord | null);
@@ -320,7 +318,7 @@ export default function OrderLifecyclePanel({
               }}
               className="mt-2 rounded-lg border border-border bg-card px-3 py-2 text-xs font-800"
             >
-              Print / Save GST invoice
+              {invoice.document_type === 'bill_of_supply' ? 'Print / Save bill of supply' : 'Print / Save GST invoice'}
             </button>
           </div>
         ) : canIssueInvoice ? (
@@ -335,7 +333,7 @@ export default function OrderLifecyclePanel({
         ) : (
           <p className="mt-2 text-xs leading-5 text-muted-foreground">
             {orderKind === 'bulk'
-              ? 'A verified seller-uploaded invoice will appear after payment.'
+              ? 'Your seller invoice appears here after verified payment capture. Contact FabricTrad if billing needs attention.'
               : 'Available after the order is fully paid and the seller issues it.'}
           </p>
         )}

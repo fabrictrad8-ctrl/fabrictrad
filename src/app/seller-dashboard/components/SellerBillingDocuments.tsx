@@ -11,6 +11,8 @@ type AutomaticInvoice = {
   id: string;
   catalog_order_id: string | null;
   bulk_order_id: string | null;
+  bespoke_order_id: string | null;
+  document_type: string;
   invoice_number: string;
   total_amount: number;
   total_tax: number;
@@ -50,7 +52,7 @@ const safeFilename = (filename: string) =>
   filename.replace(/[^a-zA-Z0-9._-]+/g, '-').replace(/-+/g, '-');
 
 const emailLabel = (status: string) => {
-  if (status === 'sent') return 'Email sent';
+  if (status === 'sent') return 'Email submitted';
   if (status === 'sending') return 'Sending email';
   if (status === 'failed') return 'Email retry needed';
   if (status === 'not_configured') return 'Email not configured';
@@ -110,7 +112,7 @@ export default function SellerBillingDocuments() {
       supabase
         .from('seller_tax_invoices')
         .select(
-          'id,catalog_order_id,bulk_order_id,invoice_number,total_amount,total_tax,payment_reference,payment_captured_at,issued_at,generation_source,email_status,email_recipient,recipient'
+          'id,catalog_order_id,bulk_order_id,bespoke_order_id,document_type,invoice_number,total_amount,total_tax,payment_reference,payment_captured_at,issued_at,generation_source,email_status,email_recipient,recipient'
         )
         .eq('seller_id', seller.id)
         .order('issued_at', { ascending: false }),
@@ -222,7 +224,7 @@ export default function SellerBillingDocuments() {
         <p className="ft-route-kicker">Billing</p>
         <h1 className="mt-1 text-2xl font-800 text-foreground">Invoices & billing</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Final invoices are generated automatically after FabricTrad receives server-side confirmation that the buyer&apos;s Razorpay payment was captured.
+          Invoices are generated for fully paid orders after verified payment capture. Custom orders also receive separate advance and balance payment receipts.
         </p>
       </div>
 
@@ -250,7 +252,7 @@ export default function SellerBillingDocuments() {
       <section className="overflow-hidden rounded-2xl border border-border bg-card">
         <div className="flex items-center justify-between border-b border-border px-5 py-4">
           <div>
-            <h2 className="text-sm font-800 text-foreground">Automatically generated invoices</h2>
+            <h2 className="text-sm font-800 text-foreground">Automatically generated invoices & receipts</h2>
             <p className="text-xs text-muted-foreground">{automaticInvoices.length} captured-payment invoice{automaticInvoices.length === 1 ? '' : 's'}</p>
           </div>
           <button type="button" onClick={() => void loadDocuments()} disabled={loading} className="rounded-lg p-2 text-muted-foreground hover:bg-muted" aria-label="Refresh invoices">
@@ -269,15 +271,15 @@ export default function SellerBillingDocuments() {
           )}
           {!loading && automaticInvoices.map((invoice) => {
             const recipient = invoice.recipient || {};
-            const orderId = invoice.catalog_order_id || invoice.bulk_order_id || '';
-            const orderPrefix = invoice.catalog_order_id ? 'FT-CAT' : 'FT-BULK';
+            const orderId = invoice.catalog_order_id || invoice.bulk_order_id || invoice.bespoke_order_id || '';
+            const orderPrefix = invoice.catalog_order_id ? 'FT-CAT' : invoice.bulk_order_id ? 'FT-BULK' : 'FT-CUSTOM';
             const emailOk = invoice.email_status === 'sent';
             return (
               <div key={invoice.id} className="flex flex-col gap-3 px-5 py-4 lg:flex-row lg:items-center">
                 <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-success/10 text-success"><Icon name="DocumentCheckIcon" size={20} /></div>
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <p className="text-sm font-800 text-foreground">{invoice.invoice_number}</p>
+                    <p className="text-sm font-800 text-foreground">{invoice.invoice_number} · {invoice.document_type === 'payment_receipt' ? 'Payment receipt' : invoice.document_type === 'bill_of_supply' ? 'Bill of supply' : 'Tax invoice'}</p>
                     <span className="rounded-full bg-success/10 px-2 py-0.5 text-[10px] font-800 text-success">Automatic</span>
                     <span className={`rounded-full px-2 py-0.5 text-[10px] font-800 ${emailOk ? 'bg-success/10 text-success' : invoice.email_status === 'failed' ? 'bg-error/10 text-error' : 'bg-warning/10 text-warning'}`}>{emailLabel(invoice.email_status)}</span>
                   </div>

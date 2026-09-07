@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import OrderDocuments from '@/components/commerce/OrderDocuments';
 import { useRouter, useSearchParams } from 'next/navigation';
 import AppLogo from '@/components/ui/AppLogo';
 import { useAuth } from '@/contexts/AuthContext';
@@ -509,6 +510,8 @@ export default function CustomOrderClient() {
                 {appointments.length > 0 && <div className="space-y-2">{appointments.map((item) => <div key={item.id} className="rounded-xl border border-border bg-muted/30 p-3 text-xs"><strong>{item.appointment_type.replaceAll('_', ' ')}</strong> · {new Date(item.requested_at).toLocaleString('en-IN')} · {item.status}</div>)}</div>}
               </div>
             )}
+
+            <OrderDocuments key={order.id + order.updated_at} kind="bespoke" orderId={order.id} />
 
             {currentStage === 'quotation' && (
               <div className="mt-5 rounded-2xl border border-border bg-muted/30 p-5">

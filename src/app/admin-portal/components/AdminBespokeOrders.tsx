@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Icon from '@/components/ui/AppIcon';
+import OrderDocuments from '@/components/commerce/OrderDocuments';
+import { parseBespokeInvoiceDetails } from '@/lib/bespokeInvoiceDetails';
 
 type Appointment = {
   id: string;
@@ -18,6 +20,7 @@ type Order = {
   source: string;
   whatsapp_phone?: string | null;
   quoted_amount?: number | null;
+  quotation?: { invoice?: { description?: string; hsnCode?: string; gstRate?: number; supplyType?: string } };
   advance_amount?: number | null;
   paid_amount?: number | null;
   balance_amount?: number | null;
@@ -39,7 +42,9 @@ type Order = {
   appointments?: Appointment[];
 };
 
-type QuoteDraft = { total: string; advance: string; notes: string };
+type QuoteDraft = { total: string; advance: string; notes: string; description: string; hsnCode: string; gstRate: string; supplyType: string };
+const emptyQuote: QuoteDraft = { total: '', advance: '0', notes: '', description: '', hsnCode: '', gstRate: '', supplyType: '' };
+const invoiceDetails = (draft: QuoteDraft) => parseBespokeInvoiceDetails({ description: draft.description, hsnCode: draft.hsnCode, gstRate: draft.gstRate.trim() ? Number(draft.gstRate) : null, supplyType: draft.supplyType });
 
 const money = (value: unknown) =>
   `₹${Number(value || 0).toLocaleString('en-IN', {
@@ -91,6 +96,10 @@ export default function AdminBespokeOrders() {
               total: order.quoted_amount ? String(order.quoted_amount) : '',
               advance: order.advance_amount ? String(order.advance_amount) : '0',
               notes: '',
+              description: order.quotation?.invoice?.description || '',
+              hsnCode: order.quotation?.invoice?.hsnCode || '',
+              gstRate: order.quotation?.invoice?.gstRate === undefined ? '' : String(order.quotation.invoice.gstRate),
+              supplyType: order.quotation?.invoice?.supplyType || '',
             };
           }
         }
@@ -145,14 +154,14 @@ export default function AdminBespokeOrders() {
   const updateDraft = (id: string, patch: Partial<QuoteDraft>) =>
     setQuoteDrafts((current) => ({
       ...current,
-      [id]: { ...(current[id] ?? { total: '', advance: '0', notes: '' }), ...patch },
+      [id]: { ...(current[id] ?? emptyQuote), ...patch },
     }));
 
   return (
     <div className="space-y-5">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <p className="text-xs font-800 uppercase tracking-[0.14em] text-primary">WhatsApp-first tailoring operations</p>
+          <p className="text-xs font-800 uppercase tracking-[0.14em] text-primary">Custom-order operations</p>
           <h1 className="mt-1 text-2xl font-900 text-foreground">Custom orders</h1>
           <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
             Human attention is surfaced only where the order needs measurement, design approval, fitting/trial, alteration or customer service. Controlled actions drive every later digital state.
@@ -206,7 +215,7 @@ export default function AdminBespokeOrders() {
             const alterationCompleted = (order.appointments || []).some(
               (item) => item.appointment_type === 'alteration' && item.status === 'completed'
             );
-            const draft = quoteDrafts[order.id] || { total: '', advance: '0', notes: '' };
+            const draft = quoteDrafts[order.id] || emptyQuote;
             const isBusy = busyId === order.id;
             return (
               <article key={order.id} className={`rounded-3xl border bg-card p-4 shadow-sm sm:p-5 ${order.human_action_required ? 'border-amber-300/60' : 'border-border'}`}>
@@ -258,17 +267,26 @@ export default function AdminBespokeOrders() {
                   </div>
                 )}
 
-                {order.stage === 'quotation' && (
+                {(order.stage === 'quotation' || (Number(order.quoted_amount) > 0 && !parseBespokeInvoiceDetails(order.quotation?.invoice))) && (
                   <div className="mt-4 rounded-2xl border border-primary/20 bg-primary/5 p-4">
-                    <p className="text-sm font-900 text-foreground">Publish quotation</p>
+                    <p className="text-sm font-900 text-foreground">{order.stage === 'quotation' ? 'Publish quotation' : 'Complete invoice details'}</p>
                     <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                      <label className="text-xs font-700 text-muted-foreground">Total quotation<input inputMode="decimal" value={draft.total} onChange={(event) => updateDraft(order.id, { total: event.target.value })} className="input-base mt-1 w-full rounded-xl px-3 py-2 text-sm text-foreground" placeholder="25000" /></label>
-                      <label className="text-xs font-700 text-muted-foreground">Optional advance<input inputMode="decimal" value={draft.advance} onChange={(event) => updateDraft(order.id, { advance: event.target.value })} className="input-base mt-1 w-full rounded-xl px-3 py-2 text-sm text-foreground" placeholder="10000" /></label>
+                      <label className="text-xs font-700 text-muted-foreground">Total quotation (including GST)<input readOnly={order.stage !== 'quotation'} inputMode="decimal" value={draft.total} onChange={(event) => updateDraft(order.id, { total: event.target.value })} className="input-base mt-1 w-full rounded-xl px-3 py-2 text-sm text-foreground" placeholder="25000" /></label>
+                      <label className="text-xs font-700 text-muted-foreground">Optional advance<input readOnly={order.stage !== 'quotation'} inputMode="decimal" value={draft.advance} onChange={(event) => updateDraft(order.id, { advance: event.target.value })} className="input-base mt-1 w-full rounded-xl px-3 py-2 text-sm text-foreground" placeholder="10000" /></label>
                       <label className="text-xs font-700 text-muted-foreground sm:col-span-2">Quote notes<input value={draft.notes} onChange={(event) => updateDraft(order.id, { notes: event.target.value })} className="input-base mt-1 w-full rounded-xl px-3 py-2 text-sm text-foreground" placeholder="Included work, exclusions, delivery estimate…" /></label>
                     </div>
-                    <button disabled={isBusy || Number(draft.total) <= 0} onClick={() => transition(order.id, 'publish_quote', { quotedAmount: Number(draft.total), advanceAmount: Number(draft.advance || 0), quoteNotes: draft.notes }, 'Quotation published and payment opened.')} className="btn-primary mt-3 px-4 py-2.5 text-sm disabled:opacity-50">Publish quote & open payment</button>
+                    <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                      <label className="text-xs font-700 text-muted-foreground">Invoice description<input value={draft.description} onChange={event => updateDraft(order.id, { description: event.target.value })} maxLength={500} className="input-base mt-1 w-full rounded-xl px-3 py-2 text-sm" placeholder="Work and items included in this quotation" /></label>
+                      <label className="text-xs font-700 text-muted-foreground">HSN / SAC code<input inputMode="numeric" value={draft.hsnCode} onChange={event => updateDraft(order.id, { hsnCode: event.target.value })} maxLength={8} className="input-base mt-1 w-full rounded-xl px-3 py-2 text-sm" placeholder="Seller-confirmed classification" /></label>
+                      <label className="text-xs font-700 text-muted-foreground">GST rate (%)<input inputMode="decimal" value={draft.gstRate} onChange={event => updateDraft(order.id, { gstRate: event.target.value })} className="input-base mt-1 w-full rounded-xl px-3 py-2 text-sm" placeholder="Seller-confirmed rate" /></label>
+                      <label className="text-xs font-700 text-muted-foreground">Supply type<select value={draft.supplyType} onChange={event => updateDraft(order.id, { supplyType: event.target.value })} className="input-base mt-1 w-full rounded-xl px-3 py-2 text-sm"><option value="">Select classification</option><option value="goods">Goods</option><option value="services">Services</option></select></label>
+                    </div>
+                    <p className="mt-2 text-xs text-muted-foreground">Confirm classification with the seller. Quotation amounts and tax details are locked once checkout starts.</p>
+                    <button disabled={isBusy || Number(draft.total) <= 0 || !invoiceDetails(draft)} onClick={() => transition(order.id, order.stage === 'quotation' ? 'publish_quote' : 'save_invoice_details', { quotedAmount: Number(draft.total), advanceAmount: Number(draft.advance || 0), quoteNotes: draft.notes, invoiceDetails: invoiceDetails(draft) }, order.stage === 'quotation' ? 'Quotation published and payment opened.' : 'Invoice details saved. Generate documents below.')} className="btn-primary mt-3 px-4 py-2.5 text-sm disabled:opacity-50">{order.stage === 'quotation' ? 'Publish quote & open payment' : 'Save invoice details'}</button>
                   </div>
                 )}
+
+                <OrderDocuments key={order.id + order.updated_at} kind="bespoke" orderId={order.id} admin />
 
                 <div className="mt-4 flex flex-wrap gap-2">
                   {order.stage === 'stitching' && <><Action primary disabled={isBusy || order.stitching_status === 'in_progress'} onClick={() => transition(order.id, 'start_stitching', {}, 'Stitching marked in progress.')} label={order.stitching_status === 'in_progress' ? 'Stitching in progress' : 'Start stitching'} /><Action disabled={isBusy || order.stitching_status !== 'in_progress'} onClick={() => transition(order.id, 'stitching_to_embroidery', {}, 'Stitching complete; embroidery queued.')} label="Complete → embroidery" /><Action disabled={isBusy || order.stitching_status !== 'in_progress'} onClick={() => transition(order.id, 'stitching_to_trial', {}, 'Stitching complete; trial/fitting required.')} label="Complete → trial" /></>}

@@ -1,3 +1,4 @@
+import { parseBespokeInvoiceDetails } from '@/lib/bespokeInvoiceDetails';
 import { requireAdministrator } from '@/lib/server/requireAdministrator';
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
@@ -167,7 +168,11 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       }
       updates.stage = body.stage;
     }
-    if (body.quotation) updates.quotation = safeObject(body.quotation);
+    if (body.quotation) {
+      const quotation = safeObject(body.quotation) as Record<string, unknown>;
+      if (!parseBespokeInvoiceDetails(quotation.invoice)) return json({ error: 'Complete invoice classification and GST details are required.' }, 400);
+      updates.quotation = quotation;
+    }
     if (body.quotedAmount !== undefined) updates.quoted_amount = safeMoney(body.quotedAmount);
     if (body.advanceAmount !== undefined) updates.advance_amount = safeMoney(body.advanceAmount);
     if (body.paidAmount !== undefined || body.balanceAmount !== undefined || body.paymentStatus !== undefined) return json({ error: 'Payment balances are reconciled from Razorpay and cannot be edited manually.' }, 400);

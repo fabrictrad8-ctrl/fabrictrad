@@ -20,6 +20,8 @@ type InvoiceLine = {
 type InvoiceRow = {
   id: string;
   invoice_number: string;
+  document_type?: string;
+  document_metadata?: { paymentPurpose?: string; balanceAtIssue?: number; taxOnAdvance?: boolean };
   catalog_order_id: string | null;
   bulk_order_id: string | null;
   supplier: Record<string, unknown>;
@@ -76,6 +78,11 @@ const emailApiKey = () => {
 };
 
 function buildInvoiceEmail(invoice: InvoiceRow) {
+  const receipt = invoice.document_type === 'payment_receipt';
+  const label = receipt ? 'Payment receipt' : invoice.document_type === 'bill_of_supply' ? 'Bill of supply' : 'Tax invoice';
+  const explanation = receipt
+    ? `Your ${escapeHtml(invoice.document_metadata?.paymentPurpose || '')} payment was captured. This receipt records this payment only. Balance at issue: ${money(invoice.document_metadata?.balanceAtIssue)}. Your final order invoice appears separately once the order is fully paid.`
+    : 'Your seller invoice is ready. Earlier advances and balance payments are included in the order total; this document is not an additional payment request.';
   const supplier = invoice.supplier || {};
   const recipient = invoice.recipient || {};
   const rows = (Array.isArray(invoice.lines) ? invoice.lines : [])
@@ -94,25 +101,25 @@ function buildInvoiceEmail(invoice: InvoiceRow) {
 <body style="margin:0;background-color:#f4f4f4;font-family:Arial,Helvetica,sans-serif;">
 <table width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#f4f4f4"><tr><td align="center" style="padding-top:24px;padding-right:12px;padding-bottom:24px;padding-left:12px;">
 <table width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;background-color:#ffffff;border-radius:16px;overflow:hidden;">
-<tr><td bgcolor="#c85c0b" style="background-color:#c85c0b;padding-top:22px;padding-right:24px;padding-bottom:22px;padding-left:24px;"><p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:18px;color:#ffffff;font-weight:bold;letter-spacing:1px;">FABRICTRAD</p><p style="margin-top:6px;margin-right:0;margin-bottom:0;margin-left:0;font-family:Arial,Helvetica,sans-serif;font-size:25px;line-height:32px;color:#ffffff;font-weight:bold;">Payment captured · invoice issued</p></td></tr>
+<tr><td bgcolor="#c85c0b" style="background-color:#c85c0b;padding-top:22px;padding-right:24px;padding-bottom:22px;padding-left:24px;"><p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:18px;color:#ffffff;font-weight:bold;letter-spacing:1px;">FABRICTRAD</p><p style="margin-top:6px;margin-right:0;margin-bottom:0;margin-left:0;font-family:Arial,Helvetica,sans-serif;font-size:25px;line-height:32px;color:#ffffff;font-weight:bold;">${label} ready</p></td></tr>
 <tr><td style="padding-top:24px;padding-right:24px;padding-bottom:24px;padding-left:24px;">
 <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:22px;color:#333333;">Hi ${escapeHtml(recipient.name || recipient.businessName || 'Buyer')},</p>
-<p style="margin-top:10px;margin-right:0;margin-bottom:18px;margin-left:0;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:21px;color:#555555;">Razorpay has confirmed capture of your payment. Your final FabricTrad invoice has been generated automatically.</p>
-<table width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#faf7f4" style="background-color:#faf7f4;border-radius:12px;"><tr><td style="padding-top:16px;padding-right:16px;padding-bottom:16px;padding-left:16px;"><p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:18px;color:#777777;">Invoice</p><p style="margin-top:2px;margin-right:0;margin-bottom:8px;margin-left:0;font-family:Arial,Helvetica,sans-serif;font-size:18px;line-height:24px;color:#222222;font-weight:bold;">${escapeHtml(invoice.invoice_number)}</p><p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:18px;color:#777777;">Seller: ${escapeHtml(supplier.tradeName || supplier.legalName || 'FabricTrad seller')}</p><p style="margin-top:3px;margin-right:0;margin-bottom:0;margin-left:0;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:18px;color:#777777;">Razorpay payment: ${escapeHtml(invoice.payment_reference)}</p></td></tr></table>
+<p style="margin-top:10px;margin-right:0;margin-bottom:18px;margin-left:0;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:21px;color:#555555;">${explanation}</p>
+<table width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#faf7f4" style="background-color:#faf7f4;border-radius:12px;"><tr><td style="padding-top:16px;padding-right:16px;padding-bottom:16px;padding-left:16px;"><p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:18px;color:#777777;">${label}</p><p style="margin-top:2px;margin-right:0;margin-bottom:8px;margin-left:0;font-family:Arial,Helvetica,sans-serif;font-size:18px;line-height:24px;color:#222222;font-weight:bold;">${escapeHtml(invoice.invoice_number)}</p><p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:18px;color:#777777;">Seller: ${escapeHtml(supplier.tradeName || supplier.legalName || 'FabricTrad seller')}</p><p style="margin-top:3px;margin-right:0;margin-bottom:0;margin-left:0;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:18px;color:#777777;">Razorpay payment: ${escapeHtml(invoice.payment_reference)}</p></td></tr></table>
 <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:18px;"><tr><td style="padding:10px;border-bottom:1px solid #dddddd;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:18px;color:#777777;font-weight:bold;">Item</td><td style="padding:10px;border-bottom:1px solid #dddddd;text-align:right;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:18px;color:#777777;font-weight:bold;">Qty</td><td style="padding:10px;border-bottom:1px solid #dddddd;text-align:right;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:18px;color:#777777;font-weight:bold;">Amount</td></tr>${rows}</table>
-<table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:16px;"><tr><td style="font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:20px;color:#666666;">Taxable value</td><td style="text-align:right;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:20px;color:#333333;">${money(invoice.taxable_value)}</td></tr><tr><td style="font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:20px;color:#666666;">CGST</td><td style="text-align:right;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:20px;color:#333333;">${money(invoice.cgst_amount)}</td></tr><tr><td style="font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:20px;color:#666666;">SGST</td><td style="text-align:right;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:20px;color:#333333;">${money(invoice.sgst_amount)}</td></tr><tr><td style="font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:20px;color:#666666;">IGST</td><td style="text-align:right;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:20px;color:#333333;">${money(invoice.igst_amount)}</td></tr><tr><td style="padding-top:8px;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:22px;color:#222222;font-weight:bold;">Total paid</td><td style="padding-top:8px;text-align:right;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:22px;color:#16843d;font-weight:bold;">${money(invoice.total_amount)}</td></tr></table>
-<table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:22px;"><tr><td align="center" bgcolor="#c85c0b" style="background-color:#c85c0b;border-radius:10px;"><a href="${escapeHtml(openUrl)}" style="display:block;padding-top:12px;padding-right:16px;padding-bottom:12px;padding-left:16px;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:20px;color:#ffffff;text-decoration:none;font-weight:bold;">Open printable invoice</a></td></tr></table>
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:16px;"><tr><td style="font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:20px;color:#666666;">Taxable value</td><td style="text-align:right;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:20px;color:#333333;">${money(invoice.taxable_value)}</td></tr><tr><td style="font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:20px;color:#666666;">CGST</td><td style="text-align:right;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:20px;color:#333333;">${money(invoice.cgst_amount)}</td></tr><tr><td style="font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:20px;color:#666666;">SGST</td><td style="text-align:right;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:20px;color:#333333;">${money(invoice.sgst_amount)}</td></tr><tr><td style="font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:20px;color:#666666;">IGST</td><td style="text-align:right;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:20px;color:#333333;">${money(invoice.igst_amount)}</td></tr><tr><td style="padding-top:8px;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:22px;color:#222222;font-weight:bold;">${receipt ? 'Payment received' : 'Invoice total'}</td><td style="padding-top:8px;text-align:right;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:22px;color:#16843d;font-weight:bold;">${money(invoice.total_amount)}</td></tr></table>
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:22px;"><tr><td align="center" bgcolor="#c85c0b" style="background-color:#c85c0b;border-radius:10px;"><a href="${escapeHtml(openUrl)}" style="display:block;padding-top:12px;padding-right:16px;padding-bottom:12px;padding-left:16px;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:20px;color:#ffffff;text-decoration:none;font-weight:bold;">Open printable document</a></td></tr></table>
 <p style="margin-top:18px;margin-right:0;margin-bottom:0;margin-left:0;font-family:Arial,Helvetica,sans-serif;font-size:11px;line-height:17px;color:#888888;">This invoice was generated from FabricTrad order and Razorpay capture records. Please keep it for your records.</p>
 </td></tr></table></td></tr></table></body></html>`;
 
   const text = [
-    `FabricTrad invoice ${invoice.invoice_number}`,
+    `FabricTrad ${label.toLowerCase()} ${invoice.invoice_number}`,
     `Seller: ${String(supplier.tradeName || supplier.legalName || 'FabricTrad seller')}`,
     `Razorpay payment: ${invoice.payment_reference}`,
-    `Total paid: ${money(invoice.total_amount)}`,
+    `${receipt ? 'Payment received' : 'Invoice total'}: ${money(invoice.total_amount)}`,
     `Open invoice: ${openUrl}`,
   ].join('\n');
-  return { html, text, openUrl };
+  return { html, text, openUrl, label };
 }
 
 export async function ensureAutomaticInvoice(input: AutomaticInvoiceInput) {
@@ -146,12 +153,16 @@ export async function ensureAutomaticInvoice(input: AutomaticInvoiceInput) {
 
   const invoice = data as InvoiceRow;
   if (!invoice?.id) return { invoice: null, emailed: false, error: 'Invoice generation returned no record.' };
+  return deliverInvoiceEmail(input.admin, invoice);
+}
+
+async function deliverInvoiceEmail(admin: SupabaseClient, invoice: InvoiceRow) {
   if (invoice.email_status === 'sent') return { invoice, emailed: true, error: null };
 
   const recipient = String(invoice.email_recipient || invoice.recipient?.email || '').trim();
   const apiKey = emailApiKey();
   if (!recipient || !apiKey) {
-    await input.admin
+    await admin
       .from('seller_tax_invoices')
       .update({
         email_status: 'not_configured',
@@ -165,7 +176,7 @@ export async function ensureAutomaticInvoice(input: AutomaticInvoiceInput) {
   }
 
   const attemptedAt = new Date().toISOString();
-  const { data: claim, error: claimError } = await input.admin
+  const { data: claim, error: claimError } = await admin
     .from('seller_tax_invoices')
     .update({ email_status: 'sending', email_attempted_at: attemptedAt, email_last_error: null, updated_at: attemptedAt })
     .eq('id', invoice.id)
@@ -188,7 +199,7 @@ export async function ensureAutomaticInvoice(input: AutomaticInvoiceInput) {
       body: JSON.stringify({
         from,
         to: [recipient],
-        subject: `FabricTrad invoice ${invoice.invoice_number} · payment received`,
+        subject: `FabricTrad ${body.label.toLowerCase()} ${invoice.invoice_number}`,
         html: body.html,
         text: body.text,
         ...(replyTo ? { reply_to: [replyTo] } : {}),
@@ -204,7 +215,7 @@ export async function ensureAutomaticInvoice(input: AutomaticInvoiceInput) {
     if (!response.ok || !result.id) throw new Error(result.message || result.error || `Resend returned HTTP ${response.status}`);
 
     const sentAt = new Date().toISOString();
-    const { error: receiptError } = await input.admin
+    const { error: receiptError } = await admin
       .from('seller_tax_invoices')
       .update({
         email_status: 'sent',
@@ -219,7 +230,7 @@ export async function ensureAutomaticInvoice(input: AutomaticInvoiceInput) {
     return { invoice: { ...invoice, email_status: 'sent', email_provider_id: result.id }, emailed: true, error: null };
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Invoice email delivery failed.';
-    await input.admin
+    await admin
       .from('seller_tax_invoices')
       .update({ email_status: 'failed', email_last_error: message.slice(0, 1000), updated_at: new Date().toISOString() })
       .eq('id', invoice.id)
@@ -227,4 +238,22 @@ export async function ensureAutomaticInvoice(input: AutomaticInvoiceInput) {
     console.error('Automatic invoice email failed', { invoiceId: invoice.id, message });
     return { invoice, emailed: false, error: message };
   }
+}
+
+
+export async function ensureBespokePaymentDocuments(input: Omit<AutomaticInvoiceInput, 'kind'>) {
+  const { data, error } = await input.admin.rpc('issue_bespoke_payment_documents_system', {
+    p_bespoke_order_id: input.orderId, p_payment_reference: input.paymentId,
+  });
+  if (error) {
+    console.error('Custom-order billing needs attention', { orderId: input.orderId, code: error.code, message: error.message });
+    return { documents: [] as InvoiceRow[], emailed: false, error: error.message as string | null };
+  }
+  const payload = data as { documents?: InvoiceRow[]; invoiceError?: string | null } | null;
+  const documents = payload?.documents || [];
+  if (!documents.length) return { documents, emailed: false, error: 'No captured-payment documents were returned.' };
+  const results = [];
+  for (const invoice of documents) results.push(await deliverInvoiceEmail(input.admin, invoice));
+  return { documents: results.map(result => result.invoice), emailed: results.every(result => result.emailed),
+    error: payload?.invoiceError || results.find(result => result.error)?.error || null };
 }

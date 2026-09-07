@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { ensureBespokePaymentDocuments } from '@/lib/server/automaticInvoice';
 import { rupeesToPaise } from '@/lib/razorpayIntegrity';
 
 export type BespokePaymentLedger = {
@@ -242,10 +243,14 @@ export async function recordBespokePaymentCapture(
     .eq('id', input.ledger.id);
   if (error) throw error;
 
-  return reconcileBespokeOrderPayments(admin, {
+  const reconciliation = await reconcileBespokeOrderPayments(admin, {
     orderId: input.ledger.bespoke_order_id,
     latestPaymentId: paymentId,
   });
+  // Capture stays authoritative even if the email provider is temporarily unavailable.
+  const billing = await ensureBespokePaymentDocuments({ admin, orderId: input.ledger.bespoke_order_id, paymentId });
+  return { ...reconciliation, billing };
+
 }
 
 export async function recordBespokePaymentAuthorization(
