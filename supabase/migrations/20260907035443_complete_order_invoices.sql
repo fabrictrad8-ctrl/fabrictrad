@@ -59,6 +59,39 @@ revoke all on function public.capture_bespoke_invoice_quote() from public, anon,
 create trigger bespoke_payments_invoice_quote before insert on public.bespoke_payments
   for each row execute function public.capture_bespoke_invoice_quote();
 
+-- Delayed capture/authorization webhooks cannot rewrite a receipt's payment
+-- identity, first capture date, quotation, or already-accounted refund amount.
+create or replace function public.protect_bespoke_invoice_payment()
+returns trigger language plpgsql security invoker set search_path = '' as $$
+begin
+  if row(new.bespoke_order_id,new.user_id,new.amount,new.currency,new.payment_purpose,new.invoice_quote)
+    is distinct from row(old.bespoke_order_id,old.user_id,old.amount,old.currency,old.payment_purpose,old.invoice_quote) then
+    raise exception 'The custom payment quotation and identity are immutable';
+  end if;
+  if new.razorpay_order_id is distinct from old.razorpay_order_id
+    and not (left(old.razorpay_order_id,8)='pending_' and old.status='initiated' and old.captured_at is null) then
+    raise exception 'The custom payment provider order is immutable';
+  end if;
+  if old.captured_at is not null then
+    if new.razorpay_payment_id is distinct from old.razorpay_payment_id then
+      raise exception 'The captured payment reference is immutable';
+    end if;
+    new.captured_at := old.captured_at;
+  end if;
+  new.refunded_amount := greatest(new.refunded_amount,old.refunded_amount);
+  if new.refunded_amount>new.amount then raise exception 'Refund amount exceeds the captured payment'; end if;
+  if old.status in ('captured','partially_refunded','refunded') then
+    new.status := case when new.refunded_amount>=new.amount then 'refunded'
+      when new.refunded_amount>0 then 'partially_refunded' else 'captured' end;
+    new.failure_reason := null;
+  end if;
+  return new;
+end;
+$$;
+revoke all on function public.protect_bespoke_invoice_payment() from public,anon,authenticated;
+create trigger bespoke_payments_invoice_evidence before update on public.bespoke_payments
+  for each row execute function public.protect_bespoke_invoice_payment();
+
 create or replace function public.protect_bespoke_invoice_quote()
 returns trigger language plpgsql security invoker set search_path = '' as $$
 begin

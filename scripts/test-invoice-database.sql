@@ -4,6 +4,7 @@ do $test$
 declare
   buyer uuid:=gen_random_uuid(); seller_user uuid:=gen_random_uuid(); outsider uuid:=gen_random_uuid();
   seller uuid:=gen_random_uuid(); product uuid:=gen_random_uuid(); product2 uuid:=gen_random_uuid();
+  registration uuid:=gen_random_uuid();
   catalog uuid; bulk uuid:=gen_random_uuid(); custom_order uuid:=gen_random_uuid(); free_order uuid:=gen_random_uuid();
   pay1 uuid; pay2 uuid; total numeric; result jsonb; first_id uuid; final_id uuid; n integer;
   inv public.seller_tax_invoices%rowtype;
@@ -11,7 +12,7 @@ begin
   perform set_config('request.jwt.claims','{"role":"service_role"}',true);
   insert into auth.users(id,email,aud,role,raw_user_meta_data) values
     (buyer,'invoice-buyer-'||buyer||'@example.test','authenticated','authenticated','{}'),
-    (seller_user,'invoice-seller-'||seller_user||'@example.test','authenticated','authenticated','{"role":"seller"}'),
+    (seller_user,'invoice-seller-'||seller_user||'@example.test','authenticated','authenticated','{"role":"seller","phone":"9000000001"}'),
     (outsider,'invoice-other-'||outsider||'@example.test','authenticated','authenticated','{}');
   select id into seller from public.seller_profiles where user_id=seller_user;
   if seller is null or exists(select 1 from public.buyer_profiles where user_id=seller_user)
@@ -23,8 +24,16 @@ begin
     full_name='Invoice test buyer',address_line1='12 Test Road',city='Mumbai',state='Maharashtra',pincode='400001' where id=buyer;
   update public.user_profiles set is_active=true,role='seller',can_sell=true,full_name='Invoice test supplier',state='Maharashtra' where id=seller_user;
   update public.buyer_profiles set is_active=true where user_id=buyer;
+  -- Local fixtures represent completed document review; no provider is contacted.
+  insert into public.seller_registrations(id,user_id,seller_id,phone,registration_status,submitted_at,gstin_verified,bank_verified)
+    values(registration,seller_user,'INVOICE-QA-'||seller,'9000000001','under_review',now(),true,true);
+  insert into public.seller_registration_documents(registration_id,document_type,file_url,upload_status)
+    select registration,kind,'https://example.test/invoice-qa/'||kind,'approved'
+    from unnest(array['gst_certificate','pan_card','cancelled_cheque']) kind;
+  insert into public.seller_bank_profiles(seller_id,account_holder_name,bank_name,account_number_masked,ifsc_code,is_verified)
+    values(seller,'Invoice test supplier','Fixture bank','****0001','HDFC0000001',true);
   update public.seller_profiles set legal_business_name='Invoice test supplier',is_active=true,
-    gstin='27AAAAA0000A1Z5',gstin_verified=true,verification_status='verified',
+    gstin='27AAAAA0000A1Z5',gstin_status='active',gstin_verified=true,verification_status='verified',
     pickup_address='{"addressLine1":"10 Supplier Road","city":"Mumbai","state":"Maharashtra","pincode":"400002"}'
     where id=seller;
   insert into public.seller_products(id,seller_id,name,sku,price_per_unit,unit,available_quantity,moq,sale_channel,
@@ -94,6 +103,11 @@ begin
     or (result->'documents'->0->>'total_amount')::numeric<>590 or (result->'documents'->0->>'total_tax')::numeric<>90
     or (result->'documents'->0->'document_metadata'->>'balanceAtIssue')::numeric<>590 then raise exception 'Advance receipt incorrect: %',result; end if;
   first_id:=(result->'documents'->0->>'id')::uuid;
+  update public.bespoke_payments set captured_at=now()+interval '1 day' where id=pay1;
+  if (select captured_at from public.bespoke_payments where id=pay1)<>now() then raise exception 'Capture replay changed the receipt date'; end if;
+  begin update public.bespoke_payments set invoice_quote='{}' where id=pay1;
+    raise exception 'Payment quote was mutable';
+  exception when others then if sqlerrm not like '%immutable%' then raise; end if; end;
   result:=public.issue_bespoke_payment_documents_system(custom_order,'pay_adv_'||custom_order);
   if (result->'documents'->0->>'id')::uuid<>first_id then raise exception 'Advance receipt duplicated'; end if;
   begin update public.bespoke_orders set quoted_amount=1300 where id=custom_order;
@@ -110,6 +124,10 @@ begin
   perform public.issue_bespoke_payment_documents_system(custom_order,'pay_bal_'||custom_order);
   if (select count(*) from public.seller_tax_invoices where bespoke_order_id=custom_order)<>3 then raise exception 'Balance retry duplicated billing documents'; end if;
   update public.bespoke_payments set status='refunded',refunded_amount=590 where id=pay1;
+  update public.bespoke_payments set status='captured',refunded_amount=0 where id=pay1;
+  if not exists(select 1 from public.bespoke_payments where id=pay1 and status='refunded' and refunded_amount=590) then
+    raise exception 'Capture replay erased an accounted refund';
+  end if;
   perform public.issue_bespoke_payment_documents_system(custom_order,'pay_bal_'||custom_order);
   if (select total_amount from public.seller_tax_invoices where id=final_id)<>1180 then raise exception 'Refund rewrote the final invoice'; end if;
 

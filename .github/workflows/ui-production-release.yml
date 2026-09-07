@@ -156,6 +156,8 @@ jobs:
             const language = page.locator('[data-language-control="embedded"] select').first();
             await language.selectOption('hi');
             await page.locator('html[lang="hi"]').waitFor();
+            await language.selectOption('gu');
+            await page.locator('html[lang="gu"]').waitFor();
             await language.selectOption('en');
             await page.locator('html[lang="en"]').waitFor();
             const textile = await page.locator('img[src*="textile-showroom"]').evaluate(img => ({ complete: img.complete, width: img.naturalWidth }));
@@ -169,6 +171,37 @@ jobs:
               JSON.stringify({ url: page.url(), details, box }, null, 2) + '\n',
             );
             console.log('VISIBLE OFFICIAL FABRICTRAD LOGO VERIFIED', JSON.stringify({ details, box }));
+
+            // Verify public media on the deployed Worker, including range requests
+            // used by mobile browsers, without creating accounts or sending messages.
+            for (const role of ['buyer', 'seller']) {
+              for (const audio of ['en', 'hi', 'gu']) {
+                const media = await page.request.get(`https://fabrictrad.com/guides/${role}-${audio}.mp4`, {
+                  headers: { Range: 'bytes=0-1023' }, timeout: 20000,
+                });
+                if (media.status() !== 206 || !media.headers()['content-type']?.includes('video/mp4')) {
+                  throw new Error(`Public guide streaming failed for ${role}-${audio}: ${media.status()}`);
+                }
+                const captions = await page.request.get(`https://fabrictrad.com/guides/${role}-${audio}.vtt`);
+                if (captions.status() !== 200 || !(await captions.text()).startsWith('WEBVTT')) {
+                  throw new Error(`Public captions failed for ${role}-${audio}`);
+                }
+                await page.goto(`https://fabrictrad.com/how-to-use?role=${role}&audio=${audio}`, { waitUntil: 'domcontentloaded' });
+                const video = page.locator('[data-narrated-guide] video');
+                await video.waitFor({ state: 'visible', timeout: 20000 });
+                await page.waitForFunction((expected) => {
+                  const video = document.querySelector('[data-narrated-guide] video');
+                  return video instanceof HTMLVideoElement && video.src.endsWith(expected) && video.readyState >= 1 && video.duration > 60 && !video.error;
+                }, `/guides/${role}-${audio}.mp4`, { timeout: 20000 });
+                await video.evaluate(video => { video.muted = true; return video.play(); });
+                await page.waitForFunction(() => document.querySelector('[data-narrated-guide] video')?.currentTime > 0, null, { timeout: 15000 });
+                await video.evaluate(video => video.pause());
+              }
+            }
+            const privateInvoice = await page.request.get('https://fabrictrad.com/api/invoices/10000000-0000-0000-0000-000000000001', { maxRedirects: 0 });
+            if (![302, 303, 307, 308, 401, 403].includes(privateInvoice.status())) throw new Error(`Invoice privacy check failed: ${privateInvoice.status()}`);
+            if (pageErrors.length) throw new Error(`Live guide runtime errors: ${pageErrors.join('; ')}`);
+            console.log('SIX LIVE NARRATED GUIDES AND PRIVATE INVOICE ACCESS VERIFIED');
           } catch (error) {
             await page.screenshot({ path: 'test-results/live-brand/failure.png', fullPage: true }).catch(() => undefined);
             fs.writeFileSync('test-results/live-brand/failure.html', await page.content());

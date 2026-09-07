@@ -49,6 +49,7 @@ jobs:
           npm run verify:public-home
           npm run verify:database-security
           npm run verify:seller-onboarding
+          npm run verify:marketplace
           node scripts/verify-marketplace-integrity.mjs
 
       - name: Security architecture assertions
