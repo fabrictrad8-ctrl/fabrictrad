@@ -77,7 +77,8 @@ requireText('supabase/migrations/20260803070000_refund_locking_and_dispute_secur
 
 // Seller-issued GST invoices, buyer visibility and paid-only fulfilment.
 requireText('src/app/api/seller/invoices/route.ts', 'issue_catalog_tax_invoice');
-requireText('src/lib/sellerTaxInvoice.ts', 'GST TAX INVOICE');
+requireText('src/lib/invoiceDocument.ts', 'Tax invoice');
+requireText('src/app/api/invoices/[invoiceId]/route.ts', 'renderInvoiceDocument');
 requireText('src/components/commerce/OrderLifecyclePanel.tsx', 'seller_tax_invoices');
 requireText('src/components/commerce/OrderLifecyclePanel.tsx', "orderType: 'catalog'");
 requireText('src/app/seller-dashboard/components/SellerCatalogOrders.tsx', "payment_status !== 'paid'");

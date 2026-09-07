@@ -18,7 +18,7 @@ begin
   update public.user_profiles set is_active=true,role='seller',can_sell=true,full_name='Invoice test supplier',state='Maharashtra' where id=seller_user;
   update public.buyer_profiles set is_active=true where user_id=buyer;
   insert into public.seller_profiles(id,user_id,legal_business_name,is_active,gstin,gstin_verified,verification_status,pickup_address)
-    values(seller,seller_user,'Invoice test supplier',true,'27AAAAA0000A1Z5',true,'approved',
+    values(seller,seller_user,'Invoice test supplier',true,'27AAAAA0000A1Z5',true,'verified',
       '{"addressLine1":"10 Supplier Road","city":"Mumbai","state":"Maharashtra","pincode":"400002"}');
   insert into public.seller_products(id,seller_id,name,sku,price_per_unit,unit,available_quantity,moq,sale_channel,
     end_user_enabled,end_user_limit_mode,end_user_min_quantity,retail_store_min_quantity,status,approval_status,hsn_code,gst_rate)
@@ -41,6 +41,7 @@ begin
     raise exception 'Unrelated payment reference unexpectedly accepted';
   exception when others then if sqlerrm not like '%evidence is missing%' then raise; end if; end;
   update public.seller_products set hsn_code='5407',price_per_unit=500 where id=product;
+  update public.seller_profiles set e_invoice_applicable=true where id=seller;
   inv:=public.issue_paid_catalog_tax_invoice_system(catalog,'pay_cat_'||catalog);
   if inv.total_amount<>total or inv.lines->0->>'hsnCode'<>'5208' then raise exception 'Catalogue invoice did not preserve order tax snapshot'; end if;
   first_id:=inv.id;
@@ -50,17 +51,22 @@ begin
     raise exception 'Issued invoice was mutable';
   exception when others then if sqlerrm not like '%immutable%' then raise; end if; end;
 
-  insert into public.bulk_orders(id,buyer_id,seller_id,status,payment_status,buyer_name,buyer_email,gross_total,discount_total,gst_total,net_total)
-    values(bulk,buyer,seller,'confirmed','unpaid','Invoice test buyer','invoice@example.test',900,60,112.20,952.20);
+  insert into public.bulk_orders(id,buyer_id,seller_id,status,payment_status,buyer_name,buyer_email,buyer_gstin,gross_total,discount_total,gst_total,net_total)
+    values(bulk,buyer,seller,'confirmed','unpaid','Invoice test buyer','invoice@example.test','27BBBBB0000B1Z5',900,60,112.20,952.20);
   insert into public.bulk_order_items(bulk_order_id,product_name,sku,price_per_mtr,quantity_mtrs,moq_tier,discount_pct,gst_rate,line_total)
     values(bulk,'Invoice textile','INVOICE-'||product,100,3,3,0,5,315),
     (bulk,'Invoice second textile','INVOICE-'||product2,200,3,3,10,18,637.20);
   insert into public.bulk_order_payments(bulk_order_id,razorpay_order_id,razorpay_payment_id,amount,status,captured_amount,captured_at)
     values(bulk,'order_bulk_'||bulk,'pay_bulk_'||bulk,952.20,'captured',952.20,now());
   perform public.reconcile_marketplace_payment('bulk',bulk);
+  begin
+    perform public.issue_paid_bulk_tax_invoice_system(bulk,'pay_bulk_'||bulk);
+    raise exception 'B2B e-invoice did not require IRN';
+  exception when others then if sqlerrm not like 'E_INVOICE_IRN_REQUIRED%' then raise; end if; end;
+  update public.seller_profiles set e_invoice_applicable=false where id=seller;
   inv:=public.issue_paid_bulk_tax_invoice_system(bulk,'pay_bulk_'||bulk);
   if inv.total_amount<>952.20 or inv.taxable_value<>840 or inv.cgst_amount<>56.10 or inv.sgst_amount<>56.10
-    or inv.lines->1->>'taxableValue'<>'540.00' then raise exception 'Bulk discount or per-line GST calculation failed: %',to_jsonb(inv); end if;
+    or (select sum((l->>'taxableValue')::numeric) from jsonb_array_elements(inv.lines) l)<>840 then raise exception 'Bulk discount or per-line GST calculation failed: %',to_jsonb(inv); end if;
   first_id:=inv.id;
   inv:=public.issue_paid_bulk_tax_invoice_system(bulk,'pay_bulk_'||bulk);
   if inv.id<>first_id then raise exception 'Bulk retry duplicated invoice'; end if;

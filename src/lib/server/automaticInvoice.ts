@@ -252,8 +252,7 @@ export async function ensureBespokePaymentDocuments(input: Omit<AutomaticInvoice
   const payload = data as { documents?: InvoiceRow[]; invoiceError?: string | null } | null;
   const documents = payload?.documents || [];
   if (!documents.length) return { documents, emailed: false, error: 'No captured-payment documents were returned.' };
-  const results = [];
-  for (const invoice of documents) results.push(await deliverInvoiceEmail(input.admin, invoice));
+  const results = await Promise.all(documents.map(invoice => deliverInvoiceEmail(input.admin, invoice)));
   return { documents: results.map(result => result.invoice), emailed: results.every(result => result.emailed),
     error: payload?.invoiceError || results.find(result => result.error)?.error || null };
 }

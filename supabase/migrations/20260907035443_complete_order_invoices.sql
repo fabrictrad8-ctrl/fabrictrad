@@ -137,7 +137,7 @@ begin
      or seller_row.verification_status::text not in ('approved','verified','active') then
     raise exception 'An active GST-verified seller is required before issuing an invoice';
   end if;
-  if seller_row.e_invoice_applicable is true then
+  if seller_row.e_invoice_applicable is true and nullif(trim(order_row.buyer_gstin),'') is not null and order_row.gst_rate>0 then
     raise exception 'E_INVOICE_IRN_REQUIRED: automatic GST invoice is waiting for IRN and signed QR data';
   end if;
 
@@ -147,7 +147,7 @@ begin
   if not found then raise exception 'Buyer account profile is unavailable'; end if;
   select * into product_row from public.seller_products where id = order_row.product_id;
   if not found then raise exception 'Product snapshot source is unavailable'; end if;
-  if nullif(trim(coalesce(nullif(order_row.hsn_code, ''), product_row.hsn_code, '')), '') is null then
+  if trim(coalesce(nullif(order_row.hsn_code, ''), product_row.hsn_code, '')) !~ '^([0-9]{4}|[0-9]{6}|[0-9]{8})$' then
     raise exception 'HSN_REQUIRED: add a valid HSN code to the product before issuing its GST invoice';
   end if;
 
@@ -305,7 +305,7 @@ begin
      or seller_row.verification_status::text not in ('approved','verified','active') then
     raise exception 'An active GST-verified seller is required before issuing an invoice';
   end if;
-  if seller_row.e_invoice_applicable is true then
+  if seller_row.e_invoice_applicable is true and nullif(trim(order_row.buyer_gstin),'') is not null and order_row.gst_total>0 then
     raise exception 'E_INVOICE_IRN_REQUIRED: automatic GST invoice is waiting for IRN and signed QR data';
   end if;
 
@@ -319,12 +319,16 @@ begin
     from public.bulk_order_items i
     left join public.seller_products p on p.seller_id = seller_row.id and p.sku = i.sku
     where i.bulk_order_id = order_row.id
-      and nullif(trim(coalesce(p.hsn_code, '')), '') is null
+      and trim(coalesce(p.hsn_code, '')) !~ '^([0-9]{4}|[0-9]{6}|[0-9]{8})$'
   ) into missing_hsn;
   if missing_hsn then
     raise exception 'HSN_REQUIRED: every bulk-order item must map to a seller product with a valid HSN code';
   end if;
 
+  if exists(select 1 from public.bulk_order_items where bulk_order_id=order_row.id
+    and (gst_rate is null or gst_rate<0 or gst_rate>100 or discount_pct<0 or discount_pct>100 or price_per_mtr<=0)) then
+    raise exception 'Every bulk line needs a valid price, discount and GST rate';
+  end if;
   buyer_state := buyer_row.state;
   seller_state := coalesce(seller_row.pickup_address->>'state', seller_user_row.state);
   if nullif(trim(buyer_state), '') is null or nullif(trim(seller_state), '') is null then
@@ -528,7 +532,7 @@ begin
     if not valid_details then billing_error := 'Complete the quotation HSN/SAC, description, supply type and GST rate to issue the final invoice.';
     elsif nullif(trim(buyer_state),'') is null or nullif(trim(seller_state),'') is null then billing_error := 'Supplier and buyer states are required for GST.';
     elsif s.gstin_verified is distinct from true then billing_error := 'Seller GST verification is required for a final invoice.';
-    elsif s.e_invoice_applicable is true then billing_error := 'E_INVOICE_IRN_REQUIRED: the seller must provide the registered e-invoice.';
+    elsif s.e_invoice_applicable is true and nullif(trim(recipient->>'gstin'),'') is not null and rate>0 then billing_error := 'E_INVOICE_IRN_REQUIRED: the seller must provide the registered e-invoice.';
     else
       taxable := round(quote/(1+rate/100),2); tax := quote-taxable;
       cgst := case when intra then round(tax/2,2) else 0 end;
