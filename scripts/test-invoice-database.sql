@@ -9,17 +9,24 @@ declare
   inv public.seller_tax_invoices%rowtype;
 begin
   perform set_config('request.jwt.claims','{"role":"service_role"}',true);
-  insert into auth.users(id,email,aud,role) values
-    (buyer,'invoice-buyer-'||buyer||'@example.test','authenticated','authenticated'),
-    (seller_user,'invoice-seller-'||seller_user||'@example.test','authenticated','authenticated'),
-    (outsider,'invoice-other-'||outsider||'@example.test','authenticated','authenticated');
+  insert into auth.users(id,email,aud,role,raw_user_meta_data) values
+    (buyer,'invoice-buyer-'||buyer||'@example.test','authenticated','authenticated','{}'),
+    (seller_user,'invoice-seller-'||seller_user||'@example.test','authenticated','authenticated','{"role":"seller"}'),
+    (outsider,'invoice-other-'||outsider||'@example.test','authenticated','authenticated','{}');
+  select id into seller from public.seller_profiles where user_id=seller_user;
+  if seller is null or exists(select 1 from public.buyer_profiles where user_id=seller_user)
+    or not exists(select 1 from public.buyer_profiles where user_id=buyer and is_active)
+    or exists(select 1 from public.user_profiles where id=seller_user and can_buy) then
+    raise exception 'Signup did not create isolated buyer and seller workspaces';
+  end if;
   update public.user_profiles set is_active=true,role='buyer',can_buy=true,can_sell=false,
     full_name='Invoice test buyer',address_line1='12 Test Road',city='Mumbai',state='Maharashtra',pincode='400001' where id=buyer;
   update public.user_profiles set is_active=true,role='seller',can_sell=true,full_name='Invoice test supplier',state='Maharashtra' where id=seller_user;
   update public.buyer_profiles set is_active=true where user_id=buyer;
-  insert into public.seller_profiles(id,user_id,legal_business_name,is_active,gstin,gstin_verified,verification_status,pickup_address)
-    values(seller,seller_user,'Invoice test supplier',true,'27AAAAA0000A1Z5',true,'verified',
-      '{"addressLine1":"10 Supplier Road","city":"Mumbai","state":"Maharashtra","pincode":"400002"}');
+  update public.seller_profiles set legal_business_name='Invoice test supplier',is_active=true,
+    gstin='27AAAAA0000A1Z5',gstin_verified=true,verification_status='verified',
+    pickup_address='{"addressLine1":"10 Supplier Road","city":"Mumbai","state":"Maharashtra","pincode":"400002"}'
+    where id=seller;
   insert into public.seller_products(id,seller_id,name,sku,price_per_unit,unit,available_quantity,moq,sale_channel,
     end_user_enabled,end_user_limit_mode,end_user_min_quantity,retail_store_min_quantity,status,approval_status,hsn_code,gst_rate)
     values(product,seller,'Invoice textile','INVOICE-'||product,100,'piece',100,1,'both',true,'custom',1,1,'active','approved','5208',5),

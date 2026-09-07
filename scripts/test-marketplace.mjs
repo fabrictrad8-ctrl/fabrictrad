@@ -205,6 +205,18 @@ test('previously submitted invoice is not sent again', async () => {
   assert.equal(result.emailed, true);
 });
 
+test('void invoice retries never send an issued invoice email', async () => {
+  const f = fixture({ env: { RESEND_API_KEY: 'test-email-key' }, fetch: async () => { throw new Error('Void document was emailed'); } });
+  for (const email_status of ['pending', 'sent']) {
+    const result = await f.load('src/lib/server/automaticInvoice.ts').ensureAutomaticInvoice({
+      admin: { rpc: async () => ({ data: { ...invoice, status: 'void', email_status }, error: null }) },
+      kind: 'catalog', orderId: productId, paymentId: 'pay_fixture',
+    });
+    assert.equal(result.emailed, false);
+    assert.match(result.error, /void billing document/i);
+  }
+});
+
 test('missing email credentials records configuration failure without sending', async () => {
   const updates = [];
   const f = fixture();

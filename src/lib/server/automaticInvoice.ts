@@ -20,6 +20,7 @@ type InvoiceLine = {
 type InvoiceRow = {
   id: string;
   invoice_number: string;
+  status?: 'issued' | 'void';
   document_type?: string;
   document_metadata?: { paymentPurpose?: string; balanceAtIssue?: number; taxOnAdvance?: boolean };
   catalog_order_id: string | null;
@@ -157,6 +158,7 @@ export async function ensureAutomaticInvoice(input: AutomaticInvoiceInput) {
 }
 
 async function deliverInvoiceEmail(admin: SupabaseClient, invoice: InvoiceRow) {
+  if (invoice.status === 'void') return { invoice, emailed: false, error: 'A void billing document cannot be emailed as an issued invoice.' };
   if (invoice.email_status === 'sent') return { invoice, emailed: true, error: null };
 
   const recipient = String(invoice.email_recipient || invoice.recipient?.email || '').trim();
@@ -180,6 +182,7 @@ async function deliverInvoiceEmail(admin: SupabaseClient, invoice: InvoiceRow) {
     .from('seller_tax_invoices')
     .update({ email_status: 'sending', email_attempted_at: attemptedAt, email_last_error: null, updated_at: attemptedAt })
     .eq('id', invoice.id)
+    .eq('status', 'issued')
     .neq('email_status', 'sent')
     .or(`email_status.neq.sending,email_attempted_at.lt.${new Date(Date.now() - 180_000).toISOString()}`)
     .select('id').maybeSingle();
