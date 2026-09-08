@@ -191,11 +191,11 @@ export default function SellerDashboardPage() {
       </Suspense>
       <Link
         href="/seller-product-rules"
-        className="fixed bottom-24 right-4 z-40 inline-flex min-h-12 items-center gap-2 rounded-full border border-primary/30 bg-card/95 px-4 py-3 text-xs font-800 text-primary shadow-xl backdrop-blur-xl transition hover:-translate-y-0.5 hover:bg-primary hover:text-white md:bottom-6 md:right-6"
-        aria-label="Open product buyer quantity rules"
+        className="fixed bottom-24 right-4 z-40 flex h-12 w-12 items-center justify-center rounded-full border border-primary/30 bg-card/95 text-primary shadow-xl backdrop-blur-xl transition hover:-translate-y-0.5 hover:bg-primary hover:text-white md:bottom-6 md:right-6 md:h-auto md:w-auto md:min-h-12 md:gap-2 md:px-4 md:py-3 md:text-xs md:font-800"
+        aria-label="Open product buyer quantity rules — GTIN & buyer limits"
       >
-        <Icon name="AdjustmentsHorizontalIcon" size={17} />
-        GTIN & buyer limits
+        <Icon name="AdjustmentsHorizontalIcon" size={19} />
+        <span className="hidden md:inline">GTIN & buyer limits</span>
       </Link>
     </div>
   );

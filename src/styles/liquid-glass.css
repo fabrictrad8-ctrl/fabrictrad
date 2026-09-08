@@ -219,8 +219,15 @@
    at once — the hero treatment at full strength would read as glare,
    not glass, when repeated that densely.
    ------------------------------------------------------------------- */
-.rounded-xl.border-border.bg-card,
-.rounded-2xl.border-border.bg-card {
+/* Excludes .absolute/.fixed: this "card" look (rounded + bordered + bg-card)
+   is also how dropdown/popover panels are styled sitewide (e.g. ProfileMenu),
+   and those already carry their own explicit position for real layout
+   purposes. Without the exclusion, this rule's 3-class specificity beats a
+   plain .absolute utility even with no !important, silently turning a
+   positioned overlay back into an in-flow element — it stopped rendering
+   where its trigger button was and overflowed the viewport instead. */
+.rounded-xl.border-border.bg-card:not(.absolute):not(.fixed),
+.rounded-2xl.border-border.bg-card:not(.absolute):not(.fixed) {
   position: relative;
   isolation: isolate;
 }
