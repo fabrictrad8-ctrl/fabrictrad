@@ -24,11 +24,34 @@
   height: var(--ft-ticker-h);
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 0 14px;
-  background: linear-gradient(90deg, var(--ft-saffron, #f0570f), var(--ft-indigo, #3d5aa8));
+  gap: 8px;
+  padding: 0 10px 0 12px;
+  background: linear-gradient(90deg, #e0431b, var(--ft-saffron, #f0570f) 45%, var(--ft-indigo, #3d5aa8));
+  background-size: 200% 100%;
+  animation: ft-ticker-shimmer 8s ease-in-out infinite;
   color: #fff;
   overflow: hidden;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.14) inset, 0 2px 10px rgba(0, 0, 0, 0.18);
+}
+@keyframes ft-ticker-shimmer {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+.ft-announcement-ticker-badge {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.22);
+  color: #fff296;
+  animation: ft-ticker-pulse 1.8s ease-in-out infinite;
+}
+@keyframes ft-ticker-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.14); opacity: 0.82; }
 }
 .ft-announcement-ticker-track {
   flex: 1;
@@ -48,11 +71,23 @@
   from { transform: translateX(0); }
   to { transform: translateX(-100%); }
 }
-.ft-announcement-ticker a {
+.ft-announcement-ticker-message {
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+.ft-announcement-ticker-cta {
   flex-shrink: 0;
-  font-weight: 800;
-  text-decoration: underline;
-  text-underline-offset: 2px;
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: #fff;
+  color: #c8360f;
+  font-size: 11px;
+  font-weight: 850;
+  letter-spacing: 0.01em;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18);
 }
 .ft-announcement-ticker-close {
   flex-shrink: 0;
@@ -69,7 +104,16 @@
   background: rgba(255, 255, 255, 0.3);
 }
 
+@media (max-width: 480px) {
+  .ft-announcement-ticker { padding: 0 8px 0 10px; gap: 6px; }
+  .ft-announcement-ticker-content { gap: 32px; }
+  .ft-announcement-ticker-message { font-size: 12px; }
+  .ft-announcement-ticker-cta { padding: 2px 8px; font-size: 10px; }
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .ft-announcement-ticker,
+  .ft-announcement-ticker-badge,
   .ft-announcement-ticker-content {
     animation: none;
     padding-left: 0;

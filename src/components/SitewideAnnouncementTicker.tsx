@@ -73,15 +73,20 @@ export default function SitewideAnnouncementTicker() {
 
   const renderBody = (hidden: boolean) => (
     <span className="ft-announcement-ticker-content" aria-hidden={hidden || undefined}>
-      <span>{announcement.message}</span>
+      <span className="ft-announcement-ticker-message">{announcement.message}</span>
       {announcement.link_url && (
-        <Link href={announcement.link_url} tabIndex={hidden ? -1 : undefined}>{announcement.link_label || 'Learn more'}</Link>
+        <Link href={announcement.link_url} tabIndex={hidden ? -1 : undefined} className="ft-announcement-ticker-cta">
+          {announcement.link_label || 'Shop now'}
+        </Link>
       )}
     </span>
   );
 
   return (
     <div className="ft-announcement-ticker" role="region" aria-label="Site announcement">
+      <span className="ft-announcement-ticker-badge" aria-hidden="true">
+        <Icon name="BoltIcon" size={13} />
+      </span>
       <div className="ft-announcement-ticker-track">
         {renderBody(false)}
         {renderBody(true)}
