@@ -288,7 +288,6 @@ html:not(.dark) body.ft-root { background: #f5f7fb; }
   .ft-future-topbar { top:8px; }
   .ft-future-nav { width:calc(100% - 16px); height:58px; border-radius:15px; }
   .ft-future-navlinks { display:none; }
-  .ft-future-nav .ft-secondary-action { display:none !important; }
   .ft-future-hero { width:calc(100% - 28px); padding-top:112px; gap:26px; }
   .ft-future-hero h1 { font-size:clamp(44px,14vw,70px); }
   .ft-future-hero-copy { font-size:15px; }

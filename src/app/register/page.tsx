@@ -20,7 +20,7 @@ export default function RegisterPage() {
         <div className="ft-future-nav">
           <Link href="/" className="ft-future-brand" aria-label="FabricTrad"><AppLogo size={34} /></Link>
           <div className="ml-auto flex items-center gap-3">
-            <PreferenceControls compact />
+            <div className="hidden sm:flex"><PreferenceControls compact /></div>
             <Link href="/login" className="ft-secondary-action inline-flex min-h-11 items-center rounded-xl px-4 text-sm font-800">{t('nav.signIn')}</Link>
           </div>
         </div>
