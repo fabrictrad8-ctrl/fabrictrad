@@ -10,6 +10,7 @@ import { trackFunnelStep } from '@/lib/analytics';
 import { productDetailHref, type CatalogProduct, type CatalogVariant } from '@/lib/catalog';
 import { createClient } from '@/lib/supabase/client';
 import { useCart } from '@/lib/hooks/useCart';
+import { useWishlist } from '@/lib/hooks/useWishlist';
 import { useAuth } from '@/contexts/AuthContext';
 
 const PAGE_SIZE = 16;
@@ -113,6 +114,7 @@ export default function MarketplaceGrid() {
   const searchParams = useSearchParams();
   const { profile } = useAuth();
   const { add } = useCart();
+  const { has: hasWishlisted, toggle: toggleWishlist } = useWishlist();
   const [products, setProducts] = useState<CatalogProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -235,13 +237,23 @@ export default function MarketplaceGrid() {
             const lowAvailability = product.available <= Math.max(product.moq * 3, 10);
             return (
               <article key={product.id} className={`ft-marketplace-product-card overflow-hidden ${view === 'list' ? 'flex min-h-52' : ''}`}>
-                <Link href={productDetailHref(product)} onClick={() => trackFunnelStep('product_view', { product_id: product.id })} className={`ft-marketplace-product-image relative block overflow-hidden ${view === 'list' ? 'w-44 shrink-0 sm:w-60' : 'aspect-square'}`}>
-                  <AppImage src={product.image} alt={product.alt} fill sizes={view === 'list' ? '240px' : '(max-width: 640px) 50vw, 25vw'} className="object-cover transition duration-300 hover:scale-[1.025]" />
-                  <div className="absolute left-2 top-2 flex flex-wrap gap-1">
-                    {product.badge === 'new' && <span className="rounded bg-[#cc0c39] px-2 py-1 text-[10px] font-850 text-white">New</span>}
-                    <span className="rounded bg-success px-2 py-1 text-[10px] font-850 text-white">In stock</span>
-                  </div>
-                </Link>
+                <div className={`relative overflow-hidden ${view === 'list' ? 'w-44 shrink-0 sm:w-60' : ''}`}>
+                  <Link href={productDetailHref(product)} onClick={() => trackFunnelStep('product_view', { product_id: product.id })} className={`ft-marketplace-product-image relative block overflow-hidden ${view === 'list' ? 'w-44 shrink-0 sm:w-60' : 'aspect-square'}`}>
+                    <AppImage src={product.image} alt={product.alt} fill sizes={view === 'list' ? '240px' : '(max-width: 640px) 50vw, 25vw'} className="object-cover transition duration-300 hover:scale-[1.025]" />
+                    <div className="absolute left-2 top-2 flex flex-wrap gap-1">
+                      {product.badge === 'new' && <span className="rounded bg-[#cc0c39] px-2 py-1 text-[10px] font-850 text-white">New</span>}
+                      <span className="rounded bg-success px-2 py-1 text-[10px] font-850 text-white">In stock</span>
+                    </div>
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => void toggleWishlist(product)}
+                    className={`absolute right-2 top-2 z-10 rounded-full border p-1.5 backdrop-blur ${hasWishlisted(product.id) ? 'border-primary bg-primary/10 text-primary' : 'border-border bg-card/80 text-muted-foreground'}`}
+                    aria-label={hasWishlisted(product.id) ? 'Remove from wishlist' : 'Save to wishlist'}
+                  >
+                    <Icon name="HeartIcon" size={15} variant={hasWishlisted(product.id) ? 'solid' : 'outline'} />
+                  </button>
+                </div>
 
                 <div className="flex min-w-0 flex-1 flex-col p-3.5">
                   <div className="min-w-0">

@@ -54,7 +54,7 @@ const demoRequests: SellerVisibleRequirement[] = [
   },
 ];
 
-const categories = ['All', 'Net / Embroidered', 'Cotton / Khadi', 'Georgette', 'Linen'];
+const categories = ['All', 'Silk Fabric', 'Georgette', 'Cotton / Khadi', 'Net / Embroidered', 'Linen', 'Velvet', 'Chiffon'];
 
 function formatDate(value?: string | null) {
   if (!value) return 'Recently';
@@ -294,11 +294,13 @@ export default function SellerBuyerRequests() {
 
       {activeRequirement && (
         <InWebsiteChat
+          contextType="requirement_response"
           contextId={activeRequirement.id}
           contextTitle={activeRequirement.title}
           otherPartyName={activeRequirement.buyerName}
           otherPartyAvatar=""
           currentUserRole="seller"
+          buyerUserId={activeRequirement.buyerId}
           onClose={() => setActiveRequirement(null)}
         />
       )}

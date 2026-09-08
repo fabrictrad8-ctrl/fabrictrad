@@ -195,7 +195,8 @@ export default function SellerVariantCatalog() {
         image_url: form.imageUrl.trim() || null,
         image_urls: form.imageUrl.trim() ? [form.imageUrl.trim()] : [],
         source: 'manual',
-        approval_status: 'approved',
+        // Admin moderation must review every new variant before it goes live.
+        approval_status: 'pending',
         status: form.status,
       };
 

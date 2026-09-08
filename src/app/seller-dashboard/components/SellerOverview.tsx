@@ -41,6 +41,7 @@ export default function SellerOverview({ onNavigate }: Props) {
   const [shipments, setShipments] = useState<Shipment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [payoutReady, setPayoutReady] = useState<boolean | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -70,6 +71,20 @@ export default function SellerOverview({ onNavigate }: Props) {
 
   useEffect(() => { void load(); }, [load]);
 
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const response = await fetch('/api/seller/payout-account', { cache: 'no-store' });
+        const body = await response.json().catch(() => null);
+        if (!cancelled) setPayoutReady(response.ok ? Boolean(body?.ready) : null);
+      } catch {
+        if (!cancelled) setPayoutReady(null);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [user?.id]);
+
   const pendingCatalog = catalogOrders.filter((order) => order.status === 'pending');
   const pendingBulk = bulkOrders.filter((order) => ['draft', 'quote_sent'].includes(String(order.status || '')));
   const paymentDue = [
@@ -97,6 +112,7 @@ export default function SellerOverview({ onNavigate }: Props) {
     { label: 'Publish your first product', detail: liveProducts.length ? `${liveProducts.length} live product${liveProducts.length === 1 ? '' : 's'}` : 'Add a product buyers can actually order', complete: liveProducts.length > 0, tab: liveProducts.length ? 'inventory' as SellerTab : 'upload' as SellerTab },
     { label: 'Complete HSN codes', detail: missingHsn.length ? `${missingHsn.length} live product${missingHsn.length === 1 ? '' : 's'} still need HSN` : 'Automatic GST invoices have product tax codes', complete: liveProducts.length > 0 && missingHsn.length === 0, tab: 'inventory' as SellerTab },
     { label: 'Pickup and shipping profile', detail: profile?.city && profile?.state ? `${profile.city}, ${profile.state}` : 'Add pickup location before dispatch', complete: Boolean(profile?.city && profile?.state), tab: 'courier' as SellerTab },
+    { label: 'Connect payout account', detail: payoutReady ? 'Razorpay can pay you out for captured orders' : 'Required before any order can be paid for — buyers cannot check out until this is done', complete: payoutReady === true, tab: 'earnings' as SellerTab },
   ];
   const setupComplete = setupSteps.filter((step) => step.complete).length;
 

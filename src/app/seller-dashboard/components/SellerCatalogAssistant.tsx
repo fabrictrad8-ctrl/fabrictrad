@@ -618,7 +618,8 @@ export default function SellerCatalogAssistant() {
         status: 'active',
         source: 'manual',
         source_reference: sourceReference,
-        approval_status: 'approved',
+        // Admin moderation must review every new listing before it goes live.
+        approval_status: 'pending',
         sale_channel: form.saleChannel,
         package_format: packageFormat,
       };

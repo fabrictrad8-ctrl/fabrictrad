@@ -1,10 +1,9 @@
 'use client';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import Icon from '@/components/ui/AppIcon';
 import AppImage from '@/components/ui/AppImage';
 import InWebsiteChat from '@/app/components/InWebsiteChat';
-import WhatsAppCatalogPanel from '@/app/seller-dashboard/components/WhatsAppCatalogPanel';
 import { useAuth } from '@/contexts/AuthContext';
 import { createClient } from '@/lib/supabase/client';
 
@@ -21,21 +20,9 @@ interface InboxThread {
 }
 
 const typeConfig: Record<string, { label: string; color: string; icon: string }> = {
-  product_inquiry: {
-    label: 'Product Inquiry',
-    color: 'inline-flex rounded-full bg-primary/10 text-primary px-2.5 py-1 text-[11px] font-800',
-    icon: 'ShoppingBagIcon',
-  },
-  requirement_response: {
-    label: 'Requirement',
-    color: 'inline-flex rounded-full bg-warning/10 text-warning px-2.5 py-1 text-[11px] font-800',
-    icon: 'MegaphoneIcon',
-  },
-  post_purchase: {
-    label: 'Post-Purchase',
-    color: 'inline-flex rounded-full bg-success/10 text-success px-2.5 py-1 text-[11px] font-800',
-    icon: 'CheckCircleIcon',
-  },
+  product_inquiry: { label: 'Product Inquiry', color: 'inline-flex rounded-full bg-primary/10 text-primary px-2.5 py-1 text-[11px] font-800', icon: 'ShoppingBagIcon' },
+  requirement_response: { label: 'Requirement', color: 'inline-flex rounded-full bg-warning/10 text-warning px-2.5 py-1 text-[11px] font-800', icon: 'MegaphoneIcon' },
+  post_purchase: { label: 'Post-Purchase', color: 'inline-flex rounded-full bg-success/10 text-success px-2.5 py-1 text-[11px] font-800', icon: 'CheckCircleIcon' },
 };
 
 function relativeTime(value: string | null) {
@@ -51,7 +38,7 @@ function relativeTime(value: string | null) {
   return new Date(value).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
 }
 
-export default function SellerInbox() {
+export default function BuyerInbox() {
   const { user } = useAuth();
   const supabase = useMemo(() => createClient(), []);
   const [threads, setThreads] = useState<InboxThread[]>([]);
@@ -75,7 +62,7 @@ export default function SellerInbox() {
     }
     setThreads(
       ((data || []) as any[])
-        .filter((row) => row.role === 'seller')
+        .filter((row) => row.role === 'buyer')
         .map((row) => ({
           id: row.id,
           context_type: row.context_type,
@@ -98,8 +85,8 @@ export default function SellerInbox() {
   useEffect(() => {
     if (!user?.id) return;
     const channel = supabase
-      .channel(`seller-inbox-${user.id}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_threads', filter: `seller_id=eq.${user.id}` }, () => void load())
+      .channel(`buyer-inbox-${user.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_threads', filter: `buyer_id=eq.${user.id}` }, () => void load())
       .subscribe();
     return () => {
       void supabase.removeChannel(channel);
@@ -111,30 +98,21 @@ export default function SellerInbox() {
 
   return (
     <div>
-      <WhatsAppCatalogPanel />
-
       <div className="flex items-center justify-between mb-5">
         <div>
-          <h2 className="text-xl font-800 text-foreground">Buyer Inbox</h2>
+          <h2 className="text-xl font-800 text-foreground">Inbox</h2>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Buyer-started chats only — product inquiries, requirement responses, post-purchase
-            support
+            Conversations you started with sellers — product questions, requirement replies, post-purchase support.
           </p>
         </div>
         {totalUnread > 0 && (
-          <span className="bg-primary text-white text-xs font-700 px-2.5 py-1 rounded-full">
-            {totalUnread} unread
-          </span>
+          <span className="bg-primary text-white text-xs font-700 px-2.5 py-1 rounded-full">{totalUnread} unread</span>
         )}
       </div>
 
       <div className="flex items-start gap-2 p-3 bg-success/10 border border-success/20 rounded-xl mb-5">
         <Icon name="ShieldCheckIcon" size={14} className="text-success mt-0.5 shrink-0" />
-        <p className="text-xs text-success">
-          <span className="font-700">Buyer-chat privacy:</span> buyer conversations stay inside FabricTrad.
-          The WhatsApp connection above is a separate seller-to-FabricTrad catalogue ingestion channel;
-          it does not expose buyer chats or buyer phone numbers to sellers.
-        </p>
+        <p className="text-xs text-success"><span className="font-700">Secure messaging:</span> conversations stay inside FabricTrad. Sharing phone numbers or emails in chat is blocked.</p>
       </div>
 
       <div className="flex gap-2 mb-4 overflow-x-auto pb-1">
@@ -147,11 +125,7 @@ export default function SellerInbox() {
           <button
             key={tab.key}
             onClick={() => setFilter(tab.key as typeof filter)}
-            className={`shrink-0 px-3 py-2 rounded-xl text-xs font-600 border transition-all ${
-              filter === tab.key
-                ? 'bg-primary text-white border-primary'
-                : 'bg-card border-border text-muted-foreground hover:border-primary/50'
-            }`}
+            className={`shrink-0 px-3 py-2 rounded-xl text-xs font-600 border transition-all ${filter === tab.key ? 'bg-primary text-white border-primary' : 'bg-card border-border text-muted-foreground hover:border-primary/50'}`}
           >
             {tab.label}
           </button>
@@ -160,18 +134,15 @@ export default function SellerInbox() {
 
       <div className="space-y-3">
         {loading && (
-          <div className="py-12 text-center">
-            <span className="mx-auto block h-7 w-7 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          <div className="space-y-3" aria-hidden="true">
+            {Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-20 animate-pulse rounded-2xl bg-muted" />)}
           </div>
         )}
         {!loading && filtered.length === 0 && (
           <div className="rounded-2xl border border-dashed border-border bg-card py-12 text-center text-muted-foreground">
             <Icon name="ChatBubbleLeftRightIcon" size={32} className="mx-auto mb-3 opacity-40" />
-            <p className="font-700 text-foreground">No account messages yet</p>
-            <p className="mx-auto mt-1 max-w-md text-sm">
-              Product inquiries, requirement replies, and post-purchase support threads will appear
-              here only when a buyer has contacted this seller account first.
-            </p>
+            <p className="font-700 text-foreground">No conversations yet</p>
+            <p className="mx-auto mt-1 max-w-md text-sm">Use &quot;Chat with Seller&quot; on any product page to start a conversation — it will appear here.</p>
           </div>
         )}
         {filtered.map((thread) => {
@@ -185,34 +156,20 @@ export default function SellerInbox() {
               <div className="flex items-start gap-3">
                 <div className="relative shrink-0">
                   <div className="w-10 h-10 rounded-full overflow-hidden bg-muted">
-                    <AppImage
-                      src={thread.otherPartyAvatar}
-                      alt={`${thread.otherPartyName} buyer profile photo`}
-                      width={40}
-                      height={40}
-                      className="object-cover"
-                    />
+                    <AppImage src={thread.otherPartyAvatar} alt={`${thread.otherPartyName} seller profile photo`} width={40} height={40} className="object-cover" />
                   </div>
                   {thread.unread > 0 && (
-                    <span className="absolute -top-1 -right-1 w-4 h-4 bg-primary text-white text-xs font-800 rounded-full flex items-center justify-center">
-                      {thread.unread}
-                    </span>
+                    <span className="absolute -top-1 -right-1 w-4 h-4 bg-primary text-white text-xs font-800 rounded-full flex items-center justify-center">{thread.unread}</span>
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-2 flex-wrap">
-                    <p className={`text-sm font-700 text-foreground ${thread.unread > 0 ? 'font-800' : ''}`}>
-                      {thread.otherPartyName}
-                    </p>
+                    <p className={`text-sm font-700 text-foreground ${thread.unread > 0 ? 'font-800' : ''}`}>{thread.otherPartyName}</p>
                     <span className="text-xs text-muted-foreground shrink-0">{relativeTime(thread.lastAt)}</span>
                   </div>
                   <p className="text-xs text-muted-foreground mt-0.5 truncate">{thread.context_title}</p>
-                  <p className={`text-xs mt-1 truncate ${thread.unread > 0 ? 'text-foreground font-600' : 'text-muted-foreground'}`}>
-                    {thread.lastMessage || 'No messages yet'}
-                  </p>
-                  <div className="mt-2">
-                    <span className={tc.color}>{tc.label}</span>
-                  </div>
+                  <p className={`text-xs mt-1 truncate ${thread.unread > 0 ? 'text-foreground font-600' : 'text-muted-foreground'}`}>{thread.lastMessage || 'No messages yet'}</p>
+                  <div className="mt-2"><span className={tc.color}>{tc.label}</span></div>
                 </div>
               </div>
             </button>
@@ -228,7 +185,7 @@ export default function SellerInbox() {
           contextTitle={activeThread.context_title}
           otherPartyName={activeThread.otherPartyName}
           otherPartyAvatar={activeThread.otherPartyAvatar}
-          currentUserRole="seller"
+          currentUserRole="buyer"
           onClose={() => {
             setActiveThread(null);
             void load();

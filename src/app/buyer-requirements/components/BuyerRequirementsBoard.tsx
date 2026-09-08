@@ -918,11 +918,13 @@ export default function BuyerRequirementsBoard() {
       {/* In-Website Chat */}
       {activeChatReq && (
         <InWebsiteChat
+          contextType="requirement_response"
           contextId={activeChatReq.id}
           contextTitle={activeChatReq.title}
           otherPartyName={userRole === 'seller' ? activeChatReq.buyerName : 'Seller'}
           otherPartyAvatar={activeChatReq.buyerAvatar}
           currentUserRole={userRole}
+          buyerUserId={userRole === 'seller' ? activeChatReq.buyerId : undefined}
           onClose={() => setActiveChatReq(null)}
         />
       )}

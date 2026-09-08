@@ -11,11 +11,13 @@ import BuyerOverview from '@/app/buyer-dashboard/components/BuyerOverview';
 import BuyerOrders from '@/app/buyer-dashboard/components/BuyerOrders';
 import BuyerTracking from '@/app/buyer-dashboard/components/BuyerTracking';
 import DisputeMessaging from '@/app/buyer-dashboard/components/DisputeMessaging';
+import BuyerInbox from '@/app/buyer-dashboard/components/BuyerInbox';
+import BuyerWishlist from '@/app/buyer-dashboard/components/BuyerWishlist';
 import NotificationPreferences from '@/app/components/NotificationPreferences';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCart } from '@/lib/hooks/useCart';
 
-type DashboardTab = 'overview' | 'orders' | 'tracking' | 'cart' | 'requirements' | 'disputes' | 'notifications' | 'account';
+type DashboardTab = 'overview' | 'orders' | 'tracking' | 'cart' | 'wishlist' | 'requirements' | 'inbox' | 'disputes' | 'notifications' | 'account';
 type NavItem = { key: DashboardTab; label: string; icon: string; description: string };
 
 const navGroups: Array<{ label: string; items: NavItem[] }> = [
@@ -26,13 +28,15 @@ const navGroups: Array<{ label: string; items: NavItem[] }> = [
       { key: 'orders', label: 'Your orders', icon: 'ShoppingBagIcon', description: 'Payment, invoices and order status' },
       { key: 'tracking', label: 'Track packages', icon: 'TruckIcon', description: 'Shipment and delivery status' },
       { key: 'cart', label: 'Cart', icon: 'ShoppingCartIcon', description: 'Products to review before ordering' },
+      { key: 'wishlist', label: 'Wishlist', icon: 'HeartIcon', description: 'Products you saved for later' },
     ],
   },
   {
     label: 'Sourcing',
     items: [
       { key: 'requirements', label: 'Sourcing requests', icon: 'MegaphoneIcon', description: 'Post what you need' },
-      { key: 'disputes', label: 'Messages & disputes', icon: 'ChatBubbleLeftRightIcon', description: 'Seller and support conversations' },
+      { key: 'inbox', label: 'Inbox', icon: 'ChatBubbleLeftIcon', description: 'Chats you started with sellers' },
+      { key: 'disputes', label: 'Support & disputes', icon: 'FlagIcon', description: 'Order issues and refund reviews' },
     ],
   },
   {
@@ -163,6 +167,8 @@ export default function ModernBuyerDashboardLayout() {
               {activeTab === 'orders' && <BuyerOrders />}
               {activeTab === 'tracking' && <BuyerTracking />}
               {activeTab === 'cart' && <div><div className="flex flex-wrap items-end justify-between gap-4"><div><p className="text-xs font-850 uppercase tracking-wider text-primary">Cart</p><h2 className="mt-2 text-2xl font-850 text-foreground">Review products before you order</h2><p className="mt-2 text-sm text-muted-foreground">{lineCount ? `${lineCount} product${lineCount === 1 ? '' : 's'} · estimated ${money(estimatedTotal)}` : 'Your cart is empty.'}</p></div><Link href="/cart" className="ft-amazon-primary inline-flex min-h-10 items-center justify-center gap-2 px-5 text-sm font-850">Open full cart <Icon name="ArrowRightIcon" size={15} /></Link></div>{lineCount > 0 ? <div className="mt-5 divide-y divide-border rounded-xl border border-border">{cartItems.slice(0, 5).map((item) => <div key={item.key} className="flex items-center gap-3 p-3"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground"><Icon name="ShoppingCartIcon" size={17} /></span><span className="min-w-0 flex-1"><span className="block truncate text-sm font-800 text-foreground">{item.name}</span><span className="block truncate text-xs text-muted-foreground">{item.quantity} {item.unit} · {item.seller}</span></span><span className="text-sm font-850 text-foreground">{money(item.price * item.quantity)}</span></div>)}</div> : <div className="mt-6 rounded-xl border border-dashed border-border p-10 text-center"><Icon name="ShoppingCartIcon" size={28} className="mx-auto text-muted-foreground" /><p className="mt-3 text-sm font-800 text-foreground">Nothing in your cart yet</p><Link href="/marketplace" className="mt-2 inline-flex text-xs font-850 text-primary">Browse marketplace</Link></div>}</div>}
+              {activeTab === 'wishlist' && <BuyerWishlist />}
+              {activeTab === 'inbox' && <BuyerInbox />}
               {activeTab === 'disputes' && <DisputeMessaging mode="buyer" />}
               {activeTab === 'notifications' && <NotificationPreferences mode="buyer" />}
               {activeTab === 'requirements' && <div className="grid gap-5 lg:grid-cols-[1fr_320px]"><div><p className="text-xs font-850 uppercase tracking-wider text-primary">Sourcing requests</p><h2 className="mt-2 text-2xl font-850 text-foreground">Tell verified sellers exactly what you need</h2><p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">Add fabric type, GSM, width, colour, quantity, budget, state and deadline. Responses stay inside FabricTrad.</p><Link href="/buyer-requirements" className="ft-primary-action mt-6 inline-flex items-center gap-2 px-5 py-3 text-sm"><Icon name="PlusIcon" size={16} /> Open requirements board</Link></div><div className="rounded-xl border border-border bg-muted/30 p-5"><Icon name="ShieldCheckIcon" size={25} className="text-success" /><p className="mt-3 text-sm font-850 text-foreground">Account-scoped sourcing</p><p className="mt-2 text-xs leading-5 text-muted-foreground">Requirements, responses and resulting orders stay associated with your verified account.</p></div></div>}

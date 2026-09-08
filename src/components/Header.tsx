@@ -9,6 +9,7 @@ import Icon from '@/components/ui/AppIcon';
 import { useAuth } from '@/contexts/AuthContext';
 import ProfileMenu from '@/components/ProfileMenu';
 import CartButton from '@/components/CartButton';
+import WishlistMenu from '@/components/WishlistMenu';
 import PreferenceControls from '@/components/PreferenceControls';
 import { useAppPreferences } from '@/contexts/AppPreferencesContext';
 
@@ -316,6 +317,7 @@ export default function Header() {
                   </Link>
                 )}
 
+                {showBuyerUtilities && <WishlistMenu />}
                 {showBuyerUtilities && <CartButton />}
                 {(isAdmin || buyerContext || sellerContext) && (
                   <Link href={notificationsHref} className="ft-icon-button" aria-label="Open notifications">

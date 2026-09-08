@@ -7,6 +7,7 @@ import Icon from '@/components/ui/AppIcon';
 import { useAuth } from '@/contexts/AuthContext';
 import { createClient } from '@/lib/supabase/client';
 import { useProduct } from '@/lib/hooks/useProduct';
+import { useWishlist } from '@/lib/hooks/useWishlist';
 import { describeHsn, indiaGstRuleText, resolveIndiaGstRate } from '@/lib/indiaTax';
 
 type BuyerType = 'retail_store' | 'end_user';
@@ -100,7 +101,8 @@ export default function ProductInfoV2() {
   const [loadingRules, setLoadingRules] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [orderResult, setOrderResult] = useState<OrderResult | null>(null);
-  const [saved, setSaved] = useState(false);
+  const { has: hasWishlisted, toggle: toggleWishlist } = useWishlist();
+  const saved = hasWishlisted(product.id);
 
   useEffect(() => {
     let mounted = true;
@@ -455,7 +457,7 @@ export default function ProductInfoV2() {
         </div>
         <button
           type="button"
-          onClick={() => setSaved((current) => !current)}
+          onClick={() => void toggleWishlist(product)}
           className={`rounded-xl border p-2 ${
             saved
               ? 'border-primary bg-primary/10 text-primary'

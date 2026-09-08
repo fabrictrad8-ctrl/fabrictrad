@@ -542,8 +542,9 @@ export default function SellerInventory() {
       </div>
 
       {modalOpen && editingId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4" onClick={() => !saving && setModalOpen(false)}>
-          <div className="max-h-[94vh] w-full max-w-4xl overflow-y-auto rounded-2xl border border-border bg-card p-5 shadow-2xl sm:p-6" onClick={(event) => event.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4" role="dialog" aria-modal="true" aria-label="Update product">
+          <button type="button" className="absolute inset-0" onClick={() => !saving && setModalOpen(false)} aria-label="Close product editor" />
+          <div className="relative z-10 max-h-[94vh] w-full max-w-4xl overflow-y-auto rounded-2xl border border-border bg-card p-5 shadow-2xl sm:p-6">
             <div className="mb-5 flex items-start justify-between gap-3"><div><p className="ft-route-kicker">Product editor</p><h2 className="mt-1 text-xl font-800">Update product</h2><p className="mt-1 text-xs leading-5 text-muted-foreground">Category choices are visible here, and buyer access is editable on the same screen.</p></div><button type="button" onClick={() => setModalOpen(false)} className="ft-icon-button"><Icon name="XMarkIcon" size={18} /></button></div>
 
             <form onSubmit={saveProduct} className="space-y-5">
