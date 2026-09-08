@@ -252,14 +252,6 @@
   max-width: 1420px !important;
 }
 
-/* Wishlist is intentionally removed from the active buyer purchase path. */
-a[href='/wishlist'],
-[aria-label*='wishlist' i],
-[aria-label='Save product'],
-[aria-label='Remove saved product'] {
-  display: none !important;
-}
-
 /* ---------- Seller admin: dense information hierarchy ---------- */
 .ft-admin-shell.ft-seller-admin {
   background: #f6f6f7 !important;
