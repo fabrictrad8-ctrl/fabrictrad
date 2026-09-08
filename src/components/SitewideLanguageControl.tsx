@@ -22,14 +22,31 @@ export default function SitewideLanguageControl() {
   const wrapRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    // A control can exist in the DOM but be CSS-hidden at the current viewport
+    // width (e.g. a crowded dashboard header that hides its inline picker
+    // below a breakpoint) — a bare DOM-presence check would stay silent and
+    // leave mobile users with no way to reach it at all. Checking the
+    // rendered rect instead catches that, and the resize listener re-checks
+    // on a pure CSS breakpoint change, which a MutationObserver never sees.
+    const isEmbeddedVisible = () => {
+      const el = document.querySelector('[data-language-control="embedded"]');
+      if (!el) return false;
+      const rect = el.getBoundingClientRect();
+      return rect.width > 0 && rect.height > 0;
+    };
+
     const refresh = () => {
-      setNeedsFallback(!document.querySelector('[data-language-control="embedded"]'));
+      setNeedsFallback(!isEmbeddedVisible());
     };
 
     refresh();
     const observer = new MutationObserver(refresh);
     observer.observe(document.body, { childList: true, subtree: true });
-    return () => observer.disconnect();
+    window.addEventListener('resize', refresh);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', refresh);
+    };
   }, []);
 
   useEffect(() => {

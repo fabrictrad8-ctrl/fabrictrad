@@ -5,7 +5,7 @@
 /* -------------------------------------------------------------------------- */
 /* Shared interactive controls                                                 */
 /* -------------------------------------------------------------------------- */
-.ft-root :where(.ft-icon-button, .ft-cart-button, .ft-workspace-button) {
+.ft-root :where(.ft-icon-button, .ft-cart-button, .ft-workspace-button, .ft-language-picker, .ft-profile-menu-trigger) {
   flex: 0 0 auto;
 }
 

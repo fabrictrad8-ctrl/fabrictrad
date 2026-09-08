@@ -258,7 +258,7 @@ export default function SellerDashboardLayout() {
               <span className="hidden items-center gap-1.5 rounded-full border border-success/20 bg-success/5 px-2.5 py-1 text-[11px] font-800 text-success xl:inline-flex"><span className="h-1.5 w-1.5 rounded-full bg-success" /> Store active</span>
               <Link href={storefrontHref} className="ft-secondary-action hidden items-center gap-2 px-3 py-2 text-xs xl:inline-flex"><Icon name="EyeIcon" size={15} /> View store</Link>
               <button type="button" onClick={() => navigateTo('upload')} className="ft-primary-action hidden items-center gap-2 px-3 py-2 text-xs md:inline-flex"><Icon name="PlusIcon" size={15} /> Add product</button>
-              <PreferenceControls compact />
+              <div className="hidden sm:flex"><PreferenceControls compact /></div>
               <CommerceNotificationBell mode="seller" onClick={() => navigateTo('notifications')} label="Open seller notifications" />
               <ProfileMenu />
             </div>

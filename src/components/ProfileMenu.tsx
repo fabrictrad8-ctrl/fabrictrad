@@ -86,7 +86,7 @@ export default function ProfileMenu() {
   };
 
   return (
-    <div className="relative" ref={menuRef}>
+    <div className="ft-profile-menu-trigger relative shrink-0" ref={menuRef}>
       <button
         type="button"
         onClick={() => setOpen((current) => !current)}

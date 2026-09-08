@@ -226,7 +226,7 @@ export default function AdminPortalLayout() {
             <AdminCommandSearch />
 
             <div className="ml-auto flex items-center gap-2">
-              <PreferenceControls compact />
+              <div className="hidden sm:flex"><PreferenceControls compact /></div>
               <button type="button" onClick={() => navigateTo('activity')} className="ft-icon-button relative" aria-label="Open administrator alerts">
                 <Icon name="BellIcon" size={18} />
                 <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-error ring-2 ring-card" />

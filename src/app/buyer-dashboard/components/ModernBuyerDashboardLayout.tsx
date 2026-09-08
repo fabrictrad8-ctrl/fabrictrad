@@ -136,7 +136,7 @@ export default function ModernBuyerDashboardLayout() {
         <div className="ml-auto flex items-center gap-2">
           <Link href="/marketplace" className="ft-secondary-action hidden items-center gap-2 px-3 py-2 text-xs sm:inline-flex"><Icon name="Squares2X2Icon" size={15} /> Shop</Link>
           <Link href="/cart" className="ft-icon-button relative" aria-label={`Open cart with ${lineCount} item${lineCount === 1 ? '' : 's'}`}><Icon name="ShoppingCartIcon" size={18} />{lineCount > 0 && <span className="absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-primary px-1 text-[9px] font-850 text-white">{lineCount}</span>}</Link>
-          <PreferenceControls compact />
+          <div className="hidden sm:flex"><PreferenceControls compact /></div>
           <button type="button" onClick={() => navigateTo('notifications')} className="ft-icon-button" aria-label="Open notifications"><Icon name="BellIcon" size={18} /></button>
           <ProfileMenu />
         </div>
