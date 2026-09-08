@@ -74,6 +74,18 @@
 
 /* The floating header "dock bar". */
 .ft-dock-bar {
+  position: relative;
+  /* liquid-glass.css gives this isolation: isolate for its sheen effect,
+     which makes it its own stacking context — but with no z-index of its
+     own, that context still sorts by plain DOM order against its sibling
+     .ft-canvas-main. Every card inside .ft-canvas-main also gets
+     isolation: isolate (the sitewide card-glass extension), and since it
+     comes later in the DOM, those cards' stacking contexts painted over
+     this entire header — including menus like ProfileMenu's dropdown,
+     regardless of that dropdown's own z-index, because the comparison
+     happens at this level, not the dropdown's. An explicit z-index here
+     is what actually wins that comparison. */
+  z-index: 40;
   flex-shrink: 0;
   border-radius: 18px;
   border: 1px solid var(--border);
