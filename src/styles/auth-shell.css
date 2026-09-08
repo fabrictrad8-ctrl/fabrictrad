@@ -13,6 +13,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  overflow-x: hidden;
   padding: clamp(14px, 3vw, 32px);
   background:
     radial-gradient(circle at 8% 0%, var(--ft-saffron-soft), transparent 38rem),
@@ -27,7 +28,14 @@
   grid-template-columns: minmax(0, 1.05fr);
   gap: 16px;
   width: min(1180px, 100%);
+  min-width: 0;
 }
+/* Grid tracks accept minmax(0, ...), but a grid ITEM's own automatic minimum
+   size still defaults to its content's intrinsic width unless overridden —
+   the classic "grid blowout" bug. Without this, the visual panel's fixed
+   textile image and caption forced the whole shell (and document.body)
+   wider than the viewport at 901-1100px widths. */
+.ft-auth-shell-grid > * { min-width: 0; }
 @media (min-width: 901px) {
   .ft-auth-shell-grid {
     grid-template-columns: minmax(0, 1.05fr) minmax(400px, 0.85fr);

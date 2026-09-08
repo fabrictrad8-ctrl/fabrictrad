@@ -131,6 +131,7 @@ html:not(.dark) .ft-auth-page .ft-secondary-action { color: #f5f3ef !important; 
 
 .ft-route-content {
   min-width: 0;
+  overflow-x: clip;
 }
 
 /* Keep duplicate fallback wordmarks out of both the layout and accessibility tree. */
