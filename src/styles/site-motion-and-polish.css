@@ -80,9 +80,19 @@ html:not(.dark) .ft-auth-page .ft-secondary-action { color: #f5f3ef !important; 
   .ft-showroom .ft-future-nav { height: auto !important; }
   .ft-showroom > section.pt-32 { padding-top: 180px; }
   .ft-showroom .ft-future-hero { padding-top: 180px !important; }
-  .ft-showroom .ft-future-nav { flex-wrap: wrap; gap: 12px !important; padding: 12px !important; }
-  .ft-showroom .ft-future-nav > .ml-auto { width: 100%; margin-left: 0; justify-content: space-between; }
-  .ft-showroom .ft-future-nav .ft-primary-action { padding-inline: 10px; }
+  .ft-showroom .ft-future-nav { flex-wrap: wrap; gap: 10px !important; padding: 12px !important; }
+  .ft-showroom .ft-future-nav > .ml-auto {
+    width: 100%;
+    margin-left: 0;
+    flex-wrap: wrap;
+    row-gap: 8px;
+    justify-content: flex-end;
+  }
+  /* Buttons must reflow onto their own row rather than shrink and let their
+     own label text wrap mid-word ("Sig[n] in", "Join FabricTr[a]d"). */
+  .ft-showroom .ft-future-nav > .ml-auto > * { flex-shrink: 0; white-space: nowrap; }
+  .ft-showroom .ft-future-nav .ft-secondary-action,
+  .ft-showroom .ft-future-nav .ft-primary-action { padding-inline: 12px; font-size: 13px; }
   .ft-textile-caption { inset: auto 12px 12px; padding: 14px; }
   .ft-showroom .ft-future-hero-actions { align-items: stretch; }
   .ft-showroom .ft-future-hero-actions a { flex: 1 1 100%; text-align: center; justify-content: center; }
