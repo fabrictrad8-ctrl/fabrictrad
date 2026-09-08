@@ -116,7 +116,7 @@ export default function AdminCommandSearch() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="ft-workspace-search hidden min-h-10 min-w-[160px] flex-1 items-center gap-3 rounded-xl px-3 text-left text-sm text-muted-foreground transition hover:border-primary/30 lg:flex lg:max-w-xl"
+        className="hidden min-h-10 min-w-0 flex-1 items-center gap-3 rounded-xl border border-border bg-muted/60 px-3 text-left text-sm text-muted-foreground transition hover:border-primary/30 hover:bg-card md:flex md:max-w-xl"
         aria-label="Search FabricTrad admin"
       >
         <Icon name="MagnifyingGlassIcon" size={17} />
@@ -127,7 +127,7 @@ export default function AdminCommandSearch() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="ft-icon-button min-h-10 min-w-10 shrink-0 justify-center lg:!hidden"
+        className="ft-icon-button min-h-10 min-w-10 shrink-0 justify-center md:!hidden"
         aria-label="Search FabricTrad admin"
       >
         <Icon name="MagnifyingGlassIcon" size={18} />

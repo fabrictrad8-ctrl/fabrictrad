@@ -5,7 +5,6 @@ import Icon from '@/components/ui/AppIcon';
 import { useAuth } from '@/contexts/AuthContext';
 import { createClient } from '@/lib/supabase/client';
 import { formatMoney, useSellerBulkOrders } from '@/lib/hooks/useAccountOrders';
-import { pillClassForStatus, pillLabel } from '@/lib/statusPill';
 
 type SellerTab = 'orders' | 'inventory' | 'upload' | 'courier' | 'earnings' | 'analytics' | 'profile' | 'billing';
 type Props = { onNavigate: (tab: SellerTab) => void };
@@ -42,7 +41,6 @@ export default function SellerOverview({ onNavigate }: Props) {
   const [shipments, setShipments] = useState<Shipment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [payoutReady, setPayoutReady] = useState<boolean | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -72,20 +70,6 @@ export default function SellerOverview({ onNavigate }: Props) {
 
   useEffect(() => { void load(); }, [load]);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const response = await fetch('/api/seller/payout-account', { cache: 'no-store' });
-        const body = await response.json().catch(() => null);
-        if (!cancelled) setPayoutReady(response.ok ? Boolean(body?.ready) : null);
-      } catch {
-        if (!cancelled) setPayoutReady(null);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [user?.id]);
-
   const pendingCatalog = catalogOrders.filter((order) => order.status === 'pending');
   const pendingBulk = bulkOrders.filter((order) => ['draft', 'quote_sent'].includes(String(order.status || '')));
   const paymentDue = [
@@ -113,7 +97,6 @@ export default function SellerOverview({ onNavigate }: Props) {
     { label: 'Publish your first product', detail: liveProducts.length ? `${liveProducts.length} live product${liveProducts.length === 1 ? '' : 's'}` : 'Add a product buyers can actually order', complete: liveProducts.length > 0, tab: liveProducts.length ? 'inventory' as SellerTab : 'upload' as SellerTab },
     { label: 'Complete HSN codes', detail: missingHsn.length ? `${missingHsn.length} live product${missingHsn.length === 1 ? '' : 's'} still need HSN` : 'Automatic GST invoices have product tax codes', complete: liveProducts.length > 0 && missingHsn.length === 0, tab: 'inventory' as SellerTab },
     { label: 'Pickup and shipping profile', detail: profile?.city && profile?.state ? `${profile.city}, ${profile.state}` : 'Add pickup location before dispatch', complete: Boolean(profile?.city && profile?.state), tab: 'courier' as SellerTab },
-    { label: 'Connect payout account', detail: payoutReady ? 'Razorpay can pay you out for captured orders' : 'Required before any order can be paid for — buyers cannot check out until this is done', complete: payoutReady === true, tab: 'earnings' as SellerTab },
   ];
   const setupComplete = setupSteps.filter((step) => step.complete).length;
 
@@ -140,7 +123,7 @@ export default function SellerOverview({ onNavigate }: Props) {
 
       {error && <div className="rounded-xl border border-error/20 bg-error/5 p-4 text-sm text-error">{error}</div>}
 
-      <section className="ft-glass-card overflow-hidden">
+      <section className="ft-shopify-card overflow-hidden">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3 sm:px-5">
           <div><h2 className="text-sm font-850 text-foreground">Today</h2><p className="mt-0.5 text-xs text-muted-foreground">Tasks that could block sales, payment or fulfilment</p></div>
           <button type="button" onClick={() => void load()} className="ft-icon-button" aria-label="Refresh seller home"><Icon name="ArrowPathIcon" size={15} className={loading ? 'animate-spin' : ''} /></button>
@@ -156,9 +139,9 @@ export default function SellerOverview({ onNavigate }: Props) {
       </section>
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,.65fr)]">
-        <section className="ft-glass-card overflow-hidden">
+        <section className="ft-shopify-card overflow-hidden">
           <div className="flex items-center justify-between border-b border-border px-5 py-4"><div><h2 className="text-sm font-850 text-foreground">Recent orders</h2><p className="mt-1 text-xs text-muted-foreground">Catalogue and bulk orders in one queue</p></div><button type="button" onClick={() => onNavigate('orders')} className="text-xs font-850 text-primary hover:underline">View all</button></div>
-          {busy ? <div className="py-12 text-center"><span className="mx-auto block h-7 w-7 animate-spin rounded-full border-2 border-primary border-t-transparent" /></div> : recent.length ? <div className="divide-y divide-border">{recent.map((order) => <button key={`${order.kind}:${order.id}`} type="button" onClick={() => onNavigate('orders')} className="flex w-full items-center gap-4 px-5 py-4 text-left hover:bg-muted/30"><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><span className="mono-id">{order.id}</span><span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-850 uppercase">{order.kind}</span><span className={pillClassForStatus(order.status)}>{pillLabel(order.status)}</span></div><p className="mt-1 truncate text-sm font-750 text-foreground">{order.product}</p><p className="mt-1 text-xs text-muted-foreground">Payment: {order.paymentStatus.replaceAll('_', ' ')} · {new Date(order.createdAt).toLocaleString('en-IN')}</p></div><p className="shrink-0 text-sm font-850 text-foreground">{formatMoney(order.amount)}</p><Icon name="ChevronRightIcon" size={15} className="text-muted-foreground" /></button>)}</div> : <div className="px-5 py-10 text-center"><Icon name="ShoppingBagIcon" size={30} className="mx-auto text-muted-foreground" /><p className="mt-2 text-sm font-850">No buyer orders yet</p><p className="mt-1 text-xs text-muted-foreground">Orders appear here as soon as buyers submit them.</p></div>}
+          {busy ? <div className="py-12 text-center"><span className="mx-auto block h-7 w-7 animate-spin rounded-full border-2 border-primary border-t-transparent" /></div> : recent.length ? <div className="divide-y divide-border">{recent.map((order) => <button key={`${order.kind}:${order.id}`} type="button" onClick={() => onNavigate('orders')} className="flex w-full items-center gap-4 px-5 py-4 text-left hover:bg-muted/30"><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><span className="mono-id">{order.id}</span><span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-850 uppercase">{order.kind}</span><span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-850 capitalize text-primary">{order.status.replaceAll('_', ' ')}</span></div><p className="mt-1 truncate text-sm font-750 text-foreground">{order.product}</p><p className="mt-1 text-xs text-muted-foreground">Payment: {order.paymentStatus.replaceAll('_', ' ')} · {new Date(order.createdAt).toLocaleString('en-IN')}</p></div><p className="shrink-0 text-sm font-850 text-foreground">{formatMoney(order.amount)}</p><Icon name="ChevronRightIcon" size={15} className="text-muted-foreground" /></button>)}</div> : <div className="px-5 py-10 text-center"><Icon name="ShoppingBagIcon" size={30} className="mx-auto text-muted-foreground" /><p className="mt-2 text-sm font-850">No buyer orders yet</p><p className="mt-1 text-xs text-muted-foreground">Orders appear here as soon as buyers submit them.</p></div>}
         </section>
 
         <section className="ft-setup-guide overflow-hidden">
@@ -183,12 +166,12 @@ export default function SellerOverview({ onNavigate }: Props) {
           { label: 'Active shipments', value: activeShipments.length, icon: 'TruckIcon', tone: 'text-secondary', tab: 'courier' as SellerTab },
           { label: 'Captured sales', value: formatMoney(capturedSales), icon: 'BanknotesIcon', tone: 'text-success', tab: 'earnings' as SellerTab },
           { label: 'Low stock', value: lowStock.length, icon: 'ExclamationTriangleIcon', tone: lowStock.length ? 'text-error' : 'text-success', tab: 'inventory' as SellerTab },
-        ].map((stat) => <button key={stat.label} type="button" onClick={() => onNavigate(stat.tab)} className="ft-tile text-left transition hover:border-[#b8bec6]"><Icon name={stat.icon} size={18} className={stat.tone} /><span className={`ft-tile-value ${stat.tone}`}>{busy ? '—' : stat.value}</span><span className="ft-tile-label normal-case tracking-normal">{stat.label}</span></button>)}
+        ].map((stat) => <button key={stat.label} type="button" onClick={() => onNavigate(stat.tab)} className="ft-shopify-card p-4 text-left transition hover:border-[#b8bec6]"><Icon name={stat.icon} size={18} className={stat.tone} /><p className={`mt-3 text-xl font-850 ${stat.tone}`}>{busy ? '—' : stat.value}</p><p className="mt-1 text-xs font-700 text-muted-foreground">{stat.label}</p></button>)}
       </div>
 
       <div className="grid gap-5 lg:grid-cols-2">
-        <section className="ft-glass-card p-5"><div className="flex items-start justify-between gap-3"><div><h2 className="text-sm font-850">Inventory health</h2><p className="mt-1 text-xs text-muted-foreground">{products.length} total product record{products.length === 1 ? '' : 's'}</p></div><button type="button" onClick={() => onNavigate('inventory')} className="text-xs font-850 text-primary hover:underline">Manage</button></div><div className="mt-4 grid grid-cols-3 gap-2 text-center"><div className="ft-tile"><span className="ft-tile-value text-success">{liveProducts.length}</span><span className="ft-tile-label normal-case tracking-normal">Live</span></div><div className="ft-tile"><span className="ft-tile-value text-warning">{products.filter((product) => product.status === 'draft').length}</span><span className="ft-tile-label normal-case tracking-normal">Draft</span></div><div className="ft-tile"><span className="ft-tile-value text-error">{lowStock.length}</span><span className="ft-tile-label normal-case tracking-normal">Low stock</span></div></div></section>
-        <section className="ft-glass-card p-5"><div className="flex items-start justify-between gap-3"><div><h2 className="text-sm font-850">Shipping</h2><p className="mt-1 text-xs text-muted-foreground">Current shipment ledger</p></div><button type="button" onClick={() => onNavigate('courier')} className="text-xs font-850 text-primary hover:underline">Open shipping</button></div>{activeShipments.length ? <div className="ft-tile mt-4"><span className="ft-tile-value text-secondary">{activeShipments.length}</span><span className="ft-tile-label normal-case tracking-normal">shipment{activeShipments.length === 1 ? '' : 's'} currently active</span><p className="mt-2 text-xs text-muted-foreground">Latest update {new Date(activeShipments[0].updated_at).toLocaleString('en-IN')}</p></div> : <div className="mt-4 rounded-lg border border-dashed border-border bg-muted/30 p-6 text-center"><Icon name="TruckIcon" size={26} className="mx-auto text-muted-foreground" /><p className="mt-2 text-sm font-850">No active shipments</p></div>}</section>
+        <section className="ft-shopify-card p-5"><div className="flex items-start justify-between gap-3"><div><h2 className="text-sm font-850">Inventory health</h2><p className="mt-1 text-xs text-muted-foreground">{products.length} total product record{products.length === 1 ? '' : 's'}</p></div><button type="button" onClick={() => onNavigate('inventory')} className="text-xs font-850 text-primary hover:underline">Manage</button></div><div className="mt-4 grid grid-cols-3 gap-2 text-center"><div className="rounded-lg bg-success/10 p-3"><p className="text-xl font-850 text-success">{liveProducts.length}</p><p className="text-[10px] text-muted-foreground">Live</p></div><div className="rounded-lg bg-warning/10 p-3"><p className="text-xl font-850 text-warning">{products.filter((product) => product.status === 'draft').length}</p><p className="text-[10px] text-muted-foreground">Draft</p></div><div className="rounded-lg bg-error/10 p-3"><p className="text-xl font-850 text-error">{lowStock.length}</p><p className="text-[10px] text-muted-foreground">Low stock</p></div></div></section>
+        <section className="ft-shopify-card p-5"><div className="flex items-start justify-between gap-3"><div><h2 className="text-sm font-850">Shipping</h2><p className="mt-1 text-xs text-muted-foreground">Current shipment ledger</p></div><button type="button" onClick={() => onNavigate('courier')} className="text-xs font-850 text-primary hover:underline">Open shipping</button></div>{activeShipments.length ? <div className="mt-4 rounded-lg bg-secondary/10 p-4"><p className="text-2xl font-850 text-secondary">{activeShipments.length}</p><p className="mt-1 text-xs text-muted-foreground">shipment{activeShipments.length === 1 ? '' : 's'} currently active</p><p className="mt-2 text-xs text-muted-foreground">Latest update {new Date(activeShipments[0].updated_at).toLocaleString('en-IN')}</p></div> : <div className="mt-4 rounded-lg border border-dashed border-border bg-muted/30 p-6 text-center"><Icon name="TruckIcon" size={26} className="mx-auto text-muted-foreground" /><p className="mt-2 text-sm font-850">No active shipments</p></div>}</section>
       </div>
     </div>
   );

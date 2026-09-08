@@ -166,7 +166,7 @@ assert(adminPortal.includes('profile?.is_active === true'), 'The server must req
 assert(adminPortal.includes("profile.role === 'super_admin'") && adminPortal.includes("profile.role === 'admin_staff'"), 'The server must require an administrator role.');
 assert(!adminPortal.includes('authorisedByEmail'), 'A matching email alone must never grant administrator access.');
 
-// Administration must be live and actionable, not placeholder UI.
+// Shopify-style administration must be live and actionable, not placeholder UI.
 assert(adminLayout.includes('AdminCommandSearch'), 'Administrator shell must include global command search.');
 assert(adminLayout.includes('AdminCustomers'), 'Administrator shell must include customer management.');
 assert(adminLayout.includes('ProfileMenu'), 'Administrator shell must expose the authenticated account menu.');

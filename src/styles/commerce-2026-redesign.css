@@ -411,7 +411,7 @@
   letter-spacing: -.025em;
 }
 
-.ft-glass-card {
+.ft-shopify-card {
   border: 1px solid #dfe3e8;
   border-radius: 12px;
   background: #fff;
@@ -704,7 +704,7 @@
 .dark .ft-admin-header { background: rgba(20,26,34,.97) !important; border-bottom-color: #2a3340 !important; }
 .dark .ft-admin-sidebar,
 .dark .ft-admin-sidebar > div { background: #151b23 !important; border-right-color: #2a3340 !important; }
-.dark .ft-glass-card,
+.dark .ft-shopify-card,
 .dark .ft-setup-guide,
 .dark .ft-product-content-card,
 .dark .ft-marketplace-product-card,

@@ -1,32 +1,32 @@
 {
-  "version": "2026-09-08",
-  "kind": "real_screen_capture_walkthrough",
-  "syntheticNarration": false,
+  "version": "2026-09-06",
+  "kind": "narrated_quick_start",
+  "syntheticNarration": true,
   "videos": {
     "buyer": {
       "en": {
         "src": "/guides/buyer-en.mp4",
         "captions": "/guides/buyer-en.vtt",
         "poster": "/guides/buyer-en.webp",
-        "duration": 164.71,
-        "bytes": 4708281,
-        "sha256": "b3d9bb4c9a0fcfb2ce56e581fab91bfb5e6395e159bff12e3832ec02fb289c54"
+        "duration": 185.49,
+        "bytes": 3955486,
+        "sha256": "e8ac28c0586362d5ddb2fd752048a62ae875ce708980b53d7e66cb1c6f01aff3"
       },
       "hi": {
         "src": "/guides/buyer-hi.mp4",
         "captions": "/guides/buyer-hi.vtt",
         "poster": "/guides/buyer-hi.webp",
-        "duration": 201.78,
-        "bytes": 5274120,
-        "sha256": "ab495c2ab1993b45b90e4fe1aa7418287e44b9496c7a54726a54c332e1d57ced"
+        "duration": 218.43,
+        "bytes": 4673650,
+        "sha256": "9dfc60444946b98720f45fb6df1a96ee37b5a11f9f70a23abc664676f7e8c08f"
       },
       "gu": {
         "src": "/guides/buyer-gu.mp4",
         "captions": "/guides/buyer-gu.vtt",
         "poster": "/guides/buyer-gu.webp",
-        "duration": 201.95,
-        "bytes": 5209410,
-        "sha256": "af00e3be7a0ce6205f947f20ab386e62727ae5b6f2d66164da7ef0465234af31"
+        "duration": 241.42,
+        "bytes": 5265543,
+        "sha256": "651750dc989325729ca3570f7ebd40b7e8534723e588755f48a034f759eb2327"
       }
     },
     "seller": {
@@ -34,25 +34,25 @@
         "src": "/guides/seller-en.mp4",
         "captions": "/guides/seller-en.vtt",
         "poster": "/guides/seller-en.webp",
-        "duration": 207.82,
-        "bytes": 10125239,
-        "sha256": "cdb4fb58e458258d07e2809fee044e0f485b5916d2fdaf23b9b941c9a419fd57"
+        "duration": 240.78,
+        "bytes": 5385514,
+        "sha256": "9554e22a21576f9e6bb9bdb5d7266d2abeef278ec7eb06a3f7b792a87357d838"
       },
       "hi": {
         "src": "/guides/seller-hi.mp4",
         "captions": "/guides/seller-hi.vtt",
         "poster": "/guides/seller-hi.webp",
-        "duration": 256.79,
-        "bytes": 11467139,
-        "sha256": "a71007987fc577372cd7170a0bd10653f288f8cd10ecdbeb129cd503f57c65e6"
+        "duration": 269.34,
+        "bytes": 5848474,
+        "sha256": "cf77a16a7364b6bb682b4acb3a8265cc5e4fb5042af7d2fa554c7a2c9cfb0b79"
       },
       "gu": {
         "src": "/guides/seller-gu.mp4",
         "captions": "/guides/seller-gu.vtt",
         "poster": "/guides/seller-gu.webp",
-        "duration": 251.97,
-        "bytes": 11339561,
-        "sha256": "fc753ce79a4628bae1bb47cef5095aad5e19ebd2a79b5b581f976d7bb5e61ba6"
+        "duration": 284.99,
+        "bytes": 6173809,
+        "sha256": "2556f83b89c955d36d048c67b8e4e946105db9e9b89e8f3d5f918135c1a57669"
       }
     }
   }

@@ -1,8 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Icon from '@/components/ui/AppIcon';
-import { pillClassForStatus } from '@/lib/statusPill';
 
 const DOCUMENT_LABELS: Record<string, string> = {
   gst_certificate: 'GST registration certificate',
@@ -85,11 +84,11 @@ const humanStatus = (value?: string | null) =>
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 
 const statusClass = (application: SellerApplication) => {
-  if (application.seller.verification_status === 'verified') return 'ft-pill ft-pill-success';
-  if (application.seller.verification_status === 'rejected') return 'ft-pill ft-pill-critical';
-  if (application.readyForApproval) return 'ft-pill ft-pill-active';
-  if (application.applicationSubmitted) return 'ft-pill ft-pill-progress';
-  return 'ft-pill ft-pill-pending';
+  if (application.seller.verification_status === 'verified') return 'bg-success/10 text-success';
+  if (application.seller.verification_status === 'rejected') return 'bg-error/10 text-error';
+  if (application.readyForApproval) return 'bg-primary/10 text-primary';
+  if (application.applicationSubmitted) return 'bg-violet-100 text-violet-900';
+  return 'bg-amber-100 text-amber-900';
 };
 
 const statusLabel = (application: SellerApplication) => {
@@ -108,17 +107,12 @@ export default function AdminSellerVerification() {
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [filter, setFilter] = useState<Filter>('needs_action');
-  const activeRequestId = useRef(0);
-  const activeController = useRef<AbortController | null>(null);
 
   const load = useCallback(async () => {
-    activeController.current?.abort();
-    const requestId = ++activeRequestId.current;
-    const controller = new AbortController();
-    activeController.current = controller;
     setLoading(true);
     setError('');
     try {
+      const controller = new AbortController();
       const timeout = window.setTimeout(() => controller.abort(), 10000);
       const response = await fetch('/api/admin/sellers/verification', {
         credentials: 'same-origin',
@@ -131,7 +125,6 @@ export default function AdminSellerVerification() {
         error?: string;
       };
       if (!response.ok) throw new Error(payload.error || 'Seller applications could not be loaded.');
-      if (activeRequestId.current !== requestId) return;
       const next = payload.applications || [];
       setApplications(next);
       setSelectedId((current) => {
@@ -139,7 +132,6 @@ export default function AdminSellerVerification() {
         return next.find((item) => item.applicationSubmitted && item.seller.verification_status !== 'verified')?.sellerId || next[0]?.sellerId || null;
       });
     } catch (caught) {
-      if (activeRequestId.current !== requestId) return;
       setError(
         caught instanceof DOMException && caught.name === 'AbortError'
           ? 'The seller queue took too long to load. Please refresh once.'
@@ -148,7 +140,7 @@ export default function AdminSellerVerification() {
             : 'Seller applications could not be loaded.'
       );
     } finally {
-      if (activeRequestId.current === requestId) setLoading(false);
+      setLoading(false);
     }
   }, []);
 
@@ -311,7 +303,7 @@ export default function AdminSellerVerification() {
                   </div>
                   <Icon name="ChevronRightIcon" size={16} className="shrink-0 text-muted-foreground" />
                 </div>
-                <span className={`mt-3 ${statusClass(application)}`}>{statusLabel(application)}</span>
+                <span className={`mt-3 inline-flex rounded-full px-2.5 py-1 text-[11px] font-800 ${statusClass(application)}`}>{statusLabel(application)}</span>
               </button>
             ))}
             {filtered.length === 0 && <p className="p-6 text-center text-sm text-muted-foreground">No seller applications in this view.</p>}
@@ -328,7 +320,7 @@ export default function AdminSellerVerification() {
                   <h2 className="text-xl font-800 text-foreground">{selected.seller.legal_business_name || selected.seller.display_name || 'Seller application'}</h2>
                   <p className="mt-1 text-sm text-muted-foreground">{selected.user?.full_name || 'No contact name'} · {selected.user?.email || 'No email'} · {selected.user?.phone || 'No phone'}</p>
                 </div>
-                <span className={`w-fit ${statusClass(selected)}`}>{statusLabel(selected)}</span>
+                <span className={`inline-flex w-fit rounded-full px-3 py-1.5 text-xs font-800 ${statusClass(selected)}`}>{statusLabel(selected)}</span>
               </div>
 
               {selected.blockers.length > 0 && selected.seller.verification_status !== 'verified' && (
@@ -386,7 +378,7 @@ export default function AdminSellerVerification() {
                       <div key={type} className={`rounded-xl border p-3 ${approved ? 'border-success/25 bg-success/5' : 'border-border bg-muted/20'}`}>
                         <div className="flex items-start justify-between gap-2">
                           <p className="text-xs font-800 text-foreground">{DOCUMENT_LABELS[type]}</p>
-                          <span className={pillClassForStatus(approved ? 'approved' : document?.upload_status === 'rejected' ? 'rejected' : 'pending')}>{humanStatus(document?.upload_status || 'missing')}</span>
+                          <span className={`rounded-full px-2 py-1 text-[10px] font-800 ${approved ? 'bg-success/10 text-success' : document?.upload_status === 'rejected' ? 'bg-error/10 text-error' : 'bg-amber-100 text-amber-900'}`}>{humanStatus(document?.upload_status || 'missing')}</span>
                         </div>
                         <p className="mt-2 truncate text-xs text-muted-foreground">{document?.file_name || 'Not uploaded'}</p>
                         {document?.rejection_reason && <p className="mt-2 text-xs text-error">{document.rejection_reason}</p>}
@@ -450,13 +442,13 @@ function ReviewSection({ title, status, complete, children }: { title: string; s
   return (
     <div className="rounded-xl border border-border p-4">
       <div className="flex items-start gap-3">
-        <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${complete ? 'bg-success text-white' : 'ft-pill-pending'}`}>
+        <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${complete ? 'bg-success text-white' : 'bg-amber-100 text-amber-900'}`}>
           <Icon name={complete ? 'CheckIcon' : 'ClockIcon'} size={16} />
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-sm font-800 text-foreground">{title}</p>
-            <span className={pillClassForStatus(complete ? 'approved' : 'pending')}>{status}</span>
+            <span className={`rounded-full px-2 py-1 text-[10px] font-800 ${complete ? 'bg-success/10 text-success' : 'bg-amber-100 text-amber-900'}`}>{status}</span>
           </div>
           <div className="mt-3">{children}</div>
         </div>

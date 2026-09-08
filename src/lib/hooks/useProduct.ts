@@ -172,10 +172,6 @@ function mapSellerProduct(
       selectedVariant?.price ||
       (prices.length ? Math.min(...prices) : Number(row.price_per_unit || 0)),
     priceMax: prices.length ? Math.max(...prices) : Number(row.price_per_unit || 0),
-    compareAtPrice:
-      !selectedVariant && !variants.length && row.compare_at_price
-        ? Number(row.compare_at_price)
-        : null,
     unit: selectedVariant?.unit || parentUnit,
     moq: selectedVariant?.moq || Number(row.moq || 1),
     available: selectedVariant ? selectedVariant.available : available,

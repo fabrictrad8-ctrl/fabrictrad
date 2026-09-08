@@ -1,7 +1,7 @@
 import type { MetadataRoute } from 'next';
 
-const BRAND_ICON_192 = '/assets/brand/fabrictrad-app-icon-192.png';
-const BRAND_ICON_512 = '/assets/brand/fabrictrad-app-icon-512.png';
+const BRAND_ICON_192 = 'https://cdn.shopify.com/s/files/1/0841/4966/6010/files/fabrictrad-app-icon-192.png?v=1788032573';
+const BRAND_ICON_512 = 'https://cdn.shopify.com/s/files/1/0841/4966/6010/files/fabrictrad-app-icon-512.png?v=1788032540';
 
 export default function manifest(): MetadataRoute.Manifest {
   return {

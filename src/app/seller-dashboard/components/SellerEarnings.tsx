@@ -245,10 +245,10 @@ export default function SellerEarnings() {
           ['Pending settlement', loading ? '—' : money(pendingAmount), 'ClockIcon', 'text-warning'],
           ['Net transferred to linked account', loading ? '—' : money(settledAmount), 'CheckCircleIcon', 'text-success'],
         ].map(([label, value, icon, color]) => (
-          <div key={String(label)} className="ft-tile">
+          <div key={String(label)} className="rounded-2xl border border-border bg-card p-4">
             <Icon name={String(icon)} size={20} className={String(color)} />
-            <span className={`ft-tile-value ${color}`}>{value}</span>
-            <span className="ft-tile-label normal-case tracking-normal">{label}</span>
+            <p className={`mt-3 text-xl font-800 ${color}`}>{value}</p>
+            <p className="mt-1 text-xs font-700 text-muted-foreground">{label}</p>
           </div>
         ))}
       </div>
@@ -285,9 +285,9 @@ export default function SellerEarnings() {
           <section className="rounded-2xl border border-border bg-card p-5">
             <h2 className="text-sm font-800 text-foreground">Captured-payment deductions</h2>
             <div className="mt-4 grid gap-3 sm:grid-cols-3">
-              <div className="ft-tile"><span className="ft-tile-label normal-case tracking-normal">FabricTrad share (all inclusive)</span><span className="ft-tile-value text-foreground">{money(fees)}</span></div>
-              <div className="ft-tile"><span className="ft-tile-label normal-case tracking-normal">Refunded</span><span className="ft-tile-value text-error">{money(refunds)}</span></div>
-              <div className="ft-tile"><span className="ft-tile-label normal-case tracking-normal">Net seller payable</span><span className="ft-tile-value text-success">{money(sellerEarned)}</span></div>
+              <div className="rounded-xl bg-muted/40 p-4"><p className="text-xs text-muted-foreground">FabricTrad share (all inclusive)</p><p className="mt-1 text-xl font-800 text-foreground">{money(fees)}</p></div>
+              <div className="rounded-xl bg-error/5 p-4"><p className="text-xs text-muted-foreground">Refunded</p><p className="mt-1 text-xl font-800 text-error">{money(refunds)}</p></div>
+              <div className="rounded-xl bg-success/5 p-4"><p className="text-xs text-muted-foreground">Net seller payable</p><p className="mt-1 text-xl font-800 text-success">{money(sellerEarned)}</p></div>
             </div>
           </section>
         </div>

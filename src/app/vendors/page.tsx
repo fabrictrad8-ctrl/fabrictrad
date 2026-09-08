@@ -21,9 +21,6 @@ type LiveVendor = {
   products: number;
   verified: boolean;
   gstinVerified: boolean;
-  isEarlyBird: boolean;
-  earlyBirdRank: number | null;
-  storeHandle: string | null;
   image: string | null;
   dispatchDays: number | null;
 };
@@ -67,7 +64,7 @@ export default function VendorsPage() {
     const [{ data: profiles, error: profileError }, { data: ratings }] = await Promise.all([
       supabase
         .from('seller_profiles')
-        .select('id,display_name,legal_business_name,business_type,gstin_status,gstin_verified,verification_status,is_active,is_early_bird,early_bird_rank,store_name,store_handle')
+        .select('id,display_name,legal_business_name,business_type,gstin_status,gstin_verified,verification_status,is_active')
         .in('id', sellerIds)
         .eq('is_active', true)
         .eq('verification_status', 'verified'),
@@ -101,7 +98,7 @@ export default function VendorsPage() {
       const locationProduct = sellerProducts.find((row) => row.origin_city || row.origin_state);
       return {
         id: profile.id,
-        name: profile.store_name || profile.display_name || profile.legal_business_name || 'Verified FabricTrad Seller',
+        name: profile.display_name || profile.legal_business_name || 'Verified FabricTrad Seller',
         city: locationProduct?.origin_city || '',
         state: locationProduct?.origin_state || '',
         type: profile.business_type || 'Seller',
@@ -111,9 +108,6 @@ export default function VendorsPage() {
         products: sellerProducts.length,
         verified: profile.verification_status === 'verified',
         gstinVerified: profile.gstin_status === 'active' || profile.gstin_verified === true,
-        isEarlyBird: profile.is_early_bird === true,
-        earlyBirdRank: profile.early_bird_rank ?? null,
-        storeHandle: profile.store_handle || null,
         image: sellerProducts.find((row) => row.image_url)?.image_url || null,
         dispatchDays: dispatchValues.length ? Math.min(...dispatchValues) : null,
       } satisfies LiveVendor;
@@ -220,7 +214,7 @@ export default function VendorsPage() {
             ) : visibleVendors.length ? (
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
                 {visibleVendors.map((vendor) => (
-                  <Link key={vendor.id} href={vendor.storeHandle ? `/store/${vendor.storeHandle}` : `/marketplace?search=${encodeURIComponent(vendor.name)}`} className="ft-resource-card group p-5 sm:p-6">
+                  <Link key={vendor.id} href={`/marketplace?search=${encodeURIComponent(vendor.name)}`} className="ft-resource-card group p-5 sm:p-6">
                     <div className="flex items-start gap-4">
                       <div className="ft-resource-image relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-muted">
                         {vendor.image ? (
@@ -234,11 +228,6 @@ export default function VendorsPage() {
                           {vendor.verified && (
                             <span className="ft-badge ft-badge--success">
                               <Icon name="CheckBadgeIcon" size={13} /> Verified seller
-                            </span>
-                          )}
-                          {vendor.isEarlyBird && (
-                            <span className="ft-badge ft-badge--warning">
-                              <Icon name="SparklesIcon" size={13} /> Founding seller
                             </span>
                           )}
                           {vendor.gstinVerified && <span className="ft-orange-chip">GSTIN verified</span>}

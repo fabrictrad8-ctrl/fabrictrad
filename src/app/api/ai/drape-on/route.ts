@@ -109,6 +109,17 @@ class DrapeClientError extends Error {
   }
 }
 
+const safeInteger = (
+  value: string | undefined,
+  fallback: number,
+  minimum: number,
+  maximum: number
+) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(maximum, Math.max(minimum, Math.floor(parsed)));
+};
+
 const allowedRemoteHosts = () => {
   const configured = (process.env.AI_IMAGE_SOURCE_HOSTS || '')
     .split(',')
@@ -677,22 +688,16 @@ export async function POST(request: NextRequest) {
     }
     const fabricReference = await resolveListingFabric(createAdminClient(), body.productId, body.variantId);
 
-    // Virtual Drape is a metered feature: 3 free lifetime trials per buyer, then
-    // purchased credit packs (see /api/drape/credits/*). This consumes one unit
-    // up front and is not refunded if generation later fails, matching how the
-    // credit is already spent the moment FabricTrad commits to calling the paid
-    // image-generation provider.
-    const { data: creditResult, error: creditError } = await supabase.rpc('consume_drape_credit');
-    if (creditError) {
-      console.error('AI drape credit check unavailable', { code: creditError.code });
+    const { data: quotaAllowed, error: quotaError } = await supabase.rpc('consume_api_quota', {
+      p_feature: 'ai_drape',
+      p_daily_limit: safeInteger(process.env.AI_DRAPE_DAILY_LIMIT, 10, 1, 100),
+    });
+    if (quotaError) {
+      console.error('AI drape quota unavailable', { code: quotaError.code });
       throw new DrapeClientError('AI try-on is temporarily unavailable. Please retry later.', 503, 'AI_QUOTA_UNAVAILABLE');
     }
-    if (creditResult?.allowed !== true) {
-      throw new DrapeClientError(
-        'No Virtual Drape credits remaining. Buy a credit pack to keep generating try-ons.',
-        402,
-        'NO_DRAPE_CREDITS'
-      );
+    if (quotaAllowed !== true) {
+      throw new DrapeClientError('Daily AI image limit reached.', 429, 'AI_DAILY_LIMIT_REACHED');
     }
 
     console.info('AI drape preparing references', {

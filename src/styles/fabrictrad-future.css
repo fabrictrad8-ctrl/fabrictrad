@@ -21,8 +21,7 @@
 }
 
 html { scroll-behavior: smooth; }
-html:not(.dark) body.ft-root { background: #f5f7fb; }
-.dark body.ft-root { background: var(--background); }
+body.ft-root { background: #f5f7fb; }
 
 .ft-root :where(button, a, input, select, textarea) {
   transition: border-color .18s ease, background-color .18s ease, color .18s ease, box-shadow .18s ease, transform .18s ease, opacity .18s ease;
@@ -254,8 +253,8 @@ html:not(.dark) body.ft-root { background: #f5f7fb; }
 .dark .ft-admin-sidebar,.dark .ft-admin-sidebar>div { background:#0f1825 !important; }
 .ft-admin-sidebar nav button { min-height:40px !important; border-radius:10px !important; }
 .ft-admin-sidebar nav button:hover { transform:translateX(2px); }
-.ft-glass-card,.ft-setup-guide,.ft-admin-main :where(section,article) { border-radius:16px !important; box-shadow:0 5px 20px rgba(15,23,42,.045); }
-.dark .ft-glass-card,.dark .ft-setup-guide { box-shadow:none; }
+.ft-shopify-card,.ft-setup-guide,.ft-admin-main :where(section,article) { border-radius:16px !important; box-shadow:0 5px 20px rgba(15,23,42,.045); }
+.dark .ft-shopify-card,.dark .ft-setup-guide { box-shadow:none; }
 .ft-admin-page-title { letter-spacing:-.035em !important; }
 
 /* ---------- Forms, tables and cards site-wide ---------- */

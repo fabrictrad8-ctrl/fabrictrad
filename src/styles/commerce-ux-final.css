@@ -260,7 +260,7 @@ a[href='/wishlist'],
   display: none !important;
 }
 
-/* ---------- Seller admin: dense information hierarchy ---------- */
+/* ---------- Seller admin: Shopify-style information density and hierarchy ---------- */
 .ft-admin-shell.ft-seller-admin {
   background: #f6f6f7 !important;
 }
@@ -294,7 +294,7 @@ a[href='/wishlist'],
   background: #f6f6f7 !important;
 }
 
-.ft-seller-admin .ft-glass-card,
+.ft-seller-admin .ft-shopify-card,
 .ft-seller-admin [class*='rounded-3xl'][class*='bg-card'] {
   border-color: #dedfe2 !important;
   border-radius: 12px !important;

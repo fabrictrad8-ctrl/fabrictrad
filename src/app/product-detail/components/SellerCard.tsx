@@ -36,7 +36,7 @@ export default function SellerCard() {
 
         <div className="mb-4 flex items-center gap-2 rounded-xl bg-muted p-2.5">
           <Icon name="DocumentTextIcon" size={14} className="shrink-0 text-primary" />
-          <div><p className="text-xs font-700 text-foreground">GST-ready marketplace listing</p><p className="text-xs text-muted-foreground">Contact details stay private — message the seller through FabricTrad chat.</p></div>
+          <div><p className="text-xs font-700 text-foreground">GST-ready marketplace listing</p><p className="text-xs text-muted-foreground">Seller identity is protected until an order is confirmed.</p></div>
         </div>
 
         <button type="button" onClick={() => setShowChat(true)} className="btn-primary mb-2 flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-xs"><Icon name="ChatBubbleLeftRightIcon" size={14} />Chat with Seller</button>
@@ -46,13 +46,11 @@ export default function SellerCard() {
 
       {showChat && (
         <InWebsiteChat
-          contextType="product_inquiry"
           contextId={`product-${product.id}`}
           contextTitle={product.name}
           otherPartyName={product.seller}
           otherPartyAvatar={product.images?.[0] || ''}
           currentUserRole="buyer"
-          sellerProfileId={product.sellerId || undefined}
           onClose={() => setShowChat(false)}
         />
       )}

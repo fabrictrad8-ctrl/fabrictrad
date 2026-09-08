@@ -20,7 +20,6 @@ type InventoryProduct = {
   category: string;
   description: string | null;
   price_per_unit: number;
-  compare_at_price: number | null;
   unit: string;
   unit_label?: string | null;
   available_quantity: number;
@@ -52,7 +51,6 @@ type ProductForm = {
   category: string;
   description: string;
   pricePerUnit: number;
-  compareAtPrice: number | null;
   unitLabel: string;
   availableQuantity: number;
   minStock: number;
@@ -94,7 +92,6 @@ const blankProduct: ProductForm = {
   category: 'Cotton',
   description: '',
   pricePerUnit: 0,
-  compareAtPrice: null,
   unitLabel: 'metre',
   availableQuantity: 0,
   minStock: 0,
@@ -151,7 +148,6 @@ function formFromProduct(product: InventoryProduct): ProductForm {
     category: product.category || 'Other',
     description: product.description || '',
     pricePerUnit: Number(product.price_per_unit || 0),
-    compareAtPrice: product.compare_at_price == null ? null : Number(product.compare_at_price),
     unitLabel: unitDisplay(product),
     availableQuantity: Number(product.available_quantity || 0),
     minStock: Number(product.min_stock || 0),
@@ -170,31 +166,6 @@ function formFromProduct(product: InventoryProduct): ProductForm {
     endUserMinQuantity: Number(product.end_user_min_quantity ?? 1),
     endUserMaxQuantity: product.end_user_max_quantity == null ? null : Number(product.end_user_max_quantity),
   };
-}
-
-const CSV_TEMPLATE_COLUMNS = [
-  'name', 'sku', 'category', 'description', 'price', 'unit', 'available', 'min_stock', 'moq',
-  'gsm', 'width', 'work_type', 'image_url', 'image_urls', 'dispatch_days', 'origin_city', 'origin_state',
-  'status', 'sale_channel', 'retail_store_min_quantity', 'retail_store_max_quantity',
-  'end_user_min_quantity', 'end_user_max_quantity', 'hsn_code', 'gst_rate', 'price_includes_gst',
-  'gtin', 'brand_name', 'manufacturer_name', 'country_of_origin', 'fabric_name', 'quality',
-  'product_type', 'package_format',
-];
-const CSV_TEMPLATE_EXAMPLE = [
-  'Cotton Voile Print', 'FT-CV-001', 'Cotton', 'Soft printed cotton voile', '145', 'metre', '500', '20', '10',
-  '120', '44', 'Printed', 'https://example.com/image1.jpg', 'https://example.com/image1.jpg|https://example.com/image2.jpg',
-  '3', 'Surat', 'Gujarat', 'active', 'both', '10', '', '1', '', '5208', '5', 'false', '', '', '', 'India', 'Voile', 'Premium', 'Fabric', 'Fabric Only',
-];
-
-function downloadCsvTemplate() {
-  const csv = `${CSV_TEMPLATE_COLUMNS.join(',')}\n${CSV_TEMPLATE_EXAMPLE.map((value) => (value.includes(',') ? `"${value}"` : value)).join(',')}\n`;
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = 'fabrictrad-product-import-template.csv';
-  link.click();
-  URL.revokeObjectURL(url);
 }
 
 function parseCsvLine(line: string) {
@@ -322,7 +293,6 @@ export default function SellerInventory() {
     if (!form.name.trim() || !form.sku.trim()) return 'Product name and SKU are required.';
     if (!form.category.trim()) return 'Choose or enter a category.';
     if (form.pricePerUnit <= 0) return 'Price must be greater than zero.';
-    if (form.compareAtPrice !== null && form.compareAtPrice <= form.pricePerUnit) return 'The "was" price must be higher than the current price for a discount to show.';
     if (form.availableQuantity < 0 || form.minStock < 0) return 'Stock values cannot be negative.';
     if (form.moq < 1) return 'MOQ must be at least one.';
     if (!form.unitLabel.trim()) return 'Enter the stock measurement unit.';
@@ -352,7 +322,6 @@ export default function SellerInventory() {
           category: form.category.trim(),
           description: form.description.trim() || null,
           price_per_unit: form.pricePerUnit,
-          compare_at_price: form.compareAtPrice,
           unit: unitCode(form.unitLabel),
           unit_label: form.unitLabel.trim(),
           available_quantity: form.availableQuantity,
@@ -429,11 +398,6 @@ export default function SellerInventory() {
         const saleChannel: SaleChannel = row.sale_channel === 'retail' || row.sale_channel === 'both' ? row.sale_channel : 'b2b';
         const moq = Math.max(1, Number(row.moq));
         const personalEnabled = saleChannel !== 'b2b';
-        const imageUrls = row.image_urls
-          ? row.image_urls.split(/[|;]/).map((url) => url.trim()).filter(Boolean)
-          : row.image_url
-            ? [row.image_url]
-            : [];
         return {
           seller_id: sellerId,
           name: row.name,
@@ -450,8 +414,7 @@ export default function SellerInventory() {
           gsm: row.gsm ? Number(row.gsm) : null,
           width_inches: row.width ? Number(row.width) : null,
           work_type: row.work_type || 'Plain',
-          image_url: row.image_url || imageUrls[0] || null,
-          image_urls: imageUrls,
+          image_url: row.image_url || null,
           dispatch_days: Number(row.dispatch_days || 3),
           origin_city: row.origin_city || profile?.city || null,
           origin_state: row.origin_state || profile?.state || null,
@@ -463,19 +426,6 @@ export default function SellerInventory() {
           end_user_limit_mode: personalEnabled ? 'custom' : 'disabled',
           end_user_min_quantity: personalEnabled ? Number(row.end_user_min_quantity || 1) : null,
           end_user_max_quantity: personalEnabled && row.end_user_max_quantity ? Number(row.end_user_max_quantity) : null,
-          // Tax/compliance columns: without these, bulk-imported products fall back to
-          // hsn_code = null and gst_rate = 5%, which produces incomplete tax invoices.
-          hsn_code: row.hsn_code || null,
-          gst_rate: row.gst_rate ? Number(row.gst_rate) : 5,
-          price_includes_gst: row.price_includes_gst?.toLowerCase() === 'true',
-          gtin: row.gtin || null,
-          brand_name: row.brand_name || null,
-          manufacturer_name: row.manufacturer_name || null,
-          country_of_origin: row.country_of_origin || 'India',
-          fabric_name: row.fabric_name || null,
-          quality: row.quality || null,
-          product_type: row.product_type || null,
-          package_format: row.package_format || 'Fabric Only',
         };
       });
 
@@ -506,9 +456,6 @@ export default function SellerInventory() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <input ref={csvInputRef} type="file" accept=".csv,text/csv" onChange={importCsv} className="hidden" />
-          <button type="button" onClick={downloadCsvTemplate} className="ft-secondary-action flex items-center gap-2 px-3 py-2 text-xs">
-            <Icon name="ArrowDownTrayIcon" size={14} /> CSV template
-          </button>
           <button type="button" onClick={() => csvInputRef.current?.click()} className="ft-secondary-action flex items-center gap-2 px-3 py-2 text-xs">
             <Icon name="ArrowUpTrayIcon" size={14} /> Import CSV
           </button>
@@ -583,15 +530,7 @@ export default function SellerInventory() {
                     <td className="px-4 py-3"><span className={`rounded-full px-2.5 py-1 text-xs font-750 ${product.sale_channel === 'both' ? 'bg-success/10 text-success' : 'bg-muted text-muted-foreground'}`}>{buyerLabel}</span></td>
                     <td className="px-4 py-3 text-right">{available.toLocaleString('en-IN')} {displayUnit}</td>
                     <td className="px-4 py-3 text-right text-warning">{Number(product.reserved_quantity || 0).toLocaleString('en-IN')}</td>
-                    <td className="px-4 py-3 text-right font-750">
-                      <div>₹{Number(product.price_per_unit || 0).toLocaleString('en-IN')}/{displayUnit}</div>
-                      {!!product.compare_at_price && product.compare_at_price > product.price_per_unit && (
-                        <div className="mt-0.5 flex items-center justify-end gap-1 text-[11px] font-700 text-success">
-                          <span className="text-muted-foreground line-through">₹{Number(product.compare_at_price).toLocaleString('en-IN')}</span>
-                          {Math.round((1 - product.price_per_unit / product.compare_at_price) * 100)}% off
-                        </div>
-                      )}
-                    </td>
+                    <td className="px-4 py-3 text-right font-750">₹{Number(product.price_per_unit || 0).toLocaleString('en-IN')}/{displayUnit}</td>
                     <td className="px-4 py-3 text-center"><span className={`ft-badge ${product.status === 'active' ? 'ft-badge--success' : product.status === 'draft' ? 'ft-badge--warning' : ''}`}>{product.status}</span></td>
                     <td className="px-4 py-3"><div className="flex justify-center gap-1">{shareable && <><ProductShareButton productId={product.id} productName={product.name} compact /><a href={`/product-detail?id=seller-${encodeURIComponent(product.id)}`} target="_blank" rel="noreferrer" className="ft-icon-button !min-h-9 !min-w-9" aria-label={`Open ${product.name}`}><Icon name="ArrowTopRightOnSquareIcon" size={15} /></a></>}<button type="button" onClick={() => openEdit(product)} className="ft-icon-button !min-h-9 !min-w-9" aria-label={`Edit ${product.name}`}><Icon name="PencilSquareIcon" size={15} /></button>{product.status !== 'archived' && <button type="button" onClick={() => void updateProductStatus([product.id], 'archived')} className="ft-icon-button !min-h-9 !min-w-9 hover:!text-error" aria-label={`Archive ${product.name}`}><Icon name="ArchiveBoxXMarkIcon" size={15} /></button>}</div></td>
                   </tr>
@@ -603,9 +542,8 @@ export default function SellerInventory() {
       </div>
 
       {modalOpen && editingId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4" role="dialog" aria-modal="true" aria-label="Update product">
-          <button type="button" className="absolute inset-0" onClick={() => !saving && setModalOpen(false)} aria-label="Close product editor" />
-          <div className="relative z-10 max-h-[94vh] w-full max-w-4xl overflow-y-auto rounded-2xl border border-border bg-card p-5 shadow-2xl sm:p-6">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4" onClick={() => !saving && setModalOpen(false)}>
+          <div className="max-h-[94vh] w-full max-w-4xl overflow-y-auto rounded-2xl border border-border bg-card p-5 shadow-2xl sm:p-6" onClick={(event) => event.stopPropagation()}>
             <div className="mb-5 flex items-start justify-between gap-3"><div><p className="ft-route-kicker">Product editor</p><h2 className="mt-1 text-xl font-800">Update product</h2><p className="mt-1 text-xs leading-5 text-muted-foreground">Category choices are visible here, and buyer access is editable on the same screen.</p></div><button type="button" onClick={() => setModalOpen(false)} className="ft-icon-button"><Icon name="XMarkIcon" size={18} /></button></div>
 
             <form onSubmit={saveProduct} className="space-y-5">
@@ -617,7 +555,6 @@ export default function SellerInventory() {
                   <label className="text-sm font-700">Category *<select value={CATEGORY_OPTIONS.includes(form.category) ? form.category : '__custom'} onChange={(event) => setForm({ ...form, category: event.target.value === '__custom' ? '' : event.target.value })} className="input-base mt-1.5 w-full px-3 py-2.5">{CATEGORY_OPTIONS.map((category) => <option key={category} value={category}>{category}</option>)}<option value="__custom">Custom category…</option></select>{!CATEGORY_OPTIONS.includes(form.category) && <input autoFocus value={form.category} onChange={(event) => setForm({ ...form, category: event.target.value })} className="input-base mt-2 w-full px-3 py-2.5" placeholder="Type your category" />}</label>
                   <label className="text-sm font-700">Work type / finish<input list="inventory-work-suggestions" value={form.workType} onChange={(event) => setForm({ ...form, workType: event.target.value })} className="input-base mt-1.5 w-full px-3 py-2.5" placeholder="Plain, print, zari, embroidery…" /></label>
                   <label className="text-sm font-700">Price *<input required type="number" min="0.01" step="0.01" value={form.pricePerUnit || ''} onChange={(event) => setForm({ ...form, pricePerUnit: Number(event.target.value) })} className="input-base mt-1.5 w-full px-3 py-2.5" /></label>
-                  <label className="text-sm font-700">&quot;Was&quot; price <span className="font-500 text-muted-foreground">(optional — shows a public discount)</span><input type="number" min="0.01" step="0.01" value={form.compareAtPrice ?? ''} onChange={(event) => setForm({ ...form, compareAtPrice: event.target.value ? Number(event.target.value) : null })} className="input-base mt-1.5 w-full px-3 py-2.5" placeholder="Leave blank for no discount" />{form.compareAtPrice !== null && form.compareAtPrice > form.pricePerUnit && form.pricePerUnit > 0 && <span className="mt-1 block text-xs font-700 text-success">{Math.round((1 - form.pricePerUnit / form.compareAtPrice) * 100)}% off will show to buyers</span>}</label>
                   <label className="text-sm font-700">Measurement unit *<input required list="inventory-unit-suggestions" value={form.unitLabel} onChange={(event) => setForm({ ...form, unitLabel: event.target.value })} className="input-base mt-1.5 w-full px-3 py-2.5" /></label>
                   <label className="text-sm font-700">Available stock *<input required type="number" min="0" step="0.01" value={form.availableQuantity} onChange={(event) => setForm({ ...form, availableQuantity: Number(event.target.value) })} className="input-base mt-1.5 w-full px-3 py-2.5" /></label>
                   <label className="text-sm font-700">Minimum stock alert<input type="number" min="0" step="0.01" value={form.minStock} onChange={(event) => setForm({ ...form, minStock: Number(event.target.value) })} className="input-base mt-1.5 w-full px-3 py-2.5" /></label>

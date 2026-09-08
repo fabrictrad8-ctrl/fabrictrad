@@ -24,24 +24,6 @@ const PUBLIC_PATHS = new Set([
 ]);
 const AUTH_ENTRY_PATHS = new Set(['/', '/login', '/admin-login', '/register', '/buyer-registration']);
 
-// Strict role separation: a seller account never shops the marketplace, and a
-// buyer account never gets a seller workspace. These are the buyer-only
-// commerce surfaces a seller-role account must be redirected away from.
-const BUYER_ONLY_PATH_PREFIXES = [
-  '/marketplace',
-  '/product-detail',
-  '/cart',
-  '/categories',
-  '/vendors',
-  '/store',
-  '/custom-order',
-  '/company-purchasing',
-  '/catalogs-pricing',
-  '/buyer-agreement',
-];
-const isBuyerOnlyPath = (pathname: string) =>
-  BUYER_ONLY_PATH_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
-
 const withRefreshedCookies = (target: NextResponse, source: NextResponse) => {
   source.cookies.getAll().forEach(({ name, value }) => target.cookies.set(name, value));
   return target;
@@ -115,15 +97,12 @@ export async function middleware(request: NextRequest) {
   }
 
   if (demoRole) {
+    const canBuy = true;
     const canSell = demoRole === 'seller';
-    const canBuy = !canSell;
     if (isAdminApi) return adminApiError('Administrator access required.', 403);
-    if (AUTH_ENTRY_PATHS.has(pathname) && !isBuyerRegistrationResume) {
-      return redirect(request, canSell ? '/seller-dashboard' : '/marketplace');
-    }
-    if (pathname.startsWith('/admin-portal')) return redirect(request, canSell ? '/seller-dashboard' : '/marketplace');
+    if (AUTH_ENTRY_PATHS.has(pathname) && !isBuyerRegistrationResume) return redirect(request, '/marketplace');
+    if (pathname.startsWith('/admin-portal')) return redirect(request, '/marketplace');
     if (pathname.startsWith('/seller-dashboard') && !canSell) return redirect(request, '/seller-registration');
-    if (isBuyerOnlyPath(pathname) && !canBuy) return redirect(request, '/seller-dashboard');
     if ((pathname.startsWith('/buyer-dashboard') || pathname.startsWith('/buyer-requirements')) && !canBuy) {
       return redirect(request, '/marketplace');
     }
@@ -217,24 +196,11 @@ export async function middleware(request: NextRequest) {
       : '/marketplace';
     return withRefreshedCookies(redirect(request, destination), response);
   }
-  // Strict role separation: an existing buyer account can never pivot into a
-  // seller workspace in place. Selling requires a separate FabricTrad login.
-  if (pathname.startsWith('/seller-registration') && canBuy && !canSell) {
-    return withRefreshedCookies(redirect(request, '/marketplace'), response);
-  }
   if (pathname.startsWith('/seller-dashboard') && !canSell) {
     return withRefreshedCookies(redirect(request, '/seller-registration'), response);
   }
-  if (isBuyerOnlyPath(pathname) && !hasAdminRole && !canBuy) {
-    return withRefreshedCookies(redirect(request, canSell ? '/seller-dashboard' : '/login'), response);
-  }
   if ((pathname.startsWith('/buyer-dashboard') || pathname.startsWith('/buyer-requirements')) && !canBuy) {
     return withRefreshedCookies(redirect(request, '/marketplace'), response);
-  }
-  // Strict role separation: a seller account never gets routed into buyer
-  // registration/upgrade to add buying on top of an existing seller login.
-  if (pathname === '/buyer-registration' && canSell) {
-    return withRefreshedCookies(redirect(request, '/seller-dashboard'), response);
   }
   return response;
 }

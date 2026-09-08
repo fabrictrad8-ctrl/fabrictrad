@@ -25,13 +25,8 @@ export default function BuyerWishlist() {
       </div>
 
       {loading && (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3" aria-hidden="true">
-          {Array.from({ length: 3 }).map((_, index) => (
-            <div key={index} className="animate-pulse overflow-hidden rounded-2xl border border-border bg-card">
-              <div className="aspect-square bg-muted" />
-              <div className="space-y-2 p-4"><div className="h-3 w-2/3 rounded bg-muted" /><div className="h-4 w-full rounded bg-muted" /><div className="h-8 w-full rounded-xl bg-muted" /></div>
-            </div>
-          ))}
+        <div className="rounded-2xl border border-border bg-card px-5 py-12 text-center">
+          <span className="mx-auto block h-7 w-7 animate-spin rounded-full border-2 border-primary border-t-transparent" />
         </div>
       )}
 

@@ -26,8 +26,6 @@ html:not(.dark) body.ft-root {
   --ft-line: #dce2eb;
   --ft-orange: #b65a24;
   --ft-orange-strong: #944315;
-  --ft-gold: #c9a24b;
-  --ft-gold-strong: #a9812f;
   font-size: 16px;
 }
 .ft-language-picker { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; min-height: 44px; padding-inline: 10px; border: 1px solid var(--border); border-radius: 10px; background: #fff; }
@@ -37,36 +35,28 @@ html:not([lang='en']) .ft-root :where(h1, h2, h3, h4, p, label, button, a, span)
 html:not([lang='en']) .ft-root :where(h1, h2, h3) { line-height: 1.4 !important; }
 html:not(.dark) .ft-root :where(input, textarea)::placeholder { color: #68758a; }
 html:not(.dark) .ft-root :where(input, select, textarea):focus-visible { border-color: #233f69 !important; box-shadow: 0 0 0 3px rgb(35 63 105 / .12) !important; }
+html:not(.dark) .ft-showroom { background: #fbfaf7 !important; }
+html:not(.dark) .ft-showroom::before { display: none !important; }
+html:not(.dark) .ft-showroom .ft-future-nav { background: rgb(255 255 255 / .96) !important; border-radius: 16px !important; box-shadow: 0 4px 24px rgb(23 39 65 / .05) !important; }
 .ft-showroom .ft-future-hero { width: min(1320px, calc(100% - 64px)); min-height: 0 !important; padding-top: clamp(120px, 10vw, 160px) !important; padding-bottom: clamp(36px, 5vw, 80px) !important; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important; gap: clamp(28px, 4vw, 64px) !important; align-items: center; }
-.ft-showroom .ft-future-hero h1 { font-size: clamp(44px, 5vw, 88px) !important; line-height: 1.02 !important; letter-spacing: -.045em; }
+html:not(.dark) .ft-showroom .ft-future-kicker { padding: 0 !important; border: 0 !important; background: transparent !important; color: #8b461c !important; font-size: 14px !important; line-height: 1.6; letter-spacing: .025em; }
+.ft-showroom .ft-future-hero h1 { font-size: clamp(40px, 4.4vw, 66px) !important; line-height: 1.1 !important; letter-spacing: -.045em; }
+html:not(.dark) .ft-showroom .ft-future-hero h1 em { color: #9b4b1f !important; background: none !important; -webkit-text-fill-color: currentColor !important; font-style: normal; }
 .ft-showroom .ft-future-hero-copy { font-size: 17px !important; line-height: 1.8 !important; max-width: 58ch; }
 html:not(.dark) .ft-root .ft-primary-action { background: #233f69 !important; color: #fff !important; border: 1px solid #233f69 !important; box-shadow: 0 4px 12px rgb(35 63 105 / .12) !important; }
 html:not(.dark) .ft-root .ft-primary-action:hover { background: #172e50 !important; }
 html:not(.dark) .ft-root .ft-secondary-action { color: #233f69 !important; background: #fff !important; border: 1px solid #cad3df !important; }
-/* The navy CTA above is the sitewide default (marketplace, dashboards), but
-   reads flat against the dark showroom/auth backgrounds, which keep the
-   warmer gradient CTA already defined in fabrictrad-future.css instead. */
-html:not(.dark) .ft-showroom .ft-primary-action,
-html:not(.dark) .ft-auth-page .ft-primary-action { background: linear-gradient(135deg, var(--ft-future-orange, #e7602b), #d64918) !important; border: 1px solid rgba(162,53,13,.18) !important; box-shadow: 0 10px 28px rgba(231,96,43,.24) !important; }
-html:not(.dark) .ft-showroom .ft-primary-action:hover,
-html:not(.dark) .ft-auth-page .ft-primary-action:hover { background: linear-gradient(135deg, #ff965f, var(--ft-future-orange, #e7602b)) !important; }
-html:not(.dark) .ft-showroom .ft-secondary-action,
-html:not(.dark) .ft-auth-page .ft-secondary-action { color: #f5f3ef !important; background: rgba(255,255,255,.08) !important; border: 1px solid rgba(255,255,255,.16) !important; }
 .ft-textile-visual { position: relative; width: 100%; min-height: 450px; aspect-ratio: 1.15; overflow: hidden; border-radius: 22px; background: #233f69; box-shadow: 0 24px 56px rgb(23 39 65 / .14); }
 .ft-textile-image { object-fit: cover; }
-.ft-tilt-wrap { position: relative; width: 100%; height: 100%; perspective: 1200px; }
-.ft-tilt-image-layer { position: relative; width: 100%; height: 100%; transform-style: preserve-3d; will-change: transform; transition: transform .2s ease-out; border-radius: inherit; overflow: hidden; }
-.ft-tilt-caption-layer { position: absolute; inset: auto 20px 20px; z-index: 2; will-change: transform; transition: transform .2s ease-out; }
-.ft-textile-caption { display: flex; gap: 14px; align-items: center; padding: 20px; border-radius: 12px; background: rgba(15, 20, 30, .82); backdrop-filter: blur(16px); color: #f5f3ef; box-shadow: 0 8px 30px rgb(0 0 0 / .35); border: 1px solid rgba(255,255,255,.10); }
-@media (prefers-reduced-motion: reduce) {
-  .ft-tilt-image-layer, .ft-tilt-caption-layer { transition: none !important; }
-}
-.ft-textile-caption svg { flex-shrink: 0; color: var(--ft-gold, #c9a24b); }
+.ft-textile-caption { position: absolute; inset: auto 20px 20px; display: flex; gap: 14px; align-items: center; padding: 20px; border-radius: 12px; background: #fff; color: #172741; box-shadow: 0 8px 30px rgb(0 0 0 / .1); }
+.ft-textile-caption svg { flex-shrink: 0; color: #9b4b1f; }
 .ft-textile-caption strong { font-size: 17px; }
-.ft-textile-caption p { margin-top: 4px; font-size: 14px; line-height: 1.6; color: #b7c0cf; }
+.ft-textile-caption p { margin-top: 4px; font-size: 14px; line-height: 1.6; color: #526078; }
 .ft-showroom .ft-future-trustline { flex-wrap: wrap; gap: 12px 20px; font-size: 14px; }
 .ft-showroom :where(.text-xs) { font-size: 14px !important; line-height: 1.6; }
 .ft-showroom :where(section p.text-sm, .ft-future-panel p) { font-size: 16px !important; line-height: 1.75; }
+html:not(.dark) .ft-showroom .ft-future-panel { border-radius: 16px !important; box-shadow: none !important; background: #fff !important; }
+html:not(.dark) .ft-showroom .ft-future-panel-icon { background: #eef2f8 !important; color: #233f69 !important; }
 @media (max-width: 1000px) { .ft-showroom .ft-future-navlinks { display: none !important; } }
 @media (max-width: 900px) {
   .ft-showroom .ft-future-hero { grid-template-columns: minmax(0, 1fr) !important; width: calc(100% - 40px); }
@@ -140,15 +130,7 @@ html:not(.dark) .ft-auth-page .ft-secondary-action { color: #f5f3ef !important; 
   }
   to {
     opacity: 1;
-    /* Must be `none`, not `translateY(0)` — any non-none transform value,
-       even a visual no-op, creates a new containing block for descendant
-       `position: fixed` elements. Since this class wraps the entire routed
-       page and animation-fill-mode:both keeps the "to" keyframe applied
-       forever after the animation ends, `translateY(0)` here silently
-       broke every fixed-position element on every page (bottom tab bars,
-       overlays, floating widgets) — they anchored to this wrapper's
-       scrollable height instead of the real viewport. */
-    transform: none;
+    transform: translateY(0);
   }
 }
 
@@ -231,8 +213,7 @@ html:not(.dark) .ft-auth-page .ft-secondary-action { color: #f5f3ef !important; 
   }
   to {
     opacity: 1;
-    /* `none`, not translateY(0) scale(1) — see ft-route-enter above. */
-    transform: none;
+    transform: translateY(0) scale(1);
   }
 }
 
@@ -394,276 +375,6 @@ html:not(.dark) .ft-auth-page .ft-secondary-action { color: #f5f3ef !important; 
   .dashboard-card:hover,
   .stat-card:hover,
   .ft-root :where(button, .ft-primary-action, .ft-secondary-action, .btn-primary):active {
-    transform: none !important;
-  }
-
-  .ft-root :where(.btn-primary, .ft-primary-action)::before {
-    display: none !important;
-  }
-}
-
-/* ---------- Premium primary-action treatment ---------- */
-/* A restrained shine sweep + lift + tinted glow on primary CTAs, so the most
-   important click on any screen reads as deliberately crafted rather than a
-   flat default button. Disabled above under prefers-reduced-motion. */
-.ft-root :where(.btn-primary, .ft-primary-action) {
-  position: relative;
-  overflow: hidden;
-  isolation: isolate;
-  box-shadow: 0 1px 0 rgb(255 255 255 / 0.14) inset, 0 10px 24px -12px color-mix(in srgb, var(--primary) 65%, transparent);
-}
-
-.ft-root :where(.btn-primary, .ft-primary-action)::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  background: linear-gradient(115deg, transparent 20%, rgb(255 255 255 / 0.28) 40%, rgb(255 255 255 / 0.05) 52%, transparent 70%);
-  transform: translateX(-120%);
-  pointer-events: none;
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .ft-root :where(.btn-primary, .ft-primary-action):hover {
-    transform: translateY(-1.5px);
-    box-shadow: 0 1px 0 rgb(255 255 255 / 0.18) inset, 0 16px 32px -14px color-mix(in srgb, var(--primary) 75%, transparent);
-  }
-
-  .ft-root :where(.btn-primary, .ft-primary-action):hover::before {
-    transform: translateX(120%);
-    transition: transform 620ms var(--ft-ease-emphasized);
-  }
-}
-
-.ft-root :where(.btn-primary, .ft-primary-action):active:not(:disabled) {
-  transform: translateY(0.5px) scale(0.98);
-  box-shadow: 0 1px 0 rgb(255 255 255 / 0.1) inset, 0 6px 14px -10px color-mix(in srgb, var(--primary) 60%, transparent);
-}
-
-/* Amazon-style add-to-cart CTA on marketplace cards gets its own subtler gold sheen
-   rather than the navy glow above, since its background is already bright yellow. */
-.ft-root .ft-add-cart-action {
-  position: relative;
-  overflow: hidden;
-  isolation: isolate;
-  transition: transform var(--ft-motion-fast) var(--ft-ease-standard), box-shadow var(--ft-motion-fast) ease;
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .ft-root .ft-add-cart-action:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 10px 22px -12px rgb(180 131 0 / 0.55);
-  }
-}
-
-.ft-root .ft-add-cart-action:active:not(:disabled) {
-  transform: translateY(0.5px) scale(0.97);
-}
-
-/* A brief success pulse, toggled via JS by adding/removing this class after a
-   cart mutation succeeds — confirms the click landed without a toast alone. */
-@keyframes ft-cart-success-pulse {
-  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--success, #1f9d55) 55%, transparent); }
-  100% { box-shadow: 0 0 0 14px color-mix(in srgb, var(--success, #1f9d55) 0%, transparent); }
-}
-.ft-cart-success {
-  animation: ft-cart-success-pulse 620ms var(--ft-ease-standard);
-}
-
-/* Premium gold focus/hover accent, reserved for verified/premium badges and
-   the rare "this is special" affordance rather than default interactive chrome. */
-.ft-premium-accent {
-  border-color: color-mix(in srgb, var(--ft-gold) 55%, var(--ft-line)) !important;
-  background: linear-gradient(135deg, color-mix(in srgb, var(--ft-gold) 16%, white), color-mix(in srgb, var(--ft-gold) 4%, white)) !important;
-  color: var(--ft-gold-strong) !important;
-}
-
-/* Product image zoom-on-hover for marketplace and product-detail galleries. */
-@media (hover: hover) and (pointer: fine) {
-  .ft-zoom-on-hover {
-    overflow: hidden;
-  }
-  .ft-zoom-on-hover img {
-    transition: transform 480ms var(--ft-ease-emphasized);
-  }
-  .ft-zoom-on-hover:hover img {
-    transform: scale(1.06);
-  }
-}
-
-/* ---------- Premium dashboard shell: seller / admin / buyer portals ---------- */
-/* These three portals share one flat, utilitarian shell (.ft-admin-*). A single
-   restrained lift here — depth on the header, a gold accent marking exactly
-   where you are in the sidebar, cards that respond to hover — reads as
-   deliberately crafted across all three surfaces at once. */
-.ft-admin-header {
-  background: linear-gradient(180deg, rgb(255 255 255 / .98), rgb(255 255 255 / .92)) !important;
-  box-shadow: 0 1px 0 rgb(15 23 42 / .04), 0 14px 28px -22px rgb(15 23 42 / .22) !important;
-}
-
-.ft-admin-sidebar nav button {
-  position: relative;
-  overflow: hidden;
-  transition: background-color var(--ft-motion-medium) ease, color var(--ft-motion-fast) ease, box-shadow var(--ft-motion-medium) ease;
-}
-
-.ft-admin-sidebar nav button::before {
-  content: '';
-  position: absolute;
-  inset-block: 6px;
-  inset-inline-start: 0;
-  width: 3px;
-  border-radius: 999px;
-  background: linear-gradient(180deg, var(--ft-gold), var(--ft-gold-strong));
-  opacity: 0;
-  transform: scaleY(0.4);
-  transition: opacity var(--ft-motion-fast) ease, transform var(--ft-motion-medium) var(--ft-ease-emphasized);
-}
-
-.ft-admin-sidebar nav button[aria-current='page']::before,
-.ft-admin-sidebar nav button.is-active::before {
-  opacity: 1;
-  transform: scaleY(1);
-}
-
-.ft-admin-sidebar nav button[aria-current='page'],
-.ft-admin-sidebar nav button.is-active {
-  background: linear-gradient(90deg, color-mix(in srgb, var(--ft-gold) 14%, white), color-mix(in srgb, var(--ft-gold) 3%, white)) !important;
-  color: var(--ft-ink, #111827) !important;
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ft-gold) 32%, transparent) !important;
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .ft-admin-sidebar nav button:not([aria-current='page']):not(.is-active):hover {
-    background: color-mix(in srgb, var(--primary, #233f69) 6%, transparent) !important;
-  }
-}
-
-.ft-glass-card,
-.ft-setup-guide {
-  border-radius: 16px !important;
-  transition: box-shadow var(--ft-motion-medium) ease, border-color var(--ft-motion-medium) ease;
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .ft-admin-main .ft-glass-card:hover {
-    box-shadow: 0 20px 44px -26px rgb(15 23 42 / .18);
-    border-color: color-mix(in srgb, var(--primary, #233f69) 18%, var(--ft-line));
-  }
-}
-
-.ft-admin-toolbar-search {
-  transition: border-color var(--ft-motion-fast) ease, box-shadow var(--ft-motion-fast) ease;
-}
-
-.ft-admin-toolbar-search:focus-within {
-  border-color: color-mix(in srgb, var(--ft-gold-strong) 55%, var(--primary, #233f69)) !important;
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ft-gold) 18%, transparent) !important;
-}
-
-.dark .ft-admin-header {
-  background: linear-gradient(180deg, rgb(20 26 34 / .98), rgb(20 26 34 / .9)) !important;
-}
-
-.dark .ft-admin-sidebar nav button[aria-current='page'],
-.dark .ft-admin-sidebar nav button.is-active {
-  background: linear-gradient(90deg, color-mix(in srgb, var(--ft-gold) 20%, #171e27), color-mix(in srgb, var(--ft-gold) 4%, #171e27)) !important;
-  color: #f5f6f8 !important;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .ft-admin-sidebar nav button::before {
-    transition: none !important;
-  }
-}
-
-/* ---------- Premium secondary actions and icon buttons ---------- */
-/* Primary CTAs already got a shine sweep + lift; secondary buttons and icon
-   buttons previously just swapped color with no motion at all, so the two
-   tiers of the same interaction language felt inconsistent. */
-.ft-root :where(.ft-secondary-action, .btn-secondary) {
-  transition:
-    transform var(--ft-motion-fast) var(--ft-ease-standard),
-    border-color var(--ft-motion-fast) ease,
-    box-shadow var(--ft-motion-fast) ease,
-    background-color var(--ft-motion-fast) ease;
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .ft-root :where(.ft-secondary-action, .btn-secondary):hover {
-    transform: translateY(-1px);
-    border-color: color-mix(in srgb, var(--primary, #233f69) 42%, var(--ft-line, var(--border))) !important;
-    box-shadow: 0 8px 18px -14px color-mix(in srgb, var(--primary, #233f69) 55%, transparent);
-  }
-}
-
-.ft-root :where(.ft-secondary-action, .btn-secondary):active:not(:disabled) {
-  transform: translateY(0.5px) scale(0.985);
-}
-
-.ft-root .ft-icon-button {
-  transition:
-    transform var(--ft-motion-fast) var(--ft-ease-standard),
-    background-color var(--ft-motion-fast) ease,
-    color var(--ft-motion-fast) ease,
-    box-shadow var(--ft-motion-fast) ease;
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .ft-root .ft-icon-button:hover {
-    background: color-mix(in srgb, var(--primary, #233f69) 8%, transparent);
-    color: var(--foreground);
-    transform: translateY(-1px);
-  }
-}
-
-.ft-root .ft-icon-button:active:not(:disabled) {
-  transform: scale(0.92);
-}
-
-/* A touch of gold on the bell whenever it's carrying unread state — reuses the
-   existing "rare, special" gold language rather than inventing a new accent. */
-.ft-root .ft-icon-button:has(svg[data-icon='BellAlertIcon']) {
-  color: var(--ft-gold-strong, #a9812f);
-}
-
-/* ---------- Slightly richer page-route transition ---------- */
-/* This redefinition (same @keyframes name) is the one actually in effect —
-   later declarations of the same keyframes name fully replace earlier ones.
-   Ends on `transform: none`, not `translateY(0) scale(1)`, for the same
-   fixed-positioning reason documented on the first definition above. */
-@keyframes ft-route-enter {
-  from {
-    opacity: 0.01;
-    transform: translateY(10px) scale(0.992);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
-/* ---------- Premium dark-mode depth ---------- */
-/* Dark mode already carries a warm orange/gold accent family (kept as-is —
-   it reads correctly against a dark canvas). What was missing was layering:
-   every dark surface sat at the same flat depth. This adds a subtle vignette
-   to the canvas and a touch more separation + glow between stacked surfaces. */
-.dark body.ft-root {
-  background-image:
-    radial-gradient(circle at 12% -8%, color-mix(in srgb, var(--ft-gold, #c9a24b) 7%, transparent), transparent 38rem),
-    radial-gradient(circle at 92% 0%, color-mix(in srgb, var(--primary, #f28a3a) 8%, transparent), transparent 34rem);
-  background-attachment: fixed;
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .dark :where(.ft-card, .ft-resource-card, .product-card, .dashboard-card, .stat-card, .ft-glass-card):hover {
-    box-shadow: 0 22px 48px -22px rgb(0 0 0 / 0.55), 0 0 0 1px color-mix(in srgb, var(--ft-gold, #c9a24b) 12%, transparent) inset;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .ft-root .ft-icon-button:hover,
-  .ft-root :where(.ft-secondary-action, .btn-secondary):hover {
     transform: none !important;
   }
 }

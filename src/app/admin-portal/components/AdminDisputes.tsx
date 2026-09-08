@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import Icon from '@/components/ui/AppIcon';
 import { createClient } from '@/lib/supabase/client';
-import { pillClassForStatus } from '@/lib/statusPill';
 
 type Status = 'open' | 'under_review' | 'escalated' | 'resolved' | 'closed';
 type Message = {
@@ -42,6 +41,13 @@ type Dispute = {
 };
 
 const statusOptions: Status[] = ['open', 'under_review', 'escalated', 'resolved', 'closed'];
+const statusStyle: Record<Status, string> = {
+  open: 'bg-primary/10 text-primary',
+  under_review: 'bg-warning/10 text-warning',
+  escalated: 'bg-error/10 text-error',
+  resolved: 'bg-success/10 text-success',
+  closed: 'bg-muted text-muted-foreground',
+};
 const money = (value: unknown) =>
   new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(Number(value || 0));
 const human = (value?: string | null) =>
@@ -255,7 +261,7 @@ export default function AdminDisputes() {
           {!loading && !filtered.length && <div className="p-8 text-center"><Icon name="ChatBubbleLeftRightIcon" size={30} className="mx-auto text-muted-foreground" /><p className="mt-3 text-sm font-800">No matching disputes</p></div>}
           {filtered.map((item) => (
             <button key={item.id} type="button" onClick={() => setActiveId(item.id)} className={`w-full border-b border-border p-3 text-left transition hover:bg-muted/50 ${activeId === item.id ? 'bg-primary/5' : ''}`}>
-              <div className="flex items-center justify-between gap-2"><span className="truncate font-mono text-[11px] font-800 text-primary">{item.order_id}</span><span className={pillClassForStatus(item.status)}>{human(item.status)}</span></div>
+              <div className="flex items-center justify-between gap-2"><span className="truncate font-mono text-[11px] font-800 text-primary">{item.order_id}</span><span className={`rounded-full px-2 py-0.5 text-[10px] font-800 ${statusStyle[item.status]}`}>{human(item.status)}</span></div>
               <p className="mt-1 truncate text-xs font-800">{item.product_name || human(item.dispute_type)}</p>
               <p className="mt-1 truncate text-[11px] text-muted-foreground">{item.buyer?.business_name || item.buyer?.full_name || item.buyer?.email || 'Buyer'}</p>
               <p className="mt-1 text-[10px] text-muted-foreground">{dateTime(item.updated_at)}</p>

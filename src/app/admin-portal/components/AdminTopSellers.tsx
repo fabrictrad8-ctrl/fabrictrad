@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import Icon from '@/components/ui/AppIcon';
-import { pillClassForStatus } from '@/lib/statusPill';
 
 type SortKey = 'gmv' | 'orders' | 'rating' | 'fulfillmentRate';
 type Range = '30d' | '90d' | 'all';
@@ -224,7 +223,13 @@ export default function AdminTopSellers() {
                   <td className="px-4 py-4 text-center font-800 text-foreground">{seller.fulfillmentRate}%</td>
                   <td className="px-4 py-4 text-center font-800 text-foreground">{seller.refundRate}%</td>
                   <td className="px-4 py-4 text-center">
-                    <span className={pillClassForStatus(seller.verificationStatus === 'inactive' ? 'cancelled' : seller.verificationStatus)}>
+                    <span className={`rounded-full border px-2.5 py-1 text-[11px] font-800 ${
+                      seller.verificationStatus === 'approved' || seller.verificationStatus === 'verified' || seller.verificationStatus === 'active'
+                        ? 'border-success/20 bg-success/10 text-success'
+                        : seller.verificationStatus === 'inactive'
+                          ? 'border-error/20 bg-error/10 text-error'
+                          : 'border-warning/20 bg-warning/10 text-warning'
+                    }`}>
                       {statusLabel(seller.verificationStatus)}
                     </span>
                   </td>

@@ -398,69 +398,65 @@ export default function NotificationPreferences({ mode }: { mode: 'buyer' | 'sel
         </div>
       ) : (
         <div className="overflow-hidden rounded-2xl border border-border bg-card">
-          <div className="overflow-x-auto">
-            <div className="min-w-[640px]">
-              <div className="hidden grid-cols-[minmax(0,1fr)_90px_90px_90px_130px] border-b border-border bg-muted px-4 py-3 text-xs font-800 text-muted-foreground sm:grid">
-                <span>Notification</span>
-                <span className="text-center">SMS</span>
-                <span className="text-center">Email</span>
-                <span className="text-center">In-app</span>
-                <span className="text-center">Frequency</span>
-              </div>
-              {visible.map((item) => (
-                <div
-                  key={item.id}
-                  className="grid gap-3 border-b border-border px-4 py-4 last:border-0 sm:grid-cols-[minmax(0,1fr)_90px_90px_90px_130px] sm:items-center"
-                >
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-sm font-800 text-foreground">{item.topic}</p>
-                      {item.critical && (
-                        <span className="rounded-full bg-error/10 px-2 py-0.5 text-[10px] font-800 text-error">
-                          Essential
-                        </span>
-                      )}
-                    </div>
-                    <p className="mt-1 text-xs text-muted-foreground">{item.description}</p>
-                    {!!item.requiredChannels.length && (
-                      <p className="mt-1 text-[10px] font-750 text-muted-foreground">
-                        Always on: {requiredLabel(item.requiredChannels)}
-                      </p>
-                    )}
-                  </div>
-                  {(['sms', 'email', 'inApp'] as const).map((channel) => {
-                    const locked = item.requiredChannels.includes(channel);
-                    return (
-                      <button
-                        key={channel}
-                        type="button"
-                        onClick={() => toggle(item.id, channel)}
-                        disabled={locked}
-                        title={locked ? 'Required for essential account or transaction updates' : undefined}
-                        className={`mx-auto flex h-6 w-11 rounded-full p-0.5 transition-colors disabled:cursor-not-allowed ${
-                          item[channel] ? 'justify-end bg-primary' : 'justify-start bg-muted-foreground/30'
-                        } ${locked ? 'ring-2 ring-primary/15' : ''}`}
-                        aria-pressed={item[channel]}
-                        aria-label={`${channel} for ${item.topic}${locked ? ' (required)' : ''}`}
-                      >
-                        <span className="h-5 w-5 rounded-full bg-white shadow" />
-                      </button>
-                    );
-                  })}
-                  <select
-                    value={item.frequency}
-                    disabled={item.critical}
-                    onChange={(event) => updateFrequency(item.id, event.target.value as Frequency)}
-                    className="input-base rounded-xl px-2 py-2 text-xs disabled:cursor-not-allowed disabled:opacity-70"
-                  >
-                    <option value="instant">Instant</option>
-                    <option value="daily">Daily digest</option>
-                    {!item.critical && <option value="off">Off</option>}
-                  </select>
-                </div>
-              ))}
-            </div>
+          <div className="hidden grid-cols-[1fr_90px_90px_90px_130px] border-b border-border bg-muted px-4 py-3 text-xs font-800 text-muted-foreground sm:grid">
+            <span>Notification</span>
+            <span className="text-center">SMS</span>
+            <span className="text-center">Email</span>
+            <span className="text-center">In-app</span>
+            <span className="text-center">Frequency</span>
           </div>
+          {visible.map((item) => (
+            <div
+              key={item.id}
+              className="grid gap-3 border-b border-border px-4 py-4 last:border-0 sm:grid-cols-[1fr_90px_90px_90px_130px] sm:items-center"
+            >
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-sm font-800 text-foreground">{item.topic}</p>
+                  {item.critical && (
+                    <span className="rounded-full bg-error/10 px-2 py-0.5 text-[10px] font-800 text-error">
+                      Essential
+                    </span>
+                  )}
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">{item.description}</p>
+                {!!item.requiredChannels.length && (
+                  <p className="mt-1 text-[10px] font-750 text-muted-foreground">
+                    Always on: {requiredLabel(item.requiredChannels)}
+                  </p>
+                )}
+              </div>
+              {(['sms', 'email', 'inApp'] as const).map((channel) => {
+                const locked = item.requiredChannels.includes(channel);
+                return (
+                  <button
+                    key={channel}
+                    type="button"
+                    onClick={() => toggle(item.id, channel)}
+                    disabled={locked}
+                    title={locked ? 'Required for essential account or transaction updates' : undefined}
+                    className={`mx-auto flex h-6 w-11 rounded-full p-0.5 transition-colors disabled:cursor-not-allowed ${
+                      item[channel] ? 'justify-end bg-primary' : 'justify-start bg-muted-foreground/30'
+                    } ${locked ? 'ring-2 ring-primary/15' : ''}`}
+                    aria-pressed={item[channel]}
+                    aria-label={`${channel} for ${item.topic}${locked ? ' (required)' : ''}`}
+                  >
+                    <span className="h-5 w-5 rounded-full bg-white shadow" />
+                  </button>
+                );
+              })}
+              <select
+                value={item.frequency}
+                disabled={item.critical}
+                onChange={(event) => updateFrequency(item.id, event.target.value as Frequency)}
+                className="input-base rounded-xl px-2 py-2 text-xs disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                <option value="instant">Instant</option>
+                <option value="daily">Daily digest</option>
+                {!item.critical && <option value="off">Off</option>}
+              </select>
+            </div>
+          ))}
         </div>
       )}
 

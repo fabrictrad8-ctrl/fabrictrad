@@ -5,7 +5,6 @@ import AppImage from '@/components/ui/AppImage';
 import Icon from '@/components/ui/AppIcon';
 import { type CatalogMedia } from '@/lib/catalog';
 import { useProduct } from '@/lib/hooks/useProduct';
-import { useHorizontalSwipe } from '@/lib/hooks/useHorizontalSwipe';
 
 const VIEW_LABELS: Record<CatalogMedia['viewType'], string> = {
   front: 'Front',
@@ -49,6 +48,10 @@ export default function ProductGallery() {
     };
   }, [fullscreen]);
 
+  if (loading) {
+    return <div className="aspect-square animate-pulse rounded-2xl border border-border bg-muted" />;
+  }
+
   const showPrevious = () => {
     setActiveIndex((current) => (current - 1 + media.length) % media.length);
     setZoom(false);
@@ -57,22 +60,9 @@ export default function ProductGallery() {
     setActiveIndex((current) => (current + 1) % media.length);
     setZoom(false);
   };
-  // Swiping past the last/first image intentionally does nothing rather
-  // than wrapping — wrapping under a swipe reads as "nothing happened."
-  const swipeHandlers = useHorizontalSwipe(
-    () => { if (media.length > 1) showNext(); },
-    () => { if (media.length > 1) showPrevious(); }
-  );
-
-  if (loading) {
-    return <div className="aspect-square animate-pulse rounded-2xl border border-border bg-muted" />;
-  }
 
   const mainMedia = (large = false) => (
-    <div
-      className={`relative h-full w-full overflow-hidden bg-[#0f1319] ${active.type === 'image' ? 'cursor-zoom-in' : ''}`}
-      {...swipeHandlers}
-    >
+    <div className={`relative h-full w-full overflow-hidden bg-[#0f1319] ${active.type === 'image' ? 'cursor-zoom-in' : ''}`}>
       {active.type === 'video' ? (
         <video
           key={active.url}
@@ -187,24 +177,17 @@ export default function ProductGallery() {
                 </span>
               </button>
             ))}
+            <a
+              href="#drape-on"
+              className="flex min-w-28 shrink-0 flex-col items-center justify-center gap-1 rounded-xl border border-primary/20 bg-gradient-to-br from-primary/10 to-secondary/10 p-2"
+            >
+              <Icon name="SparklesIcon" size={17} className="text-primary" />
+              <span className="text-center text-xs font-800 leading-tight text-primary">Virtual Try-On</span>
+            </a>
           </div>
           <p className="mt-2 text-xs leading-5 text-muted-foreground">
             Use front/back views and reels to confirm fall, finish and design. Select a detail image for closer inspection.
           </p>
-
-          <a
-            href="#drape-on"
-            className="ft-drape-promo-banner mt-3 flex items-center gap-3 overflow-hidden rounded-xl border border-primary/25 bg-gradient-to-r from-primary/10 via-secondary/10 to-primary/10 p-3"
-          >
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary">
-              <Icon name="SparklesIcon" size={20} />
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block text-sm font-850 text-foreground">See it draped on you — free preview</span>
-              <span className="block text-xs text-muted-foreground">Upload your photo or use an AI model to visualise fall, colour and fit before you order.</span>
-            </span>
-            <Icon name="ArrowRightIcon" size={17} className="shrink-0 text-primary" />
-          </a>
         </div>
       </div>
 

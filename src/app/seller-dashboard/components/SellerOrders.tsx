@@ -5,7 +5,6 @@ import toast from 'react-hot-toast';
 import Icon from '@/components/ui/AppIcon';
 import OrderLifecyclePanel from '@/components/commerce/OrderLifecyclePanel';
 import { validTrackingUrl } from '@/lib/shippingValidation';
-import { pillClassForStatus, pillLabel } from '@/lib/statusPill';
 import {
   firstOrderItem,
   formatMoney,
@@ -274,8 +273,10 @@ export default function SellerOrders() {
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="font-mono text-xs font-800 text-primary">{orderCode(order)}</p>
-                      <span className={pillClassForStatus(order.status || 'draft')}>{pillLabel(order.status || 'draft')}</span>
-                      <span className={fullyPaid ? 'ft-pill ft-pill-success' : 'ft-pill ft-pill-pending'}>
+                      <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-800 uppercase text-muted-foreground">
+                        {String(order.status || 'draft').replaceAll('_', ' ')}
+                      </span>
+                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-800 ${fullyPaid ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning'}`}>
                         {paymentLabels[order.payment_status || 'unpaid'] || order.payment_status || 'Payment due'}
                       </span>
                     </div>

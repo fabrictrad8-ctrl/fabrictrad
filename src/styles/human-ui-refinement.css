@@ -378,19 +378,14 @@
   transform: translateY(1px) scale(0.995) !important;
 }
 
-/* Both end on `transform: none`, not translateY(0)/translateX(0) scale(1) —
-   a held non-none transform (animation-fill-mode:both keeps the "to"
-   keyframe applied forever) creates a new containing block for descendant
-   `position: fixed` elements. See RouteExperienceEnhancer.tsx for the full
-   explanation; this is the same bug on the auth-page entrance animations. */
 @keyframes ft-auth-panel-enter {
   from { opacity: 0; transform: translateY(12px); }
-  to { opacity: 1; transform: none; }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes ft-auth-card-enter {
   from { opacity: 0; transform: translateX(18px) scale(0.985); }
-  to { opacity: 1; transform: none; }
+  to { opacity: 1; transform: translateX(0) scale(1); }
 }
 
 @keyframes ft-auth-float {

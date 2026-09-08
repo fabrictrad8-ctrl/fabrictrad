@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { exportToCSV } from '@/lib/exportUtils';
 import { validTrackingUrl } from '@/lib/shippingValidation';
-import { pillClassForStatus, pillLabel } from '@/lib/statusPill';
 
 type Order = {
   id: string; kind: string; reference: string; buyer: string; buyer_email: string;
@@ -91,8 +90,8 @@ export default function AdminOrders({ fulfillmentOnly = false }: { fulfillmentOn
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div><p className="font-mono text-xs">{order.reference}</p><p className="mt-1 text-xs text-muted-foreground">{new Date(order.created_at).toLocaleString('en-IN')}</p><p className="mt-2 text-sm">{order.product} {order.variant && '· ' + order.variant}</p><p className="text-xs text-muted-foreground">{order.qty}</p></div>
           <div className="text-sm"><p>Buyer: {order.buyer}</p><p className="break-all text-xs text-muted-foreground">{order.buyer_email}</p><p className="mt-2">Seller: {order.seller}</p><p className="break-all text-xs text-muted-foreground">{order.seller_email}</p></div>
-          <div><p className="font-bold">{money(order.amount)}</p><p className="mt-1 text-xs">Payment: <span className={pillClassForStatus(order.payment_status)}>{pillLabel(order.payment_status)}</span></p><p className="text-xs text-muted-foreground">Recorded commission: {money(order.commission)}</p></div>
-          <div><span className={pillClassForStatus(order.status)}>{pillLabel(order.status)}</span><p className="mt-1 text-xs text-muted-foreground">{order.details.shipment ? order.details.shipment.provider + ' · ' + label(order.details.shipment.status) : 'Shipment not booked'}</p><button aria-expanded={expanded === order.id} onClick={() => setExpanded(expanded === order.id ? null : order.id)} className="btn-secondary mt-3 px-3 py-2 text-xs">{expanded === order.id ? 'Hide details' : 'View order details'}</button></div>
+          <div><p className="font-bold">{money(order.amount)}</p><p className="mt-1 text-xs">Payment: {label(order.payment_status)}</p><p className="text-xs text-muted-foreground">Recorded commission: {money(order.commission)}</p></div>
+          <div><p className="text-sm capitalize">{label(order.status)}</p><p className="mt-1 text-xs text-muted-foreground">{order.details.shipment ? order.details.shipment.provider + ' · ' + label(order.details.shipment.status) : 'Shipment not booked'}</p><button aria-expanded={expanded === order.id} onClick={() => setExpanded(expanded === order.id ? null : order.id)} className="btn-secondary mt-3 px-3 py-2 text-xs">{expanded === order.id ? 'Hide details' : 'View order details'}</button></div>
         </div>
         {expanded === order.id && <div className="mt-4 space-y-4 border-t border-border pt-4 text-sm">
           <p>Captured: {money(order.details.paid)} · Refunded: {money(order.details.refunded)}</p>

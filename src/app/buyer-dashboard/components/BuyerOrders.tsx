@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useHorizontalSwipe } from '@/lib/hooks/useHorizontalSwipe';
 import toast from 'react-hot-toast';
 import Icon from '@/components/ui/AppIcon';
 import { RazorpayCheckout } from '@/components/RazorpayCheckout';
@@ -60,11 +59,6 @@ export default function BuyerOrders() {
         ? orders
         : orders.filter((order) => statusGroup(order.status || 'draft') === filter),
     [filter, orders]
-  );
-  const filterIndex = statusFilters.indexOf(filter);
-  const swipeHandlers = useHorizontalSwipe(
-    () => setFilter(statusFilters[Math.min(filterIndex + 1, statusFilters.length - 1)]),
-    () => setFilter(statusFilters[Math.max(filterIndex - 1, 0)])
   );
 
   const exportOrders = () => {
@@ -194,21 +188,10 @@ export default function BuyerOrders() {
           </div>
         )}
 
-        <div className="space-y-3" {...swipeHandlers}>
+        <div className="space-y-3">
           {loading && (
-            <div className="space-y-3" aria-hidden="true">
-              {Array.from({ length: 3 }).map((_, index) => (
-                <div key={index} className="animate-pulse overflow-hidden rounded-2xl border border-border bg-card px-5 py-4">
-                  <div className="flex items-center gap-4">
-                    <div className="min-w-0 flex-1 space-y-2">
-                      <div className="flex gap-2"><div className="h-4 w-28 rounded bg-muted" /><div className="h-4 w-20 rounded-full bg-muted" /></div>
-                      <div className="h-3.5 w-40 rounded bg-muted" />
-                      <div className="h-3 w-32 rounded bg-muted" />
-                    </div>
-                    <div className="shrink-0 space-y-2 text-right"><div className="ml-auto h-4 w-16 rounded bg-muted" /><div className="ml-auto h-3 w-20 rounded bg-muted" /></div>
-                  </div>
-                </div>
-              ))}
+            <div className="rounded-2xl border border-border bg-card py-12 text-center">
+              <span className="mx-auto block h-7 w-7 animate-spin rounded-full border-2 border-primary border-t-transparent" />
             </div>
           )}
           {!loading && !error && filtered.length === 0 && (
@@ -300,10 +283,6 @@ export default function BuyerOrders() {
 
                     {status === 'confirmed' && remaining > 0 && (
                       <div className="mb-4 max-w-sm">
-                        <p className="mb-2 flex items-start gap-1.5 rounded-lg border border-warning/25 bg-warning/5 p-2 text-[11px] leading-4 text-warning">
-                          <Icon name="VideoCameraIcon" size={13} className="mt-0.5 shrink-0" />
-                          Record an unboxing video and photos when this arrives — required to file a damage or quality complaint later.
-                        </p>
                         <RazorpayCheckout
                           amount={remaining}
                           orderId={order.id}
@@ -312,7 +291,7 @@ export default function BuyerOrders() {
                           onSuccess={({ status: resultStatus }) => {
                             toast.success(
                               resultStatus === 'captured'
-                                ? 'Payment captured. Remember to record an unboxing video and photos when the order arrives.'
+                                ? 'Payment captured and the order was updated.'
                                 : 'Payment authorised. Waiting for capture confirmation.'
                             );
                             window.setTimeout(() => void refresh(), 1200);

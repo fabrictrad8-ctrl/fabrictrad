@@ -7,7 +7,6 @@ import Icon from '@/components/ui/AppIcon';
 import { useAuth } from '@/contexts/AuthContext';
 import { createClient } from '@/lib/supabase/client';
 import { useProduct } from '@/lib/hooks/useProduct';
-import { useWishlist } from '@/lib/hooks/useWishlist';
 import { describeHsn, indiaGstRuleText, resolveIndiaGstRate } from '@/lib/indiaTax';
 
 type BuyerType = 'retail_store' | 'end_user';
@@ -101,7 +100,7 @@ export default function ProductInfoV2() {
   const [loadingRules, setLoadingRules] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [orderResult, setOrderResult] = useState<OrderResult | null>(null);
-  const { has: inWishlist, toggle: toggleWishlist } = useWishlist();
+  const [saved, setSaved] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -323,11 +322,6 @@ export default function ProductInfoV2() {
     .sort((a, b) => Number(a.minimum_quantity) - Number(b.minimum_quantity))
     .at(-1);
   const price = Number(eligibleBreak?.price || catalogBasePrice);
-  const compareAtPrice =
-    !catalogRule?.price_override && !eligibleBreak && Number(product.compareAtPrice) > price
-      ? Number(product.compareAtPrice)
-      : null;
-  const discountPercent = compareAtPrice ? Math.round((1 - price / compareAtPrice) * 100) : 0;
   const hsnCode = productPolicy?.hsn_code || '';
   const storedGstRate = Number(
     effective?.gst_rate ?? productPolicy?.gst_rate ?? (product.gst === false ? 0 : 5)
@@ -461,18 +455,15 @@ export default function ProductInfoV2() {
         </div>
         <button
           type="button"
-          onClick={async () => {
-            const nowSaved = await toggleWishlist(product);
-            toast.success(nowSaved ? 'Saved to wishlist.' : 'Removed from wishlist.');
-          }}
+          onClick={() => setSaved((current) => !current)}
           className={`rounded-xl border p-2 ${
-            inWishlist(product.id)
+            saved
               ? 'border-primary bg-primary/10 text-primary'
               : 'border-border text-muted-foreground'
           }`}
-          aria-label={inWishlist(product.id) ? 'Remove saved product' : 'Save product'}
+          aria-label={saved ? 'Remove saved product' : 'Save product'}
         >
-          <Icon name="HeartIcon" size={18} variant={inWishlist(product.id) ? 'solid' : 'outline'} />
+          <Icon name="HeartIcon" size={18} variant={saved ? 'solid' : 'outline'} />
         </button>
       </div>
 
@@ -501,16 +492,10 @@ export default function ProductInfoV2() {
       <div className="mt-5 rounded-2xl border border-border bg-muted/25 p-4">
         <div className="flex items-end justify-between gap-3">
           <div>
-            <div className="flex items-center gap-2">
-              <p className="text-xs text-muted-foreground">Eligible unit price</p>
-              {compareAtPrice && <span className="rounded-full bg-error px-2 py-0.5 text-[10px] font-800 text-white">{discountPercent}% OFF</span>}
-            </div>
-            <div className="mt-1 flex items-baseline gap-2">
-              <p className="text-2xl font-800 text-foreground">
-                {money(price)}<span className="text-sm font-600 text-muted-foreground">/{unit}</span>
-              </p>
-              {compareAtPrice && <p className="text-sm font-600 text-muted-foreground line-through">{money(compareAtPrice)}</p>}
-            </div>
+            <p className="text-xs text-muted-foreground">Eligible unit price</p>
+            <p className="mt-1 text-2xl font-800 text-foreground">
+              {money(price)}<span className="text-sm font-600 text-muted-foreground">/{unit}</span>
+            </p>
           </div>
           <p className="text-xs text-muted-foreground">
             {available.toLocaleString('en-IN')} {unit} available

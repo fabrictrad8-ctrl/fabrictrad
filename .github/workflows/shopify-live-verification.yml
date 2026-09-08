@@ -1,0 +1,84 @@
+name: Verify Shopify integration live
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/shopify-live-verification.yml
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Authenticate Shopify and ensure production webhooks
+        shell: bash
+        run: |
+          set -euo pipefail
+          status_url='https://fabrictrad.com/api/shopify/status?verify=1&ensure=1'
+          for attempt in $(seq 1 30); do
+            http="$(curl -sS --max-time 25 -o shopify-status.json -w '%{http_code}' "$status_url" || true)"
+            if [ "$http" = '200' ]; then break; fi
+            echo "Shopify status not ready yet (HTTP $http, attempt $attempt/30)."
+            sleep 10
+          done
+
+          node <<'NODE'
+          const fs = require('fs');
+          const status = JSON.parse(fs.readFileSync('shopify-status.json', 'utf8'));
+          const safe = {
+            configured: status.configured,
+            authenticated: status.authenticated,
+            productionReady: status.productionReady,
+            apiVersion: status.apiVersion,
+            shop: status.shop,
+            shopName: status.shopName,
+            primaryDomain: status.primaryDomain,
+            currency: status.currency,
+            customerAccounts: status.customerAccounts,
+            domainMatches: status.domainMatches,
+            grantedScopes: status.grantedScopes,
+            missingScopes: status.missingScopes,
+            webhooks: status.webhooks,
+            error: status.error,
+          };
+          console.log(JSON.stringify(safe, null, 2));
+          if (!status.configured || !status.authenticated || !status.productionReady || !status.domainMatches) {
+            process.exit(1);
+          }
+          if (!Array.isArray(status.missingScopes) || status.missingScopes.length) process.exit(1);
+          if (!status.webhooks || status.webhooks.ready !== true) process.exit(1);
+          NODE
+
+      - name: Verify webhook rejects forged delivery
+        shell: bash
+        run: |
+          set -euo pipefail
+          code="$(curl -sS --max-time 20 -o forged.json -w '%{http_code}' \
+            -X POST 'https://fabrictrad.com/api/shopify/webhook' \
+            -H 'Content-Type: application/json' \
+            -H 'X-Shopify-Hmac-Sha256: forged' \
+            -H 'X-Shopify-Webhook-Id: fabrictrad-forged-ci-check' \
+            -H 'X-Shopify-Topic: orders/create' \
+            -H 'X-Shopify-Shop-Domain: 3v0ipk-yh.myshopify.com' \
+            --data '{}')"
+          cat forged.json
+          test "$code" = '401'
+
+      - name: Verify existing production integrations remain healthy
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsS --max-time 25 'https://fabrictrad.com/api/razorpay/status' -o razorpay.json
+          curl -fsS --max-time 25 'https://fabrictrad.com/api/shiprocket/status?verify=1' -o shiprocket.json
+          node <<'NODE'
+          const fs = require('fs');
+          const razorpay = JSON.parse(fs.readFileSync('razorpay.json', 'utf8'));
+          const shiprocket = JSON.parse(fs.readFileSync('shiprocket.json', 'utf8'));
+          console.log('Razorpay:', JSON.stringify({ configured: razorpay.configured, authenticated: razorpay.authenticated, mode: razorpay.mode, productionReady: razorpay.productionReady }));
+          console.log('Shiprocket:', JSON.stringify({ configured: shiprocket.configured, authenticated: shiprocket.authenticated, webhookConfigured: shiprocket.webhookConfigured }));
+          if (!razorpay.configured || razorpay.mode !== 'live' || razorpay.productionReady !== true) process.exit(1);
+          if (!shiprocket.configured || shiprocket.authenticated !== true || shiprocket.webhookConfigured !== true) process.exit(1);
+          NODE

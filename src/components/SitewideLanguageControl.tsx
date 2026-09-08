@@ -27,7 +27,7 @@ export default function SitewideLanguageControl() {
 
   return (
     <div
-      className="ft-sitewide-language-control fixed bottom-4 right-4 z-30 rounded-full border border-border bg-card/95 p-1 shadow-[0_12px_36px_rgba(15,23,42,0.18)] backdrop-blur-xl print:hidden"
+      className="ft-sitewide-language-control fixed bottom-4 right-4 z-[120] rounded-full bg-white/95 p-1 shadow-[0_12px_36px_rgba(15,23,42,0.18)] backdrop-blur-xl print:hidden"
       data-sitewide-language-control
     >
       <PreferenceControls source="fallback" menuPlacement="up" />

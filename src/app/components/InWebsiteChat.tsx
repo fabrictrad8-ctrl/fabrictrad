@@ -1,256 +1,93 @@
 'use client';
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import toast from 'react-hot-toast';
+import React, { useState, useRef, useEffect } from 'react';
 import Icon from '@/components/ui/AppIcon';
 import AppImage from '@/components/ui/AppImage';
 import { useAuth } from '@/contexts/AuthContext';
-import { createClient } from '@/lib/supabase/client';
 
-type ChatMessage = {
+interface ChatMessage {
   id: string;
-  thread_id: string;
-  sender_id: string;
-  sender_role: 'buyer' | 'seller' | 'system';
-  message_text: string | null;
-  file_url: string | null;
-  file_name: string | null;
-  file_type: 'image' | 'document' | 'pdf' | 'video' | null;
-  is_read: boolean;
-  created_at: string;
-};
-
-type ContextType = 'product_inquiry' | 'requirement_response' | 'post_purchase';
+  senderId: string;
+  senderName: string;
+  senderRole: 'buyer' | 'seller';
+  text: string;
+  timestamp: string;
+  fileUrl?: string;
+  fileName?: string;
+  fileType?: 'image' | 'document' | 'pdf';
+  isRead: boolean;
+}
 
 interface InWebsiteChatProps {
-  contextType: ContextType;
   contextId: string;
   contextTitle: string;
   otherPartyName: string;
   otherPartyAvatar: string;
   currentUserRole: 'buyer' | 'seller';
   onClose: () => void;
-  /** Buyer's user_profiles id (= auth uid). Required when currentUserRole is 'seller'. */
-  buyerUserId?: string;
-  /** Seller's user_profiles id (= auth uid). Provide when already known. */
-  sellerUserId?: string;
-  /** seller_profiles.id — resolved to the seller's user id via a server RPC when sellerUserId isn't already known. */
-  sellerProfileId?: string;
-  /** An already-known thread id (e.g. from an inbox list), skipping the find-or-create lookup. */
-  threadId?: string;
 }
 
-const ALLOWED_FILE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
-
+// Simple content filter to block phone numbers and emails
 function containsContactInfo(text: string): boolean {
-  const digitsOnly = text.replace(/[^0-9]/g, '');
+  const phoneRegex = /(\+91|0)?[\s-]?[6-9]\d{9}|(\d[\s-]?){10}/;
   const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
   const whatsappRegex = /whatsapp|wa\.me|telegram|t\.me/i;
-  return digitsOnly.length >= 10 || emailRegex.test(text) || whatsappRegex.test(text);
+  return phoneRegex.test(text) || emailRegex.test(text) || whatsappRegex.test(text);
 }
 
-function fileExtension(name: string) {
-  return name.split('.').pop()?.toLowerCase().replace(/[^a-z0-9]/g, '') || 'bin';
-}
+const INITIAL_MESSAGES: ChatMessage[] = [
+  {
+    id: 'sys-1',
+    senderId: 'system',
+    senderName: 'FabricTrad',
+    senderRole: 'seller',
+    text: "🔒 This is a secure in-website chat. For everyone's safety, phone numbers, email addresses, and external contact details are not allowed. All communication stays on FabricTrad.",
+    timestamp: 'Now',
+    isRead: true,
+  },
+];
 
 export default function InWebsiteChat({
-  contextType,
   contextId,
   contextTitle,
   otherPartyName,
   otherPartyAvatar,
   currentUserRole,
   onClose,
-  buyerUserId,
-  sellerUserId,
-  sellerProfileId,
-  threadId: initialThreadId,
 }: InWebsiteChatProps) {
-  const { user } = useAuth();
-  const supabase = useMemo(() => createClient(), []);
-  const [threadId, setThreadId] = useState<string | null>(initialThreadId || null);
-  const [initializing, setInitializing] = useState(!initialThreadId);
-  const [initError, setInitError] = useState('');
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const { user, profile } = useAuth();
+  const [messages, setMessages] = useState<ChatMessage[]>(INITIAL_MESSAGES);
   const [inputText, setInputText] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [blockedWarning, setBlockedWarning] = useState(false);
-  const [attachedFile, setAttachedFile] = useState<File | null>(null);
+  const [attachedFile, setAttachedFile] = useState<{
+    name: string;
+    type: 'image' | 'document' | 'pdf';
+    preview?: string;
+  } | null>(null);
   const [isMinimized, setIsMinimized] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const signedUrlCache = useRef<Map<string, string>>(new Map());
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Resolve or create the thread this conversation belongs to.
-  useEffect(() => {
-    let cancelled = false;
-    if (initialThreadId || !user?.id) {
-      if (!user?.id) setInitializing(false);
-      return;
-    }
-
-    async function resolve() {
-      setInitializing(true);
-      setInitError('');
-      try {
-        const resolvedBuyerId = currentUserRole === 'buyer' ? user!.id : buyerUserId;
-        let resolvedSellerId = currentUserRole === 'seller' ? user!.id : sellerUserId;
-
-        if (!resolvedSellerId && sellerProfileId) {
-          const { data, error } = await supabase.rpc('seller_user_id_for_chat', {
-            p_seller_id: sellerProfileId,
-          });
-          if (error) throw error;
-          resolvedSellerId = data || undefined;
-        }
-
-        if (!resolvedBuyerId || !resolvedSellerId) {
-          throw new Error('This conversation could not be started — the other party could not be identified.');
-        }
-
-        const { data: existing, error: findError } = await supabase
-          .from('chat_threads')
-          .select('id')
-          .eq('context_type', contextType)
-          .eq('context_id', contextId)
-          .eq('buyer_id', resolvedBuyerId)
-          .eq('seller_id', resolvedSellerId)
-          .maybeSingle();
-        if (findError) throw findError;
-
-        let id = existing?.id as string | undefined;
-        if (!id) {
-          const { data: created, error: createError } = await supabase
-            .from('chat_threads')
-            .insert({
-              context_type: contextType,
-              context_id: contextId,
-              context_title: contextTitle,
-              buyer_id: resolvedBuyerId,
-              seller_id: resolvedSellerId,
-            })
-            .select('id')
-            .single();
-          if (createError) {
-            // Another tab/request may have created it concurrently — re-fetch.
-            const { data: retry } = await supabase
-              .from('chat_threads')
-              .select('id')
-              .eq('context_type', contextType)
-              .eq('context_id', contextId)
-              .eq('buyer_id', resolvedBuyerId)
-              .eq('seller_id', resolvedSellerId)
-              .maybeSingle();
-            if (!retry?.id) throw createError;
-            id = retry.id;
-          } else {
-            id = created.id;
-          }
-        }
-        if (!cancelled) setThreadId(id || null);
-      } catch (error) {
-        if (!cancelled) setInitError(error instanceof Error ? error.message : 'Chat could not be started.');
-      } finally {
-        if (!cancelled) setInitializing(false);
-      }
-    }
-
-    void resolve();
-    return () => {
-      cancelled = true;
-    };
-  }, [initialThreadId, user?.id, currentUserRole, buyerUserId, sellerUserId, sellerProfileId, contextType, contextId, contextTitle, supabase]);
-
-  const loadMessages = useCallback(async () => {
-    if (!threadId) return;
-    const { data, error } = await supabase
-      .from('chat_messages')
-      .select('id,thread_id,sender_id,sender_role,message_text,file_url,file_name,file_type,is_read,created_at')
-      .eq('thread_id', threadId)
-      .order('created_at', { ascending: true })
-      .limit(500);
-    if (error) {
-      toast.error(error.message);
-      return;
-    }
-    setMessages((data || []) as ChatMessage[]);
-  }, [threadId, supabase]);
-
-  useEffect(() => {
-    void loadMessages();
-  }, [loadMessages]);
-
-  // Realtime sync + mark unread messages from the other party as read.
-  useEffect(() => {
-    if (!threadId || !user?.id) return;
-    const channel = supabase
-      .channel(`chat-thread-${threadId}`)
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `thread_id=eq.${threadId}` },
-        (payload) => {
-          const row = payload.new as ChatMessage;
-          setMessages((current) => (current.some((item) => item.id === row.id) ? current : [...current, row]));
-          if (row.sender_id !== user.id) {
-            void supabase.from('chat_messages').update({ is_read: true }).eq('id', row.id);
-          }
-        }
-      )
-      .subscribe();
-
-    supabase
-      .from('chat_messages')
-      .update({ is_read: true })
-      .eq('thread_id', threadId)
-      .neq('sender_id', user.id)
-      .eq('is_read', false)
-      .then(() => {
-        const unreadColumn = currentUserRole === 'buyer' ? 'buyer_unread' : 'seller_unread';
-        void supabase.from('chat_threads').update({ [unreadColumn]: 0 }).eq('id', threadId);
-      });
-
-    return () => {
-      void supabase.removeChannel(channel);
-    };
-  }, [threadId, user?.id, currentUserRole, supabase]);
-
-  const openAttachment = async (message: ChatMessage) => {
-    if (!message.file_url) return;
-    const cached = signedUrlCache.current.get(message.file_url);
-    if (cached) {
-      window.open(cached, '_blank', 'noopener,noreferrer');
-      return;
-    }
-    const { data, error } = await supabase.storage.from('chat-attachments').createSignedUrl(message.file_url, 600);
-    if (error || !data?.signedUrl) {
-      toast.error(error?.message || 'Attachment could not be opened.');
-      return;
-    }
-    signedUrlCache.current.set(message.file_url, data.signedUrl);
-    window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
-  };
-
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    event.target.value = '';
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
     if (!file) return;
-    if (!ALLOWED_FILE_TYPES.includes(file.type)) {
-      toast.error('Attach a JPG, PNG, WebP image or a PDF.');
-      return;
+    const isImage = file.type.startsWith('image/');
+    const isPdf = file.type === 'application/pdf';
+    const fileType: 'image' | 'document' | 'pdf' = isImage ? 'image' : isPdf ? 'pdf' : 'document';
+    let preview: string | undefined;
+    if (isImage) {
+      preview = URL.createObjectURL(file);
     }
-    if (file.size > 25 * 1024 * 1024) {
-      toast.error('Attachments must be 25 MB or smaller.');
-      return;
-    }
-    setAttachedFile(file);
+    setAttachedFile({ name: file.name, type: fileType, preview });
   };
 
-  const handleSend = async () => {
-    if (!threadId || !user?.id) return;
+  const handleSend = () => {
     if (!inputText.trim() && !attachedFile) return;
+
     if (inputText.trim() && containsContactInfo(inputText)) {
       setBlockedWarning(true);
       setTimeout(() => setBlockedWarning(false), 4000);
@@ -258,53 +95,34 @@ export default function InWebsiteChat({
     }
 
     setIsSending(true);
-    try {
-      let filePath: string | null = null;
-      let fileType: 'image' | 'document' | 'pdf' | null = null;
-      if (attachedFile) {
-        filePath = `${threadId}/${window.crypto.randomUUID()}.${fileExtension(attachedFile.name)}`;
-        const { error: uploadError } = await supabase.storage
-          .from('chat-attachments')
-          .upload(filePath, attachedFile, { contentType: attachedFile.type, cacheControl: '3600', upsert: false });
-        if (uploadError) throw uploadError;
-        fileType = attachedFile.type === 'application/pdf' ? 'pdf' : 'image';
-      }
+    const now = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
 
-      const { data: inserted, error } = await supabase
-        .from('chat_messages')
-        .insert({
-          thread_id: threadId,
-          sender_id: user.id,
-          sender_role: currentUserRole,
-          message_text: inputText.trim() || null,
-          file_url: filePath,
-          file_name: attachedFile?.name || null,
-          file_type: fileType,
-        })
-        .select('id,thread_id,sender_id,sender_role,message_text,file_url,file_name,file_type,is_read,created_at')
-        .single();
-      if (error) throw error;
+    const msg: ChatMessage = {
+      id: `msg-${Date.now()}`,
+      senderId: user?.id || 'current-user',
+      senderName:
+        profile?.full_name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'You',
+      senderRole: currentUserRole,
+      text: inputText,
+      timestamp: now,
+      fileUrl: attachedFile ? '#' : undefined,
+      fileName: attachedFile?.name,
+      fileType: attachedFile?.type,
+      isRead: false,
+    };
 
-      setMessages((current) => (current.some((item) => item.id === inserted.id) ? current : [...current, inserted as ChatMessage]));
+    setTimeout(() => {
+      setMessages((prev) => [...prev, msg]);
       setInputText('');
       setAttachedFile(null);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : '';
-      if (message.includes('CONTACT_INFO_BLOCKED')) {
-        setBlockedWarning(true);
-        setTimeout(() => setBlockedWarning(false), 4000);
-      } else {
-        toast.error(message || 'Message could not be sent.');
-      }
-    } finally {
       setIsSending(false);
-    }
+    }, 400);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      void handleSend();
+      handleSend();
     }
   };
 
@@ -313,12 +131,21 @@ export default function InWebsiteChat({
       className="fixed bottom-4 right-4 z-50 flex flex-col shadow-2xl rounded-2xl overflow-hidden border border-border bg-card"
       style={{ width: 360, maxHeight: isMinimized ? 56 : 520 }}
     >
+      {/* Chat Header */}
       <div className="flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-secondary to-primary text-white shrink-0">
         <div className="w-8 h-8 rounded-full overflow-hidden bg-white/20 shrink-0 flex items-center justify-center">
           {otherPartyAvatar ? (
-            <AppImage src={otherPartyAvatar} alt={`${otherPartyName} profile photo`} width={32} height={32} className="object-cover" />
+            <AppImage
+              src={otherPartyAvatar}
+              alt={`${otherPartyName} profile photo`}
+              width={32}
+              height={32}
+              className="object-cover"
+            />
           ) : (
-            <span className="text-xs font-800 text-white">{otherPartyName[0]?.toUpperCase() || 'U'}</span>
+            <span className="text-xs font-800 text-white">
+              {otherPartyName[0]?.toUpperCase() || 'U'}
+            </span>
           )}
         </div>
         <div className="flex-1 min-w-0">
@@ -326,8 +153,15 @@ export default function InWebsiteChat({
           <p className="text-xs opacity-75 truncate">{contextTitle}</p>
         </div>
         <div className="flex items-center gap-1">
-          <button onClick={() => setIsMinimized((m) => !m)} className="p-1 hover:bg-white/20 rounded-lg transition-colors">
-            <Icon name={isMinimized ? 'ChevronUpIcon' : 'ChevronDownIcon'} size={14} className="text-white" />
+          <button
+            onClick={() => setIsMinimized((m) => !m)}
+            className="p-1 hover:bg-white/20 rounded-lg transition-colors"
+          >
+            <Icon
+              name={isMinimized ? 'ChevronUpIcon' : 'ChevronDownIcon'}
+              size={14}
+              className="text-white"
+            />
           </button>
           <button onClick={onClose} className="p-1 hover:bg-white/20 rounded-lg transition-colors">
             <Icon name="XMarkIcon" size={14} className="text-white" />
@@ -337,77 +171,119 @@ export default function InWebsiteChat({
 
       {!isMinimized && (
         <>
+          {/* Privacy Notice */}
           <div className="flex items-center gap-1.5 px-3 py-1.5 bg-success/10 border-b border-success/20">
             <Icon name="ShieldCheckIcon" size={11} className="text-success shrink-0" />
             <p className="text-xs text-success font-600">Secure chat · No contact info sharing</p>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-3 space-y-3 bg-muted/20" style={{ minHeight: 0 }}>
-            {initializing ? (
-              <div className="flex h-full items-center justify-center py-10">
-                <span className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-              </div>
-            ) : initError ? (
-              <p className="py-8 text-center text-xs text-error">{initError}</p>
-            ) : messages.length === 0 ? (
-              <p className="py-8 text-center text-xs text-muted-foreground">
-                Say hello — messages stay inside FabricTrad and are visible to both of you.
-              </p>
-            ) : (
-              messages.map((msg) => {
-                const isMe = msg.sender_id === user?.id;
+          {/* Messages */}
+          <div
+            className="flex-1 overflow-y-auto p-3 space-y-3 bg-muted/20"
+            style={{ minHeight: 0 }}
+          >
+            {messages.map((msg) => {
+              const isSystem = msg.senderId === 'system';
+              const isMe = msg.senderRole === currentUserRole && !isSystem;
+
+              if (isSystem) {
                 return (
-                  <div key={msg.id} className={`flex gap-2 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
-                    <div className={`flex flex-col gap-1 max-w-[75%] ${isMe ? 'items-end' : 'items-start'}`}>
-                      <div className={`rounded-2xl px-3 py-2 text-sm ${isMe ? 'bg-primary text-white rounded-tr-sm' : 'bg-card border border-border text-foreground rounded-tl-sm'}`}>
-                        {msg.message_text && <p className="leading-relaxed whitespace-pre-line break-words">{msg.message_text}</p>}
-                        {msg.file_name && (
-                          <button
-                            type="button"
-                            onClick={() => void openAttachment(msg)}
-                            className={`flex items-center gap-2 mt-1 p-2 rounded-lg ${isMe ? 'bg-white/20' : 'bg-muted'}`}
-                          >
-                            <Icon name={msg.file_type === 'image' ? 'PhotoIcon' : 'DocumentIcon'} size={14} className={isMe ? 'text-white' : 'text-muted-foreground'} />
-                            <span className={`text-xs truncate max-w-[140px] ${isMe ? 'text-white' : 'text-foreground'}`}>{msg.file_name}</span>
-                          </button>
-                        )}
-                      </div>
-                      <p className="text-xs text-muted-foreground px-1">
-                        {new Date(msg.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
-                      </p>
+                  <div key={msg.id} className="flex justify-center">
+                    <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 max-w-xs">
+                      <p className="text-xs text-amber-700 text-center">{msg.text}</p>
                     </div>
                   </div>
                 );
-              })
-            )}
+              }
+
+              return (
+                <div
+                  key={msg.id}
+                  className={`flex gap-2 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}
+                >
+                  <div
+                    className={`flex flex-col gap-1 max-w-[75%] ${isMe ? 'items-end' : 'items-start'}`}
+                  >
+                    {!isMe && (
+                      <p className="text-xs text-muted-foreground px-1">{msg.senderName}</p>
+                    )}
+                    <div
+                      className={`rounded-2xl px-3 py-2 text-sm ${
+                        isMe
+                          ? 'bg-primary text-white rounded-tr-sm'
+                          : 'bg-card border border-border text-foreground rounded-tl-sm'
+                      }`}
+                    >
+                      {msg.text && <p className="leading-relaxed">{msg.text}</p>}
+                      {msg.fileName && (
+                        <div
+                          className={`flex items-center gap-2 mt-1 p-2 rounded-lg ${isMe ? 'bg-white/20' : 'bg-muted'}`}
+                        >
+                          <Icon
+                            name={msg.fileType === 'image' ? 'PhotoIcon' : 'DocumentIcon'}
+                            size={14}
+                            className={isMe ? 'text-white' : 'text-muted-foreground'}
+                          />
+                          <span
+                            className={`text-xs truncate max-w-[140px] ${isMe ? 'text-white' : 'text-foreground'}`}
+                          >
+                            {msg.fileName}
+                          </span>
+                          <Icon
+                            name="ArrowDownTrayIcon"
+                            size={12}
+                            className={isMe ? 'text-white/70' : 'text-muted-foreground'}
+                          />
+                        </div>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground px-1">{msg.timestamp}</p>
+                  </div>
+                </div>
+              );
+            })}
             <div ref={messagesEndRef} />
           </div>
 
+          {/* Blocked Warning */}
           {blockedWarning && (
             <div className="mx-3 mb-2 p-2 bg-error/10 border border-error/20 rounded-xl flex items-center gap-2">
               <Icon name="ShieldExclamationIcon" size={14} className="text-error shrink-0" />
-              <p className="text-xs text-error">Phone numbers, emails, and external contact details are not allowed in this chat.</p>
+              <p className="text-xs text-error">
+                Phone numbers, emails, and external contact details are not allowed in this chat.
+              </p>
             </div>
           )}
 
+          {/* Attached File Preview */}
           {attachedFile && (
             <div className="mx-3 mb-1 flex items-center gap-2 p-2 bg-primary/10 border border-primary/20 rounded-xl">
-              <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center shrink-0">
-                <Icon name={attachedFile.type === 'application/pdf' ? 'DocumentIcon' : 'PhotoIcon'} size={14} className="text-primary" />
-              </div>
-              <span className="text-xs text-primary font-600 flex-1 truncate">{attachedFile.name}</span>
+              {attachedFile.preview ? (
+                <img
+                  src={attachedFile.preview}
+                  alt="Attached file preview"
+                  className="w-8 h-8 rounded-lg object-cover shrink-0"
+                />
+              ) : (
+                <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center shrink-0">
+                  <Icon name="DocumentIcon" size={14} className="text-primary" />
+                </div>
+              )}
+              <span className="text-xs text-primary font-600 flex-1 truncate">
+                {attachedFile.name}
+              </span>
               <button onClick={() => setAttachedFile(null)} className="p-0.5">
                 <Icon name="XMarkIcon" size={13} className="text-muted-foreground" />
               </button>
             </div>
           )}
 
+          {/* Input */}
           <div className="p-3 border-t border-border bg-card shrink-0">
             <div className="flex items-end gap-2">
               <button
                 onClick={() => fileInputRef.current?.click()}
-                disabled={!threadId}
-                className="p-2 hover:bg-muted rounded-xl transition-colors shrink-0 disabled:opacity-50"
+                className="p-2 hover:bg-muted rounded-xl transition-colors shrink-0"
                 title="Attach file or image"
               >
                 <Icon name="PaperClipIcon" size={16} className="text-muted-foreground" />
@@ -416,15 +292,14 @@ export default function InWebsiteChat({
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
                 onKeyDown={handleKeyDown}
-                disabled={!threadId}
                 placeholder="Type a message... (no contact info)"
                 rows={1}
-                className="flex-1 px-3 py-2 bg-muted border border-border rounded-xl text-sm focus:outline-none focus:border-primary transition-colors resize-none disabled:opacity-50"
+                className="flex-1 px-3 py-2 bg-muted border border-border rounded-xl text-sm focus:outline-none focus:border-primary transition-colors resize-none"
                 style={{ maxHeight: 80 }}
               />
               <button
-                onClick={() => void handleSend()}
-                disabled={!threadId || isSending || (!inputText.trim() && !attachedFile)}
+                onClick={handleSend}
+                disabled={isSending || (!inputText.trim() && !attachedFile)}
                 className="p-2 bg-primary text-white rounded-xl hover:bg-primary/90 transition-colors disabled:opacity-50 shrink-0"
               >
                 {isSending ? (
@@ -434,7 +309,13 @@ export default function InWebsiteChat({
                 )}
               </button>
             </div>
-            <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp,application/pdf" onChange={handleFileChange} className="hidden" />
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*,.pdf,.doc,.docx,.xls,.xlsx"
+              onChange={handleFileChange}
+              className="hidden"
+            />
           </div>
         </>
       )}

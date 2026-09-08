@@ -68,8 +68,8 @@ export default function HelpPage() {
             ))}
           </div>
 
-          <div className="mt-9 grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
-            <div className="min-w-0">
+          <div className="mt-9 grid gap-6 lg:grid-cols-[1fr_320px]">
+            <div>
               <div className="mb-4 flex items-center justify-between gap-3">
                 <div><p className="ft-route-kicker">Frequently asked</p><h2 className="mt-1 text-2xl font-800 tracking-tight text-foreground">Common questions</h2></div>
                 <span className="ft-orange-chip">{filteredFaqs.length} answers</span>

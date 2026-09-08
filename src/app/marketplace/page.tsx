@@ -6,7 +6,6 @@ import MarketplaceGrid from '@/app/marketplace/components/MarketplaceGrid';
 import MarketplaceBanner from '@/app/marketplace/components/MarketplaceBanner';
 import MarketplaceActiveFilters from '@/app/marketplace/components/MarketplaceActiveFilters';
 import MarketplaceQueryBridge from '@/app/marketplace/components/MarketplaceQueryBridge';
-import BestsellerShowcase from '@/app/marketplace/components/BestsellerShowcase';
 import BuyerOnlyGuard from '@/components/BuyerOnlyGuard';
 
 export default function MarketplacePage() {
@@ -18,7 +17,6 @@ export default function MarketplacePage() {
         <div className="pt-16">
           <MarketplaceBanner />
           <div className="ft-storefront-content py-4 sm:py-5">
-            <BestsellerShowcase />
             <MarketplaceActiveFilters />
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:gap-5">
               <MarketplaceFilters />

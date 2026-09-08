@@ -3,7 +3,6 @@
 import { useMemo, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import Icon from '@/components/ui/AppIcon';
-import BottomSheet from '@/components/BottomSheet';
 
 const filterGroups = [
   { label: 'Fabric Type', key: 'fabricType', options: ['Silk', 'Cotton', 'Polyester', 'Net & Netting', 'Georgette', 'Organza', 'Velvet', 'Handloom', 'Linen', 'Denim', 'Wool'] },
@@ -88,14 +87,7 @@ export default function MarketplaceFilters() {
   return (
     <>
       <div className="mb-2 lg:hidden"><button type="button" onClick={() => setMobileOpen(true)} className="btn-secondary flex items-center gap-2 rounded-lg px-4 py-2 text-sm"><Icon name="FunnelIcon" size={16} />Filters {totalActive > 0 && `(${totalActive})`}</button></div>
-      <BottomSheet
-        open={mobileOpen}
-        onClose={() => setMobileOpen(false)}
-        title="Refine products"
-        footer={<button type="button" onClick={() => setMobileOpen(false)} className="btn-primary w-full rounded-lg py-3 text-sm">Show results</button>}
-      >
-        {filterContent}
-      </BottomSheet>
+      {mobileOpen && <div className="fixed inset-0 z-50 bg-black/50 lg:hidden" onClick={() => setMobileOpen(false)}><div className="absolute bottom-0 left-0 top-0 w-[min(340px,92vw)] overflow-y-auto bg-background p-5" onClick={(event) => event.stopPropagation()}><div className="mb-4 flex items-center justify-between"><span className="font-850 text-foreground">Refine products</span><button type="button" onClick={() => setMobileOpen(false)} className="rounded-lg p-2 hover:bg-muted" aria-label="Close filters"><Icon name="XMarkIcon" size={20} className="text-foreground" /></button></div>{filterContent}<button type="button" onClick={() => setMobileOpen(false)} className="btn-primary mt-6 w-full rounded-lg py-3 text-sm">Show results</button></div></div>}
       <aside className="hidden w-60 shrink-0 lg:block" aria-label="Marketplace filters"><div className="ft-marketplace-filters-card sticky top-20 max-h-[calc(100vh-6rem)] overflow-y-auto scrollbar-thin">{filterContent}</div></aside>
     </>
   );

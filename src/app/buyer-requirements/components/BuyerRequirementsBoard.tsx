@@ -1,7 +1,6 @@
 'use client';
 import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import toast from 'react-hot-toast';
 import AppLogo from '@/components/ui/AppLogo';
 import AppImage from '@/components/ui/AppImage';
 import Icon from '@/components/ui/AppIcon';
@@ -99,12 +98,6 @@ export default function BuyerRequirementsBoard() {
   const [searchQuery, setSearchQuery] = useState('');
   const [showPostForm, setShowPostForm] = useState(false);
   const [activeChatReq, setActiveChatReq] = useState<Requirement | null>(null);
-  const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
-  const [responsesReq, setResponsesReq] = useState<Requirement | null>(null);
-  const [responseThreads, setResponseThreads] = useState<
-    { id: string; otherPartyName: string; otherPartyAvatar: string; lastMessage: string | null; lastAt: string | null }[]
-  >([]);
-  const [loadingResponses, setLoadingResponses] = useState(false);
   const [showReferenceMatches, setShowReferenceMatches] = useState(false);
   const [matchStatus, setMatchStatus] = useState<'idle' | 'scanning' | 'matched'>('idle');
   const [referenceImageName, setReferenceImageName] = useState('');
@@ -312,30 +305,6 @@ export default function BuyerRequirementsBoard() {
     setShowReferenceMatches(true);
     setMatchStatus('scanning');
     window.setTimeout(() => setMatchStatus('matched'), 900);
-  };
-
-  const openResponses = async (req: Requirement) => {
-    setResponsesReq(req);
-    setLoadingResponses(true);
-    const { data, error } = await supabase.rpc('my_chat_threads');
-    if (error) {
-      toast.error(error.message);
-      setResponseThreads([]);
-      setLoadingResponses(false);
-      return;
-    }
-    setResponseThreads(
-      ((data || []) as any[])
-        .filter((row) => row.role === 'buyer' && row.context_type === 'requirement_response' && row.context_id === req.id)
-        .map((row) => ({
-          id: row.id,
-          otherPartyName: row.other_party_name,
-          otherPartyAvatar: row.other_party_avatar,
-          lastMessage: row.last_message,
-          lastAt: row.last_message_at,
-        }))
-    );
-    setLoadingResponses(false);
   };
 
   return (
@@ -658,7 +627,7 @@ export default function BuyerRequirementsBoard() {
                       )}
                       {userRole === 'buyer' && req.buyerId === user?.id && (
                         <button
-                          onClick={() => void openResponses(req)}
+                          onClick={() => setActiveChatReq(req)}
                           className="btn-secondary px-4 py-1.5 text-xs rounded-xl flex items-center gap-1.5"
                         >
                           <Icon name="ChatBubbleLeftRightIcon" size={13} />
@@ -916,20 +885,27 @@ export default function BuyerRequirementsBoard() {
                       type="button"
                       onClick={() => {
                         setShowReferenceMatches(false);
-                        setForm((f) => ({
-                          ...f,
+                        setActiveChatReq({
+                          id: match.id,
+                          buyerId: user?.id || 'buyer',
+                          buyerName: accountName,
+                          buyerAvatar: accountAvatar,
                           title: match.title,
-                          description: `Visual match reference: ${match.vendor} (${match.city}) — looking for a similar fabric/finish.`,
+                          description: `AI matched this buyer reference with ${match.vendor}.`,
+                          category: 'AI Reference',
+                          quantity: 'Discuss in chat',
                           budget: match.price,
-                          tags: match.tags.join(', '),
-                        }));
-                        setShowPostForm(true);
-                        toast('This is an AI style preview, not a registered seller — post it as a requirement so real, verified sellers can respond.', { icon: 'ℹ️' });
+                          deadline: 'Flexible',
+                          postedAt: 'Just now',
+                          responses: 1,
+                          status: 'open',
+                          tags: match.tags,
+                        });
                       }}
                       className="btn-primary mt-4 flex w-full items-center justify-center gap-2 rounded-xl py-2 text-sm"
                     >
-                      <Icon name="PaperAirplaneIcon" size={14} />
-                      Post as a requirement to real sellers
+                      <Icon name="ChatBubbleLeftRightIcon" size={14} />
+                      Connect with Reference Vendor
                     </button>
                   </div>
                 ))}
@@ -939,75 +915,15 @@ export default function BuyerRequirementsBoard() {
         </div>
       )}
 
-      {/* Seller responding to a real buyer requirement */}
-      {activeChatReq && userRole === 'seller' && (
+      {/* In-Website Chat */}
+      {activeChatReq && (
         <InWebsiteChat
-          contextType="requirement_response"
           contextId={activeChatReq.id}
           contextTitle={activeChatReq.title}
-          otherPartyName={activeChatReq.buyerName}
+          otherPartyName={userRole === 'seller' ? activeChatReq.buyerName : 'Seller'}
           otherPartyAvatar={activeChatReq.buyerAvatar}
-          currentUserRole="seller"
-          buyerUserId={activeChatReq.buyerId}
+          currentUserRole={userRole}
           onClose={() => setActiveChatReq(null)}
-        />
-      )}
-
-      {/* Buyer viewing the sellers who responded to their own requirement */}
-      {responsesReq && !activeThreadId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="w-full max-w-md rounded-2xl border border-border bg-card shadow-xl">
-            <div className="flex items-center justify-between border-b border-border p-4">
-              <div>
-                <h3 className="text-sm font-800 text-foreground">Seller responses</h3>
-                <p className="mt-0.5 text-xs text-muted-foreground">{responsesReq.title}</p>
-              </div>
-              <button type="button" onClick={() => setResponsesReq(null)} className="ft-icon-button" aria-label="Close">
-                <Icon name="XMarkIcon" size={16} />
-              </button>
-            </div>
-            <div className="max-h-80 overflow-y-auto p-2">
-              {loadingResponses ? (
-                <div className="py-10 text-center">
-                  <span className="mx-auto block h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                </div>
-              ) : responseThreads.length === 0 ? (
-                <p className="p-6 text-center text-xs text-muted-foreground">No seller has started a conversation on this requirement yet.</p>
-              ) : (
-                responseThreads.map((thread) => (
-                  <button
-                    key={thread.id}
-                    type="button"
-                    onClick={() => setActiveThreadId(thread.id)}
-                    className="flex w-full items-start gap-3 rounded-xl p-3 text-left hover:bg-muted"
-                  >
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-800 text-primary">
-                      {thread.otherPartyName[0]?.toUpperCase() || 'S'}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-700 text-foreground">{thread.otherPartyName}</p>
-                      <p className="truncate text-xs text-muted-foreground">{thread.lastMessage || 'No messages yet'}</p>
-                    </div>
-                  </button>
-                ))
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-      {responsesReq && activeThreadId && (
-        <InWebsiteChat
-          threadId={activeThreadId}
-          contextType="requirement_response"
-          contextId={responsesReq.id}
-          contextTitle={responsesReq.title}
-          otherPartyName={responseThreads.find((t) => t.id === activeThreadId)?.otherPartyName || 'Seller'}
-          otherPartyAvatar={responseThreads.find((t) => t.id === activeThreadId)?.otherPartyAvatar || ''}
-          currentUserRole="buyer"
-          onClose={() => {
-            setActiveThreadId(null);
-            setResponsesReq(null);
-          }}
         />
       )}
     </div>

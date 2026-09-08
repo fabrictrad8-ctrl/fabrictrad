@@ -11,9 +11,6 @@ import {
   drapeProductStylePrompt,
   inferDrapeProductStyle,
 } from '@/lib/drapeProductStyle';
-import DrapeCreditPurchase from './DrapeCreditPurchase';
-
-type CreditBalance = { freeTrialsRemaining: number; purchasedCredits: number; totalRemaining: number };
 
 const fits = ['Relaxed', 'Regular', 'Tailored'] as const;
 type Fit = (typeof fits)[number];
@@ -87,9 +84,6 @@ export default function FlagshipVirtualDrapeStudio() {
   const [loading, setLoading] = useState(false);
   const [generationStage, setGenerationStage] = useState('');
   const [error, setError] = useState('');
-  const [errorCode, setErrorCode] = useState('');
-  const [balance, setBalance] = useState<CreditBalance | null>(null);
-  const [showPurchase, setShowPurchase] = useState(false);
 
   const variants = useMemo(() => product.variants || [], [product.variants]);
   const selectedVariant = useMemo(
@@ -161,28 +155,6 @@ export default function FlagshipVirtualDrapeStudio() {
       cancelled = true;
     };
   }, []);
-
-  const refreshBalance = useCallback(async () => {
-    if (!user) return setBalance(null);
-    try {
-      const response = await fetch('/api/drape/credits/status', { cache: 'no-store', credentials: 'same-origin' });
-      const payload = (await response.json().catch(() => ({}))) as Partial<CreditBalance> & { error?: string };
-      if (response.ok) {
-        setBalance({
-          freeTrialsRemaining: payload.freeTrialsRemaining ?? 0,
-          purchasedCredits: payload.purchasedCredits ?? 0,
-          totalRemaining: payload.totalRemaining ?? 0,
-        });
-      }
-    } catch {
-      // A failed balance check should never block trying to generate; the
-      // server enforces the real limit either way.
-    }
-  }, [user]);
-
-  useEffect(() => {
-    void refreshBalance();
-  }, [refreshBalance]);
 
   const clearResult = useCallback(() => {
     generationRef.current?.abort();
@@ -274,7 +246,6 @@ export default function FlagshipVirtualDrapeStudio() {
 
   const generate = async () => {
     setError('');
-    setErrorCode('');
     if (!user) return setError('Sign in as a buyer to generate an AI drape.');
     if (!product.rawProductId || product.rawProductId === 'unavailable') {
       return setError('Open a live FabricTrad product first.');
@@ -285,11 +256,6 @@ export default function FlagshipVirtualDrapeStudio() {
       return setError('Confirm that you own this photo or have permission to use it.');
     }
     if (serviceStatus?.configured === false) return setError('The AI try-on service is temporarily unavailable.');
-    if (balance && balance.totalRemaining <= 0) {
-      setErrorCode('NO_DRAPE_CREDITS');
-      setShowPurchase(true);
-      return setError('No Virtual Drape credits remaining. Buy a pack below to keep generating try-ons.');
-    }
 
     setLoading(true);
     setGenerationStage(
@@ -335,9 +301,7 @@ export default function FlagshipVirtualDrapeStudio() {
       });
       const payload = (await response.json().catch(() => ({}))) as GenerationResult;
       if (!response.ok || !payload.image) {
-        const failure = new Error(payload.error || 'The AI service did not return a drape image.');
-        (failure as Error & { code?: string }).code = payload.code;
-        throw failure;
+        throw new Error(payload.error || 'The AI service did not return a drape image.');
       }
       if (generationRef.current !== controller) return;
       setResult(payload.image);
@@ -348,15 +312,11 @@ export default function FlagshipVirtualDrapeStudio() {
             : `Generated on an AI ${modelGender} model using this approved seller textile.`)
       );
       setProvider(payload.provider || 'OpenAI');
-      void refreshBalance();
       requestAnimationFrame(() =>
         resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
       );
     } catch (caught) {
       if (generationRef.current !== controller) return;
-      const code = caught instanceof Error ? (caught as Error & { code?: string }).code : undefined;
-      setErrorCode(code || '');
-      if (code === 'NO_DRAPE_CREDITS') setShowPurchase(true);
       setError(
         caught instanceof DOMException && caught.name === 'AbortError'
           ? 'AI generation timed out. Please retry.'
@@ -412,43 +372,9 @@ export default function FlagshipVirtualDrapeStudio() {
               </p>
             </div>
             <p className="mt-1 text-xs text-white/55">Photo preview · AI generated</p>
-            {user && balance && (
-              <div className="mt-3 flex items-center justify-between gap-2 border-t border-white/10 pt-3">
-                <div>
-                  <p className="text-[11px] uppercase tracking-wide text-white/50">Your balance</p>
-                  <p className="text-sm font-900 text-white">
-                    {balance.freeTrialsRemaining > 0
-                      ? `${balance.freeTrialsRemaining} free ${balance.freeTrialsRemaining === 1 ? 'try' : 'tries'} left`
-                      : `${balance.purchasedCredits} credit${balance.purchasedCredits === 1 ? '' : 's'}`}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowPurchase((current) => !current)}
-                  className="rounded-lg border border-primary/40 bg-primary/15 px-2.5 py-1.5 text-[11px] font-800 text-primary hover:bg-primary/25"
-                >
-                  {showPurchase ? 'Hide' : 'Buy more'}
-                </button>
-              </div>
-            )}
           </div>
         </div>
       </header>
-
-      {showPurchase && user && (
-        <div className="border-b border-border p-4 sm:p-5">
-          <DrapeCreditPurchase
-            onPurchased={(newBalance) => {
-              setBalance(newBalance);
-              setShowPurchase(false);
-              if (errorCode === 'NO_DRAPE_CREDITS') {
-                setError('');
-                setErrorCode('');
-              }
-            }}
-          />
-        </div>
-      )}
 
       <div className="border-b border-border bg-muted/10 p-4 sm:p-5">
         <p className="mb-3 text-[11px] font-800 uppercase tracking-[0.15em] text-muted-foreground">Choose AI experience</p>
@@ -640,19 +566,12 @@ export default function FlagshipVirtualDrapeStudio() {
               <Icon name="SparklesIcon" size={18} />
               {loading
                 ? 'Generating AI preview…'
-                : balance && balance.totalRemaining <= 0
-                  ? 'Buy credits to generate'
-                  : subjectMode === 'own_photo'
-                    ? 'Generate on my photo'
-                    : `Generate on AI ${modelGender} model`}
+                : subjectMode === 'own_photo'
+                  ? 'Generate on my photo'
+                  : `Generate on AI ${modelGender} model`}
             </span>
           </button>
           {!user && <p className="mt-2 text-center text-[11px] text-muted-foreground">Sign in as a buyer to generate.</p>}
-          {user && balance && (
-            <p className="mt-2 text-center text-[11px] text-muted-foreground">
-              {balance.totalRemaining > 0 ? 'Uses 1 credit per generation' : 'No credits left — buy a pack above to continue'}
-            </p>
-          )}
         </aside>
 
         <div ref={resultRef} className="min-w-0 p-4 sm:p-6 lg:p-8">

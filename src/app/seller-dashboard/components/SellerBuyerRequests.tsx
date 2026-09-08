@@ -54,7 +54,7 @@ const demoRequests: SellerVisibleRequirement[] = [
   },
 ];
 
-const categories = ['All', 'Silk Fabric', 'Georgette', 'Cotton / Khadi', 'Net / Embroidered', 'Linen', 'Velvet', 'Chiffon'];
+const categories = ['All', 'Net / Embroidered', 'Cotton / Khadi', 'Georgette', 'Linen'];
 
 function formatDate(value?: string | null) {
   if (!value) return 'Recently';
@@ -155,8 +155,8 @@ export default function SellerBuyerRequests() {
       </div>
 
       <div className="mb-5 rounded-2xl border border-border bg-card p-4">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-          <div className="relative min-w-0 lg:flex-1">
+        <div className="grid gap-3 lg:grid-cols-[1fr_auto]">
+          <div className="relative">
             <Icon
               name="MagnifyingGlassIcon"
               size={16}
@@ -170,7 +170,7 @@ export default function SellerBuyerRequests() {
               className="input-base w-full rounded-xl py-2.5 pl-9 pr-3 text-sm"
             />
           </div>
-          <div className="flex min-w-0 gap-2 overflow-x-auto pb-1 lg:max-w-[55%] lg:shrink-0 lg:pb-0">
+          <div className="flex gap-2 overflow-x-auto pb-1 lg:pb-0">
             {categories.map((category) => (
               <button
                 key={category}
@@ -209,10 +209,10 @@ export default function SellerBuyerRequests() {
             icon: 'ChatBubbleLeftRightIcon',
           },
         ].map((stat) => (
-          <div key={stat.label} className="ft-tile">
+          <div key={stat.label} className="rounded-2xl border border-border bg-card p-4">
             <Icon name={stat.icon as 'MegaphoneIcon'} size={18} className="mb-2 text-primary" />
-            <span className="ft-tile-value">{stat.value}</span>
-            <span className="ft-tile-label normal-case tracking-normal">{stat.label}</span>
+            <p className="text-xl font-800 text-foreground">{stat.value}</p>
+            <p className="text-xs text-muted-foreground">{stat.label}</p>
           </div>
         ))}
       </div>
@@ -241,7 +241,9 @@ export default function SellerBuyerRequests() {
               <div className="min-w-0 flex-1">
                 <div className="mb-2 flex flex-wrap items-center gap-2">
                   <span className="mono-id">{request.id}</span>
-                  <span className="ft-pill ft-pill-success">Buyer posted</span>
+                  <span className="rounded-full border border-success/20 bg-success/10 px-2 py-0.5 text-xs font-700 text-success">
+                    Buyer posted
+                  </span>
                   <span className="text-xs text-muted-foreground">{request.postedAt}</span>
                 </div>
                 <h2 className="text-base font-800 text-foreground">{request.title}</h2>
@@ -272,9 +274,9 @@ export default function SellerBuyerRequests() {
                 </div>
               </div>
               <div className="w-full shrink-0 lg:w-56">
-                <div className="ft-tile">
-                  <span className="ft-tile-label normal-case tracking-normal">Existing seller responses</span>
-                  <span className="ft-tile-value">{request.responses}</span>
+                <div className="rounded-xl border border-border bg-muted/30 p-3">
+                  <p className="text-xs text-muted-foreground">Existing seller responses</p>
+                  <p className="text-lg font-800 text-foreground">{request.responses}</p>
                 </div>
                 <button
                   type="button"
@@ -292,13 +294,11 @@ export default function SellerBuyerRequests() {
 
       {activeRequirement && (
         <InWebsiteChat
-          contextType="requirement_response"
           contextId={activeRequirement.id}
           contextTitle={activeRequirement.title}
           otherPartyName={activeRequirement.buyerName}
           otherPartyAvatar=""
           currentUserRole="seller"
-          buyerUserId={activeRequirement.buyerId}
           onClose={() => setActiveRequirement(null)}
         />
       )}

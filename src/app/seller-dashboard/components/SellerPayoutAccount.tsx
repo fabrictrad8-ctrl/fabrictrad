@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { PAYOUT_BUSINESS_TYPES } from '@/lib/sellerPayoutValidation';
 import { useAppPreferences } from '@/contexts/AppPreferencesContext';
-import { pillClassForStatus } from '@/lib/statusPill';
 
 type Account = { connected: boolean; activationStatus: string; setupState: string; bankLast4?: string; bankIfsc?: string; bankName?: string; checkedAt?: string; requirements: { field: string; reason: string; status: string }[] };
 const COPY = {
@@ -55,7 +54,7 @@ export default function SellerPayoutAccount() {
   );
   return <section aria-label={copy.title} className="mb-6 rounded-2xl border border-border bg-card p-5 sm:p-6">
     <div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-xl font-800">{copy.title}</h2><p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">{copy.intro}</p></div><button type="button" onClick={() => void load()} disabled={busy} className="min-h-11 rounded-xl border border-border px-4 text-sm font-700 disabled:opacity-50">{copy.refresh}</button></div>
-    {loaded && <div className={`mt-4 rounded-xl p-4 ${ready ? 'bg-success/10 text-success' : 'bg-muted text-foreground'}`}><p className="font-700">{ready ? copy.ready : copy.waiting}</p><p className="mt-1 text-sm">{account?.bankLast4 ? `${account.bankName || ''} · •••• ${account.bankLast4} · ${account.bankIfsc || ''}` : copy.noAccount}</p>{account?.activationStatus && <p className="mt-1 flex items-center gap-1.5 text-sm">Razorpay: <span className={pillClassForStatus(account.activationStatus)}>{account.activationStatus.replaceAll('_', ' ')}</span></p>}</div>}
+    {loaded && <div className={`mt-4 rounded-xl p-4 ${ready ? 'bg-success/10 text-success' : 'bg-muted text-foreground'}`}><p className="font-700">{ready ? copy.ready : copy.waiting}</p><p className="mt-1 text-sm">{account?.bankLast4 ? `${account.bankName || ''} · •••• ${account.bankLast4} · ${account.bankIfsc || ''}` : copy.noAccount}</p>{account?.activationStatus && <p className="mt-1 text-sm">Razorpay: {account.activationStatus.replaceAll('_', ' ')}</p>}</div>}
     {error && <p role="alert" className="mt-4 rounded-xl bg-error/10 p-4 text-sm text-error">{error}</p>}
     {message && <p role="status" className="mt-3 text-sm">{message}</p>}
     {!!account?.requirements?.length && <ul className="mt-3 space-y-1 text-sm text-muted-foreground">{account.requirements.map((r, i) => <li key={i}>{r.field.replaceAll('_', ' ')}: {r.reason.replaceAll('_', ' ')}</li>)}</ul>}

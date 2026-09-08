@@ -5,7 +5,6 @@ import Image from 'next/image';
 import AppLogo from '@/components/ui/AppLogo';
 import Icon from '@/components/ui/AppIcon';
 import PreferenceControls from '@/components/PreferenceControls';
-import TiltShowcase from '@/components/TiltShowcase';
 import { useAppPreferences } from '@/contexts/AppPreferencesContext';
 import { getPublicLandingCopy } from '@/lib/publicLandingTranslations';
 
@@ -17,7 +16,7 @@ export default function PublicAccessLanding() {
   const copy = getPublicLandingCopy(language);
 
   return (
-    <main className="ft-future-landing ft-showroom min-h-screen overflow-hidden">
+    <main className="ft-future-landing ft-showroom min-h-screen overflow-hidden text-slate-900">
       <header className="ft-future-topbar">
         <div className="ft-future-nav">
           <Link href="/" className="ft-future-brand" aria-label="FabricTrad home">
@@ -46,7 +45,7 @@ export default function PublicAccessLanding() {
       </header>
 
       <section id="platform" className="ft-future-hero">
-        <div className="ft-hero-orchestrated relative z-10">
+        <div className="relative z-10">
           <div className="ft-future-kicker">
             <span className="h-1.5 w-1.5 rounded-full bg-current shadow-[0_0_12px_currentColor]" />
             {copy.kicker}
@@ -76,47 +75,45 @@ export default function PublicAccessLanding() {
         </div>
 
         <div className="ft-textile-visual">
-          <TiltShowcase>
-            <Image src="/images/textile-showroom.webp" alt="" fill priority sizes="(max-width: 900px) 100vw, 50vw" className="ft-textile-image" />
-            <div className="ft-textile-caption">
-              <Icon name="BuildingStorefrontIcon" size={24} />
-              <div><strong>{copy.buyerMarketplace}</strong><p>{copy.buyerMarketplaceCopy}</p></div>
-            </div>
-          </TiltShowcase>
+          <Image src="/images/textile-showroom.webp" alt="" fill priority sizes="(max-width: 900px) 100vw, 50vw" className="ft-textile-image" />
+          <div className="ft-textile-caption">
+            <Icon name="BuildingStorefrontIcon" size={24} />
+            <div><strong>{copy.buyerMarketplace}</strong><p>{copy.buyerMarketplaceCopy}</p></div>
+          </div>
         </div>
       </section>
 
       <section id="capabilities" className="relative z-[2] mx-auto w-[min(1420px,calc(100%-32px))] px-4 pb-8 sm:px-0">
-        <div className="ft-reveal rounded-[30px] border border-white/10 bg-white/[0.04] p-6 shadow-[0_24px_80px_rgba(0,0,0,0.35)] backdrop-blur-xl sm:p-9">
-          <div className="grid gap-8 lg:grid-cols-[minmax(0,0.8fr)_1.2fr] lg:items-end">
-            <div className="min-w-0">
-              <p className="text-xs font-850 uppercase tracking-[0.16em] text-[#ff9a69]">{copy.workspacesKicker}</p>
-              <h2 className="mt-3 text-3xl font-850 tracking-[-0.04em] text-white sm:text-5xl">{copy.workspacesTitle}</h2>
-              <p className="mt-4 max-w-2xl text-sm leading-7 text-[#9ba8bb]">{copy.workspacesCopy}</p>
+        <div className="rounded-[30px] border border-slate-200 bg-white/80 p-6 shadow-[0_24px_80px_rgba(15,23,42,0.08)] backdrop-blur-xl sm:p-9">
+          <div className="grid gap-8 lg:grid-cols-[0.8fr_1.2fr] lg:items-end">
+            <div>
+              <p className="text-xs font-850 uppercase tracking-[0.16em] text-orange-700">{copy.workspacesKicker}</p>
+              <h2 className="mt-3 text-3xl font-850 tracking-[-0.04em] text-slate-900 sm:text-5xl">{copy.workspacesTitle}</h2>
+              <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-600">{copy.workspacesCopy}</p>
             </div>
-            <div className="grid min-w-0 gap-3 sm:grid-cols-3">
-              <div className="rounded-2xl border border-[#ff9a69]/25 bg-[#ff9a69]/[0.07] p-4">
-                <p className="text-xs font-850 uppercase tracking-wider text-[#ff9a69]">{copy.buyer}</p>
-                <p className="mt-2 text-sm font-800 text-white">{copy.marketplaceFirst}</p>
-                <p className="mt-1 text-xs leading-5 text-[#9ba8bb]">{copy.buyerWorkspaceCopy}</p>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="rounded-2xl border border-orange-200 bg-orange-50 p-4">
+                <p className="text-xs font-850 uppercase tracking-wider text-orange-700">{copy.buyer}</p>
+                <p className="mt-2 text-sm font-800 text-slate-900">{copy.marketplaceFirst}</p>
+                <p className="mt-1 text-xs leading-5 text-slate-600">{copy.buyerWorkspaceCopy}</p>
               </div>
-              <div className="rounded-2xl border border-[#4fd1c5]/25 bg-[#4fd1c5]/[0.07] p-4">
-                <p className="text-xs font-850 uppercase tracking-wider text-[#8ce6dc]">{copy.seller}</p>
-                <p className="mt-2 text-sm font-800 text-white">{copy.operationsFirst}</p>
-                <p className="mt-1 text-xs leading-5 text-[#9ba8bb]">{copy.sellerWorkspaceCopy}</p>
+              <div className="rounded-2xl border border-teal-200 bg-teal-50 p-4">
+                <p className="text-xs font-850 uppercase tracking-wider text-teal-700">{copy.seller}</p>
+                <p className="mt-2 text-sm font-800 text-slate-900">{copy.operationsFirst}</p>
+                <p className="mt-1 text-xs leading-5 text-slate-600">{copy.sellerWorkspaceCopy}</p>
               </div>
-              <div className="rounded-2xl border border-[#c9a24b]/30 bg-[#c9a24b]/[0.08] p-4">
-                <p className="text-xs font-850 uppercase tracking-wider text-[#e3c179]">{copy.admin}</p>
-                <p className="mt-2 text-sm font-800 text-white">{copy.controlFirst}</p>
-                <p className="mt-1 text-xs leading-5 text-[#9ba8bb]">{copy.adminWorkspaceCopy}</p>
+              <div className="rounded-2xl border border-violet-200 bg-violet-50 p-4">
+                <p className="text-xs font-850 uppercase tracking-wider text-violet-700">{copy.admin}</p>
+                <p className="mt-2 text-sm font-800 text-slate-900">{copy.controlFirst}</p>
+                <p className="mt-1 text-xs leading-5 text-slate-600">{copy.adminWorkspaceCopy}</p>
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      <section className="ft-future-bento ft-reveal-group">
-        <article className="ft-future-panel large ft-reveal">
+      <section className="ft-future-bento">
+        <article className="ft-future-panel large">
           <div>
             <div className="ft-future-panel-icon"><Icon name="ArrowsRightLeftIcon" size={22} /></div>
             <p className="mt-6 text-xs font-850 uppercase tracking-[0.16em] text-orange-700">{copy.lifecycleKicker}</p>
@@ -131,14 +128,14 @@ export default function PublicAccessLanding() {
         </article>
 
         {copy.capabilities.map((item, index) => (
-          <article key={item.title} className="ft-future-panel ft-reveal">
+          <article key={item.title} className="ft-future-panel">
             <div className="ft-future-panel-icon"><Icon name={capabilityIcons[index] as 'SparklesIcon'} size={21} /></div>
             <h3 className="mt-5 text-xl text-slate-900">{item.title}</h3>
             <p className="mt-3 text-sm text-slate-600">{item.copy}</p>
           </article>
         ))}
 
-        <article className="ft-future-panel ft-reveal">
+        <article className="ft-future-panel">
           <div className="ft-future-panel-icon"><Icon name="LockClosedIcon" size={21} /></div>
           <h3 className="mt-5 text-xl text-slate-900">{copy.privateGuidanceTitle}</h3>
           <p className="mt-3 text-sm text-slate-600">{copy.privateGuidanceCopy}</p>
@@ -146,19 +143,19 @@ export default function PublicAccessLanding() {
       </section>
 
       <section id="trust" className="relative z-[2] mx-auto w-[min(1420px,calc(100%-32px))] px-4 pb-24 sm:px-0">
-        <div className="ft-reveal rounded-[30px] border border-white/10 bg-white/[0.04] p-6 shadow-[0_20px_70px_rgba(0,0,0,0.35)] backdrop-blur-xl sm:p-9">
-          <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_590px] lg:items-end">
-            <div className="min-w-0">
-              <p className="text-xs font-850 uppercase tracking-[0.16em] text-[#ff9a69]">{copy.trustKicker}</p>
-              <h2 className="mt-3 max-w-3xl text-3xl font-850 tracking-[-0.035em] text-white sm:text-4xl">{copy.trustTitle}</h2>
-              <p className="mt-4 max-w-3xl text-sm leading-7 text-[#9ba8bb]">{copy.trustCopy}</p>
+        <div className="rounded-[30px] border border-slate-200 bg-white p-6 shadow-[0_20px_70px_rgba(15,23,42,0.08)] sm:p-9">
+          <div className="grid gap-8 lg:grid-cols-[1fr_auto] lg:items-end">
+            <div>
+              <p className="text-xs font-850 uppercase tracking-[0.16em] text-orange-700">{copy.trustKicker}</p>
+              <h2 className="mt-3 max-w-3xl text-3xl font-850 tracking-[-0.035em] text-slate-900 sm:text-4xl">{copy.trustTitle}</h2>
+              <p className="mt-4 max-w-3xl text-sm leading-7 text-slate-600">{copy.trustCopy}</p>
             </div>
-            <div className="grid min-w-0 gap-3 sm:grid-cols-3">
+            <div className="grid gap-3 sm:grid-cols-3 lg:min-w-[590px]">
               {copy.trustItems.map((item, index) => (
-                <div key={item.title} className="rounded-2xl border border-white/10 bg-white/[0.05] p-4">
-                  <Icon name={trustIcons[index]} size={19} className="text-[#ff9a69]" />
-                  <p className="mt-3 text-sm font-800 text-white">{item.title}</p>
-                  <p className="mt-2 text-xs leading-5 text-[#9ba8bb]">{item.copy}</p>
+                <div key={item.title} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <Icon name={trustIcons[index]} size={19} className="text-orange-600" />
+                  <p className="mt-3 text-sm font-800 text-slate-900">{item.title}</p>
+                  <p className="mt-2 text-xs leading-5 text-slate-600">{item.copy}</p>
                 </div>
               ))}
             </div>
@@ -170,15 +167,15 @@ export default function PublicAccessLanding() {
         <div className="mx-auto flex max-w-[1420px] flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2.5">
             <AppLogo size={28} />
-            <span className="font-850 text-white">FabricTrad</span>
+            <span className="font-850 text-slate-900">FabricTrad</span>
           </div>
-          <nav className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-[#9ba8bb]" aria-label="Footer navigation">
-            <Link href="/how-to-use/start" className="hover:text-white">{copy.footerHowToUse}</Link>
-            <Link href="/help" className="hover:text-white">{copy.footerHelp}</Link>
-            <Link href="/custom-order" className="hover:text-white">{t('nav.customOrder')}</Link>
-            <Link href="/privacy" className="hover:text-white">{copy.footerPrivacy}</Link>
-            <Link href="/terms" className="hover:text-white">{copy.footerTerms}</Link>
-            <Link href="/login" className="font-800 text-[#ff9a69] hover:text-[#ffb28a]">{copy.signIn}</Link>
+          <nav className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-slate-600" aria-label="Footer navigation">
+            <Link href="/how-to-use/start" className="hover:text-slate-950">{copy.footerHowToUse}</Link>
+            <Link href="/help" className="hover:text-slate-950">{copy.footerHelp}</Link>
+            <Link href="/custom-order" className="hover:text-slate-950">{t('nav.customOrder')}</Link>
+            <Link href="/privacy" className="hover:text-slate-950">{copy.footerPrivacy}</Link>
+            <Link href="/terms" className="hover:text-slate-950">{copy.footerTerms}</Link>
+            <Link href="/login" className="font-800 text-orange-700 hover:text-orange-900">{copy.signIn}</Link>
           </nav>
         </div>
       </footer>

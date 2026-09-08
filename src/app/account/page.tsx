@@ -176,20 +176,20 @@ export default function AccountHomePage() {
 
       <div className="mx-auto max-w-6xl px-4 py-7 sm:px-6 lg:px-8 lg:py-10">
         <section className="overflow-hidden rounded-3xl border border-border bg-card shadow-sm">
-          <div className="grid gap-6 p-6 sm:p-8 lg:grid-cols-[minmax(0,1fr)_288px] lg:items-center">
-            <div className="min-w-0">
+          <div className="grid gap-6 p-6 sm:p-8 lg:grid-cols-[1fr_auto] lg:items-center">
+            <div>
               <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-800 text-primary">
-                {canSell ? 'Seller account' : 'Buyer account'}
+                One account · separate workspaces
               </span>
               <h1 className="mt-4 text-3xl font-800 tracking-tight text-foreground sm:text-4xl">
                 Welcome, {displayName}
               </h1>
               <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
-                Every FabricTrad login is either a buyer or a seller account, never both. Selling on FabricTrad
-                always needs its own separate account with a different email and mobile number.
+                Buyer and seller tools stay in their own workspaces. If this account has both permissions,
+                switch explicitly from the workspace controls instead of being redirected between roles.
               </p>
             </div>
-            <div className="rounded-2xl border border-border bg-muted/40 p-5">
+            <div className="min-w-64 rounded-2xl border border-border bg-muted/40 p-5">
               <div className="flex items-center justify-between text-xs font-800 text-muted-foreground">
                 <span>Account setup</span>
                 <span>{completedSteps}/{onboarding.length}</span>

@@ -172,20 +172,20 @@ export default function HowToUsePage() {
   if (!step) return null;
 
   return (
-    <main className="ft-storefront min-h-screen bg-background">
+    <main className="ft-storefront min-h-screen bg-slate-50">
       <Header />
       <div className="pt-16">
-        <section className="border-b border-border bg-card px-4 py-10 sm:px-6 lg:px-8 lg:py-14">
+        <section className="border-b border-slate-200 bg-white px-4 py-10 sm:px-6 lg:px-8 lg:py-14">
           <div className="mx-auto max-w-6xl">
             <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
               <div className="max-w-3xl">
-                <p className="text-xs font-850 uppercase tracking-[0.18em] text-primary">{copy.eyebrow}</p>
-                <h1 className="mt-3 text-4xl font-900 tracking-[-0.045em] text-foreground sm:text-5xl">{copy.title}</h1>
-                <p className="mt-4 max-w-2xl text-sm leading-7 text-muted-foreground sm:text-base">{copy.intro}</p>
+                <p className="text-xs font-850 uppercase tracking-[0.18em] text-orange-700">{copy.eyebrow}</p>
+                <h1 className="mt-3 text-4xl font-900 tracking-[-0.045em] text-slate-950 sm:text-5xl">{copy.title}</h1>
+                <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-600 sm:text-base">{copy.intro}</p>
               </div>
-              <div className="inline-flex rounded-2xl border border-border bg-muted/40 p-1.5" role="tablist" aria-label={copy.chooseWalkthrough}>
-                <button type="button" role="tab" aria-selected={role === 'buyer'} onClick={() => chooseRole('buyer')} className={`min-h-11 rounded-xl px-5 text-sm font-850 transition ${role === 'buyer' ? 'bg-card text-primary shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}><Icon name="ShoppingBagIcon" size={16} className="mr-2 inline" />{copy.buyer}</button>
-                <button type="button" role="tab" aria-selected={role === 'seller'} onClick={() => chooseRole('seller')} className={`min-h-11 rounded-xl px-5 text-sm font-850 transition ${role === 'seller' ? 'bg-card text-teal-600 dark:text-teal-400 shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}><Icon name="BuildingStorefrontIcon" size={16} className="mr-2 inline" />{copy.seller}</button>
+              <div className="inline-flex rounded-2xl border border-slate-200 bg-slate-50 p-1.5" role="tablist" aria-label={copy.chooseWalkthrough}>
+                <button type="button" role="tab" aria-selected={role === 'buyer'} onClick={() => chooseRole('buyer')} className={`min-h-11 rounded-xl px-5 text-sm font-850 transition ${role === 'buyer' ? 'bg-white text-orange-700 shadow-sm' : 'text-slate-500 hover:text-slate-900'}`}><Icon name="ShoppingBagIcon" size={16} className="mr-2 inline" />{copy.buyer}</button>
+                <button type="button" role="tab" aria-selected={role === 'seller'} onClick={() => chooseRole('seller')} className={`min-h-11 rounded-xl px-5 text-sm font-850 transition ${role === 'seller' ? 'bg-white text-teal-700 shadow-sm' : 'text-slate-500 hover:text-slate-900'}`}><Icon name="BuildingStorefrontIcon" size={16} className="mr-2 inline" />{copy.seller}</button>
               </div>
             </div>
           </div>
@@ -195,18 +195,18 @@ export default function HowToUsePage() {
           <NarratedGuideVideo role={role} />
           <div className="grid gap-7 lg:grid-cols-[330px_1fr] lg:items-start">
             <div className="order-2 lg:order-1">
-              <div className="ft-product-content-card p-5 lg:sticky lg:top-24">
+              <div className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm lg:sticky lg:top-24">
                 <div className="flex items-center justify-between gap-3">
-                  <div><p className="text-[11px] font-850 uppercase tracking-[0.15em] text-muted-foreground">{role === 'buyer' ? copy.buyer : copy.seller} {copy.walkthrough}</p><p className="mt-1 text-sm font-850 text-foreground">{copy.step} {stepIndex + 1} {copy.of} {steps.length}</p></div>
-                  <button type="button" onClick={() => setPlaying((current) => !current)} className="ft-primary-action flex min-h-11 items-center gap-2 px-3 text-xs" aria-label={playing ? copy.pauseWalkthrough : copy.playWalkthrough}><Icon name={playing ? 'PauseIcon' : 'PlayIcon'} size={15} />{playing ? copy.pause : copy.play}</button>
+                  <div><p className="text-[11px] font-850 uppercase tracking-[0.15em] text-slate-400">{role === 'buyer' ? copy.buyer : copy.seller} {copy.walkthrough}</p><p className="mt-1 text-sm font-850 text-slate-900">{copy.step} {stepIndex + 1} {copy.of} {steps.length}</p></div>
+                  <button type="button" onClick={() => setPlaying((current) => !current)} className="flex min-h-11 items-center gap-2 rounded-xl bg-slate-950 px-3 text-xs font-850 text-white" aria-label={playing ? copy.pauseWalkthrough : copy.playWalkthrough}><Icon name={playing ? 'PauseIcon' : 'PlayIcon'} size={15} />{playing ? copy.pause : copy.play}</button>
                 </div>
 
-                <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-muted"><div className={`h-full rounded-full transition-all duration-500 ${role === 'buyer' ? 'bg-primary' : 'bg-teal-600'}`} style={{ width: `${((stepIndex + 1) / steps.length) * 100}%` }} /></div>
+                <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-slate-100"><div className={`h-full rounded-full transition-all duration-500 ${role === 'buyer' ? 'bg-orange-600' : 'bg-teal-600'}`} style={{ width: `${((stepIndex + 1) / steps.length) * 100}%` }} /></div>
 
                 <div className="mt-5 space-y-1.5">
                   {steps.map((item, index) => (
-                    <button key={`${item.title}-${index}`} type="button" onClick={() => { setStepIndex(index); setPlaying(false); }} className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition ${index === stepIndex ? (role === 'buyer' ? 'bg-primary/10 text-primary' : 'bg-teal-500/10 text-teal-600 dark:text-teal-400') : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'}`}>
-                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-card shadow-sm"><Icon name={item.icon} size={15} /></span>
+                    <button key={`${item.title}-${index}`} type="button" onClick={() => { setStepIndex(index); setPlaying(false); }} className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition ${index === stepIndex ? (role === 'buyer' ? 'bg-orange-50 text-orange-800' : 'bg-teal-50 text-teal-800') : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'}`}>
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white shadow-sm"><Icon name={item.icon} size={15} /></span>
                       <span className="min-w-0"><span className="block text-[11px] font-850 uppercase tracking-wider opacity-60">{copy.step} {index + 1}</span><span className="block truncate text-xs font-850">{item.title}</span></span>
                     </button>
                   ))}
@@ -217,20 +217,20 @@ export default function HowToUsePage() {
             <div className="order-1 min-w-0 lg:order-2">
               <DemoFrame role={role} step={step} copy={copy} />
 
-              <div className="ft-product-content-card mt-5 p-5 sm:p-6">
+              <div className="mt-5 rounded-[24px] border border-slate-200 bg-white p-5 sm:p-6">
                 <div className="flex items-start gap-4">
-                  <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${role === 'buyer' ? 'bg-primary/10 text-primary' : 'bg-teal-500/10 text-teal-600 dark:text-teal-400'}`}><Icon name={step.icon} size={20} /></div>
-                  <div className="min-w-0"><p className="text-lg font-900 tracking-tight text-foreground">{step.action}</p><p className="mt-2 text-sm leading-6 text-muted-foreground">{step.detail}</p></div>
+                  <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${role === 'buyer' ? 'bg-orange-50 text-orange-700' : 'bg-teal-50 text-teal-700'}`}><Icon name={step.icon} size={20} /></div>
+                  <div className="min-w-0"><p className="text-lg font-900 tracking-tight text-slate-950">{step.action}</p><p className="mt-2 text-sm leading-6 text-slate-600">{step.detail}</p></div>
                 </div>
 
-                <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-5">
-                  <button type="button" onClick={previous} disabled={stepIndex === 0} className="ft-secondary-action flex min-h-11 items-center gap-2 px-4 text-sm disabled:cursor-not-allowed disabled:opacity-40"><Icon name="ChevronLeftIcon" size={16} />{copy.previous}</button>
+                <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-5">
+                  <button type="button" onClick={previous} disabled={stepIndex === 0} className="flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 px-4 text-sm font-850 text-slate-700 disabled:cursor-not-allowed disabled:opacity-40"><Icon name="ChevronLeftIcon" size={16} />{copy.previous}</button>
                   <div className="flex flex-wrap gap-2">
-                    <Link href="/login" className="ft-secondary-action flex min-h-11 items-center px-4 text-sm">{copy.signIn}</Link>
+                    <Link href="/login" className="flex min-h-11 items-center rounded-xl border border-slate-200 px-4 text-sm font-850 text-slate-700">{copy.signIn}</Link>
                     {stepIndex < steps.length - 1 ? (
-                      <button type="button" onClick={next} className={`flex min-h-11 items-center gap-2 rounded-xl px-4 text-sm font-850 text-white ${role === 'buyer' ? 'bg-primary' : 'bg-teal-600'}`}>{copy.nextStep}<Icon name="ChevronRightIcon" size={16} /></button>
+                      <button type="button" onClick={next} className={`flex min-h-11 items-center gap-2 rounded-xl px-4 text-sm font-850 text-white ${role === 'buyer' ? 'bg-orange-700' : 'bg-teal-700'}`}>{copy.nextStep}<Icon name="ChevronRightIcon" size={16} /></button>
                     ) : (
-                      <Link href="/register" className={`flex min-h-11 items-center gap-2 rounded-xl px-4 text-sm font-850 text-white ${role === 'buyer' ? 'bg-primary' : 'bg-teal-600'}`}>{copy.createAccount}<Icon name="ArrowRightIcon" size={16} /></Link>
+                      <Link href="/register" className={`flex min-h-11 items-center gap-2 rounded-xl px-4 text-sm font-850 text-white ${role === 'buyer' ? 'bg-orange-700' : 'bg-teal-700'}`}>{copy.createAccount}<Icon name="ArrowRightIcon" size={16} /></Link>
                     )}
                   </div>
                 </div>

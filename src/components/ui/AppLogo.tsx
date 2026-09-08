@@ -20,17 +20,17 @@ interface AppLogoProps {
 
 const OFFICIAL_LOGOS: Record<LogoVariant, { src: string; width: number; height: number }> = {
   horizontal: {
-    src: '/assets/brand/fabrictrad-logo-horizontal.png',
+    src: 'https://cdn.shopify.com/s/files/1/0841/4966/6010/files/fabrictrad-logo-horizontal.png?v=1788032519',
     width: 984,
     height: 220,
   },
   full: {
-    src: '/assets/brand/fabrictrad-logo-full.png',
+    src: 'https://cdn.shopify.com/s/files/1/0841/4966/6010/files/fabrictrad-logo-full.png?v=1788032530',
     width: 789,
     height: 608,
   },
   icon: {
-    src: '/assets/brand/fabrictrad-app-icon-512.png',
+    src: 'https://cdn.shopify.com/s/files/1/0841/4966/6010/files/fabrictrad-app-icon-512.png?v=1788032540',
     width: 512,
     height: 512,
   },
