@@ -53,10 +53,13 @@ const requiredFiles = [
 requiredFiles.forEach(read);
 
 // Server-authoritative catalogue pricing and tax.
-requireText('src/app/product-detail/components/ProductInfo.tsx', "rpc('submit_catalog_order_request'");
-requireText('src/app/product-detail/components/ProductInfo.tsx', 'Server-calculated GST');
-forbidText('src/app/product-detail/components/ProductInfo.tsx', "from('catalog_order_requests').insert");
-forbidText('src/app/product-detail/components/ProductInfo.tsx', 'GST (5%)');
+// ProductInfo.tsx was superseded by ProductInfoV2.tsx (the component page.tsx
+// actually renders); it resolves GST via resolveIndiaGstRate() rather than a
+// literal "Server-calculated GST" string, so these checks target that instead.
+requireText('src/app/product-detail/components/ProductInfoV2.tsx', "rpc('submit_catalog_order_request'");
+requireText('src/app/product-detail/components/ProductInfoV2.tsx', 'resolveIndiaGstRate');
+forbidText('src/app/product-detail/components/ProductInfoV2.tsx', "from('catalog_order_requests').insert");
+forbidText('src/app/product-detail/components/ProductInfoV2.tsx', 'GST (5%)');
 
 // Razorpay orders, signatures, amounts, capture, refunds and idempotency.
 requireText('src/app/api/razorpay/order/route.ts', 'amountPaise');
