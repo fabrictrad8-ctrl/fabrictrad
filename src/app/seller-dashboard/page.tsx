@@ -6,6 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import AppLogo from '@/components/ui/AppLogo';
 import Icon from '@/components/ui/AppIcon';
 import SellerDashboardLayout from '@/app/seller-dashboard/components/SellerDashboardLayout';
+import { whatsappStartUrl } from '@/lib/bespokeWorkflow';
 
 function DashboardRouteState({
   title,
@@ -189,14 +190,34 @@ export default function SellerDashboardPage() {
       >
         <SellerDashboardLayout />
       </Suspense>
-      <Link
-        href="/seller-product-rules"
-        className="fixed bottom-24 right-4 z-40 inline-flex min-h-12 items-center gap-2 rounded-full border border-primary/30 bg-card/95 px-4 py-3 text-xs font-800 text-primary shadow-xl backdrop-blur-xl transition hover:-translate-y-0.5 hover:bg-primary hover:text-white md:bottom-6 md:right-6"
-        aria-label="Open product buyer quantity rules"
-      >
-        <Icon name="AdjustmentsHorizontalIcon" size={17} />
-        GTIN & buyer limits
-      </Link>
+      <div className="fixed bottom-24 right-4 z-40 flex max-w-[calc(100vw-2rem)] flex-col items-end gap-2 md:bottom-6 md:right-6">
+        <a
+          href={whatsappStartUrl('SELLER SUPPORT')}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex min-h-12 items-center gap-2 rounded-full bg-[#25D366] px-4 py-3 text-xs font-850 text-white shadow-xl transition hover:-translate-y-0.5 hover:brightness-95"
+          aria-label="Open FabricTrad seller WhatsApp"
+        >
+          <Icon name="ChatBubbleLeftRightIcon" size={17} />
+          WhatsApp +91 79772 86898
+        </a>
+        <Link
+          href="/seller-bulk-upload"
+          className="inline-flex min-h-12 items-center gap-2 rounded-full border border-secondary/30 bg-card/95 px-4 py-3 text-xs font-800 text-secondary shadow-xl backdrop-blur-xl transition hover:-translate-y-0.5 hover:bg-secondary hover:text-white"
+          aria-label="Open bulk CSV product import"
+        >
+          <Icon name="ArrowUpTrayIcon" size={17} />
+          Bulk CSV products
+        </Link>
+        <Link
+          href="/seller-product-rules"
+          className="inline-flex min-h-12 items-center gap-2 rounded-full border border-primary/30 bg-card/95 px-4 py-3 text-xs font-800 text-primary shadow-xl backdrop-blur-xl transition hover:-translate-y-0.5 hover:bg-primary hover:text-white"
+          aria-label="Open product buyer quantity rules"
+        >
+          <Icon name="AdjustmentsHorizontalIcon" size={17} />
+          GTIN & buyer limits
+        </Link>
+      </div>
     </div>
   );
 }
