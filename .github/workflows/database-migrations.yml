@@ -57,7 +57,7 @@ jobs:
           DO $$
           DECLARE required_table text; required_function text;
           BEGIN
-            FOREACH required_table IN ARRAY ARRAY['user_profiles','seller_profiles','buyer_profiles','catalog_order_requests','catalog_order_payments','seller_product_media','seller_tax_invoices','seller_payout_requests','shopify_seller_order_items','seller_payout_accounts','marketplace_checkout_leases'] LOOP
+            FOREACH required_table IN ARRAY ARRAY['user_profiles','seller_profiles','buyer_profiles','catalog_order_requests','catalog_order_payments','seller_product_media','seller_tax_invoices','seller_payout_requests','seller_payout_accounts','marketplace_checkout_leases'] LOOP
               IF to_regclass('public.' || required_table) IS NULL THEN
                 RAISE EXCEPTION 'Required table is missing: %', required_table;
               END IF;

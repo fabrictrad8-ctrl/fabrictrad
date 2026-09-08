@@ -132,7 +132,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          grep -Fq 'ft-buyer-search' src/components/Header.tsx
+          grep -Fq 'ft-nav-search' src/components/Header.tsx
           grep -Fq '.ft-buyer-header.ft-commerce-header' src/styles/commerce-ux-final.css
           grep -Fq 'MarketplaceQueryBridge' src/app/marketplace/page.tsx
           grep -Fq "v1: 'Surat Textile Mills Pvt Ltd'" src/app/marketplace/components/MarketplaceQueryBridge.tsx

@@ -334,7 +334,7 @@ export default function Header() {
 
           <button
             type="button"
-            className="ft-icon-button ml-auto md:hidden"
+            className="ft-icon-button ft-mobile-menu-trigger ml-auto md:hidden"
             onClick={() => setMobileOpen((current) => !current)}
             aria-label={mobileOpen ? 'Close menu' : 'Open menu'}
             aria-expanded={mobileOpen}
@@ -347,7 +347,7 @@ export default function Header() {
       {mobileOpen && (
         <>
           <button type="button" className="fixed inset-0 z-40 bg-black/45 md:hidden" onClick={closeMenus} aria-label="Close menu" />
-          <aside className="ft-nav-drawer fixed inset-y-0 right-0 z-50 w-[min(92vw,380px)] overflow-y-auto md:hidden">
+          <aside className="ft-nav-drawer ft-mobile-commerce-menu fixed inset-y-0 right-0 z-50 w-[min(92vw,380px)] overflow-y-auto md:hidden">
             <div className="ft-nav-drawer-header sticky top-0 z-10 flex h-16 items-center px-4">
               <div className="flex min-w-0 items-center gap-2.5">
                 <AppLogo size={34} />

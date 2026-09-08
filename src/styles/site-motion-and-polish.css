@@ -73,29 +73,102 @@ html:not(.dark) .ft-auth-page .ft-secondary-action { color: #f5f3ef !important; 
   .ft-textile-visual { min-height: 280px; max-height: 420px; aspect-ratio: 1.6; }
   .ft-showroom .ft-future-hero h1 { font-size: clamp(38px, 8vw, 58px) !important; }
 }
-@media (max-width: 760px) {
-  .ft-showroom .ft-future-nav .ft-secondary-action { display: inline-flex !important; }
+/* Public homepage mobile nav: below md, the button row that used to be
+   crammed into the topbar (language, dark mode, Sign in, Join FabricTrad —
+   which had no room to fit and wrapped mid-word, e.g. "Sig[n] in") is
+   replaced by a single hamburger trigger and a full slide-out drawer. */
+.ft-future-menu-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
 }
+.ft-future-menu-btn:hover { background: rgba(255, 255, 255, 0.12); }
+
+.ft-future-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  background: rgba(6, 9, 16, 0.6);
+  backdrop-filter: blur(2px);
+  border: 0;
+}
+
+.ft-future-menu-drawer {
+  position: fixed;
+  inset: 0 0 0 auto;
+  z-index: 95;
+  width: min(86vw, 360px);
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  padding: 18px 18px calc(env(safe-area-inset-bottom, 0px) + 24px);
+  overflow-y: auto;
+  background: #0c1220;
+  border-left: 1px solid rgba(255, 255, 255, 0.10);
+  box-shadow: -24px 0 60px rgba(0, 0, 0, 0.45);
+  color: #fff;
+  animation: ft-future-menu-slide-in 0.22s ease-out both;
+}
+@keyframes ft-future-menu-slide-in {
+  from { transform: translateX(100%); }
+  to { transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ft-future-menu-drawer { animation: none; }
+}
+
+.ft-future-menu-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 4px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.10);
+  padding-bottom: 16px;
+}
+.ft-future-menu-header .ft-future-brand { color: #fff !important; }
+
+.ft-future-menu-links {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ft-future-menu-links a {
+  padding: 13px 10px;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #e2e8f0;
+}
+.ft-future-menu-links a:hover,
+.ft-future-menu-links a:active {
+  background: rgba(255, 255, 255, 0.07);
+  color: #fff;
+}
+
+.ft-future-menu-prefs {
+  padding-top: 4px;
+  border-top: 1px solid rgba(255, 255, 255, 0.10);
+  padding-top: 18px;
+}
+
+.ft-future-menu-actions {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.ft-future-menu-actions a { width: 100%; }
+
 @media (max-width: 480px) {
   .ft-showroom .ft-future-nav { height: auto !important; }
   .ft-showroom > section.pt-32 { padding-top: 180px; }
   .ft-showroom .ft-future-hero { padding-top: 180px !important; }
-  .ft-showroom .ft-future-nav { flex-wrap: wrap; gap: 10px !important; padding: 12px !important; }
-  .ft-showroom .ft-future-nav > .ml-auto {
-    width: 100%;
-    margin-left: 0;
-    flex-wrap: wrap;
-    row-gap: 8px;
-    justify-content: flex-end;
-  }
-  /* Buttons must reflow onto their own row rather than shrink and let their
-     own label text wrap mid-word ("Sig[n] in", "Join FabricTr[a]d"). */
-  .ft-showroom .ft-future-nav > .ml-auto > * { flex-shrink: 0; white-space: nowrap; }
-  .ft-showroom .ft-future-nav .ft-secondary-action,
-  .ft-showroom .ft-future-nav .ft-primary-action { padding-inline: 12px; font-size: 13px; }
-  .ft-textile-caption { inset: auto 12px 12px; padding: 14px; }
-  .ft-showroom .ft-future-hero-actions { align-items: stretch; }
-  .ft-showroom .ft-future-hero-actions a { flex: 1 1 100%; text-align: center; justify-content: center; }
 }
 
 .ft-skip-link {

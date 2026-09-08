@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import AppLogo from '@/components/ui/AppLogo';
@@ -15,6 +16,15 @@ const trustIcons = ['ShieldCheckIcon', 'CreditCardIcon', 'TruckIcon'] as const;
 export default function PublicAccessLanding() {
   const { language, t } = useAppPreferences();
   const copy = getPublicLandingCopy(language);
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  const navItems = [
+    { href: '#platform', label: copy.navPlatform },
+    { href: '#capabilities', label: copy.navCapabilities },
+    { href: '/custom-order', label: t('nav.customOrder') },
+    { href: '/how-to-use/start', label: copy.navHowToUse },
+    { href: '#trust', label: copy.navTrust },
+  ];
 
   return (
     <main className="ft-future-landing ft-showroom min-h-screen overflow-hidden">
@@ -33,7 +43,7 @@ export default function PublicAccessLanding() {
             <a href="#trust">{copy.navTrust}</a>
           </nav>
 
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto hidden items-center gap-2 md:flex">
             <PreferenceControls compact />
             <Link href="/login" className="ft-secondary-action inline-flex min-h-10 items-center justify-center rounded-xl px-4 text-sm font-800">
               {copy.signIn}
@@ -42,8 +52,58 @@ export default function PublicAccessLanding() {
               {copy.joinFabricTrad} <Icon name="ArrowRightIcon" size={15} />
             </Link>
           </div>
+
+          <button
+            type="button"
+            className="ft-mobile-menu-trigger ft-future-menu-btn ml-auto md:hidden"
+            onClick={() => setMenuOpen((current) => !current)}
+            aria-label={menuOpen ? 'Close menu' : 'Open menu'}
+            aria-expanded={menuOpen}
+          >
+            <Icon name={menuOpen ? 'XMarkIcon' : 'Bars3Icon'} size={22} />
+          </button>
         </div>
       </header>
+
+      {menuOpen && (
+        <>
+          <button type="button" className="ft-future-menu-backdrop md:hidden" onClick={() => setMenuOpen(false)} aria-label="Close menu" />
+          <aside className="ft-mobile-commerce-menu ft-future-menu-drawer md:hidden">
+            <div className="ft-future-menu-header">
+              <Link href="/" className="ft-future-brand" onClick={() => setMenuOpen(false)}>
+                <AppLogo size={30} />
+                <span>FabricTrad</span>
+              </Link>
+              <button type="button" onClick={() => setMenuOpen(false)} aria-label="Close menu" className="ft-future-menu-btn">
+                <Icon name="XMarkIcon" size={20} />
+              </button>
+            </div>
+
+            <nav className="ft-future-menu-links" aria-label="Public navigation">
+              {navItems.map((item) =>
+                item.href.startsWith('#') ? (
+                  <a key={item.href} href={item.href} onClick={() => setMenuOpen(false)}>{item.label}</a>
+                ) : (
+                  <Link key={item.href} href={item.href} onClick={() => setMenuOpen(false)}>{item.label}</Link>
+                )
+              )}
+            </nav>
+
+            <div className="ft-future-menu-prefs">
+              <PreferenceControls />
+            </div>
+
+            <div className="ft-future-menu-actions">
+              <Link href="/login" className="ft-secondary-action inline-flex min-h-12 items-center justify-center rounded-xl px-4 text-sm font-800" onClick={() => setMenuOpen(false)}>
+                {copy.signIn}
+              </Link>
+              <Link href="/register" className="ft-primary-action inline-flex min-h-12 items-center justify-center gap-2 rounded-xl px-4 text-sm font-800" onClick={() => setMenuOpen(false)}>
+                {copy.joinFabricTrad} <Icon name="ArrowRightIcon" size={15} />
+              </Link>
+            </div>
+          </aside>
+        </>
+      )}
 
       <section id="platform" className="ft-future-hero">
         <div className="ft-hero-orchestrated relative z-10">
