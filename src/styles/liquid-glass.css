@@ -79,7 +79,15 @@
     rgba(255, 255, 255, 0.5),
     transparent 45%
   );
-  background-attachment: fixed;
+  /* Default to `scroll` (tied to the element's own box) rather than
+     `fixed` (tied to the viewport) — some mobile WebViews/in-app browsers
+     misreport hover/pointer capability and never hit the media query
+     below that would otherwise correct this, and a `fixed` attachment on
+     a touch device with no real pointer position renders as a large,
+     misplaced glowing smear instead of a subtle per-card highlight.
+     Confirmed hover+fine-pointer devices opt into the viewport-tied
+     version further down, where it's actually usable. */
+  background-attachment: scroll;
   mix-blend-mode: soft-light;
   opacity: 0.5;
   border-radius: inherit;
@@ -109,7 +117,7 @@
   z-index: 1;
 }
 
-@media (prefers-reduced-motion: reduce), (hover: none) {
+@media (hover: hover) and (pointer: fine) {
   .ft-auth-glass::after,
   .ft-dock::before,
   .ft-dock-bar::before,
@@ -118,7 +126,7 @@
   .ft-nav-workspace-menu::before,
   .ft-setup-guide::before,
   .ft-glass-card::before {
-    background-attachment: scroll;
+    background-attachment: fixed;
   }
 }
 
@@ -244,7 +252,9 @@
     rgba(255, 255, 255, 0.4),
     transparent 48%
   );
-  background-attachment: fixed;
+  /* Default to `scroll`, not `fixed` — see the identical note above the
+     hero glass system's own ::before rule for why. */
+  background-attachment: scroll;
   mix-blend-mode: soft-light;
   opacity: 0.32;
 }
@@ -262,9 +272,9 @@
   position: relative;
   z-index: 1;
 }
-@media (prefers-reduced-motion: reduce), (hover: none) {
+@media (hover: hover) and (pointer: fine) {
   .rounded-xl.border-border.bg-card::before,
   .rounded-2xl.border-border.bg-card::before {
-    background-attachment: scroll;
+    background-attachment: fixed;
   }
 }
