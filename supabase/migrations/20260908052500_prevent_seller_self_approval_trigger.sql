@@ -10,7 +10,7 @@ create or replace function public.prevent_seller_self_approval()
  set search_path to ''
 as $function$
 begin
-  if not is_admin() and auth.role() is distinct from 'service_role' then
+  if not public.is_admin() and auth.role() is distinct from 'service_role' then
     if new.approval_status = 'approved' then
       new.approval_status := 'pending';
     end if;
