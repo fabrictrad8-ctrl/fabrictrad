@@ -5,6 +5,7 @@ import toast from 'react-hot-toast';
 import Icon from '@/components/ui/AppIcon';
 import { useAuth } from '@/contexts/AuthContext';
 import { createClient } from '@/lib/supabase/client';
+import { pillClassForStatus, pillLabel } from '@/lib/statusPill';
 
 type DisputeType =
   | 'return_request'
@@ -17,6 +18,8 @@ type DisputeType =
 type DisputeStatus = 'open' | 'under_review' | 'resolved' | 'escalated' | 'closed';
 type OrderKind = 'catalog' | 'bulk';
 type Evidence = { file: File; type: 'image' | 'document' | 'video' };
+
+const CONDITION_DISPUTE_TYPES: DisputeType[] = ['damage_claim', 'quality_issue'];
 
 type OrderOption = {
   value: string;
@@ -63,13 +66,6 @@ const typeLabels: Record<DisputeType, string> = {
   delivery_issue: 'Delivery issue',
   general_query: 'General query',
 };
-const statusStyle: Record<DisputeStatus, string> = {
-  open: 'bg-primary/10 text-primary border-primary/20',
-  under_review: 'bg-warning/10 text-warning border-warning/20',
-  resolved: 'bg-success/10 text-success border-success/20',
-  escalated: 'bg-error/10 text-error border-error/20',
-  closed: 'bg-muted text-muted-foreground border-border',
-};
 const money = (value: unknown) =>
   new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(Number(value || 0));
 const dateTime = (value: string) =>
@@ -96,10 +92,12 @@ export default function DisputeMessaging({ mode = 'buyer' }: { mode?: 'buyer' | 
   const [disputeType, setDisputeType] = useState<DisputeType>('general_query');
   const [description, setDescription] = useState('');
   const [refundAmount, setRefundAmount] = useState('');
-  const [createEvidence, setCreateEvidence] = useState<Evidence | null>(null);
+  const [createVideoEvidence, setCreateVideoEvidence] = useState<Evidence | null>(null);
+  const [createPhotoEvidence, setCreatePhotoEvidence] = useState<Evidence[]>([]);
   const [message, setMessage] = useState('');
   const [messageEvidence, setMessageEvidence] = useState<Evidence | null>(null);
-  const createFileRef = useRef<HTMLInputElement>(null);
+  const createVideoFileRef = useRef<HTMLInputElement>(null);
+  const createPhotoFileRef = useRef<HTMLInputElement>(null);
   const messageFileRef = useRef<HTMLInputElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -204,7 +202,7 @@ export default function DisputeMessaging({ mode = 'buyer' }: { mode?: 'buyer' | 
   useEffect(() => void load(), [load]);
   useEffect(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), [active?.messages.length]);
 
-  const parseEvidence = (file?: File | null): Evidence | null => {
+  const parseEvidence = (file?: File | null, restrictTo?: 'video' | 'image'): Evidence | null => {
     if (!file) return null;
     const allowed = [
       'image/jpeg',
@@ -223,14 +221,20 @@ export default function DisputeMessaging({ mode = 'buyer' }: { mode?: 'buyer' | 
       toast.error('Upload JPG, PNG, WebP, PDF, MP4, MOV or WebM evidence.');
       return null;
     }
-    return {
-      file,
-      type: file.type.startsWith('video/')
-        ? 'video'
-        : file.type.startsWith('image/')
-          ? 'image'
-          : 'document',
-    };
+    const type = file.type.startsWith('video/')
+      ? 'video'
+      : file.type.startsWith('image/')
+        ? 'image'
+        : 'document';
+    if (restrictTo === 'video' && type !== 'video') {
+      toast.error('The unboxing recording must be a video file (MP4, MOV or WebM).');
+      return null;
+    }
+    if (restrictTo === 'image' && type !== 'image') {
+      toast.error('Photos must be JPG, PNG or WebP.');
+      return null;
+    }
+    return { file, type };
   };
 
   const uploadEvidence = async (disputeId: string, evidence: Evidence) => {
@@ -280,8 +284,15 @@ export default function DisputeMessaging({ mode = 'buyer' }: { mode?: 'buyer' | 
     const selected = orders.find((item) => item.value === orderValue);
     if (!selected) return toast.error('Select one of your paid marketplace orders.');
     if (description.trim().length < 10) return toast.error('Describe the issue in at least 10 characters.');
-    if (['damage_claim', 'exchange_request'].includes(disputeType) && !createEvidence) {
-      return toast.error('Attach photo or video evidence for damage or exchange requests.');
+    if (CONDITION_DISPUTE_TYPES.includes(disputeType)) {
+      if (!createVideoEvidence) {
+        return toast.error('Attach the unboxing video — required for damage or quality complaints.');
+      }
+      if (createPhotoEvidence.length === 0) {
+        return toast.error('Attach at least one photo of the product received — required alongside the video.');
+      }
+    } else if (disputeType === 'exchange_request' && !createVideoEvidence && createPhotoEvidence.length === 0) {
+      return toast.error('Attach photo or video evidence for an exchange request.');
     }
     const requestedRefund = disputeType === 'refund_request' ? Number(refundAmount) : null;
     if (
@@ -298,6 +309,21 @@ export default function DisputeMessaging({ mode = 'buyer' }: { mode?: 'buyer' | 
         .select('id')
         .eq('user_id', user.id)
         .maybeSingle();
+
+      // Uploads happen before the dispute row exists yet, so evidence is staged
+      // under a client-generated id and the dispute row records exactly what
+      // actually made it to storage — never claiming evidence exists when an
+      // upload silently failed, since that flag is what unlocks review.
+      const stagingId = window.crypto.randomUUID();
+      let videoPath: string | null = null;
+      if (createVideoEvidence) {
+        videoPath = await uploadEvidence(stagingId, createVideoEvidence);
+      }
+      const photoPaths: string[] = [];
+      for (const photo of createPhotoEvidence) {
+        photoPaths.push(await uploadEvidence(stagingId, photo));
+      }
+
       const { data: dispute, error: disputeError } = await supabase
         .from('disputes')
         .insert({
@@ -311,35 +337,38 @@ export default function DisputeMessaging({ mode = 'buyer' }: { mode?: 'buyer' | 
           dispute_type: disputeType,
           status: 'open',
           description: description.trim(),
-          has_unboxing_video: createEvidence?.type === 'video',
+          has_unboxing_video: Boolean(videoPath),
+          unboxing_video_url: videoPath,
+          has_unboxing_photos: photoPaths.length > 0,
+          unboxing_photo_urls: photoPaths,
           requested_refund_amount: requestedRefund,
         })
         .select('id')
         .single();
       if (disputeError || !dispute) throw disputeError || new Error('Dispute could not be created.');
 
-      let filePath: string | null = null;
-      if (createEvidence) {
-        try {
-          filePath = await uploadEvidence(dispute.id, createEvidence);
-        } catch (uploadError) {
-          toast.error(
-            uploadError instanceof Error
-              ? `Request opened, but evidence upload failed: ${uploadError.message}`
-              : 'Request opened, but evidence upload failed.'
-          );
-        }
-      }
-      const { error: messageError } = await supabase.from('dispute_messages').insert({
-        dispute_id: dispute.id,
-        sender_type: 'buyer',
-        sender_id: user.id,
-        sender_name: accountName,
-        message_text: description.trim(),
-        file_url: filePath,
-        file_name: filePath ? createEvidence?.file.name || null : null,
-        file_type: filePath ? createEvidence?.type || null : null,
-      });
+      const evidenceMessages = [
+        ...(videoPath ? [{ path: videoPath, name: createVideoEvidence?.file.name, type: 'video' as const }] : []),
+        ...photoPaths.map((path, index) => ({ path, name: createPhotoEvidence[index]?.file.name, type: 'image' as const })),
+      ];
+      const { error: messageError } = await supabase.from('dispute_messages').insert([
+        {
+          dispute_id: dispute.id,
+          sender_type: 'buyer',
+          sender_id: user.id,
+          sender_name: accountName,
+          message_text: description.trim(),
+        },
+        ...evidenceMessages.map((evidence) => ({
+          dispute_id: dispute.id,
+          sender_type: 'buyer' as const,
+          sender_id: user.id,
+          sender_name: accountName,
+          file_url: evidence.path,
+          file_name: evidence.name || null,
+          file_type: evidence.type,
+        })),
+      ]);
       if (messageError) throw messageError;
 
       toast.success('Request opened and stored for buyer, seller and administrator review.');
@@ -347,7 +376,8 @@ export default function DisputeMessaging({ mode = 'buyer' }: { mode?: 'buyer' | 
       setOrderValue('');
       setDescription('');
       setRefundAmount('');
-      setCreateEvidence(null);
+      setCreateVideoEvidence(null);
+      setCreatePhotoEvidence([]);
       setDisputeType('general_query');
       await load();
       setActiveId(dispute.id);
@@ -395,7 +425,7 @@ export default function DisputeMessaging({ mode = 'buyer' }: { mode?: 'buyer' | 
           {!loading && !disputes.length && <div className="p-6 text-center"><Icon name="ChatBubbleLeftRightIcon" size={28} className="mx-auto text-muted-foreground" /><p className="mt-2 text-xs font-800">No order disputes</p><p className="mt-1 text-xs leading-5 text-muted-foreground">Only real paid orders can open a request.</p></div>}
           {disputes.map((item) => (
             <button key={item.id} type="button" onClick={() => { setActiveId(item.id); setShowCreate(false); }} className={`w-full border-b border-border p-3 text-left hover:bg-muted/50 ${activeId === item.id ? 'bg-primary/5' : ''}`}>
-              <div className="flex items-center justify-between gap-2"><span className="truncate font-mono text-[11px] font-800 text-primary">{item.order_id}</span><span className={`rounded-full border px-2 py-0.5 text-[10px] font-800 ${statusStyle[item.status]}`}>{item.status.replaceAll('_', ' ')}</span></div>
+              <div className="flex items-center justify-between gap-2"><span className="truncate font-mono text-[11px] font-800 text-primary">{item.order_id}</span><span className={pillClassForStatus(item.status)}>{pillLabel(item.status)}</span></div>
               <p className="mt-1 truncate text-xs font-800">{item.product_name || typeLabels[item.dispute_type]}</p>
               <p className="mt-1 text-[11px] text-muted-foreground">{typeLabels[item.dispute_type]} · {dateTime(item.created_at)}</p>
             </button>
@@ -412,13 +442,35 @@ export default function DisputeMessaging({ mode = 'buyer' }: { mode?: 'buyer' | 
                 <div><p className="mb-2 text-sm font-700">Request type</p><div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">{(Object.entries(typeLabels) as [DisputeType, string][]).map(([value, label]) => <button key={value} type="button" onClick={() => setDisputeType(value)} className={`min-h-11 rounded-xl border px-3 py-2 text-left text-xs font-700 ${disputeType === value ? 'border-primary bg-primary/10 text-primary' : 'border-border bg-muted/30'}`}>{label}</button>)}</div></div>
                 {disputeType === 'refund_request' && <label className="block text-sm font-700">Requested refund amount (₹)<input type="number" min="1" step="0.01" value={refundAmount} onChange={(event) => setRefundAmount(event.target.value)} className="input-base mt-1.5 w-full rounded-xl px-3 py-2.5" /></label>}
                 <label className="block text-sm font-700">Description<textarea rows={5} maxLength={3000} value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Explain what happened, the goods condition and the resolution requested." className="input-base mt-1.5 w-full resize-y rounded-xl px-3 py-2.5" /></label>
-                <div className="rounded-xl border border-border bg-muted/30 p-3"><div className="flex flex-wrap items-center justify-between gap-2"><div><p className="text-sm font-700">Private evidence</p><p className="text-xs text-muted-foreground">JPG, PNG, WebP, PDF, MP4, MOV or WebM · max 100 MB</p></div><button type="button" onClick={() => createFileRef.current?.click()} className="btn-secondary rounded-xl px-3 py-2 text-xs"><Icon name="PaperClipIcon" size={14} className="mr-1 inline" />Attach</button><input ref={createFileRef} type="file" accept="image/jpeg,image/png,image/webp,application/pdf,video/mp4,video/quicktime,video/webm" className="hidden" onChange={(event) => setCreateEvidence(parseEvidence(event.target.files?.[0]))} /></div>{createEvidence && <p className="mt-2 break-all text-xs font-700 text-success">{createEvidence.file.name}</p>}{['damage_claim', 'exchange_request'].includes(disputeType) && <p className="mt-2 text-xs font-700 text-warning">Evidence is required for this request type.</p>}</div>
+                {CONDITION_DISPUTE_TYPES.includes(disputeType) ? (
+                  <div className="rounded-xl border border-warning/30 bg-warning/5 p-3">
+                    <p className="text-sm font-800 text-warning">Unboxing video + photos required</p>
+                    <p className="mt-1 text-xs leading-5 text-muted-foreground">Damage and quality complaints can only be reviewed with both an unboxing video and at least one photo of the product as received.</p>
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      <button type="button" onClick={() => createVideoFileRef.current?.click()} className="btn-secondary rounded-xl px-3 py-2 text-xs"><Icon name="VideoCameraIcon" size={14} className="mr-1 inline" />Attach unboxing video</button>
+                      <input ref={createVideoFileRef} type="file" accept="video/mp4,video/quicktime,video/webm" className="hidden" onChange={(event) => setCreateVideoEvidence(parseEvidence(event.target.files?.[0], 'video'))} />
+                      {createVideoEvidence && <span className="rounded-full bg-success/10 px-2.5 py-1 text-[11px] font-800 text-success">{createVideoEvidence.file.name}</span>}
+                    </div>
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <button type="button" onClick={() => createPhotoFileRef.current?.click()} className="btn-secondary rounded-xl px-3 py-2 text-xs"><Icon name="PhotoIcon" size={14} className="mr-1 inline" />Add a photo</button>
+                      <input ref={createPhotoFileRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(event) => { const evidence = parseEvidence(event.target.files?.[0], 'image'); if (evidence) setCreatePhotoEvidence((current) => [...current, evidence]); event.target.value = ''; }} />
+                      {createPhotoEvidence.map((photo, index) => (
+                        <span key={`${photo.file.name}-${index}`} className="inline-flex items-center gap-1 rounded-full bg-success/10 px-2.5 py-1 text-[11px] font-800 text-success">
+                          {photo.file.name}
+                          <button type="button" onClick={() => setCreatePhotoEvidence((current) => current.filter((_, i) => i !== index))} className="text-success/70 hover:text-success" aria-label={`Remove ${photo.file.name}`}>×</button>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="rounded-xl border border-border bg-muted/30 p-3"><div className="flex flex-wrap items-center justify-between gap-2"><div><p className="text-sm font-700">Private evidence (optional)</p><p className="text-xs text-muted-foreground">JPG, PNG, WebP or MP4/MOV/WebM · max 100 MB</p></div><button type="button" onClick={() => createVideoFileRef.current?.click()} className="btn-secondary rounded-xl px-3 py-2 text-xs"><Icon name="PaperClipIcon" size={14} className="mr-1 inline" />Attach</button><input ref={createVideoFileRef} type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,video/webm" className="hidden" onChange={(event) => { const evidence = parseEvidence(event.target.files?.[0]); if (evidence?.type === 'video') setCreateVideoEvidence(evidence); else if (evidence) setCreatePhotoEvidence((current) => [...current, evidence]); }} /></div>{createVideoEvidence && <p className="mt-2 break-all text-xs font-700 text-success">{createVideoEvidence.file.name}</p>}{createPhotoEvidence.map((photo, index) => <p key={index} className="mt-1 break-all text-xs font-700 text-success">{photo.file.name}</p>)}{disputeType === 'exchange_request' && <p className="mt-2 text-xs font-700 text-warning">Evidence is required for exchange requests.</p>}</div>
+                )}
                 <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><button type="button" disabled={busy} onClick={() => setShowCreate(false)} className="btn-secondary rounded-xl px-4 py-2.5 text-sm">Cancel</button><button type="button" disabled={busy || !orderValue || description.trim().length < 10} onClick={() => void createDispute()} className="btn-primary rounded-xl px-4 py-2.5 text-sm disabled:opacity-50">{busy ? 'Opening request…' : 'Open request'}</button></div>
               </div>
             </div>
           ) : active ? (
             <div className="flex min-h-[34rem] flex-col lg:min-h-[42rem]">
-              <header className="border-b border-border p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="font-mono text-xs font-800 text-primary">{active.order_id}</p><h3 className="mt-1 text-sm font-800">{typeLabels[active.dispute_type]} · {active.product_name || 'Marketplace order'}</h3>{active.requested_refund_amount ? <p className="mt-1 text-xs font-700 text-warning">Requested refund: {money(active.requested_refund_amount)}</p> : null}</div><span className={`rounded-full border px-2.5 py-1 text-xs font-800 ${statusStyle[active.status]}`}>{active.status.replaceAll('_', ' ')}</span></div>{active.resolution_notes && <div className="mt-3 rounded-xl border border-success/20 bg-success/5 p-3 text-xs"><strong>Administrator resolution:</strong> {active.resolution_notes}</div>}</header>
+              <header className="border-b border-border p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="font-mono text-xs font-800 text-primary">{active.order_id}</p><h3 className="mt-1 text-sm font-800">{typeLabels[active.dispute_type]} · {active.product_name || 'Marketplace order'}</h3>{active.requested_refund_amount ? <p className="mt-1 text-xs font-700 text-warning">Requested refund: {money(active.requested_refund_amount)}</p> : null}</div><span className={pillClassForStatus(active.status)}>{pillLabel(active.status)}</span></div>{active.resolution_notes && <div className="mt-3 rounded-xl border border-success/20 bg-success/5 p-3 text-xs"><strong>Administrator resolution:</strong> {active.resolution_notes}</div>}</header>
               <div className="flex-1 space-y-3 overflow-y-auto bg-muted/20 p-4">{active.messages.map((item) => { const mine = item.sender_id === user?.id; return <div key={item.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}><div className={`max-w-[88%] rounded-2xl px-3 py-2.5 text-sm sm:max-w-[72%] ${mine ? 'bg-primary text-white' : 'border border-border bg-card'}`}><p className={`mb-1 text-[10px] font-800 ${mine ? 'text-white/75' : 'text-muted-foreground'}`}>{item.sender_name} · {item.sender_type === 'admin' ? 'FabricTrad support' : item.sender_type}</p>{item.message_text && <p className="whitespace-pre-line break-words">{item.message_text}</p>}{item.file_url && <button type="button" onClick={() => void openEvidence(item.file_url!)} className={`mt-2 inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-800 ${mine ? 'border-white/30 bg-white/10 text-white' : 'border-border bg-muted text-primary'}`}><Icon name={item.file_type === 'video' ? 'VideoCameraIcon' : item.file_type === 'image' ? 'PhotoIcon' : 'DocumentIcon'} size={13} />{item.file_name || 'Open evidence'}</button>}<p className={`mt-1.5 text-[10px] ${mine ? 'text-white/70' : 'text-muted-foreground'}`}>{dateTime(item.created_at)}</p></div></div>; })}{!active.messages.length && <p className="py-8 text-center text-xs text-muted-foreground">No messages yet.</p>}<div ref={bottomRef} /></div>
               {['open', 'under_review', 'escalated'].includes(active.status) ? <footer className="border-t border-border p-3">{messageEvidence && <p className="mb-2 break-all text-xs font-700 text-success">Attached: {messageEvidence.file.name}</p>}<div className="flex items-end gap-2"><button type="button" onClick={() => messageFileRef.current?.click()} className="ft-icon-button shrink-0" aria-label="Attach private evidence"><Icon name="PaperClipIcon" size={17} /></button><input ref={messageFileRef} type="file" accept="image/jpeg,image/png,image/webp,application/pdf,video/mp4,video/quicktime,video/webm" className="hidden" onChange={(event) => setMessageEvidence(parseEvidence(event.target.files?.[0]))} /><textarea rows={2} maxLength={3000} value={message} onChange={(event) => setMessage(event.target.value)} placeholder="Write a message…" className="input-base min-w-0 flex-1 resize-none rounded-xl px-3 py-2.5 text-sm" /><button type="button" disabled={busy || (!message.trim() && !messageEvidence)} onClick={() => void sendMessage()} className="btn-primary shrink-0 rounded-xl px-4 py-3 disabled:opacity-50"><Icon name="PaperAirplaneIcon" size={16} /></button></div></footer> : <div className="border-t border-border bg-muted/30 p-3 text-center text-xs text-muted-foreground">This conversation is closed. Contact support with the dispute reference for further review.</div>}
             </div>

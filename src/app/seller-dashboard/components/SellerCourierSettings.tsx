@@ -7,6 +7,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { createClient } from '@/lib/supabase/client';
 import { validTrackingUrl } from '@/lib/shippingValidation';
 import { firstOrderItem, formatMoney, useSellerBulkOrders } from '@/lib/hooks/useAccountOrders';
+import { pillClassForStatus } from '@/lib/statusPill';
 
 type OrderKind = 'bulk' | 'catalog';
 type CourierType = 'shiprocket' | 'local';
@@ -300,11 +301,7 @@ export default function SellerCourierSettings() {
         <div className="rounded-2xl border border-border bg-card p-4">
           <div className="flex items-center justify-between gap-2">
             <p className="text-[11px] font-800 uppercase tracking-wide text-muted-foreground">Courier gateway</p>
-            <span
-              className={`rounded-full px-2 py-0.5 text-[10px] font-800 ${
-                shiprocket.configured ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning'
-              }`}
-            >
+            <span className={pillClassForStatus(shiprocket.configured ? 'verified' : 'pending')}>
               {shiprocket.configured ? 'connected' : 'setup required'}
             </span>
           </div>
@@ -367,9 +364,7 @@ export default function SellerCourierSettings() {
                           {order.kind}
                         </span>
                         {shipment && (
-                          <span className="rounded-full bg-success/10 px-2 py-0.5 text-[10px] font-800 text-success">
-                            shipment created
-                          </span>
+                          <span className="ft-pill ft-pill-success">shipment created</span>
                         )}
                       </div>
                       <p className="mt-1 truncate text-xs text-muted-foreground">
@@ -462,7 +457,7 @@ export default function SellerCourierSettings() {
                   <div className="flex items-center gap-2">
                     <Icon name="BoltIcon" size={18} className="text-primary" />
                     <span className="text-sm font-800">Automatic courier</span>
-                    <span className={`ml-auto rounded-full px-2 py-0.5 text-[10px] font-800 ${shiprocket.configured ? 'bg-success/10 text-success' : 'bg-error/10 text-error'}`}>
+                    <span className={`ml-auto ${pillClassForStatus(shiprocket.configured ? 'verified' : 'cancelled')}`}>
                       {shiprocket.configured ? 'connected' : 'not connected'}
                     </span>
                   </div>

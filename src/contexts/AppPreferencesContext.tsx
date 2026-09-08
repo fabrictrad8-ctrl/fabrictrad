@@ -25,12 +25,29 @@ function isLanguage(value: unknown): value is SupportedLanguageCode {
   return SUPPORTED_LANGUAGES.some((language) => language.code === value);
 }
 
+function systemPrefersDark(): boolean {
+  try {
+    return window.matchMedia('(prefers-color-scheme: dark)').matches;
+  } catch {
+    return false;
+  }
+}
+
+function applyResolvedTheme(resolved: 'light' | 'dark') {
+  document.documentElement.classList.toggle('dark', resolved === 'dark');
+  document.documentElement.dataset.theme = resolved;
+  document.documentElement.style.colorScheme = resolved;
+}
+
 export function AppPreferencesProvider({ children }: { children: React.ReactNode }) {
   const { user, profile, isDemoAccount, refreshProfile } = useAuth();
   const [language, setLanguageState] = useState<SupportedLanguageCode>('en');
+  const [theme, setThemeState] = useState<ThemePreference>('system');
+  const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark'>('light');
   const preferenceQueue = useRef<Promise<void>>(Promise.resolve());
   const profileLanguageLoadedFor = useRef<string | null>(null);
   const languageChosenLocally = useRef(false);
+  const themeChosenLocally = useRef(false);
 
   useEffect(() => {
     document.documentElement.dataset.fabrictradReady = 'true';
@@ -39,16 +56,37 @@ export function AppPreferencesProvider({ children }: { children: React.ReactNode
 
   useEffect(() => {
     let storedLanguage: string | null = null;
-    try { storedLanguage = window.localStorage.getItem(LANGUAGE_KEY); } catch { /* Storage can be disabled. */ }
+    let storedTheme: string | null = null;
+    try {
+      storedLanguage = window.localStorage.getItem(LANGUAGE_KEY);
+      storedTheme = window.localStorage.getItem(THEME_KEY);
+    } catch { /* Storage can be disabled. */ }
     if (isLanguage(storedLanguage)) setLanguageState(storedLanguage);
-
-    // The current commerce release is intentionally light-only. This clears old
-    // device/account dark preferences that produced low-contrast mixed surfaces.
-    try { window.localStorage.setItem(THEME_KEY, 'light'); } catch { /* Keep the in-memory preference. */ }
-    document.documentElement.classList.remove('dark');
-    document.documentElement.dataset.theme = 'light';
-    document.documentElement.style.colorScheme = 'light';
+    const initialTheme: ThemePreference =
+      storedTheme === 'light' || storedTheme === 'dark' || storedTheme === 'system' ? storedTheme : 'system';
+    if (storedTheme) themeChosenLocally.current = true;
+    setThemeState(initialTheme);
+    const resolved = initialTheme === 'system' ? (systemPrefersDark() ? 'dark' : 'light') : initialTheme;
+    setResolvedTheme(resolved);
+    applyResolvedTheme(resolved);
   }, []);
+
+  useEffect(() => {
+    if (theme !== 'system') return;
+    let media: MediaQueryList;
+    try {
+      media = window.matchMedia('(prefers-color-scheme: dark)');
+    } catch {
+      return;
+    }
+    const onChange = () => {
+      const resolved = media.matches ? 'dark' : 'light';
+      setResolvedTheme(resolved);
+      applyResolvedTheme(resolved);
+    };
+    media.addEventListener('change', onChange);
+    return () => media.removeEventListener('change', onChange);
+  }, [theme]);
 
   useEffect(() => {
     if (!user) profileLanguageLoadedFor.current = null;
@@ -58,13 +96,16 @@ export function AppPreferencesProvider({ children }: { children: React.ReactNode
         setLanguageState(profile.preferred_language);
         try { window.localStorage.setItem(LANGUAGE_KEY, profile.preferred_language); } catch { /* Optional device storage. */ }
       }
+      if (!themeChosenLocally.current) {
+        const preferred = profile.preferred_theme;
+        const next: ThemePreference =
+          preferred === 'light' || preferred === 'dark' || preferred === 'system' ? preferred : 'system';
+        setThemeState(next);
+        const resolved = next === 'system' ? (systemPrefersDark() ? 'dark' : 'light') : next;
+        setResolvedTheme(resolved);
+        applyResolvedTheme(resolved);
+      }
     }
-
-    // Do not let a stale preferred_theme value reactivate the unaudited dark UI.
-    try { window.localStorage.setItem(THEME_KEY, 'light'); } catch { /* Optional device storage. */ }
-    document.documentElement.classList.remove('dark');
-    document.documentElement.dataset.theme = 'light';
-    document.documentElement.style.colorScheme = 'light';
   }, [profile, user]);
 
   useEffect(() => {
@@ -85,12 +126,14 @@ export function AppPreferencesProvider({ children }: { children: React.ReactNode
   );
 
   const setTheme = useCallback(
-    (_next: ThemePreference) => {
-      try { window.localStorage.setItem(THEME_KEY, 'light'); } catch { /* Optional device storage. */ }
-      document.documentElement.classList.remove('dark');
-      document.documentElement.dataset.theme = 'light';
-      document.documentElement.style.colorScheme = 'light';
-      void persistProfilePreference({ preferred_theme: 'light' }).catch(() => undefined);
+    (next: ThemePreference) => {
+      themeChosenLocally.current = true;
+      setThemeState(next);
+      try { window.localStorage.setItem(THEME_KEY, next); } catch { /* Optional device storage. */ }
+      const resolved = next === 'system' ? (systemPrefersDark() ? 'dark' : 'light') : next;
+      setResolvedTheme(resolved);
+      applyResolvedTheme(resolved);
+      void persistProfilePreference({ preferred_theme: next }).catch(() => undefined);
     },
     [persistProfilePreference]
   );
@@ -111,14 +154,14 @@ export function AppPreferencesProvider({ children }: { children: React.ReactNode
 
   const value = useMemo<PreferencesContextValue>(
     () => ({
-      theme: 'light',
-      resolvedTheme: 'light',
+      theme,
+      resolvedTheme,
       language,
       setTheme,
       setLanguage,
       t: (key) => translate(language, key),
     }),
-    [language, setLanguage, setTheme]
+    [theme, resolvedTheme, language, setLanguage, setTheme]
   );
 
   return <PreferencesContext.Provider value={value}>{children}</PreferencesContext.Provider>;

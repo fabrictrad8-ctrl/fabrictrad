@@ -212,57 +212,51 @@ export default function Header() {
   return (
     <>
       <header
-        className={`ft-commerce-header ${buyerContext ? 'ft-buyer-header' : ''} fixed inset-x-0 top-0 z-50 transition-all duration-200 ${
-          scrolled ? 'is-scrolled' : ''
-        }`}
+        className={`ft-nav-shell fixed inset-x-0 top-0 z-50 transition-shadow duration-200 ${scrolled ? 'is-scrolled' : ''}`}
       >
-        <div className="ft-header-inner mx-auto h-16 max-w-[1760px] gap-3 px-4 sm:px-6 lg:px-8">
-          <Link href={brandHref} className="ft-header-brand flex shrink-0 items-center gap-2.5" onClick={closeMenus}>
+        <div className="ft-nav-inner mx-auto h-16 max-w-[1760px] gap-3 px-4 sm:px-6 lg:px-8">
+          <Link href={brandHref} className="ft-nav-brand flex shrink-0 items-center gap-2.5" onClick={closeMenus}>
             <AppLogo size={36} />
-            <span className="hidden text-lg font-800 tracking-tight text-foreground sm:block">FabricTrad</span>
+            <span className="hidden text-lg font-800 tracking-tight sm:block">FabricTrad</span>
           </Link>
 
           {showBuyerUtilities && (
-            <form onSubmit={handleSearch} className="ft-buyer-search hidden min-w-0 flex-1 items-stretch md:flex" role="search">
+            <form onSubmit={handleSearch} className="ft-nav-search hidden min-w-0 min-h-11 flex-1 items-stretch md:flex" role="search">
               <input
                 type="search"
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
                 placeholder={t('nav.search')}
                 aria-label={t('nav.searchButton')}
-                className="min-w-0 flex-1 bg-white px-4 text-sm text-slate-900 outline-none placeholder:text-slate-500"
+                className="min-w-0 flex-1 px-4 text-sm outline-none"
               />
-              <button type="submit" className="ft-buyer-search-submit" aria-label={t('nav.searchButton')}>
+              <button type="submit" className="ft-nav-search-submit" aria-label={t('nav.searchButton')}>
                 <Icon name="MagnifyingGlassIcon" size={20} />
               </button>
             </form>
           )}
 
-          <nav className={`ft-header-primary-nav hidden items-center gap-1 ${buyerContext ? 'ft-buyer-secondary-nav' : ''}`} aria-label="Primary navigation">
+          <nav className="ft-nav-links hidden lg:flex" aria-label="Primary navigation">
             {navLinks.slice(0, 5).map((link) => (
               <Link
                 key={`${link.label}-${link.href}`}
                 href={link.href}
-                className={`ft-header-link ${pathname === link.href ? 'is-current' : ''}`}
+                className={`ft-nav-link ${pathname === link.href ? 'is-current' : ''}`}
               >
                 {link.label}
               </Link>
             ))}
           </nav>
 
-          <div className="ft-header-actions ml-auto hidden items-center gap-2 md:flex">
-            {!buyerContext && (
-              <div className="ft-header-preferences">
-                <PreferenceControls compact />
-              </div>
-            )}
+          <div className="ml-auto hidden items-center gap-2 md:flex">
+            {!buyerContext && <PreferenceControls compact />}
 
             {loading ? (
               <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
             ) : isLoggedIn ? (
               <>
                 {showBuyerUtilities && (
-                  <Link href="/buyer-dashboard?tab=orders" className="ft-header-orders-link">
+                  <Link href="/buyer-dashboard?tab=orders" className="ft-nav-orders-link">
                     <span className="hidden text-[10px] leading-none lg:block">Your</span>
                     <span className="text-xs font-850 leading-none">Orders</span>
                   </Link>
@@ -272,17 +266,17 @@ export default function Header() {
                   <button
                     type="button"
                     onClick={() => setWorkspaceOpen((current) => !current)}
-                    className="ft-workspace-button"
+                    className="ft-nav-workspace-btn"
                     aria-expanded={workspaceOpen}
                     aria-haspopup="menu"
                   >
-                    <span className="ft-workspace-dot" />
-                    <span className="ft-workspace-label">Workspaces</span>
+                    <span className="ft-nav-workspace-dot" />
+                    <span>Workspaces</span>
                     <Icon name="ChevronDownIcon" size={14} />
                   </button>
 
                   {workspaceOpen && (
-                    <div className="ft-workspace-menu" role="menu">
+                    <div className="ft-nav-workspace-menu" role="menu">
                       <div className="border-b border-border px-4 py-3">
                         <p className="text-xs font-800 uppercase tracking-[0.13em] text-primary">{accountRoleLabel}</p>
                         <p className="mt-1 truncate text-sm font-750 text-foreground">
@@ -296,12 +290,12 @@ export default function Header() {
                       </div>
                       <div className="p-2">
                         {workspaceLinks.map((link) => (
-                          <Link key={link.href} href={link.href} onClick={closeMenus} className="ft-workspace-link" role="menuitem">
+                          <Link key={link.href} href={link.href} onClick={closeMenus} className="ft-nav-workspace-link" role="menuitem">
                             <Icon name={link.icon as 'HomeIcon'} size={17} />
                             <span>{link.label}</span>
                           </Link>
                         ))}
-                        <Link href="/profile" onClick={closeMenus} className="ft-workspace-link" role="menuitem">
+                        <Link href="/profile" onClick={closeMenus} className="ft-nav-workspace-link" role="menuitem">
                           <Icon name="Cog6ToothIcon" size={17} />
                           <span>Account settings</span>
                         </Link>
@@ -311,7 +305,7 @@ export default function Header() {
                 </div>
 
                 {quickAction && (
-                  <Link href={quickAction.href} className="ft-header-quick-action ft-primary-action hidden items-center gap-2 px-3 py-2 text-xs lg:inline-flex">
+                  <Link href={quickAction.href} className="ft-primary-action hidden items-center gap-2 px-3 py-2 text-xs lg:inline-flex">
                     <Icon name={quickAction.icon as 'PlusIcon'} size={15} />
                     {quickAction.label}
                   </Link>
@@ -324,9 +318,7 @@ export default function Header() {
                     <Icon name="BellIcon" size={18} />
                   </Link>
                 )}
-                <div className="ft-header-profile">
-                  <ProfileMenu />
-                </div>
+                <ProfileMenu />
               </>
             ) : (
               <>
@@ -342,7 +334,7 @@ export default function Header() {
 
           <button
             type="button"
-            className="ft-mobile-menu-trigger ft-icon-button ml-auto md:hidden"
+            className="ft-icon-button ml-auto md:hidden"
             onClick={() => setMobileOpen((current) => !current)}
             aria-label={mobileOpen ? 'Close menu' : 'Open menu'}
             aria-expanded={mobileOpen}
@@ -355,8 +347,8 @@ export default function Header() {
       {mobileOpen && (
         <>
           <button type="button" className="fixed inset-0 z-40 bg-black/45 md:hidden" onClick={closeMenus} aria-label="Close menu" />
-          <aside className="ft-mobile-commerce-menu fixed inset-y-0 right-0 z-50 w-[min(92vw,380px)] overflow-y-auto md:hidden">
-            <div className="sticky top-0 z-10 flex h-16 items-center border-b border-border bg-card/95 px-4 backdrop-blur-xl">
+          <aside className="ft-nav-drawer fixed inset-y-0 right-0 z-50 w-[min(92vw,380px)] overflow-y-auto md:hidden">
+            <div className="ft-nav-drawer-header sticky top-0 z-10 flex h-16 items-center px-4">
               <div className="flex min-w-0 items-center gap-2.5">
                 <AppLogo size={34} />
                 <div className="min-w-0">
@@ -371,7 +363,7 @@ export default function Header() {
 
             <div className="space-y-5 p-4 pb-10">
               {isLoggedIn && (
-                <div className="ft-mobile-account-card">
+                <div className="ft-nav-account-card">
                   <div className="flex items-center gap-3">
                     <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-primary/10 text-sm font-800 text-primary">
                       {profile?.avatar_url ? (
@@ -392,23 +384,23 @@ export default function Header() {
               )}
 
               {showBuyerUtilities && (
-                <form onSubmit={handleSearch} className="ft-header-search flex">
+                <form onSubmit={handleSearch} className="ft-nav-search flex">
                   <Icon name="MagnifyingGlassIcon" size={18} className="ml-3 shrink-0 text-muted-foreground" />
                   <input
                     type="search"
                     value={searchQuery}
                     onChange={(event) => setSearchQuery(event.target.value)}
                     placeholder={t('nav.search')}
-                    className="min-w-0 flex-1 bg-transparent px-3 text-sm outline-none"
+                    className="min-w-0 flex-1 px-3 text-sm outline-none"
                   />
-                  <button type="submit" className="ft-search-submit px-4 text-sm font-750">Go</button>
+                  <button type="submit" className="ft-nav-search-submit px-4 text-sm font-750">Go</button>
                 </form>
               )}
 
               {showBuyerUtilities && (
                 <div className="space-y-1">
                   <CartButton mobile />
-                  <Link href="/buyer-dashboard?tab=orders" onClick={closeMenus} className="ft-mobile-menu-link">
+                  <Link href="/buyer-dashboard?tab=orders" onClick={closeMenus} className="ft-nav-drawer-link">
                     <Icon name="ShoppingBagIcon" size={18} />
                     <span>Your orders</span>
                   </Link>
@@ -422,7 +414,7 @@ export default function Header() {
                   </p>
                   <div className="space-y-1">
                     {navLinks.map((link) => (
-                      <Link key={`${link.label}-${link.href}`} href={link.href} onClick={closeMenus} className="ft-mobile-menu-link">
+                      <Link key={`${link.label}-${link.href}`} href={link.href} onClick={closeMenus} className="ft-nav-drawer-link">
                         <Icon name={link.icon as 'ShoppingBagIcon'} size={18} />
                         <span>{link.label}</span>
                         <Icon name="ChevronRightIcon" size={15} className="ml-auto text-muted-foreground" />
@@ -437,17 +429,17 @@ export default function Header() {
                   <p className="mb-2 px-1 text-[11px] font-800 uppercase tracking-[0.15em] text-muted-foreground">Workspaces</p>
                   <div className="space-y-1">
                     {workspaceLinks.map((link) => (
-                      <Link key={link.href} href={link.href} onClick={closeMenus} className="ft-mobile-menu-link">
+                      <Link key={link.href} href={link.href} onClick={closeMenus} className="ft-nav-drawer-link">
                         <Icon name={link.icon as 'HomeIcon'} size={18} />
                         <span>{link.label}</span>
                       </Link>
                     ))}
-                    <Link href="/profile" onClick={closeMenus} className="ft-mobile-menu-link">
+                    <Link href="/profile" onClick={closeMenus} className="ft-nav-drawer-link">
                       <Icon name="Cog6ToothIcon" size={18} />
                       <span>Profile & preferences</span>
                     </Link>
                     {(isAdmin || buyerContext || sellerContext) && (
-                      <Link href={notificationsHref} onClick={closeMenus} className="ft-mobile-menu-link">
+                      <Link href={notificationsHref} onClick={closeMenus} className="ft-nav-drawer-link">
                         <Icon name="BellIcon" size={18} />
                         <span>{t('nav.notifications')}</span>
                       </Link>

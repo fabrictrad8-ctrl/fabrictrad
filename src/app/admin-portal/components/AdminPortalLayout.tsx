@@ -24,6 +24,7 @@ import AdminTopSellers from '@/app/admin-portal/components/AdminTopSellers';
 import AdminErrorMonitor from '@/app/admin-portal/components/AdminErrorMonitor';
 import AdminFulfillmentAnalytics from '@/app/admin-portal/components/AdminFulfillmentAnalytics';
 import AdminSellerMetrics from '@/app/admin-portal/components/AdminSellerMetrics';
+import AdminAnalyticsCharts from '@/app/admin-portal/components/AdminAnalyticsCharts';
 import AdminDisputes from '@/app/admin-portal/components/AdminDisputes';
 
 type AdminTab =
@@ -143,9 +144,9 @@ export default function AdminPortalLayout() {
   const adminName = profile?.full_name || user?.email?.split('@')[0] || 'Administrator';
 
   const sidebar = (
-    <div className="flex h-full flex-col bg-[#f6f6f7] dark:bg-card">
-      <div className="border-b border-border px-3 py-3">
-        <Link href="/admin-portal" onClick={() => setSidebarOpen(false)} className="flex min-h-11 items-center gap-3 rounded-xl px-2 hover:bg-card">
+    <div className="flex h-full flex-col">
+      <div className="ft-workspace-brand px-3 py-3">
+        <Link href="/admin-portal" onClick={() => setSidebarOpen(false)} className="flex min-h-11 items-center gap-3 rounded-xl px-2">
           <AppLogo size={32} />
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-800 text-foreground">FabricTrad</p>
@@ -158,20 +159,16 @@ export default function AdminPortalLayout() {
       <nav className="ft-sidebar-scroll flex-1 overflow-y-auto px-2 py-3" aria-label="Administrator navigation">
         {navGroups.map((group) => (
           <section key={group.label} className="mb-4 last:mb-0">
-            <p className="mb-1 px-2 text-[10px] font-800 uppercase tracking-[0.14em] text-muted-foreground">{group.label}</p>
+            <p className="ft-workspace-group-label mb-1 px-2 text-[10px] font-800 uppercase tracking-[0.14em]">{group.label}</p>
             <div className="space-y-0.5">
               {group.items.map((item) => (
                 <button
                   key={item.key}
                   type="button"
                   onClick={() => navigateTo(item.key)}
-                  className={`group flex min-h-10 w-full items-center gap-3 rounded-lg px-2.5 text-left text-sm font-650 transition ${
-                    activeTab === item.key
-                      ? 'bg-[#e1e3e5] text-foreground shadow-sm dark:bg-muted'
-                      : 'text-foreground/80 hover:bg-[#ebebeb] hover:text-foreground dark:hover:bg-muted'
-                  }`}
+                  className={`ft-workspace-nav-item flex min-h-10 w-full items-center gap-3 rounded-lg px-2.5 text-left text-sm font-650 ${activeTab === item.key ? 'is-active' : ''}`}
                 >
-                  <Icon name={item.icon as 'HomeIcon'} size={18} className={activeTab === item.key ? 'text-foreground' : 'text-muted-foreground group-hover:text-foreground'} />
+                  <Icon name={item.icon as 'HomeIcon'} size={18} />
                   <span className="min-w-0 flex-1 truncate">{item.label}</span>
                 </button>
               ))}
@@ -181,15 +178,15 @@ export default function AdminPortalLayout() {
       </nav>
 
       <div className="space-y-1 border-t border-border p-2">
-        <Link href="/marketplace" className="flex min-h-10 items-center gap-3 rounded-lg px-2.5 text-sm font-650 text-foreground/80 hover:bg-card hover:text-foreground">
-          <Icon name="ArrowTopRightOnSquareIcon" size={18} className="text-muted-foreground" />
+        <Link href="/marketplace" className="ft-workspace-footer-link flex min-h-10 items-center gap-3 rounded-lg px-2.5 text-sm font-650">
+          <Icon name="ArrowTopRightOnSquareIcon" size={18} />
           View marketplace
         </Link>
         <button
           type="button"
           onClick={() => void logout()}
           disabled={signingOut}
-          className="flex min-h-10 w-full items-center gap-3 rounded-lg px-2.5 text-left text-sm font-700 text-error hover:bg-error/10 disabled:opacity-50"
+          className="flex min-h-10 w-full items-center gap-3 rounded-lg px-2.5 text-left text-sm font-700 text-error transition hover:bg-error/10 disabled:opacity-50"
         >
           <Icon name="ArrowRightOnRectangleIcon" size={18} />
           {signingOut ? 'Signing out…' : 'Sign out'}
@@ -199,36 +196,14 @@ export default function AdminPortalLayout() {
   );
 
   return (
-    <div className="min-h-screen bg-[#f1f1f1] text-foreground dark:bg-background">
-      <header className="sticky top-0 z-40 flex h-14 items-center gap-3 border-b border-border bg-card/95 px-3 shadow-sm backdrop-blur-xl sm:px-4">
-        <button type="button" onClick={() => setSidebarOpen(true)} className="ft-icon-button min-h-10 min-w-10 shrink-0 justify-center md:!hidden" aria-label="Open admin navigation">
-          <Icon name="Bars3Icon" size={20} />
-        </button>
-
-        <div className="hidden min-w-0 md:block lg:w-52">
-          <p className="truncate text-sm font-800 text-foreground">{activeItem.label}</p>
-          <p className="truncate text-[11px] text-muted-foreground">{activeItem.description}</p>
-        </div>
-
-        <AdminCommandSearch />
-
-        <div className="ml-auto flex items-center gap-2">
-          <PreferenceControls compact />
-          <button type="button" onClick={() => navigateTo('activity')} className="ft-icon-button relative" aria-label="Open administrator alerts">
-            <Icon name="BellIcon" size={18} />
-            <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-error ring-2 ring-card" />
-          </button>
-          <ProfileMenu />
-        </div>
-      </header>
-
-      <div className="flex min-h-[calc(100vh-3.5rem)]">
-        <aside className="hidden w-[240px] shrink-0 border-r border-border md:block">{sidebar}</aside>
+    <div className="ft-workspace-shell">
+      <div className="ft-workspace-shell-grid">
+        <aside className="ft-dock hidden w-[240px] shrink-0 md:flex">{sidebar}</aside>
 
         {sidebarOpen && (
           <>
             <button type="button" className="fixed inset-0 z-40 bg-black/45 md:hidden" onClick={() => setSidebarOpen(false)} aria-label="Close admin navigation" />
-            <aside className="fixed inset-y-0 left-0 z-50 w-[min(88vw,290px)] border-r border-border shadow-2xl md:hidden">
+            <aside className="ft-dock is-drawer fixed inset-y-0 left-0 z-50 flex w-[min(88vw,290px)] shadow-2xl md:hidden">
               <button type="button" onClick={() => setSidebarOpen(false)} className="ft-icon-button absolute right-3 top-3 z-10" aria-label="Close admin navigation">
                 <Icon name="XMarkIcon" size={18} />
               </button>
@@ -237,7 +212,30 @@ export default function AdminPortalLayout() {
           </>
         )}
 
-        <main className="min-w-0 flex-1 overflow-y-auto px-3 py-4 pb-24 sm:px-5 sm:py-6 lg:px-7">
+        <div className="ft-canvas">
+          <header className="ft-dock-bar flex items-center gap-3 px-3 py-2.5 sm:px-4">
+            <button type="button" onClick={() => setSidebarOpen(true)} className="ft-icon-button min-h-10 min-w-10 shrink-0 justify-center md:!hidden" aria-label="Open admin navigation">
+              <Icon name="Bars3Icon" size={20} />
+            </button>
+
+            <div className="hidden min-w-0 lg:block lg:w-52">
+              <p className="truncate text-sm font-800 text-foreground">{activeItem.label}</p>
+              <p className="truncate text-[11px] text-muted-foreground">{activeItem.description}</p>
+            </div>
+
+            <AdminCommandSearch />
+
+            <div className="ml-auto flex items-center gap-2">
+              <PreferenceControls compact />
+              <button type="button" onClick={() => navigateTo('activity')} className="ft-icon-button relative" aria-label="Open administrator alerts">
+                <Icon name="BellIcon" size={18} />
+                <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-error ring-2 ring-card" />
+              </button>
+              <ProfileMenu />
+            </div>
+          </header>
+
+          <main className="ft-canvas-main min-w-0 px-3 py-4 pb-24 pt-4 sm:px-5 sm:py-6 lg:px-7">
           <div className="mx-auto max-w-[1500px]">
             {activeTab === 'dashboard' && <AdminDashboard />}
             {activeTab === 'orders' && <AdminOrders />}
@@ -249,17 +247,30 @@ export default function AdminPortalLayout() {
             {activeTab === 'disputes' && <AdminDisputes />}
             {activeTab === 'reconciliation' && <AdminReconciliation />}
             {activeTab === 'fulfillment' && <AdminFulfillmentAnalytics />}
-            {activeTab === 'seller-metrics' && <AdminSellerMetrics />}
+            {activeTab === 'seller-metrics' && (
+              <div className="space-y-8">
+                <AdminAnalyticsCharts />
+                <div>
+                  <div className="mb-4 flex items-center gap-2">
+                    <div className="h-px flex-1 bg-border" />
+                    <p className="text-xs font-800 uppercase tracking-[0.12em] text-muted-foreground">Per-seller breakdown</p>
+                    <div className="h-px flex-1 bg-border" />
+                  </div>
+                  <AdminSellerMetrics />
+                </div>
+              </div>
+            )}
             {activeTab === 'top-sellers' && <AdminTopSellers />}
             {activeTab === 'discounts' && <AdminDiscounts />}
             {activeTab === 'activity' && <AdminActivityFeed />}
             {activeTab === 'errors' && <AdminErrorMonitor />}
             {activeTab === 'settings' && <AdminSettings />}
           </div>
-        </main>
+          </main>
+        </div>
       </div>
 
-      <nav className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t border-border bg-card/95 p-1.5 backdrop-blur-xl md:hidden">
+      <nav className="ft-workspace-tabbar fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 p-1.5 md:hidden">
         {[
           { key: 'dashboard' as AdminTab, label: 'Home', icon: 'HomeIcon' },
           { key: 'orders' as AdminTab, label: 'Orders', icon: 'ShoppingBagIcon' },
@@ -267,7 +278,7 @@ export default function AdminPortalLayout() {
           { key: 'listings' as AdminTab, label: 'Products', icon: 'TagIcon' },
           { key: 'customers' as AdminTab, label: 'Customers', icon: 'UsersIcon' },
         ].map((item) => (
-          <button key={item.key} type="button" onClick={() => navigateTo(item.key)} className={`flex flex-col items-center gap-1 rounded-lg py-2 text-[10px] font-800 ${activeTab === item.key ? 'bg-primary/10 text-primary' : 'text-muted-foreground'}`}>
+          <button key={item.key} type="button" onClick={() => navigateTo(item.key)} className={`ft-workspace-tab flex flex-col items-center gap-1 rounded-lg py-2 text-[10px] font-800 ${activeTab === item.key ? 'is-active' : ''}`}>
             <Icon name={item.icon as 'HomeIcon'} size={18} />
             {item.label}
           </button>

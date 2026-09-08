@@ -31,7 +31,7 @@ export default function ProductCartAction() {
   };
 
   return (
-    <div className="rounded-xl border border-[#f0c14b]/70 bg-[#fffbea] p-3">
+    <div className="ft-product-content-card ft-product-sticky-cta p-3">
       <button
         type="button"
         onClick={addToCart}
@@ -41,7 +41,7 @@ export default function ProductCartAction() {
         <Icon name="ShoppingCartIcon" size={17} />
         {available > 0 ? 'Add to cart' : 'Currently unavailable'}
       </button>
-      <p className="mt-2 text-center text-[10px] leading-4 text-muted-foreground">
+      <p className="ft-product-sticky-cta-note mt-2 text-center text-[10px] leading-4 text-muted-foreground">
         Cart keeps this product for review. Buyer-specific MOQ, price, GST and stock are rechecked before the order request is submitted.
       </p>
     </div>

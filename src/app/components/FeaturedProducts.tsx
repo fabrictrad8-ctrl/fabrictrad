@@ -13,6 +13,7 @@ type FeaturedProduct = {
   city: string;
   state: string;
   price: number;
+  compareAtPrice: number | null;
   unit: string;
   moq: number;
   available: number;
@@ -30,7 +31,7 @@ export default function FeaturedProducts() {
       const supabase = createClient();
       const { data: rows } = await supabase
         .from('seller_products')
-        .select('id,seller_id,name,price_per_unit,unit,moq,available_quantity,reserved_quantity,image_url,origin_city,origin_state,dispatch_days')
+        .select('id,seller_id,name,price_per_unit,compare_at_price,unit,moq,available_quantity,reserved_quantity,image_url,origin_city,origin_state,dispatch_days')
         .eq('status', 'active')
         .eq('approval_status', 'approved')
         .gt('available_quantity', 0)
@@ -61,6 +62,7 @@ export default function FeaturedProducts() {
           city: row.origin_city || '',
           state: row.origin_state || '',
           price: Number(row.price_per_unit || 0),
+          compareAtPrice: row.compare_at_price ? Number(row.compare_at_price) : null,
           unit: row.unit || 'mtr',
           moq: Number(row.moq || 1),
           available: Math.max(
@@ -112,13 +114,19 @@ export default function FeaturedProducts() {
                     </div>
                   )}
                   <span className="absolute left-2 top-2 rounded-full bg-success px-2 py-1 text-[10px] font-800 text-white">Live stock</span>
+                  {!!product.compareAtPrice && product.compareAtPrice > product.price && (
+                    <span className="absolute right-2 top-2 rounded-full bg-error px-2 py-1 text-[10px] font-800 text-white">{Math.round((1 - product.price / product.compareAtPrice) * 100)}% OFF</span>
+                  )}
                 </div>
                 <div className="p-4">
                   <p className="truncate text-xs font-700 text-muted-foreground"><Icon name="ShieldCheckIcon" size={12} className="mr-1 inline text-success" />{product.seller}</p>
                   <h3 className="mt-1 line-clamp-2 text-sm font-800 text-foreground group-hover:text-primary">{product.name}</h3>
                   <p className="mt-1 text-xs text-muted-foreground">{[product.city, product.state].filter(Boolean).join(', ') || 'India'}</p>
                   <div className="mt-3 flex items-end justify-between gap-2">
-                    <span className="text-base font-800 text-primary">₹{product.price.toLocaleString('en-IN')}<span className="text-xs font-500 text-muted-foreground">/{product.unit}</span></span>
+                    <span className="flex items-baseline gap-1.5">
+                      <span className="text-base font-800 text-primary">₹{product.price.toLocaleString('en-IN')}<span className="text-xs font-500 text-muted-foreground">/{product.unit}</span></span>
+                      {!!product.compareAtPrice && product.compareAtPrice > product.price && <span className="text-[11px] text-muted-foreground line-through">₹{product.compareAtPrice.toLocaleString('en-IN')}</span>}
+                    </span>
                     <span className="text-[10px] font-700 text-muted-foreground">MOQ {product.moq}</span>
                   </div>
                   <p className="mt-2 text-[11px] text-success">{product.available.toLocaleString('en-IN')} {product.unit} available{product.dispatchDays ? ` · ${product.dispatchDays}d dispatch` : ''}</p>

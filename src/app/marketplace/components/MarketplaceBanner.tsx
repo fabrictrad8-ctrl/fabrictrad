@@ -57,12 +57,12 @@ export default function MarketplaceBanner() {
   return (
     <section className="ft-marketplace-hero" aria-labelledby="marketplace-title">
       <div className="ft-marketplace-hero-inner">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-3 text-[11px] text-slate-600">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3 text-[11px] text-white/70">
           <div className="flex flex-wrap items-center gap-4">
             <span className="inline-flex items-center gap-1.5"><Icon name="MapPinIcon" size={13} /> {deliveryLocation ? `Delivering to ${deliveryLocation}` : 'Add delivery location from your profile'}</span>
             <span className="inline-flex items-center gap-1.5"><Icon name="UserCircleIcon" size={13} /> {buyerMode}</span>
           </div>
-          <Link href="/buyer-dashboard?tab=orders" className="font-800 text-slate-800 hover:text-orange-700 hover:underline">Your orders</Link>
+          <Link href="/buyer-dashboard?tab=orders" className="font-800 text-white hover:text-primary hover:underline">Your orders</Link>
         </div>
 
         <div className="ft-marketplace-heading">

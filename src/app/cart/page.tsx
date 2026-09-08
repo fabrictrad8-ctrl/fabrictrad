@@ -96,7 +96,7 @@ export default function CartPage() {
                                 step={item.unit === 'mtr' || item.unit === 'kg' ? 0.5 : 1}
                                 value={item.quantity}
                                 onChange={(event) => updateQuantity(item.key, Number(event.target.value))}
-                                className="w-24 rounded-lg border border-border bg-white px-2 py-1.5 text-center text-xs font-800 outline-none focus:border-primary"
+                                className="w-24 rounded-lg border border-border bg-card px-2 py-1.5 text-center text-xs font-800 text-foreground outline-none focus:border-primary"
                               />
                             </label>
                             <button type="button" onClick={() => remove(item.key)} className="text-xs font-800 text-primary hover:underline">

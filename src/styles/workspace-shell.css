@@ -1,0 +1,180 @@
+/* Buyer + seller + admin workspace shell — "floating dock" layout.
+   Not a re-skin of the old edge-to-edge app-shell: the sidebar and header
+   are independent floating glass panels inset from the viewport edge,
+   with the page's own gradient canvas visible in the gutter between them
+   and the scrolling content panel underneath. Every color is a theme
+   token (--foreground, --card, --border, --ft-saffron*, --ft-indigo*),
+   so light mode, dark mode, and any future palette change all fall out
+   of this file for free — nothing here is hardcoded to one theme. */
+
+.ft-workspace-shell {
+  min-height: 100svh;
+  background:
+    radial-gradient(circle at 8% 0%, var(--ft-saffron-soft), transparent 38rem),
+    radial-gradient(circle at 96% 14%, var(--ft-indigo-soft), transparent 32rem),
+    radial-gradient(circle at 22% 100%, var(--ft-saffron-soft), transparent 36rem),
+    var(--background);
+  color: var(--foreground);
+  padding: 10px;
+}
+@media (min-width: 768px) {
+  .ft-workspace-shell {
+    height: 100svh;
+    overflow: hidden;
+    padding: 14px;
+  }
+}
+
+.ft-workspace-shell-grid {
+  display: flex;
+  gap: 12px;
+  min-height: 0;
+}
+@media (min-width: 768px) {
+  .ft-workspace-shell-grid { height: 100%; }
+}
+
+/* The floating sidebar "dock".
+   display lives in a zero-specificity :where() so Tailwind's "hidden" /
+   "md:flex" visibility utilities on the same element always win regardless
+   of stylesheet load order — without this, an unconditional display:flex
+   here would defeat "hidden" at every viewport width, exactly the bug
+   already fixed once this session for .ft-icon-button. */
+:where(.ft-dock) {
+  display: flex;
+  flex-direction: column;
+}
+.ft-dock {
+  width: 264px;
+  border-radius: 22px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--card) 76%, transparent);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.06) inset,
+    0 24px 60px -28px rgba(15, 23, 42, 0.45),
+    0 4px 16px -6px rgba(15, 23, 42, 0.12);
+  overflow: hidden;
+}
+.dark .ft-dock {
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.04) inset,
+    0 24px 60px -20px rgba(0, 0, 0, 0.6),
+    0 4px 16px -6px rgba(0, 0, 0, 0.3);
+}
+
+:where(.ft-canvas) {
+  display: flex;
+  flex-direction: column;
+}
+.ft-canvas {
+  flex: 1;
+  min-width: 0;
+  gap: 12px;
+}
+
+/* The floating header "dock bar". */
+.ft-dock-bar {
+  flex-shrink: 0;
+  border-radius: 18px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--card) 72%, transparent);
+  box-shadow: 0 16px 40px -22px rgba(15, 23, 42, 0.4);
+}
+.dark .ft-dock-bar {
+  box-shadow: 0 16px 40px -18px rgba(0, 0, 0, 0.55);
+}
+.ft-dock-bar::after {
+  content: none;
+}
+
+/* The scrolling content panel. */
+.ft-canvas-main {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  border-radius: 22px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--card) 45%, transparent);
+}
+
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .ft-dock,
+  .ft-dock-bar {
+    backdrop-filter: blur(28px) saturate(170%);
+    -webkit-backdrop-filter: blur(28px) saturate(170%);
+  }
+  .ft-canvas-main {
+    backdrop-filter: blur(14px) saturate(150%);
+    -webkit-backdrop-filter: blur(14px) saturate(150%);
+  }
+}
+
+/* Mobile overlay drawer reuses the same dock look, full-height. */
+.ft-dock.is-drawer {
+  border-radius: 0 22px 22px 0;
+}
+
+.ft-workspace-search {
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--background) 55%, transparent);
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+.ft-workspace-search:focus-within {
+  border-color: var(--ft-saffron);
+  box-shadow: 0 0 0 4px var(--ft-saffron-soft);
+}
+
+.ft-workspace-brand {
+  border-bottom: 1px solid var(--border);
+  transition: background-color 140ms ease;
+}
+.ft-workspace-brand:hover {
+  background: color-mix(in srgb, var(--foreground) 5%, transparent);
+}
+
+.ft-workspace-group-label {
+  color: var(--muted-foreground);
+}
+
+.ft-workspace-nav-item {
+  color: var(--muted-foreground);
+  background: transparent;
+  transition: background-color 140ms ease, color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
+}
+.ft-workspace-nav-item:hover {
+  background: color-mix(in srgb, var(--foreground) 6%, transparent);
+  color: var(--foreground);
+}
+.ft-workspace-nav-item.is-active {
+  background: linear-gradient(135deg, var(--ft-saffron-soft), transparent 75%);
+  color: var(--ft-saffron-strong);
+  box-shadow: inset 3px 0 0 0 var(--ft-saffron);
+  font-weight: 800;
+}
+
+.ft-workspace-footer-link {
+  color: var(--muted-foreground);
+  transition: background-color 140ms ease, color 140ms ease;
+}
+.ft-workspace-footer-link:hover {
+  background: color-mix(in srgb, var(--foreground) 6%, transparent);
+  color: var(--foreground);
+}
+
+.ft-workspace-tabbar {
+  background: color-mix(in srgb, var(--card) 94%, transparent);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  border-top: 1px solid var(--border);
+}
+.ft-workspace-tab {
+  color: var(--muted-foreground);
+}
+.ft-workspace-tab.is-active {
+  color: var(--ft-saffron-strong);
+  background: var(--ft-saffron-soft);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ft-workspace-nav-item { transition: none !important; }
+}

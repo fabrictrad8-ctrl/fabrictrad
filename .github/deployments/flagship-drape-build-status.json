@@ -1,6 +1,6 @@
 {
-  "sourceCommit": "134aa5ce42024fb9a4ea2bd58c6df5f2b09ddca8",
-  "recordedAt": "2026-09-08T12:24:46.912133+00:00",
+  "sourceCommit": "a4bbbe95336baf9040e69805a7f87c6148e05fa3",
+  "recordedAt": "2026-09-06T15:27:40.080374+00:00",
   "typeCheck": "success",
   "lint": "success",
   "typeCheckTail": "\n> fabrictrad@0.1.0 type-check\n> tsc --noEmit\n",

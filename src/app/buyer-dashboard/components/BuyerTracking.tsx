@@ -1,10 +1,16 @@
 'use client';
 import { validTrackingUrl } from '@/lib/shippingValidation';
+import { pillClassForStatus, pillLabel } from '@/lib/statusPill';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import toast from 'react-hot-toast';
+import Link from 'next/link';
 import Icon from '@/components/ui/AppIcon';
 import { useAuth } from '@/contexts/AuthContext';
 import { createClient } from '@/lib/supabase/client';
+import { useHorizontalSwipe } from '@/lib/hooks/useHorizontalSwipe';
+
+const TRACKING_FILTERS = ['active', 'delivered', 'all'] as const;
 
 type TrackingEvent = {
   event?: string;
@@ -39,23 +45,37 @@ type ShipmentView = ShipmentRow & {
   orderRef: string;
 };
 
-const titleCase = (value: string) => value.replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
+const CANCELLED_STATUSES = new Set(['cancelled', 'canceled', 'failed', 'rto', 'rto_delivered']);
+const DELIVERED_STATUSES = new Set(['delivered']);
+const TRACKER_STEPS = ['Ordered', 'Confirmed', 'Dispatched', 'Delivered'] as const;
 
-const statusProgress = (status: string) => {
-  const normalized = status.toLowerCase();
-  if (normalized.includes('deliver')) return 100;
-  if (normalized.includes('out for')) return 85;
-  if (normalized.includes('transit') || normalized.includes('shipped')) return 65;
-  if (normalized.includes('pickup') || normalized.includes('manifest')) return 40;
-  if (normalized.includes('cancel') || normalized.includes('fail') || normalized.includes('rto')) return 20;
-  return 15;
-};
+function trackerStepIndex(status: string): number {
+  const s = status.toLowerCase();
+  if (s.includes('deliver')) return 3;
+  if (s.includes('transit') || s.includes('out for') || s.includes('shipped') || s.includes('dispatch') || s.includes('pickup') || s.includes('manifest')) return 2;
+  if (s.includes('confirm') || s.includes('accept') || s === 'paid') return 1;
+  return 0;
+}
+
+function relativeEta(dateStr: string | null): string {
+  if (!dateStr) return 'Not yet provided';
+  const target = new Date(dateStr);
+  const diffDays = Math.round((target.setHours(0, 0, 0, 0) - new Date().setHours(0, 0, 0, 0)) / 86400000);
+  const formatted = target.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
+  if (diffDays < 0) return `${formatted} · overdue`;
+  if (diffDays === 0) return `${formatted} · today`;
+  if (diffDays === 1) return `${formatted} · tomorrow`;
+  return `${formatted} · in ${diffDays} days`;
+}
 
 export default function BuyerTracking() {
   const { user } = useAuth();
   const [shipments, setShipments] = useState<ShipmentView[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [filter, setFilter] = useState<'active' | 'delivered' | 'all'>('active');
+  const [search, setSearch] = useState('');
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -113,56 +133,163 @@ export default function BuyerTracking() {
     void load();
   }, [load]);
 
-  const activeCount = useMemo(() => shipments.filter((shipment) => !['delivered', 'cancelled', 'failed', 'rto_delivered'].includes(String(shipment.status || '').toLowerCase())).length, [shipments]);
+  const activeCount = useMemo(() => shipments.filter((shipment) => {
+    const s = String(shipment.status || '').toLowerCase();
+    return !DELIVERED_STATUSES.has(s) && !CANCELLED_STATUSES.has(s);
+  }).length, [shipments]);
+  const deliveredCount = useMemo(() => shipments.filter((shipment) => DELIVERED_STATUSES.has(String(shipment.status || '').toLowerCase())).length, [shipments]);
+
+  const visible = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    return shipments.filter((shipment) => {
+      const s = String(shipment.status || '').toLowerCase();
+      const matchesFilter =
+        filter === 'all' ? true :
+        filter === 'delivered' ? DELIVERED_STATUSES.has(s) :
+        !DELIVERED_STATUSES.has(s) && !CANCELLED_STATUSES.has(s);
+      if (!matchesFilter) return false;
+      if (!query) return true;
+      return shipment.orderRef.toLowerCase().includes(query)
+        || shipment.product.toLowerCase().includes(query)
+        || (shipment.awb_number || '').toLowerCase().includes(query);
+    });
+  }, [shipments, filter, search]);
+
+  const filterIndex = TRACKING_FILTERS.indexOf(filter);
+  const swipeHandlers = useHorizontalSwipe(
+    () => setFilter(TRACKING_FILTERS[Math.min(filterIndex + 1, TRACKING_FILTERS.length - 1)]),
+    () => setFilter(TRACKING_FILTERS[Math.max(filterIndex - 1, 0)])
+  );
+
+  const copyAwb = async (shipment: ShipmentView) => {
+    if (!shipment.awb_number) return;
+    try {
+      await navigator.clipboard.writeText(shipment.awb_number);
+      setCopiedId(shipment.id);
+      toast.success('AWB copied to clipboard');
+      window.setTimeout(() => setCopiedId((current) => (current === shipment.id ? null : current)), 1600);
+    } catch {
+      toast.error('Could not copy — select and copy manually.');
+    }
+  };
 
   return (
     <div>
-      <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
+      <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-xl font-800 text-foreground">Track shipments</h1>
-          <p className="mt-1 text-xs text-muted-foreground">{activeCount} active shipment{activeCount === 1 ? '' : 's'} for this buyer account.</p>
+          <p className="mt-1 text-xs text-muted-foreground">{activeCount} active · {deliveredCount} delivered</p>
         </div>
         <button type="button" onClick={() => void load()} disabled={loading} className="btn-secondary inline-flex items-center gap-2 rounded-xl px-3 py-2 text-xs disabled:opacity-50">
           <Icon name="ArrowPathIcon" size={14} className={loading ? 'animate-spin' : ''} /> Refresh
         </button>
       </div>
 
+      {!loading && shipments.length > 0 && (
+        <div className="mb-5 flex flex-wrap items-center gap-3">
+          <div className="flex gap-1 rounded-xl bg-muted p-1">
+            {([
+              ['active', `Active (${activeCount})`],
+              ['delivered', `Delivered (${deliveredCount})`],
+              ['all', `All (${shipments.length})`],
+            ] as const).map(([key, label]) => (
+              <button key={key} type="button" onClick={() => setFilter(key)} className={`rounded-lg px-3 py-1.5 text-xs font-700 transition ${filter === key ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'}`}>{label}</button>
+            ))}
+          </div>
+          <div className="relative min-w-0 flex-1 sm:max-w-xs">
+            <Icon name="MagnifyingGlassIcon" size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <input
+              type="search"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search order, product or AWB"
+              className="input-base w-full rounded-xl py-2 pl-9 pr-3 text-xs"
+            />
+          </div>
+        </div>
+      )}
+
       {error && <div className="mb-5 rounded-2xl border border-error/20 bg-error/5 p-4 text-sm text-error">{error}</div>}
 
       {loading ? (
-        <div className="rounded-2xl border border-border bg-card px-5 py-14 text-center"><span className="mx-auto block h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" /></div>
+        <div className="space-y-5" aria-hidden="true">
+          {Array.from({ length: 2 }).map((_, index) => (
+            <div key={index} className="animate-pulse overflow-hidden rounded-2xl border border-border bg-card">
+              <div className="border-b border-border bg-muted/30 px-5 py-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="space-y-2"><div className="h-4 w-32 rounded bg-muted" /><div className="h-3.5 w-40 rounded bg-muted" /></div>
+                  <div className="space-y-2 text-right"><div className="ml-auto h-3.5 w-28 rounded bg-muted" /><div className="ml-auto h-3 w-24 rounded bg-muted" /></div>
+                </div>
+              </div>
+              <div className="space-y-3 p-5">
+                <div className="h-2.5 w-full rounded-full bg-muted" />
+                <div className="h-3 w-3/4 rounded bg-muted" />
+                <div className="h-3 w-1/2 rounded bg-muted" />
+              </div>
+            </div>
+          ))}
+        </div>
       ) : shipments.length === 0 ? (
-        <div className="rounded-2xl border border-border bg-card px-5 py-12 text-center">
+        <div className="rounded-2xl border border-dashed border-border bg-card px-5 py-14 text-center">
           <Icon name="TruckIcon" size={34} className="mx-auto mb-3 text-muted-foreground" />
-          <p className="text-sm font-800 text-foreground">No shipments for this account</p>
-          <p className="mt-1 text-xs text-muted-foreground">Tracking appears here after a paid order is dispatched by its seller.</p>
+          <p className="text-sm font-800 text-foreground">No shipments for this account yet</p>
+          <p className="mx-auto mt-1 max-w-sm text-xs leading-5 text-muted-foreground">Tracking appears here automatically once a paid order is confirmed and dispatched by its seller — no separate tracking number to enter.</p>
+          <Link href="/marketplace" className="btn-primary mt-5 inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs"><Icon name="BuildingStorefrontIcon" size={14} /> Browse the marketplace</Link>
+        </div>
+      ) : visible.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-border bg-card px-5 py-12 text-center">
+          <Icon name="MagnifyingGlassIcon" size={28} className="mx-auto mb-3 text-muted-foreground" />
+          <p className="text-sm font-800 text-foreground">No shipments match this view</p>
+          <p className="mt-1 text-xs text-muted-foreground">Try a different filter or clear your search.</p>
         </div>
       ) : (
-        <div className="space-y-5">
-          {shipments.map((shipment) => {
+        <div className="space-y-5" {...swipeHandlers}>
+          {visible.map((shipment) => {
             const status = String(shipment.status || 'pending');
+            const statusLower = status.toLowerCase();
+            const isCancelled = CANCELLED_STATUSES.has(statusLower);
             const events = Array.isArray(shipment.tracking_events) ? shipment.tracking_events : [];
+            const stepIndex = trackerStepIndex(status);
             return (
               <article key={shipment.id} className="overflow-hidden rounded-2xl border border-border bg-card">
                 <div className="border-b border-border bg-muted/30 px-5 py-4">
                   <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
                     <div>
-                      <div className="mb-1 flex flex-wrap items-center gap-2"><span className="mono-id">{shipment.orderRef}</span><span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-700 text-primary">{titleCase(status)}</span></div>
+                      <div className="mb-1 flex flex-wrap items-center gap-2"><span className="mono-id">{shipment.orderRef}</span><span className={pillClassForStatus(status)}>{pillLabel(status)}</span></div>
                       <p className="text-sm font-800 text-foreground">{shipment.product}</p>
                       <p className="mt-1 text-xs text-muted-foreground">Shipment {shipment.id.slice(0, 8).toUpperCase()}</p>
                     </div>
                     <div className="text-left sm:text-right">
                       <p className="text-xs font-700 text-foreground">{shipment.courier_name || (shipment.courier_type === 'shiprocket' ? 'Shiprocket courier' : 'Seller-managed courier')}</p>
-                      <p className="mt-1 text-xs text-muted-foreground">AWB: {shipment.awb_number || 'Awaiting assignment'}</p>
-                      <p className="text-xs text-primary">EDD: {shipment.estimated_delivery ? new Date(shipment.estimated_delivery).toLocaleDateString('en-IN') : 'Not yet provided'}</p>
+                      <button
+                        type="button"
+                        onClick={() => void copyAwb(shipment)}
+                        disabled={!shipment.awb_number}
+                        className="mt-1 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground disabled:cursor-default disabled:hover:text-muted-foreground"
+                        title={shipment.awb_number ? 'Copy AWB number' : undefined}
+                      >
+                        AWB: {shipment.awb_number || 'Awaiting assignment'}
+                        {shipment.awb_number && <Icon name={copiedId === shipment.id ? 'CheckIcon' : 'ClipboardDocumentListIcon'} size={11} />}
+                      </button>
+                      <p className="text-xs text-primary">EDD: {relativeEta(shipment.estimated_delivery)}</p>
                     </div>
                   </div>
                 </div>
 
                 <div className="p-5">
-                  <div className="mb-4">
-                    <div className="mb-2 flex items-center justify-between text-xs"><span className="font-700 text-foreground">Delivery progress</span><span className="text-muted-foreground">{statusProgress(status)}%</span></div>
-                    <div className="h-2 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-success transition-all" style={{ width: `${statusProgress(status)}%` }} /></div>
+                  <div className="mb-5">
+                    {isCancelled ? (
+                      <div className="flex items-center gap-2 rounded-xl bg-error/5 p-3 text-sm font-700 text-error"><Icon name="ExclamationTriangleIcon" size={16} /> {pillLabel(status)} — contact the seller from Messages &amp; disputes if this is unexpected.</div>
+                    ) : (
+                      <div className="ft-tracker">
+                        {TRACKER_STEPS.map((label, index) => (
+                          <div key={label} className={`ft-tracker-step ${index < stepIndex ? 'is-done' : index === stepIndex ? 'is-current' : ''}`}>
+                            <div className="ft-tracker-dot" />
+                            <span className="ft-tracker-label">{label}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
                   {events.length ? (

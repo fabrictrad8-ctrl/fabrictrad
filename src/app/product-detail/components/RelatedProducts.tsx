@@ -11,6 +11,7 @@ type RelatedProduct = {
   id: string;
   name: string;
   price: number;
+  compareAtPrice: number | null;
   unit: string;
   moq: number;
   image: string;
@@ -36,7 +37,7 @@ export default function RelatedProducts() {
       const supabase = createClient();
       let query = supabase
         .from('seller_products')
-        .select('id,seller_id,name,price_per_unit,unit,moq,image_url,available_quantity,reserved_quantity')
+        .select('id,seller_id,name,price_per_unit,compare_at_price,unit,moq,image_url,available_quantity,reserved_quantity')
         .eq('status', 'active')
         .eq('approval_status', 'approved')
         .gt('available_quantity', 0)
@@ -58,6 +59,7 @@ export default function RelatedProducts() {
         id: `seller-${row.id}`,
         name: row.name || 'Fabric product',
         price: Number(row.price_per_unit || 0),
+        compareAtPrice: row.compare_at_price ? Number(row.compare_at_price) : null,
         unit: row.unit || 'mtr',
         moq: Number(row.moq || 1),
         image: row.image_url || '/assets/images/no_image.png',
@@ -85,7 +87,7 @@ export default function RelatedProducts() {
         )) : related.map((item) => (
           <Link key={item.id} href={`/product-detail?id=${encodeURIComponent(item.id)}`} className="ft-marketplace-product-card group overflow-hidden">
             <div className="relative aspect-square overflow-hidden bg-muted"><AppImage src={item.image} alt={item.name} fill sizes="(max-width:640px) 50vw, 25vw" className="object-cover transition duration-300 group-hover:scale-[1.025]" /><span className="absolute left-2 top-2 rounded bg-success px-2 py-1 text-[10px] font-800 text-white">In stock</span></div>
-            <div className="p-3"><p className="truncate text-[11px] font-700 text-muted-foreground"><Icon name="ShieldCheckIcon" size={12} className="mr-1 inline text-success" />{item.seller}</p><h3 className="mt-1 line-clamp-2 text-sm font-800 text-foreground group-hover:text-[#b12704]">{item.name}</h3><p className="mt-3 text-lg font-800 text-[#b12704]">₹{item.price.toLocaleString('en-IN')}<span className="text-xs font-600 text-muted-foreground">/{item.unit}</span></p><div className="mt-2 flex items-center justify-between gap-2 text-[10px] text-muted-foreground"><span>MOQ {item.moq} {item.unit}</span><span>{item.available.toLocaleString('en-IN')} available</span></div></div>
+            <div className="p-3"><p className="truncate text-[11px] font-700 text-muted-foreground"><Icon name="ShieldCheckIcon" size={12} className="mr-1 inline text-success" />{item.seller}</p><h3 className="mt-1 line-clamp-2 text-sm font-800 text-foreground group-hover:text-[#b12704]">{item.name}</h3><div className="mt-3 flex items-baseline gap-1.5"><p className="text-lg font-800 text-[#b12704]">₹{item.price.toLocaleString('en-IN')}<span className="text-xs font-600 text-muted-foreground">/{item.unit}</span></p>{!!item.compareAtPrice && item.compareAtPrice > item.price && <span className="text-xs text-muted-foreground line-through">₹{item.compareAtPrice.toLocaleString('en-IN')}</span>}</div><div className="mt-2 flex items-center justify-between gap-2 text-[10px] text-muted-foreground"><span>MOQ {item.moq} {item.unit}</span><span>{item.available.toLocaleString('en-IN')} available</span></div></div>
           </Link>
         ))}
       </div>

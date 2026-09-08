@@ -213,13 +213,13 @@ export default function SellerCatalogOrders() {
                         {product?.name || 'Catalogue product'}
                       </p>
                       <span
-                        className={`rounded-full px-2 py-0.5 text-[10px] font-800 uppercase ${
+                        className={
                           fullyPaid || order.status === 'fulfilled'
-                            ? 'bg-success/10 text-success'
+                            ? 'ft-pill ft-pill-success'
                             : order.status === 'rejected' || order.status === 'cancelled'
-                              ? 'bg-error/10 text-error'
-                              : 'bg-warning/10 text-warning'
-                        }`}
+                              ? 'ft-pill ft-pill-critical'
+                              : 'ft-pill ft-pill-pending'
+                        }
                       >
                         {waitingForReview
                           ? 'Company review pending'

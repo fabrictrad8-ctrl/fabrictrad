@@ -1,0 +1,84 @@
+/* Track C — 3D & motion showcase.
+   ------------------------------------------------------------------
+   Two distinct techniques, deliberately kept separate:
+
+   1. Orchestrated hero entrance (.ft-hero-orchestrated): pure CSS,
+      staggered by nth-child delay, plays immediately on page load. Above
+      the fold, so it must never depend on scroll or an IntersectionObserver
+      firing in time — that's what the scroll-reveal system below is for.
+
+   2. Scroll-driven reveal (.ft-reveal): below-the-fold sections fade and
+      rise into place as they're scrolled into view, observed globally by
+      ScrollReveal.tsx so any page can opt in just by adding the class —
+      no per-page wiring. Never applied to hero/above-the-fold content,
+      since a slow IntersectionObserver first-fire would leave it invisible.
+   ------------------------------------------------------------------ */
+
+/* ---------- 1. Orchestrated hero entrance ---------- */
+.ft-hero-orchestrated > * {
+  animation: ft-hero-rise 640ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.ft-hero-orchestrated > *:nth-child(1) { animation-delay: 40ms; }
+.ft-hero-orchestrated > *:nth-child(2) { animation-delay: 140ms; }
+.ft-hero-orchestrated > *:nth-child(3) { animation-delay: 240ms; }
+.ft-hero-orchestrated > *:nth-child(4) { animation-delay: 320ms; }
+.ft-hero-orchestrated > *:nth-child(n+5) { animation-delay: 380ms; }
+
+/* The right-column stack (sourcing/trust/image cards) gets its own,
+   slightly offset stagger so the whole hero doesn't arrive in only two
+   visual beats. */
+.ft-hero-orchestrated > *:nth-child(2) > * {
+  animation: ft-hero-rise 560ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.ft-hero-orchestrated > *:nth-child(2) > *:nth-child(1) { animation-delay: 180ms; }
+.ft-hero-orchestrated > *:nth-child(2) > *:nth-child(2) { animation-delay: 260ms; }
+.ft-hero-orchestrated > *:nth-child(2) > *:nth-child(3) { animation-delay: 340ms; }
+
+@keyframes ft-hero-rise {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    /* `none`, not `translateY(0)` — a held non-none transform breaks
+       descendant `position: fixed`. See RouteExperienceEnhancer.tsx. */
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ft-hero-orchestrated > *,
+  .ft-hero-orchestrated > *:nth-child(2) > * {
+    animation: none;
+  }
+}
+
+/* ---------- 2. Scroll-driven reveal ---------- */
+.ft-reveal {
+  opacity: 0;
+  transform: translateY(28px);
+  transition: opacity 700ms cubic-bezier(0.16, 1, 0.3, 1), transform 700ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.ft-reveal.is-visible {
+  opacity: 1;
+  transform: none;
+}
+
+/* Stagger a group of siblings revealed together (a grid of cards, say)
+   without needing separate observers per card — just wrap them in
+   .ft-reveal-group and give each child .ft-reveal; they all cross the
+   viewport threshold together but animate in with a slight cascade. */
+.ft-reveal-group > .ft-reveal:nth-child(1) { transition-delay: 0ms; }
+.ft-reveal-group > .ft-reveal:nth-child(2) { transition-delay: 70ms; }
+.ft-reveal-group > .ft-reveal:nth-child(3) { transition-delay: 140ms; }
+.ft-reveal-group > .ft-reveal:nth-child(4) { transition-delay: 210ms; }
+.ft-reveal-group > .ft-reveal:nth-child(n+5) { transition-delay: 260ms; }
+
+@media (prefers-reduced-motion: reduce) {
+  .ft-reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+}

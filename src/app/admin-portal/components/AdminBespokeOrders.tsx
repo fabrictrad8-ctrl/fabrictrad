@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import Icon from '@/components/ui/AppIcon';
 import OrderDocuments from '@/components/commerce/OrderDocuments';
 import { parseBespokeInvoiceDetails } from '@/lib/bespokeInvoiceDetails';
+import { pillClassForStatus } from '@/lib/statusPill';
 
 type Appointment = {
   id: string;
@@ -222,9 +223,9 @@ export default function AdminBespokeOrders() {
                 <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="rounded-full bg-primary/10 px-2.5 py-1 text-[11px] font-800 uppercase tracking-wide text-primary">{order.stage.replaceAll('_', ' ')}</span>
+                      <span className={pillClassForStatus(order.stage)}>{order.stage.replaceAll('_', ' ')}</span>
                       <span className="rounded-full bg-muted px-2.5 py-1 text-[11px] font-700 text-muted-foreground">{order.source}</span>
-                      {order.human_action_required && <span className="rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-800 text-amber-900">Human · {humanLabel(order.human_action_reason)}</span>}
+                      {order.human_action_required && <span className="ft-pill ft-pill-pending">Human · {humanLabel(order.human_action_reason)}</span>}
                     </div>
                     <h2 className="mt-3 text-lg font-900 text-foreground">
                       {order.store?.store_name || order.customer?.full_name || 'Buyer'} · {order.id.slice(0, 8).toUpperCase()}

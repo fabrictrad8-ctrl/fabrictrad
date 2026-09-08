@@ -6,6 +6,8 @@ import toast from 'react-hot-toast';
 import Icon from '@/components/ui/AppIcon';
 import { createClient } from '@/lib/supabase/client';
 import { exportToCSV } from '@/lib/exportUtils';
+import { pillClassForStatus, pillLabel } from '@/lib/statusPill';
+import AdminCustomerActivityPanel from './AdminCustomerActivityPanel';
 
 type CustomerRow = {
   id: string;
@@ -47,6 +49,7 @@ export default function AdminCustomers() {
   const [filter, setFilter] = useState<Filter>('all');
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [resettingId, setResettingId] = useState<string | null>(null);
+  const [activityId, setActivityId] = useState<string | null>(null);
 
   const loadCustomers = async () => {
     setLoading(true);
@@ -306,16 +309,25 @@ export default function AdminCustomers() {
                       <p className="mt-1 text-xs text-muted-foreground">{customer.account_kind || 'individual'}</p>
                     </td>
                     <td className="px-4 py-3">
-                      <p className="text-xs font-800 capitalize text-foreground">{customer.verification_status || 'unverified'}</p>
+                      <span className={pillClassForStatus(customer.verification_status || 'unverified')}>{pillLabel(customer.verification_status || 'unverified')}</span>
                       <p className="mt-1 text-xs text-muted-foreground">{customer.gstin || 'No GSTIN'}</p>
                     </td>
                     <td className="px-4 py-3 text-xs text-muted-foreground">{[customer.city, customer.state].filter(Boolean).join(', ') || 'Not added'}</td>
                     <td className="px-4 py-3 text-xs text-muted-foreground">{customer.created_at ? new Date(customer.created_at).toLocaleDateString('en-IN') : '—'}</td>
                     <td className="px-4 py-3 text-right">
                       <div className="inline-flex items-center gap-2">
-                        <span className={`rounded-full px-2.5 py-1 text-xs font-800 ${customer.is_active ? 'bg-success/10 text-success' : 'bg-error/10 text-error'}`}>
+                        <span className={pillClassForStatus(customer.is_active ? 'active' : 'cancelled')}>
                           {customer.is_active ? 'Active' : 'Inactive'}
                         </span>
+                        {!admin && (
+                          <button
+                            type="button"
+                            onClick={() => setActivityId(customer.id)}
+                            className="rounded-lg border border-primary/20 bg-primary/5 px-2.5 py-1.5 text-xs font-800 text-primary hover:bg-primary hover:text-white"
+                          >
+                            View activity
+                          </button>
+                        )}
                         <button
                           type="button"
                           disabled={updatingId === customer.id}
@@ -333,6 +345,7 @@ export default function AdminCustomers() {
           </table>
         </div>
       </div>
+      {activityId && <AdminCustomerActivityPanel customerId={activityId} onClose={() => setActivityId(null)} />}
     </section>
   );
 }
