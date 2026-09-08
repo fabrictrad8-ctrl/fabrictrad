@@ -22,10 +22,7 @@
     "required": [
       "RAZORPAY_KEY_ID",
       "RAZORPAY_KEY_SECRET",
-      "RAZORPAY_WEBHOOK_SECRET",
-      "SHOPIFY_SHOP",
-      "SHOPIFY_CLIENT_ID",
-      "SHOPIFY_CLIENT_SECRET"
+      "RAZORPAY_WEBHOOK_SECRET"
     ]
   },
   "assets": {

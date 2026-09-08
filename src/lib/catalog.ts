@@ -35,6 +35,7 @@ export type CatalogProduct = {
   category: string;
   price: number;
   priceMax?: number;
+  compareAtPrice?: number | null;
   unit: string;
   moq: number;
   available: number;

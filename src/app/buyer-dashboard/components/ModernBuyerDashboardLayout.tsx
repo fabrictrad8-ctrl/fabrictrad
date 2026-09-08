@@ -10,12 +10,15 @@ import ProfileMenu from '@/components/ProfileMenu';
 import BuyerOverview from '@/app/buyer-dashboard/components/BuyerOverview';
 import BuyerOrders from '@/app/buyer-dashboard/components/BuyerOrders';
 import BuyerTracking from '@/app/buyer-dashboard/components/BuyerTracking';
+import BuyerWishlist from '@/app/buyer-dashboard/components/BuyerWishlist';
+import BuyerInbox from '@/app/buyer-dashboard/components/BuyerInbox';
 import DisputeMessaging from '@/app/buyer-dashboard/components/DisputeMessaging';
+import CommerceNotificationBell from '@/app/components/CommerceNotificationBell';
 import NotificationPreferences from '@/app/components/NotificationPreferences';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCart } from '@/lib/hooks/useCart';
 
-type DashboardTab = 'overview' | 'orders' | 'tracking' | 'cart' | 'requirements' | 'disputes' | 'notifications' | 'account';
+type DashboardTab = 'overview' | 'orders' | 'tracking' | 'cart' | 'wishlist' | 'requirements' | 'inbox' | 'disputes' | 'notifications' | 'account';
 type NavItem = { key: DashboardTab; label: string; icon: string; description: string };
 
 const navGroups: Array<{ label: string; items: NavItem[] }> = [
@@ -26,13 +29,15 @@ const navGroups: Array<{ label: string; items: NavItem[] }> = [
       { key: 'orders', label: 'Your orders', icon: 'ShoppingBagIcon', description: 'Payment, invoices and order status' },
       { key: 'tracking', label: 'Track packages', icon: 'TruckIcon', description: 'Shipment and delivery status' },
       { key: 'cart', label: 'Cart', icon: 'ShoppingCartIcon', description: 'Products to review before ordering' },
+      { key: 'wishlist', label: 'Wishlist', icon: 'HeartIcon', description: 'Products saved for later' },
     ],
   },
   {
     label: 'Sourcing',
     items: [
       { key: 'requirements', label: 'Sourcing requests', icon: 'MegaphoneIcon', description: 'Post what you need' },
-      { key: 'disputes', label: 'Messages & disputes', icon: 'ChatBubbleLeftRightIcon', description: 'Seller and support conversations' },
+      { key: 'inbox', label: 'Inbox', icon: 'ChatBubbleLeftRightIcon', description: 'Chats you started with sellers' },
+      { key: 'disputes', label: 'Support & disputes', icon: 'FlagIcon', description: 'Formal claims and platform support' },
     ],
   },
   {
@@ -84,8 +89,8 @@ export default function ModernBuyerDashboardLayout() {
 
   const sidebar = (
     <div className="flex h-full flex-col">
-      <div className="border-b border-[#dde1e5] p-3 dark:border-border">
-        <Link href="/marketplace" onClick={() => setMobileOpen(false)} className="flex min-h-11 items-center gap-3 rounded-lg px-2 hover:bg-white dark:hover:bg-muted">
+      <div className="ft-workspace-brand p-3">
+        <Link href="/marketplace" onClick={() => setMobileOpen(false)} className="flex min-h-11 items-center gap-3 rounded-lg px-2">
           <AppLogo size={30} />
           <div className="min-w-0 flex-1"><p className="truncate text-sm font-850 text-foreground">FabricTrad</p><p className="truncate text-[11px] text-muted-foreground">Buyer account</p></div>
         </Link>
@@ -94,21 +99,21 @@ export default function ModernBuyerDashboardLayout() {
       <nav className="flex-1 overflow-y-auto px-2 py-3" aria-label="Buyer navigation">
         {navGroups.map((group) => (
           <section key={group.label} className="mb-4 last:mb-0">
-            <p className="mb-1 px-2 text-[10px] font-850 uppercase tracking-[0.12em] text-muted-foreground">{group.label}</p>
+            <p className="ft-workspace-group-label mb-1 px-2 text-[10px] font-850 uppercase tracking-[0.12em]">{group.label}</p>
             <div className="space-y-0.5">
               {group.items.map((item) => {
                 const active = activeTab === item.key;
-                return <button key={item.key} type="button" onClick={() => navigateTo(item.key)} aria-current={active ? 'page' : undefined} className={`flex min-h-9 w-full items-center gap-3 rounded-lg px-2.5 text-left text-[13px] font-700 transition ${active ? 'is-active bg-[#e7e8ea] text-foreground dark:bg-muted' : 'text-foreground/80 hover:bg-[#eceeef] hover:text-foreground dark:hover:bg-muted'}`}><Icon name={item.icon as 'HomeIcon'} size={17} className={active ? 'text-foreground' : 'text-muted-foreground'} /><span className="min-w-0 flex-1 truncate">{item.label}</span>{item.key === 'cart' && lineCount > 0 && <span className="rounded-full bg-primary px-2 py-0.5 text-[10px] font-850 text-white">{lineCount}</span>}</button>;
+                return <button key={item.key} type="button" onClick={() => navigateTo(item.key)} aria-current={active ? 'page' : undefined} className={`ft-workspace-nav-item flex min-h-9 w-full items-center gap-3 rounded-lg px-2.5 text-left text-[13px] ${active ? 'is-active' : ''}`}><Icon name={item.icon as 'HomeIcon'} size={17} /><span className="min-w-0 flex-1 truncate">{item.label}</span>{item.key === 'cart' && lineCount > 0 && <span className="rounded-full bg-primary px-2 py-0.5 text-[10px] font-850 text-white">{lineCount}</span>}</button>;
               })}
             </div>
           </section>
         ))}
       </nav>
 
-      <div className="space-y-1 border-t border-[#dde1e5] p-2 dark:border-border">
-        <Link href="/marketplace" className="flex min-h-10 items-center gap-3 rounded-lg px-2.5 text-sm font-700 text-foreground/80 hover:bg-white dark:hover:bg-muted"><Icon name="Squares2X2Icon" size={17} className="text-muted-foreground" /> Browse marketplace</Link>
-        <Link href="/account" className="flex min-h-10 items-center gap-3 rounded-lg px-2.5 text-sm font-700 text-foreground/80 hover:bg-white dark:hover:bg-muted"><Icon name="ArrowsRightLeftIcon" size={17} className="text-muted-foreground" /> Switch workspace</Link>
-        <button type="button" onClick={() => void logout()} disabled={signingOut} className="flex min-h-10 w-full items-center gap-3 rounded-lg px-2.5 text-left text-sm font-750 text-error hover:bg-error/10 disabled:opacity-50"><Icon name="ArrowRightOnRectangleIcon" size={17} /> {signingOut ? 'Signing out…' : 'Sign out'}</button>
+      <div className="space-y-1 border-t border-border p-2">
+        <Link href="/marketplace" className="ft-workspace-footer-link flex min-h-10 items-center gap-3 rounded-lg px-2.5 text-sm font-700"><Icon name="Squares2X2Icon" size={17} /> Browse marketplace</Link>
+        <Link href="/account" className="ft-workspace-footer-link flex min-h-10 items-center gap-3 rounded-lg px-2.5 text-sm font-700"><Icon name="ArrowsRightLeftIcon" size={17} /> Switch workspace</Link>
+        <button type="button" onClick={() => void logout()} disabled={signingOut} className="flex min-h-10 w-full items-center gap-3 rounded-lg px-2.5 text-left text-sm font-750 text-error transition hover:bg-error/10 disabled:opacity-50"><Icon name="ArrowRightOnRectangleIcon" size={17} /> {signingOut ? 'Signing out…' : 'Sign out'}</button>
       </div>
     </div>
   );
@@ -123,26 +128,27 @@ export default function ModernBuyerDashboardLayout() {
   ];
 
   return (
-    <div className="ft-admin-shell ft-buyer-account">
-      <header className="ft-admin-header sticky top-0 z-40 flex items-center gap-3 px-3 backdrop-blur-xl sm:px-4">
-        <button type="button" onClick={() => setMobileOpen(true)} className="ft-icon-button md:hidden" aria-label="Open buyer navigation"><Icon name="Bars3Icon" size={20} /></button>
-        <div className="hidden min-w-0 md:block lg:w-52"><p className="truncate text-sm font-850 text-foreground">{activeItem.label}</p><p className="truncate text-[11px] text-muted-foreground">{activeItem.description}</p></div>
-        <form onSubmit={searchMarketplace} className="ft-admin-toolbar-search hidden min-h-10 min-w-0 flex-1 items-center gap-2 rounded-lg border px-3 md:flex md:max-w-xl"><Icon name="MagnifyingGlassIcon" size={17} className="text-muted-foreground" /><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search FabricTrad products and suppliers" className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground" /><button type="submit" className="text-xs font-850 text-primary">Search</button></form>
-        <Link href="/marketplace" className="ft-icon-button md:hidden" aria-label="Search marketplace"><Icon name="MagnifyingGlassIcon" size={18} /></Link>
-        <div className="ml-auto flex items-center gap-2">
-          <Link href="/marketplace" className="ft-secondary-action hidden items-center gap-2 px-3 py-2 text-xs sm:inline-flex"><Icon name="Squares2X2Icon" size={15} /> Shop</Link>
-          <Link href="/cart" className="ft-icon-button relative" aria-label={`Open cart with ${lineCount} item${lineCount === 1 ? '' : 's'}`}><Icon name="ShoppingCartIcon" size={18} />{lineCount > 0 && <span className="absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-primary px-1 text-[9px] font-850 text-white">{lineCount}</span>}</Link>
-          <PreferenceControls compact />
-          <button type="button" onClick={() => navigateTo('notifications')} className="ft-icon-button" aria-label="Open notifications"><Icon name="BellIcon" size={18} /></button>
-          <ProfileMenu />
-        </div>
-      </header>
+    <div className="ft-workspace-shell">
+      <div className="ft-workspace-shell-grid">
+        <aside className="ft-dock hidden shrink-0 md:flex">{sidebar}</aside>
+        {mobileOpen && <><button type="button" className="fixed inset-0 z-40 bg-black/45 md:hidden" onClick={() => setMobileOpen(false)} aria-label="Close buyer navigation" /><aside className="ft-dock is-drawer fixed inset-y-0 left-0 z-50 flex w-[min(88vw,290px)] shadow-2xl md:hidden"><button type="button" onClick={() => setMobileOpen(false)} className="ft-icon-button absolute right-3 top-3 z-10" aria-label="Close buyer navigation"><Icon name="XMarkIcon" size={18} /></button>{sidebar}</aside></>}
 
-      <div className="flex min-h-[calc(100vh-3.75rem)]">
-        <aside className="ft-admin-sidebar hidden shrink-0 md:block">{sidebar}</aside>
-        {mobileOpen && <><button type="button" className="fixed inset-0 z-40 bg-black/45 md:hidden" onClick={() => setMobileOpen(false)} aria-label="Close buyer navigation" /><aside className="ft-admin-sidebar fixed inset-y-0 left-0 z-50 w-[min(88vw,290px)] shadow-2xl md:hidden"><button type="button" onClick={() => setMobileOpen(false)} className="ft-icon-button absolute right-3 top-3 z-10" aria-label="Close buyer navigation"><Icon name="XMarkIcon" size={18} /></button>{sidebar}</aside></>}
+        <div className="ft-canvas">
+          <header className="ft-dock-bar flex items-center gap-3 px-3 py-2.5 sm:px-4">
+            <button type="button" onClick={() => setMobileOpen(true)} className="ft-icon-button md:hidden" aria-label="Open buyer navigation"><Icon name="Bars3Icon" size={20} /></button>
+            <div className="hidden min-w-0 lg:block lg:w-52"><p className="truncate text-sm font-850 text-foreground">{activeItem.label}</p><p className="truncate text-[11px] text-muted-foreground">{activeItem.description}</p></div>
+            <form onSubmit={searchMarketplace} className="ft-workspace-search hidden min-h-10 min-w-[160px] flex-1 items-center gap-2 rounded-lg border px-3 lg:flex lg:max-w-xl"><Icon name="MagnifyingGlassIcon" size={17} className="text-muted-foreground" /><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search FabricTrad products and suppliers" className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground" /><button type="submit" className="text-xs font-850 text-primary">Search</button></form>
+            <Link href="/marketplace" className="ft-icon-button lg:hidden" aria-label="Search marketplace"><Icon name="MagnifyingGlassIcon" size={18} /></Link>
+            <div className="ml-auto flex items-center gap-2">
+              <Link href="/marketplace" className="ft-secondary-action hidden items-center gap-2 px-3 py-2 text-xs xl:inline-flex"><Icon name="Squares2X2Icon" size={15} /> Shop</Link>
+              <Link href="/cart" className="ft-icon-button relative" aria-label={`Open cart with ${lineCount} item${lineCount === 1 ? '' : 's'}`}><Icon name="ShoppingCartIcon" size={18} />{lineCount > 0 && <span className="absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-primary px-1 text-[9px] font-850 text-white">{lineCount}</span>}</Link>
+              <PreferenceControls compact />
+              <CommerceNotificationBell mode="buyer" onClick={() => navigateTo('notifications')} label="Open notifications" />
+              <ProfileMenu />
+            </div>
+          </header>
 
-        <main className="ft-admin-main min-w-0 flex-1 overflow-y-auto px-3 pb-24 sm:px-5 lg:px-7">
+          <main className="ft-canvas-main min-w-0 px-3 pb-24 pt-4 sm:px-5 lg:px-7">
           <div className="mx-auto">
             {activeTab === 'overview' && (
               <>
@@ -152,36 +158,39 @@ export default function ModernBuyerDashboardLayout() {
                 </div>
 
                 <section className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                  {overviewTiles.map((tile) => <button key={tile.title} type="button" onClick={() => navigateTo(tile.tab)} className="ft-shopify-card flex items-start gap-4 p-5 text-left transition hover:border-[#b7bec7] hover:shadow-md"><span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary"><Icon name={tile.icon as 'ShoppingBagIcon'} size={20} /></span><span><span className="block text-base font-850 text-foreground">{tile.title}</span><span className="mt-1 block text-xs leading-5 text-muted-foreground">{tile.copy}</span></span></button>)}
+                  {overviewTiles.map((tile) => <button key={tile.title} type="button" onClick={() => navigateTo(tile.tab)} className="ft-glass-card flex items-start gap-4 p-5 text-left transition hover:border-[#b7bec7] hover:shadow-md"><span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary"><Icon name={tile.icon as 'ShoppingBagIcon'} size={20} /></span><span><span className="block text-base font-850 text-foreground">{tile.title}</span><span className="mt-1 block text-xs leading-5 text-muted-foreground">{tile.copy}</span></span></button>)}
                 </section>
 
-                <section className="ft-shopify-card p-4 sm:p-6"><BuyerOverview onNavigate={navigateTo} /></section>
+                <section className="ft-glass-card p-4 sm:p-6"><BuyerOverview onNavigate={navigateTo} /></section>
               </>
             )}
 
-            {activeTab !== 'overview' && <section className="ft-shopify-card p-4 sm:p-6">
+            {activeTab !== 'overview' && <section className="ft-glass-card p-4 sm:p-6">
               {activeTab === 'orders' && <BuyerOrders />}
               {activeTab === 'tracking' && <BuyerTracking />}
+              {activeTab === 'wishlist' && <BuyerWishlist />}
+              {activeTab === 'inbox' && <BuyerInbox />}
               {activeTab === 'cart' && <div><div className="flex flex-wrap items-end justify-between gap-4"><div><p className="text-xs font-850 uppercase tracking-wider text-primary">Cart</p><h2 className="mt-2 text-2xl font-850 text-foreground">Review products before you order</h2><p className="mt-2 text-sm text-muted-foreground">{lineCount ? `${lineCount} product${lineCount === 1 ? '' : 's'} · estimated ${money(estimatedTotal)}` : 'Your cart is empty.'}</p></div><Link href="/cart" className="ft-amazon-primary inline-flex min-h-10 items-center justify-center gap-2 px-5 text-sm font-850">Open full cart <Icon name="ArrowRightIcon" size={15} /></Link></div>{lineCount > 0 ? <div className="mt-5 divide-y divide-border rounded-xl border border-border">{cartItems.slice(0, 5).map((item) => <div key={item.key} className="flex items-center gap-3 p-3"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground"><Icon name="ShoppingCartIcon" size={17} /></span><span className="min-w-0 flex-1"><span className="block truncate text-sm font-800 text-foreground">{item.name}</span><span className="block truncate text-xs text-muted-foreground">{item.quantity} {item.unit} · {item.seller}</span></span><span className="text-sm font-850 text-foreground">{money(item.price * item.quantity)}</span></div>)}</div> : <div className="mt-6 rounded-xl border border-dashed border-border p-10 text-center"><Icon name="ShoppingCartIcon" size={28} className="mx-auto text-muted-foreground" /><p className="mt-3 text-sm font-800 text-foreground">Nothing in your cart yet</p><Link href="/marketplace" className="mt-2 inline-flex text-xs font-850 text-primary">Browse marketplace</Link></div>}</div>}
               {activeTab === 'disputes' && <DisputeMessaging mode="buyer" />}
               {activeTab === 'notifications' && <NotificationPreferences mode="buyer" />}
-              {activeTab === 'requirements' && <div className="grid gap-5 lg:grid-cols-[1fr_320px]"><div><p className="text-xs font-850 uppercase tracking-wider text-primary">Sourcing requests</p><h2 className="mt-2 text-2xl font-850 text-foreground">Tell verified sellers exactly what you need</h2><p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">Add fabric type, GSM, width, colour, quantity, budget, state and deadline. Responses stay inside FabricTrad.</p><Link href="/buyer-requirements" className="ft-primary-action mt-6 inline-flex items-center gap-2 px-5 py-3 text-sm"><Icon name="PlusIcon" size={16} /> Open requirements board</Link></div><div className="rounded-xl border border-border bg-muted/30 p-5"><Icon name="ShieldCheckIcon" size={25} className="text-success" /><p className="mt-3 text-sm font-850 text-foreground">Account-scoped sourcing</p><p className="mt-2 text-xs leading-5 text-muted-foreground">Requirements, responses and resulting orders stay associated with your verified account.</p></div></div>}
+              {activeTab === 'requirements' && <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]"><div className="min-w-0"><p className="text-xs font-850 uppercase tracking-wider text-primary">Sourcing requests</p><h2 className="mt-2 text-2xl font-850 text-foreground">Tell verified sellers exactly what you need</h2><p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">Add fabric type, GSM, width, colour, quantity, budget, state and deadline. Responses stay inside FabricTrad.</p><Link href="/buyer-requirements" className="ft-primary-action mt-6 inline-flex items-center gap-2 px-5 py-3 text-sm"><Icon name="PlusIcon" size={16} /> Open requirements board</Link></div><div className="rounded-xl border border-border bg-muted/30 p-5"><Icon name="ShieldCheckIcon" size={25} className="text-success" /><p className="mt-3 text-sm font-850 text-foreground">Account-scoped sourcing</p><p className="mt-2 text-xs leading-5 text-muted-foreground">Requirements, responses and resulting orders stay associated with your verified account.</p></div></div>}
               {activeTab === 'account' && <div><div className="flex flex-wrap items-start justify-between gap-4"><div><p className="text-xs font-850 uppercase tracking-wider text-primary">Account</p><h2 className="mt-2 text-2xl font-850 text-foreground">Profile, business and delivery settings</h2></div><Link href="/profile" className="ft-primary-action inline-flex items-center gap-2 px-4 py-2.5 text-sm">Edit profile <Icon name="ArrowRightIcon" size={15} /></Link></div><div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{[
                 ['Name', buyerName], ['Email', user?.email || 'Not available'], ['Phone', profile?.phone ? `+91 ${profile.phone}` : 'Add phone'], ['Account type', profile?.account_kind || 'individual'], ['Verification', profile?.verification_status || 'unverified'], ['Location', [profile?.city, profile?.state].filter(Boolean).join(', ') || 'Add location'],
-              ].map(([label, value]) => <div key={label} className="rounded-xl border border-border bg-muted/30 p-4"><p className="text-[11px] font-850 uppercase tracking-wider text-muted-foreground">{label}</p><p className="mt-1 break-words text-sm font-800 capitalize text-foreground">{value}</p></div>)}</div></div>}
+              ].map(([label, value]) => <div key={label} className="rounded-xl border border-border bg-muted/30 p-4"><p className="text-[11px] font-850 uppercase tracking-wider text-muted-foreground">{label}</p><p className={`mt-1 break-words text-sm font-800 text-foreground ${label === 'Account type' || label === 'Verification' ? 'capitalize' : ''}`}>{value}</p></div>)}</div></div>}
             </section>}
           </div>
-        </main>
+          </main>
+        </div>
       </div>
 
-      <nav className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t border-border bg-card/95 p-1.5 backdrop-blur-xl md:hidden">
+      <nav className="ft-workspace-tabbar fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 p-1.5 md:hidden">
         {[
           { key: 'overview' as DashboardTab, label: 'Home', icon: 'HomeIcon' },
           { key: 'orders' as DashboardTab, label: 'Orders', icon: 'ShoppingBagIcon' },
           { key: 'tracking' as DashboardTab, label: 'Track', icon: 'TruckIcon' },
           { key: 'cart' as DashboardTab, label: 'Cart', icon: 'ShoppingCartIcon' },
           { key: 'account' as DashboardTab, label: 'Account', icon: 'UserCircleIcon' },
-        ].map((item) => <button key={item.key} type="button" onClick={() => navigateTo(item.key)} className={`relative flex flex-col items-center gap-1 rounded-lg py-2 text-[10px] font-850 ${activeTab === item.key ? 'bg-primary/10 text-primary' : 'text-muted-foreground'}`}><Icon name={item.icon as 'HomeIcon'} size={18} /> {item.label}{item.key === 'cart' && lineCount > 0 && <span className="absolute right-[22%] top-1 grid h-4 min-w-4 place-items-center rounded-full bg-primary px-1 text-[9px] font-850 text-white">{lineCount}</span>}</button>)}
+        ].map((item) => <button key={item.key} type="button" onClick={() => navigateTo(item.key)} className={`ft-workspace-tab relative flex flex-col items-center gap-1 rounded-lg py-2 text-[10px] font-850 ${activeTab === item.key ? 'is-active' : ''}`}><Icon name={item.icon as 'HomeIcon'} size={18} /> {item.label}{item.key === 'cart' && lineCount > 0 && <span className="absolute right-[22%] top-1 grid h-4 min-w-4 place-items-center rounded-full bg-primary px-1 text-[9px] font-850 text-white">{lineCount}</span>}</button>)}
       </nav>
     </div>
   );

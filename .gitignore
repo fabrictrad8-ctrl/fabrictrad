@@ -39,3 +39,8 @@ turbo/
 
 # Supabase CLI local state
 supabase/.temp/
+
+# Narrated-guide build intermediates (regenerate via scripts/render-frames.mjs +
+# scripts/build-narrated-guides.py; fonts are re-downloaded from Google Fonts)
+/guide-work/
+scripts/guide-fonts/

@@ -26,6 +26,8 @@ import SellerCourierSettings from '@/app/seller-dashboard/components/SellerCouri
 import SellerInbox from '@/app/seller-dashboard/components/SellerInbox';
 import SellerBuyerRequests from '@/app/seller-dashboard/components/SellerBuyerRequests';
 import SellerBillingDocuments from '@/app/seller-dashboard/components/SellerBillingDocuments';
+import SellerStoreIdentity from '@/app/seller-dashboard/components/SellerStoreIdentity';
+import CommerceNotificationBell from '@/app/components/CommerceNotificationBell';
 
 type SellerTab =
   | 'overview'
@@ -178,8 +180,8 @@ export default function SellerDashboardLayout() {
 
   const sidebar = (
     <div className="flex h-full flex-col">
-      <div className="border-b border-[#dde1e5] p-3 dark:border-border">
-        <Link href="/seller-dashboard" onClick={() => setSidebarOpen(false)} className="flex min-h-11 items-center gap-3 rounded-lg px-2 hover:bg-white dark:hover:bg-muted">
+      <div className="ft-workspace-brand p-3">
+        <Link href="/seller-dashboard" onClick={() => setSidebarOpen(false)} className="flex min-h-11 items-center gap-3 rounded-lg px-2">
           <AppLogo size={30} />
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-850 text-foreground">{sellerName}</p>
@@ -191,7 +193,7 @@ export default function SellerDashboardLayout() {
       <nav className="flex-1 overflow-y-auto px-2 py-3" aria-label="Seller navigation">
         {navGroups.map((group) => (
           <section key={group.label} className="mb-4 last:mb-0">
-            <p className="mb-1 px-2 text-[10px] font-850 uppercase tracking-[0.12em] text-muted-foreground">{group.label}</p>
+            <p className="ft-workspace-group-label mb-1 px-2 text-[10px] font-850 uppercase tracking-[0.12em]">{group.label}</p>
             <div className="space-y-0.5">
               {group.items.map((item) => {
                 const active = activeTab === item.key;
@@ -201,9 +203,9 @@ export default function SellerDashboardLayout() {
                     type="button"
                     onClick={() => navigateTo(item.key)}
                     aria-current={active ? 'page' : undefined}
-                    className={`flex min-h-9 w-full items-center gap-3 rounded-lg px-2.5 text-left text-[13px] font-700 transition ${active ? 'is-active bg-[#e7e8ea] text-foreground dark:bg-muted' : 'text-foreground/80 hover:bg-[#eceeef] hover:text-foreground dark:hover:bg-muted'}`}
+                    className={`ft-workspace-nav-item flex min-h-9 w-full items-center gap-3 rounded-lg px-2.5 text-left text-[13px] ${active ? 'is-active' : ''}`}
                   >
-                    <Icon name={item.icon as 'HomeIcon'} size={17} className={active ? 'text-foreground' : 'text-muted-foreground'} />
+                    <Icon name={item.icon as 'HomeIcon'} size={17} />
                     <span className="min-w-0 flex-1 truncate">{item.label}</span>
                   </button>
                 );
@@ -213,8 +215,8 @@ export default function SellerDashboardLayout() {
         ))}
       </nav>
 
-      <div className="border-t border-[#dde1e5] p-2 dark:border-border">
-        <button type="button" onClick={() => void logout()} disabled={signingOut} className="flex min-h-10 w-full items-center gap-3 rounded-lg px-2.5 text-left text-sm font-750 text-error hover:bg-error/10 disabled:opacity-50">
+      <div className="border-t border-border p-2">
+        <button type="button" onClick={() => void logout()} disabled={signingOut} className="flex min-h-10 w-full items-center gap-3 rounded-lg px-2.5 text-left text-sm font-750 text-error transition hover:bg-error/10 disabled:opacity-50">
           <Icon name="ArrowRightOnRectangleIcon" size={17} /> {signingOut ? 'Signing out…' : 'Sign out'}
         </button>
       </div>
@@ -222,46 +224,47 @@ export default function SellerDashboardLayout() {
   );
 
   return (
-    <div className="ft-admin-shell ft-seller-admin">
-      <header className="ft-admin-header sticky top-0 z-40 flex items-center gap-3 px-3 backdrop-blur-xl sm:px-4">
-        <button type="button" onClick={() => setSidebarOpen(true)} className="ft-icon-button md:hidden" aria-label="Open seller navigation"><Icon name="Bars3Icon" size={20} /></button>
-
-        <div className="hidden min-w-0 md:block lg:w-52">
-          <p className="truncate text-sm font-850 text-foreground">{activeItem.label}</p>
-          <p className="truncate text-[11px] text-muted-foreground">{activeItem.description}</p>
-        </div>
-
-        <form onSubmit={searchSellerTools} className="ft-admin-toolbar-search hidden min-h-10 min-w-0 flex-1 items-center gap-2 rounded-lg border px-3 md:flex md:max-w-xl">
-          <Icon name="MagnifyingGlassIcon" size={17} className="text-muted-foreground" />
-          <input ref={searchRef} type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search seller tools: orders, products, payouts…" className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground" />
-          <kbd className="hidden rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] font-750 text-muted-foreground lg:inline">Ctrl K</kbd>
-          <button type="submit" className="text-xs font-850 text-primary">Go</button>
-        </form>
-
-        <div className="ml-auto flex items-center gap-2">
-          <span className="hidden items-center gap-1.5 rounded-full border border-success/20 bg-success/5 px-2.5 py-1 text-[11px] font-800 text-success lg:inline-flex"><span className="h-1.5 w-1.5 rounded-full bg-success" /> Store active</span>
-          <Link href={storefrontHref} className="ft-secondary-action hidden items-center gap-2 px-3 py-2 text-xs lg:inline-flex"><Icon name="EyeIcon" size={15} /> View store</Link>
-          <button type="button" onClick={() => navigateTo('upload')} className="ft-primary-action hidden items-center gap-2 px-3 py-2 text-xs sm:inline-flex"><Icon name="PlusIcon" size={15} /> Add product</button>
-          <PreferenceControls compact />
-          <button type="button" onClick={() => navigateTo('notifications')} className="ft-icon-button" aria-label="Open seller notifications"><Icon name="BellIcon" size={18} /></button>
-          <ProfileMenu />
-        </div>
-      </header>
-
-      <div className="flex min-h-[calc(100vh-3.75rem)]">
-        <aside className="ft-admin-sidebar hidden shrink-0 md:block">{sidebar}</aside>
+    <div className="ft-workspace-shell">
+      <div className="ft-workspace-shell-grid">
+        <aside className="ft-dock hidden shrink-0 md:flex">{sidebar}</aside>
 
         {sidebarOpen && (
           <>
             <button type="button" className="fixed inset-0 z-40 bg-black/45 md:hidden" onClick={() => setSidebarOpen(false)} aria-label="Close seller navigation" />
-            <aside className="ft-admin-sidebar fixed inset-y-0 left-0 z-50 w-[min(88vw,290px)] shadow-2xl md:hidden">
+            <aside className="ft-dock is-drawer fixed inset-y-0 left-0 z-50 flex w-[min(88vw,290px)] shadow-2xl md:hidden">
               <button type="button" onClick={() => setSidebarOpen(false)} className="ft-icon-button absolute right-3 top-3 z-10" aria-label="Close seller navigation"><Icon name="XMarkIcon" size={18} /></button>
               {sidebar}
             </aside>
           </>
         )}
 
-        <main className="ft-admin-main min-w-0 flex-1 overflow-y-auto px-3 pb-24 sm:px-5 lg:px-7">
+        <div className="ft-canvas">
+          <header className="ft-dock-bar flex items-center gap-3 px-3 py-2.5 sm:px-4">
+            <button type="button" onClick={() => setSidebarOpen(true)} className="ft-icon-button md:hidden" aria-label="Open seller navigation"><Icon name="Bars3Icon" size={20} /></button>
+
+            <div className="hidden min-w-0 lg:block lg:w-52">
+              <p className="truncate text-sm font-850 text-foreground">{activeItem.label}</p>
+              <p className="truncate text-[11px] text-muted-foreground">{activeItem.description}</p>
+            </div>
+
+            <form onSubmit={searchSellerTools} className="ft-workspace-search hidden min-h-10 min-w-[160px] flex-1 items-center gap-2 rounded-lg border px-3 lg:flex lg:max-w-xl">
+              <Icon name="MagnifyingGlassIcon" size={17} className="text-muted-foreground" />
+              <input ref={searchRef} type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search seller tools: orders, products, payouts…" className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground" />
+              <kbd className="hidden rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] font-750 text-muted-foreground xl:inline">Ctrl K</kbd>
+              <button type="submit" className="text-xs font-850 text-primary">Go</button>
+            </form>
+
+            <div className="ml-auto flex items-center gap-2">
+              <span className="hidden items-center gap-1.5 rounded-full border border-success/20 bg-success/5 px-2.5 py-1 text-[11px] font-800 text-success xl:inline-flex"><span className="h-1.5 w-1.5 rounded-full bg-success" /> Store active</span>
+              <Link href={storefrontHref} className="ft-secondary-action hidden items-center gap-2 px-3 py-2 text-xs xl:inline-flex"><Icon name="EyeIcon" size={15} /> View store</Link>
+              <button type="button" onClick={() => navigateTo('upload')} className="ft-primary-action hidden items-center gap-2 px-3 py-2 text-xs md:inline-flex"><Icon name="PlusIcon" size={15} /> Add product</button>
+              <PreferenceControls compact />
+              <CommerceNotificationBell mode="seller" onClick={() => navigateTo('notifications')} label="Open seller notifications" />
+              <ProfileMenu />
+            </div>
+          </header>
+
+          <main className="ft-canvas-main min-w-0 px-3 pb-24 pt-4 sm:px-5 lg:px-7">
           <div className="mx-auto">
             <SellerProfileReadiness />
 
@@ -282,30 +285,34 @@ export default function SellerDashboardLayout() {
             {activeTab === 'disputes' && <SellerDisputes />}
             {activeTab === 'notifications' && <NotificationPreferences mode="seller" />}
             {activeTab === 'profile' && (
-              <section className="ft-shopify-card p-5 sm:p-6">
-                <div className="flex flex-wrap items-start justify-between gap-4">
-                  <div><p className="text-xs font-850 uppercase tracking-wider text-primary">Business settings</p><h1 className="ft-admin-page-title mt-2 text-2xl">Store identity, GST and fulfilment profile</h1></div>
-                  <Link href="/profile?tab=business" className="ft-primary-action inline-flex items-center gap-2 px-4 py-2.5 text-sm">Edit settings <Icon name="ArrowRightIcon" size={15} /></Link>
-                </div>
-                <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {[
-                    ['Business', profile?.business_name || sellerName],
-                    ['Owner', profile?.full_name || 'Not added'],
-                    ['Email', user?.email || 'Not available'],
-                    ['Phone', profile?.phone ? `+91 ${profile.phone}` : 'Add phone'],
-                    ['GSTIN', profile?.gstin || 'Add GSTIN'],
-                    ['Location', [profile?.city, profile?.state].filter(Boolean).join(', ') || 'Add pickup location'],
-                  ].map(([label, value]) => (
-                    <div key={label} className="rounded-xl border border-border bg-muted/30 p-4"><p className="text-[11px] font-850 uppercase tracking-wider text-muted-foreground">{label}</p><p className="mt-1 break-words text-sm font-800 text-foreground">{value}</p></div>
-                  ))}
-                </div>
-              </section>
+              <div className="space-y-6">
+                <SellerStoreIdentity />
+                <section className="ft-glass-card p-5 sm:p-6">
+                  <div className="flex flex-wrap items-start justify-between gap-4">
+                    <div><p className="text-xs font-850 uppercase tracking-wider text-primary">Business settings</p><h1 className="ft-admin-page-title mt-2 text-2xl">Legal, GST and fulfilment profile</h1></div>
+                    <Link href="/profile?tab=business" className="ft-primary-action inline-flex items-center gap-2 px-4 py-2.5 text-sm">Edit settings <Icon name="ArrowRightIcon" size={15} /></Link>
+                  </div>
+                  <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    {[
+                      ['Business', profile?.business_name || sellerName],
+                      ['Owner', profile?.full_name || 'Not added'],
+                      ['Email', user?.email || 'Not available'],
+                      ['Phone', profile?.phone ? `+91 ${profile.phone}` : 'Add phone'],
+                      ['GSTIN', profile?.gstin || 'Add GSTIN'],
+                      ['Location', [profile?.city, profile?.state].filter(Boolean).join(', ') || 'Add pickup location'],
+                    ].map(([label, value]) => (
+                      <div key={label} className="rounded-xl border border-border bg-muted/30 p-4"><p className="text-[11px] font-850 uppercase tracking-wider text-muted-foreground">{label}</p><p className="mt-1 break-words text-sm font-800 text-foreground">{value}</p></div>
+                    ))}
+                  </div>
+                </section>
+              </div>
             )}
           </div>
-        </main>
+          </main>
+        </div>
       </div>
 
-      <nav className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t border-border bg-card/95 p-1.5 backdrop-blur-xl md:hidden">
+      <nav className="ft-workspace-tabbar fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 p-1.5 md:hidden">
         {[
           { key: 'overview' as SellerTab, label: 'Home', icon: 'HomeIcon' },
           { key: 'orders' as SellerTab, label: 'Orders', icon: 'ShoppingBagIcon' },
@@ -313,7 +320,7 @@ export default function SellerDashboardLayout() {
           { key: 'inventory' as SellerTab, label: 'Products', icon: 'ArchiveBoxIcon' },
           { key: 'earnings' as SellerTab, label: 'Payouts', icon: 'BanknotesIcon' },
         ].map((item) => (
-          <button key={item.key} type="button" onClick={() => navigateTo(item.key)} className={`flex flex-col items-center gap-1 rounded-lg py-2 text-[10px] font-850 ${activeTab === item.key ? 'bg-primary/10 text-primary' : 'text-muted-foreground'}`}><Icon name={item.icon as 'HomeIcon'} size={18} /> {item.label}</button>
+          <button key={item.key} type="button" onClick={() => navigateTo(item.key)} className={`ft-workspace-tab flex flex-col items-center gap-1 rounded-lg py-2 text-[10px] font-850 ${activeTab === item.key ? 'is-active' : ''}`}><Icon name={item.icon as 'HomeIcon'} size={18} /> {item.label}</button>
         ))}
       </nav>
     </div>

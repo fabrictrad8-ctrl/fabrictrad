@@ -618,7 +618,15 @@ export default function SellerCatalogAssistant() {
         status: 'active',
         source: 'manual',
         source_reference: sourceReference,
-        approval_status: 'approved',
+        // Never self-approve here. RLS lets a seller write any value to this
+        // column on their own rows (it only checks seller_id ownership), so
+        // this client-side value is the ONLY thing stopping a listing from
+        // going straight to the live marketplace unreviewed — setting
+        // 'approved' let any seller bypass admin moderation entirely. 'pending'
+        // is one of the states AdminListings' "Pending review" filter matches,
+        // so the product surfaces there instead of disappearing into a status
+        // no reviewer ever looks at.
+        approval_status: 'pending',
         sale_channel: form.saleChannel,
         package_format: packageFormat,
       };

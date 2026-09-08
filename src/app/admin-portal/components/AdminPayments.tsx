@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import Icon from '@/components/ui/AppIcon';
 import { exportToCSV, exportToExcel } from '@/lib/exportUtils';
+import { pillClassForStatus } from '@/lib/statusPill';
 
 type PaymentKind = 'catalog' | 'bulk';
 type Payment = {
@@ -397,23 +398,11 @@ export default function AdminPayments() {
                     <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-800 uppercase text-muted-foreground">
                       {payment.kind}
                     </span>
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-[10px] font-800 uppercase ${
-                        payment.status === 'captured'
-                          ? 'bg-success/10 text-success'
-                          : payment.status === 'failed'
-                            ? 'bg-error/10 text-error'
-                            : payment.status.includes('refund')
-                              ? 'bg-warning/10 text-warning'
-                              : 'bg-secondary/10 text-secondary'
-                      }`}
-                    >
+                    <span className={pillClassForStatus(payment.status.includes('refund') ? 'pending' : payment.status)}>
                       {human(payment.status)}
                     </span>
                     {payment.refundStatus === 'requested' && (
-                      <span className="rounded-full bg-warning/10 px-2 py-0.5 text-[10px] font-800 uppercase text-warning">
-                        Refund pending
-                      </span>
+                      <span className="ft-pill ft-pill-pending">Refund pending</span>
                     )}
                   </div>
                   <p className="mt-1 truncate text-sm font-800 text-foreground">

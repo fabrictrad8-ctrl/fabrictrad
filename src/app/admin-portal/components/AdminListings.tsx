@@ -7,6 +7,7 @@ import Icon from '@/components/ui/AppIcon';
 import AppImage from '@/components/ui/AppImage';
 import { createClient } from '@/lib/supabase/client';
 import { exportToCSV } from '@/lib/exportUtils';
+import { pillClassForStatus } from '@/lib/statusPill';
 
 type ProductRow = {
   id: string;
@@ -45,12 +46,7 @@ type ReviewAction = 'approve' | 'reject' | 'pause';
 const effectiveStatus = (product: ProductRow) =>
   String(product.approval_status || product.status || 'draft').toLowerCase();
 
-const statusTone = (status: string) => {
-  if (['approved', 'active'].includes(status)) return 'bg-success/10 text-success border-success/20';
-  if (status === 'rejected') return 'bg-error/10 text-error border-error/20';
-  if (status === 'paused') return 'bg-muted text-muted-foreground border-border';
-  return 'bg-warning/10 text-warning border-warning/20';
-};
+const statusTone = (status: string) => pillClassForStatus(status === 'paused' ? 'closed' : status);
 
 const statusLabel = (status: string) =>
   status.replace(/_/g, ' ').replace(/\b\w/g, (character) => character.toUpperCase());
@@ -347,7 +343,7 @@ export default function AdminListings() {
                       <p className="text-xs font-700 text-foreground">GTIN: {product.gtin || 'Not added'}</p>
                       <p className="mt-1 text-xs capitalize text-muted-foreground">{product.gtin_status || 'unverified'} · HSN {product.hsn_code || '—'} · GST {Number(product.gst_rate || 0)}%</p>
                     </td>
-                    <td className="px-4 py-3 text-center"><span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-800 ${statusTone(status)}`}>{statusLabel(status)}</span></td>
+                    <td className="px-4 py-3 text-center"><span className={statusTone(status)}>{statusLabel(status)}</span></td>
                     <td className="px-4 py-3 text-right">
                       <div className="inline-flex items-center gap-1.5">
                         {!['active', 'approved'].includes(status) && <button type="button" onClick={() => setReviewing({ ids: [product.id], action: 'approve' })} className="rounded-lg border border-success/20 bg-success/10 px-2.5 py-1.5 text-xs font-800 text-success">Approve</button>}

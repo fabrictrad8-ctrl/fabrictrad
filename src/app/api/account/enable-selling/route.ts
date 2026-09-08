@@ -111,6 +111,25 @@ export async function POST(request: NextRequest) {
   if (userError || !user) return json({ error: 'Sign in to continue the seller application.' }, 401);
   const admin = createAdminClient();
 
+  // Strict role separation: this endpoint only continues an *existing*
+  // seller's own registration. It must never let a buyer account pivot into
+  // a seller workspace in place — selling requires a separate FabricTrad
+  // login (see /register and /seller-registration).
+  const { data: callerProfile } = await supabase
+    .from('user_profiles')
+    .select('role')
+    .eq('id', user.id)
+    .maybeSingle();
+  if (callerProfile?.role !== 'seller') {
+    return json(
+      {
+        error:
+          'This FabricTrad login is a buyer account. Selling requires its own separate account — sign out and create a seller account from the registration page.',
+      },
+      403
+    );
+  }
+
   let formData: FormData;
   try {
     formData = await request.formData();

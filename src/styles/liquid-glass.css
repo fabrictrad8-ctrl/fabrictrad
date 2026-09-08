@@ -1,0 +1,263 @@
+/* Liquid glass — sitewide material system.
+   ------------------------------------------------------------------
+   Real glass isn't a flat translucent rectangle: it has a lit edge, a
+   moving specular highlight, and a sense of thickness. This file adds
+   those three things to every glass surface already built this session
+   (auth cards, dashboard dock/header, the site nav, workspace menus,
+   product cards) without touching their JSX — pure CSS layered on top
+   of the existing classnames, driven by --pointer-x/--pointer-y (see
+   src/components/PointerGlow.tsx), one light source for every panel on
+   the page, which reads as more real than each panel lighting up on
+   its own. Falls back to a static highlight with no listener at all
+   under prefers-reduced-motion or on touch devices (PointerGlow itself
+   no-ops there, so the vars just stay centered — still looks lit).
+   ------------------------------------------------------------------ */
+
+:root {
+  --pointer-x: 50%;
+  --pointer-y: 30%;
+}
+
+/* The lit edge: a hairline of light along the top border, like the
+   top of an actual glass panel catching ambient light from above. */
+.ft-auth-glass,
+.ft-dock,
+.ft-dock-bar,
+.ft-workspace-sidebar,
+.ft-glass-card,
+.ft-nav-shell,
+.ft-nav-workspace-menu,
+.ft-product-content-card,
+.ft-setup-guide {
+  position: relative;
+  isolation: isolate;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.35) inset,
+    0 -1px 0 rgba(255, 255, 255, 0.06) inset;
+}
+.dark :where(
+  .ft-auth-glass,
+  .ft-dock,
+  .ft-dock-bar,
+  .ft-workspace-sidebar,
+  .ft-glass-card,
+  .ft-nav-shell,
+  .ft-nav-workspace-menu,
+  .ft-product-content-card,
+  .ft-setup-guide
+) {
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.09) inset,
+    0 -1px 0 rgba(0, 0, 0, 0.2) inset;
+}
+
+/* The specular sheen: one soft highlight shared by every glass surface,
+   positioned by the pointer's location in the viewport rather than the
+   panel's own — background-attachment:fixed ties a local element's
+   background to viewport coordinates, which is what makes many panels
+   feel like they're lit by the same light. Layered via ::after/::before
+   depending on which pseudo-element a class already spends on its own
+   accent bar, so nothing here overwrites content already built. */
+.ft-auth-glass::after,
+.ft-dock::before,
+.ft-dock-bar::before,
+.ft-workspace-sidebar::before,
+.ft-nav-shell::before,
+.ft-nav-workspace-menu::before,
+.ft-setup-guide::before,
+.ft-glass-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  /* Light mode: the card is already bright, so the highlight only needs
+     to be a whisper — overlay blend at any real opacity blows out to a
+     visible wash across light backgrounds instead of a highlight. */
+  background: radial-gradient(
+    480px circle at var(--pointer-x) var(--pointer-y),
+    rgba(255, 255, 255, 0.5),
+    transparent 45%
+  );
+  background-attachment: fixed;
+  mix-blend-mode: soft-light;
+  opacity: 0.5;
+  border-radius: inherit;
+}
+.dark :where(.ft-auth-glass::after, .ft-dock::before, .ft-dock-bar::before, .ft-workspace-sidebar::before, .ft-nav-shell::before, .ft-nav-workspace-menu::before, .ft-setup-guide::before, .ft-glass-card::before) {
+  /* Dark mode: the card is already dark, so overlay blend can carry a
+     real highlight without ever crossing into looking blown out. */
+  background: radial-gradient(
+    480px circle at var(--pointer-x) var(--pointer-y),
+    rgba(255, 255, 255, 0.14),
+    transparent 55%
+  );
+  mix-blend-mode: overlay;
+  opacity: 0.9;
+}
+
+/* Everything the panel actually renders must sit above the sheen. */
+.ft-auth-glass > *,
+.ft-dock > *,
+.ft-dock-bar > *,
+.ft-workspace-sidebar > *,
+.ft-nav-shell > *,
+.ft-nav-workspace-menu > *,
+.ft-setup-guide > *,
+.ft-glass-card > * {
+  position: relative;
+  z-index: 1;
+}
+
+@media (prefers-reduced-motion: reduce), (hover: none) {
+  .ft-auth-glass::after,
+  .ft-dock::before,
+  .ft-dock-bar::before,
+  .ft-workspace-sidebar::before,
+  .ft-nav-shell::before,
+  .ft-nav-workspace-menu::before,
+  .ft-setup-guide::before,
+  .ft-glass-card::before {
+    background-attachment: scroll;
+  }
+}
+
+/* Deeper 3D: a touch more perspective on hover for the elements that
+   already tilt (brand-identity-2026.css), so the "3D" reads as real
+   depth rather than a flat lift. Kept subtle — this is a materials
+   upgrade, not a new animation, and overdoing tilt on real content
+   (text, prices) hurts readability. */
+@media (hover: hover) and (pointer: fine) {
+  .ft-root :where(.ft-resource-card, .ft-marketplace-product-card, .product-card, .dashboard-card, .stat-card, .ft-tile, .tile, .order-card):hover {
+    transform: perspective(1000px) translateY(-6px) rotateX(2deg) scale(1.015);
+  }
+}
+
+/* Sitewide cards get a gentler lift — translateY only, no perspective tilt.
+   Many of these hold open dropdowns, selects or absolutely-positioned menus
+   (the "Export" menus across admin tables, for one); a translateY carries
+   those descendants along with it perfectly since it's a plain 2D shift,
+   whereas rotateX/perspective on a card with a positioned child inside it
+   is what actually causes menus to visually detach from their trigger. */
+@media (hover: hover) and (pointer: fine) {
+  .rounded-xl.border-border.bg-card,
+  .rounded-2xl.border-border.bg-card {
+    transition: transform 220ms cubic-bezier(0.32, 0.72, 0, 1), box-shadow 220ms cubic-bezier(0.32, 0.72, 0, 1);
+  }
+  .rounded-xl.border-border.bg-card:hover,
+  .rounded-2xl.border-border.bg-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 18px 32px -22px hsl(220 40% 12% / 0.35);
+  }
+  .dark :where(.rounded-xl.border-border.bg-card:hover, .rounded-2xl.border-border.bg-card:hover) {
+    box-shadow: 0 18px 32px -22px hsl(250 60% 3% / 0.6);
+  }
+}
+
+/* Virtual try-on promo banner — draws the eye toward a genuinely
+   differentiated feature that was previously buried as a small chip lost
+   among photo thumbnails. A slow, subtle light sweep (not a hover effect —
+   it should be noticed passively while scanning the gallery) signals
+   "this is special" without being an annoying attention-grabber. */
+.ft-drape-promo-banner {
+  position: relative;
+  isolation: isolate;
+  transition: transform 160ms cubic-bezier(0.32, 0.72, 0, 1), border-color 160ms ease;
+}
+.ft-drape-promo-banner:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--primary) 45%, transparent);
+}
+.ft-drape-promo-banner:active {
+  transform: scale(0.99);
+}
+.ft-drape-promo-banner::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: linear-gradient(115deg, transparent 20%, rgba(255, 255, 255, 0.35) 35%, transparent 50%);
+  background-size: 220% 100%;
+  background-position: 120% 0;
+  animation: ft-drape-shimmer 5s ease-in-out infinite;
+}
+.dark .ft-drape-promo-banner::before {
+  background: linear-gradient(115deg, transparent 20%, rgba(255, 255, 255, 0.12) 35%, transparent 50%);
+  background-size: 220% 100%;
+}
+@keyframes ft-drape-shimmer {
+  0%, 55% { background-position: 120% 0; }
+  100% { background-position: -20% 0; }
+}
+.ft-drape-promo-banner > * {
+  position: relative;
+  z-index: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ft-drape-promo-banner::before {
+    animation: none;
+  }
+}
+
+/* -------------------------------------------------------------------
+   Sitewide extension — every plain card everywhere.
+   -------------------------------------------------------------------
+   The hand-picked classes above cover the hero glass surfaces (auth,
+   dock, nav). But the vast majority of the app's actual content —
+   buyer/seller/admin dashboard cards, product panels, tables — is
+   built from one repeated, un-namespaced Tailwind shell used in over
+   160 places: `rounded-xl|rounded-2xl border border-border bg-card`.
+   That combination of utility classes is itself a reliable selector:
+   it is never used on buttons, chips or inputs in this codebase (those
+   use rounded-lg/rounded-full or a dedicated input class), only on
+   real card containers. Targeting it compounds the glass system onto
+   every one of those cards with zero JSX changes.
+
+   Tuned lighter than the hero panels above (lower sheen opacity, no
+   lit-edge box-shadow) because a dashboard can show a dozen of these
+   at once — the hero treatment at full strength would read as glare,
+   not glass, when repeated that densely.
+   ------------------------------------------------------------------- */
+.rounded-xl.border-border.bg-card,
+.rounded-2xl.border-border.bg-card {
+  position: relative;
+  isolation: isolate;
+}
+.rounded-xl.border-border.bg-card::before,
+.rounded-2xl.border-border.bg-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  background: radial-gradient(
+    420px circle at var(--pointer-x) var(--pointer-y),
+    rgba(255, 255, 255, 0.4),
+    transparent 48%
+  );
+  background-attachment: fixed;
+  mix-blend-mode: soft-light;
+  opacity: 0.32;
+}
+.dark :where(.rounded-xl.border-border.bg-card::before, .rounded-2xl.border-border.bg-card::before) {
+  background: radial-gradient(
+    420px circle at var(--pointer-x) var(--pointer-y),
+    rgba(255, 255, 255, 0.12),
+    transparent 55%
+  );
+  mix-blend-mode: overlay;
+  opacity: 0.55;
+}
+.rounded-xl.border-border.bg-card > *,
+.rounded-2xl.border-border.bg-card > * {
+  position: relative;
+  z-index: 1;
+}
+@media (prefers-reduced-motion: reduce), (hover: none) {
+  .rounded-xl.border-border.bg-card::before,
+  .rounded-2xl.border-border.bg-card::before {
+    background-attachment: scroll;
+  }
+}

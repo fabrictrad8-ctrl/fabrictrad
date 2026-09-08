@@ -7,6 +7,7 @@ import { RazorpayCheckout } from '@/components/RazorpayCheckout';
 import OrderLifecyclePanel from '@/components/commerce/OrderLifecyclePanel';
 import { useAuth } from '@/contexts/AuthContext';
 import { createClient } from '@/lib/supabase/client';
+import { pillClassForStatus } from '@/lib/statusPill';
 
 type CatalogOrder = {
   id: string;
@@ -197,9 +198,9 @@ export default function BuyerCatalogOrders() {
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="truncate text-sm font-800 text-foreground">{product?.name || 'Marketplace product'}</p>
-                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-800 uppercase ${order.status === 'paid' || order.status === 'fulfilled' ? 'bg-success/10 text-success' : order.status === 'rejected' || order.status === 'cancelled' ? 'bg-error/10 text-error' : 'bg-warning/10 text-warning'}`}>{statusLabel[order.status]}</span>
-                      <span className="rounded-full border border-border bg-muted px-2 py-0.5 text-[10px] font-800 text-muted-foreground">{paymentLabel[order.payment_status]}</span>
-                      {invoice && <span className="rounded-full bg-success/10 px-2 py-0.5 text-[10px] font-800 text-success">Invoice issued</span>}
+                      <span className={pillClassForStatus(order.status)}>{statusLabel[order.status]}</span>
+                      <span className={pillClassForStatus(order.payment_status)}>{paymentLabel[order.payment_status]}</span>
+                      {invoice && <span className="ft-pill ft-pill-success">Invoice issued</span>}
                     </div>
                     <p className="mt-1 text-xs text-muted-foreground">
                       {product?.sku || `FT-CAT-${order.id.slice(0, 8).toUpperCase()}`}
@@ -224,13 +225,21 @@ export default function BuyerCatalogOrders() {
                 <div className="mt-4 flex flex-wrap items-end gap-3 border-t border-border pt-3">
                   {canPay && (
                     <div className="w-full max-w-sm">
+                      <p className="mb-2 flex items-start gap-1.5 rounded-lg border border-warning/25 bg-warning/5 p-2 text-[11px] leading-4 text-warning">
+                        <Icon name="VideoCameraIcon" size={13} className="mt-0.5 shrink-0" />
+                        Record an unboxing video and photos when this arrives — required to file a damage or quality complaint later.
+                      </p>
                       <RazorpayCheckout
                         amount={remaining}
                         orderId={order.id}
                         orderType="catalog"
                         buttonText={netPaid > 0 ? 'Pay remaining balance' : 'Pay amount due'}
                         onSuccess={({ status }) => {
-                          toast.success(status === 'captured' ? 'Payment captured. Your invoice is being generated automatically.' : 'Payment authorised. Waiting for capture confirmation.');
+                          toast.success(
+                            status === 'captured'
+                              ? 'Payment captured. Remember to record an unboxing video and photos when the order arrives.'
+                              : 'Payment authorised. Waiting for capture confirmation.'
+                          );
                           window.setTimeout(() => void loadOrders(), 1200);
                         }}
                         onError={(error) => toast.error(error.message)}

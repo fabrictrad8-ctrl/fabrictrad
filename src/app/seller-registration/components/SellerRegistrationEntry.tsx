@@ -5,6 +5,7 @@ import Link from 'next/link';
 import Icon from '@/components/ui/AppIcon';
 import { useAuth } from '@/contexts/AuthContext';
 import { normalizeEmail, normalizeIndianPhone, validateIndianPhone } from '@/lib/authValidation';
+import { createClient } from '@/lib/supabase/client';
 import SellerApplicationResume from './SellerApplicationResume';
 import SellerRegistrationFlowV2 from './SellerRegistrationFlowV2';
 
@@ -22,6 +23,7 @@ export default function SellerRegistrationEntry() {
     profileLoading,
     signUp,
     signIn,
+    signOut,
     refreshProfile,
   } = useAuth();
   const [submitting, setSubmitting] = useState(false);
@@ -98,9 +100,23 @@ export default function SellerRegistrationEntry() {
       }
 
       if (preflight.emailUsed) {
+        // Only resume if that email already belongs to a *seller* account
+        // (this person continuing their own in-progress application).
+        // A buyer/other account with the same email must not be pivoted
+        // into selling — strict role separation requires a separate login.
         try {
           await signIn(email, form.password);
-          window.location.replace('/seller-registration?resume=1');
+          const { data } = await createClient()
+            .from('user_profiles')
+            .select('role')
+            .eq('id', (await createClient().auth.getUser()).data.user?.id || '')
+            .maybeSingle();
+          if (data?.role === 'seller') {
+            window.location.replace('/seller-registration?resume=1');
+            return;
+          }
+          await signOut();
+          setError('That email already has a FabricTrad buyer account. Selling needs its own separate account — use a different email address.');
           return;
         } catch {
           setError('That email already has a FabricTrad account. Sign in or reset the password instead of registering again.');
@@ -108,7 +124,7 @@ export default function SellerRegistrationEntry() {
         }
       }
       if (preflight.phoneUsed) {
-        setError('That mobile number already belongs to a FabricTrad account. Sign in to the existing account and activate selling there.');
+        setError('That mobile number already belongs to a FabricTrad account. Selling needs its own separate account — use a different mobile number.');
         return;
       }
 
@@ -186,7 +202,35 @@ export default function SellerRegistrationEntry() {
   }
 
   if (user && profile?.can_sell && sellerApplicationSubmitted) return <SellerApplicationResume />;
-  if (user) return <SellerRegistrationFlowV2 />;
+  if (user && profile?.role === 'seller') return <SellerRegistrationFlowV2 />;
+
+  // Strict role separation: a signed-in buyer (or any non-seller account)
+  // must never be dropped into seller onboarding on their existing login.
+  // Selling on FabricTrad always requires its own separate account.
+  if (user) {
+    return (
+      <section className="min-h-screen bg-muted/30 px-4 py-12">
+        <div className="mx-auto max-w-xl rounded-3xl border border-border bg-card p-8 text-center shadow-sm">
+          <Icon name="ExclamationTriangleIcon" size={28} className="mx-auto text-warning" />
+          <h1 className="mt-4 text-xl font-800 text-foreground">This is a buyer account</h1>
+          <p className="mt-3 text-sm leading-6 text-muted-foreground">
+            You&apos;re signed in as a FabricTrad buyer. Selling requires its own separate account — sign out and
+            create a new seller login with a different email and mobile number.
+          </p>
+          <button
+            type="button"
+            onClick={() => { void signOut(); }}
+            className="btn-primary mt-6 inline-flex w-full justify-center px-4 py-3 text-sm"
+          >
+            Sign out and create a seller account
+          </button>
+          <Link href="/marketplace" className="mt-3 inline-block text-sm font-700 text-primary">
+            Back to marketplace
+          </Link>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="min-h-screen bg-muted/30 px-4 py-8 sm:py-12">

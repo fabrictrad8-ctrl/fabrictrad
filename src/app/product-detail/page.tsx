@@ -21,7 +21,7 @@ export default function ProductDetailPage() {
       <main className="ft-storefront min-h-screen">
         <Header />
         <div className="pt-16">
-          <div className="border-b border-border bg-white/90 backdrop-blur-xl dark:bg-card/90">
+          <div className="border-b border-border backdrop-blur-xl" style={{ background: 'color-mix(in srgb, var(--card) 90%, transparent)' }}>
             <div className="ft-storefront-content py-3"><ProductBreadcrumb /></div>
           </div>
 

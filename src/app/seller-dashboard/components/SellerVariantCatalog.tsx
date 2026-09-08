@@ -7,6 +7,7 @@ import Icon from '@/components/ui/AppIcon';
 import { useAuth } from '@/contexts/AuthContext';
 import { createClient } from '@/lib/supabase/client';
 import { variantKey } from '@/lib/whatsappCatalog';
+import { pillClassForStatus } from '@/lib/statusPill';
 
 type ParentProduct = {
   id: string;
@@ -195,7 +196,12 @@ export default function SellerVariantCatalog() {
         image_url: form.imageUrl.trim() || null,
         image_urls: form.imageUrl.trim() ? [form.imageUrl.trim()] : [],
         source: 'manual',
-        approval_status: 'approved',
+        // Not 'approved' — RLS only checks seller_id ownership on this table,
+        // not which columns are written, so this client-side value was the
+        // only thing stopping a seller from self-approving a new variant
+        // straight onto the live marketplace. See the same fix in
+        // SellerCatalogAssistant.tsx for the parent-product version of this.
+        approval_status: 'pending',
         status: form.status,
       };
 
@@ -283,8 +289,8 @@ export default function SellerVariantCatalog() {
               ['Total stock', selectedVariants.reduce((sum, variant) => sum + Number(variant.available_quantity), 0)],
               ['Live', selectedVariants.filter((variant) => variant.status === 'active').length],
             ].map(([label, value]) => (
-              <div key={String(label)} className="rounded-xl border border-border bg-card p-4 text-center">
-                <p className="text-2xl font-800 text-foreground">{Number(value).toLocaleString('en-IN')}</p>
+              <div key={String(label)} className="ft-tile text-center">
+                <p className="ft-tile-value">{Number(value).toLocaleString('en-IN')}</p>
                 <p className="text-xs text-muted-foreground">{label}</p>
               </div>
             ))}
@@ -301,7 +307,7 @@ export default function SellerVariantCatalog() {
                       <span className="h-20 w-20 rounded-full border border-black/10 shadow-sm" style={{ backgroundColor: variant.color_hex || '#d1d5db' }} />
                     </div>
                   )}
-                  <span className={`absolute right-3 top-3 rounded-full px-2.5 py-1 text-[10px] font-800 ${variant.status === 'active' ? 'bg-success text-white' : 'bg-warning text-white'}`}>
+                  <span className={`absolute right-3 top-3 ${pillClassForStatus(variant.status === 'active' ? 'active' : 'draft')}`}>
                     {variant.status === 'active' ? 'Live' : 'Draft'}
                   </span>
                 </div>

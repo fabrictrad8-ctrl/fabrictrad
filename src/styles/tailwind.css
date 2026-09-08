@@ -430,20 +430,20 @@
   }
 
   .order-status-pending {
-    color: #d97706;
-    background: rgba(217, 119, 6, 0.1);
+    color: #c9a24b;
+    background: rgba(201, 162, 75, 0.14);
   }
   .order-status-confirmed {
-    color: #16a34a;
-    background: rgba(22, 163, 74, 0.1);
+    color: #4a6b9e;
+    background: rgba(74, 107, 158, 0.14);
   }
   .order-status-paid {
-    color: #1b2b5e;
-    background: rgba(27, 43, 94, 0.1);
+    color: #4a6b9e;
+    background: rgba(74, 107, 158, 0.14);
   }
   .order-status-shipped {
-    color: #7c3aed;
-    background: rgba(124, 58, 237, 0.1);
+    color: #dd7a2e;
+    background: rgba(221, 122, 46, 0.14);
   }
   .order-status-delivered {
     color: #16a34a;
@@ -456,6 +456,20 @@
   .order-status-cancelled {
     color: #6b7280;
     background: rgba(107, 114, 128, 0.1);
+  }
+  [class*='order-status-'] {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 800;
+  }
+  [class*='order-status-']::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+    flex-shrink: 0;
   }
 }
 

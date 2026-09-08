@@ -27,9 +27,9 @@ export default function RegisterPage() {
       </header>
       <section className="relative z-[2] mx-auto w-full max-w-[1240px] px-5 pb-20 pt-32 sm:px-8 lg:pt-40">
         <div className="mx-auto max-w-3xl text-center">
-          <p className="text-sm font-700 text-primary">{t('register.kicker')}</p>
-          <h1 className="mt-5 text-balance text-4xl font-850 leading-tight tracking-tight text-foreground sm:text-6xl">{t('register.title')}</h1>
-          <p className="mx-auto mt-6 max-w-2xl text-base leading-8 text-muted-foreground">{t('register.copy')}</p>
+          <p className="text-sm font-700 text-[#ff9a69]">{t('register.kicker')}</p>
+          <h1 className="mt-5 text-balance text-4xl font-850 leading-tight tracking-tight text-white sm:text-6xl">{t('register.title')}</h1>
+          <p className="mx-auto mt-6 max-w-2xl text-base leading-8 text-[#9ba8bb]">{t('register.copy')}</p>
         </div>
         <div className="mt-12 grid gap-5 lg:grid-cols-3">
           {options.map((option) => (

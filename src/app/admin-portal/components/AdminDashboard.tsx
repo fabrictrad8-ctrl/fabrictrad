@@ -63,6 +63,13 @@ const statusLabel = (value: string) =>
     .replace(/_/g, ' ')
     .replace(/\b\w/g, (character) => character.toUpperCase());
 
+const greeting = () => {
+  const hour = new Date().getHours();
+  if (hour < 12) return 'Good morning';
+  if (hour < 17) return 'Good afternoon';
+  return 'Good evening';
+};
+
 export default function AdminDashboard() {
   const [range, setRange] = useState<Range>('today');
   const [overview, setOverview] = useState<Overview | null>(null);
@@ -109,7 +116,7 @@ export default function AdminDashboard() {
       { label: 'Review seller applications', count: overview?.tasks.pendingSellers || 0, href: '/admin-portal?tab=sellers', icon: 'ShieldCheckIcon', urgent: true },
       { label: 'Review product listings', count: overview?.tasks.pendingProducts || 0, href: '/admin-portal?tab=listings', icon: 'TagIcon', urgent: true },
       { label: 'Investigate failed payments', count: overview?.tasks.failedPayments || 0, href: '/admin-portal?tab=payments', icon: 'CreditCardIcon', urgent: true },
-      { label: 'Resolve disputes', count: overview?.tasks.openDisputes || 0, href: '/admin-portal?tab=activity', icon: 'FlagIcon', urgent: true },
+      { label: 'Resolve disputes', count: overview?.tasks.openDisputes || 0, href: '/admin-portal?tab=disputes', icon: 'FlagIcon', urgent: true },
       { label: 'Shipment exceptions', count: overview?.tasks.shipmentExceptions || 0, href: '/admin-portal?tab=fulfillment', icon: 'TruckIcon', urgent: true },
       { label: 'Unresolved platform errors', count: overview?.tasks.unresolvedErrors || 0, href: '/admin-portal?tab=errors', icon: 'ExclamationTriangleIcon', urgent: true },
       { label: 'Invoice emails needing attention', count: overview?.tasks.invoiceEmailsPending || 0, href: '/admin-portal?tab=orders', icon: 'EnvelopeIcon', urgent: true },
@@ -125,15 +132,15 @@ export default function AdminDashboard() {
   return (
     <div className="space-y-6">
       <section className="overflow-hidden rounded-3xl border border-border bg-card shadow-sm">
-        <div className="grid gap-6 p-5 sm:p-7 lg:grid-cols-[1fr_auto] lg:items-center">
-          <div>
+        <div className="grid gap-6 p-5 sm:p-7 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+          <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="rounded-full bg-success/10 px-3 py-1 text-xs font-800 text-success">Live commerce data</span>
+              <span className="ft-pill ft-pill-success">Live commerce data</span>
               {overview?.generatedAt && (
                 <span className="text-xs text-muted-foreground">Updated {new Date(overview.generatedAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</span>
               )}
             </div>
-            <h1 className="mt-3 text-3xl font-800 tracking-tight text-foreground">Good evening. Here is what needs attention.</h1>
+            <h1 className="mt-3 text-3xl font-800 tracking-tight text-foreground">{greeting()}. Here is what needs attention.</h1>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
               Live sales, verification, inventory, payments and fulfillment data from FabricTrad. No demonstration metrics are shown here.
             </p>
@@ -167,14 +174,14 @@ export default function AdminDashboard() {
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {metrics.map((metric) => (
-          <article key={metric.label} className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+          <article key={metric.label} className="ft-tile">
             <div className="flex items-start gap-4">
               <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${metric.tone}`}>
                 <Icon name={metric.icon as 'ShoppingBagIcon'} size={20} />
               </span>
               <div className="min-w-0">
-                <p className="text-xs font-800 uppercase tracking-[0.12em] text-muted-foreground">{metric.label}</p>
-                <p className="mt-1 truncate text-2xl font-800 tracking-tight text-foreground">{loading ? '—' : metric.value}</p>
+                <p className="ft-tile-label">{metric.label}</p>
+                <p className="ft-tile-value truncate">{loading ? '—' : metric.value}</p>
                 <p className="mt-1 text-xs text-muted-foreground">{metric.detail}</p>
               </div>
             </div>
@@ -201,7 +208,7 @@ export default function AdminDashboard() {
                   <span className="block text-sm font-800 text-foreground">{task.label}</span>
                   <span className="mt-0.5 block text-xs text-muted-foreground">{task.count ? `${task.count} require action` : 'Nothing waiting'}</span>
                 </span>
-                <span className={`flex h-8 min-w-8 items-center justify-center rounded-full px-2 text-xs font-800 ${task.count ? 'bg-error/10 text-error' : 'bg-success/10 text-success'}`}>{task.count}</span>
+                <span className={`flex h-8 min-w-8 items-center justify-center rounded-full px-2 text-xs font-800 ${task.count ? 'ft-pill ft-pill-critical' : 'ft-pill ft-pill-success'}`}>{task.count}</span>
               </Link>
             ))}
           </div>
@@ -212,12 +219,12 @@ export default function AdminDashboard() {
           <h2 className="mt-1 text-lg font-800 text-foreground">Products ready to sell</h2>
           <div className="mt-5 grid grid-cols-3 gap-3">
             {[
-              ['Active', overview?.inventory.activeProducts || 0, 'text-success bg-success/10'],
-              ['Low stock', overview?.inventory.lowStockProducts || 0, 'text-warning bg-warning/10'],
-              ['Out of stock', overview?.inventory.outOfStockProducts || 0, 'text-error bg-error/10'],
+              ['Active', overview?.inventory.activeProducts || 0, 'text-success'],
+              ['Low stock', overview?.inventory.lowStockProducts || 0, 'text-warning'],
+              ['Out of stock', overview?.inventory.outOfStockProducts || 0, 'text-error'],
             ].map(([label, value, tone]) => (
-              <div key={String(label)} className="rounded-xl border border-border bg-muted/30 p-4 text-center">
-                <p className={`text-2xl font-800 ${tone}`.split(' ')[0]}>{loading ? '—' : value}</p>
+              <div key={String(label)} className="ft-tile text-center">
+                <p className={`ft-tile-value ${tone}`}>{loading ? '—' : value}</p>
                 <p className="mt-1 text-xs font-700 text-muted-foreground">{label}</p>
               </div>
             ))}

@@ -33,7 +33,7 @@ export default function HeroSection() {
       <div className="absolute top-40 right-0 w-80 h-80 blob-secondary pointer-events-none" />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-12 md:py-16">
         {/* Bento Hero Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="ft-hero-orchestrated grid grid-cols-1 lg:grid-cols-3 gap-4">
           {/* Main Hero Card — col-span-2 */}
           <div className="lg:col-span-2 gradient-hero rounded-2xl p-8 md:p-10 border border-border card-shadow relative overflow-hidden fabric-pattern-bg">
             <div className="relative z-10">

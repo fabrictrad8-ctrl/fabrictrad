@@ -78,7 +78,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          LOGO_URL='https://cdn.shopify.com/s/files/1/0841/4966/6010/files/fabrictrad-logo-horizontal.png?v=1788032519'
+          LOGO_URL='https://fabrictrad.com/assets/brand/fabrictrad-logo-horizontal.png'
           cache_bust="${GITHUB_SHA}-live"
 
           home_code=$(curl --silent --show-error --connect-timeout 5 --max-time 20 \

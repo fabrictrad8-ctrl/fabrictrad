@@ -301,7 +301,7 @@ body[data-route='buyer-requirements'] main {
   font-weight: 700;
 }
 
-/* Product detail: compact Shopify-like two-column resource layout. */
+/* Product detail: compact two-column resource layout. */
 .ft-product-layout {
   align-items: start;
 }
@@ -357,7 +357,7 @@ body[data-route='buyer-requirements'] main {
   backdrop-filter: blur(20px);
 }
 
-/* Shopify-style resource tables on seller and admin pages. */
+/* Dense resource tables on seller and admin pages. */
 .ft-shell :where(table) thead th {
   position: sticky;
   top: 0;

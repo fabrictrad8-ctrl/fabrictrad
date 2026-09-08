@@ -1,8 +1,9 @@
 import React from 'react';
 import type { Metadata, Viewport } from 'next';
+import { Fraunces, Public_Sans, IBM_Plex_Mono } from 'next/font/google';
 import '../styles/tailwind.css';
 import '../styles/font-fallback.css';
-import '../styles/shopify-glass.css';
+import '../styles/commerce-glass.css';
 import '../styles/commerce-polish.css';
 import '../styles/global-commerce.css';
 import '../styles/orange-commerce.css';
@@ -21,19 +22,53 @@ import '../styles/ui-integrity-hotfix.css';
 import '../styles/mobile-auth-hotfix.css';
 import '../styles/sitewide-mobile-responsive.css';
 import '../styles/site-motion-and-polish.css';
+import '../styles/storefront-premium-redesign.css';
+import '../styles/brand-identity-2026.css';
+import '../styles/workspace-shell.css';
+import '../styles/auth-shell.css';
+import '../styles/site-header.css';
+import '../styles/interaction-system.css';
+
+import '../styles/liquid-glass.css';
+import '../styles/mobile-native-feel.css';
+import '../styles/scroll-motion.css';
+import '../styles/announcement-ticker.css';
 import { AuthProvider } from '@/contexts/AuthContext';
 import AppClientEnhancements from '@/components/AppClientEnhancements';
 import RouteExperienceEnhancer from '@/components/RouteExperienceEnhancer';
 import PageContinuity from '@/components/PageContinuity';
 import PublicHowToUseNavigation from '@/components/PublicHowToUseNavigation';
 import SitewideLanguageControl from '@/components/SitewideLanguageControl';
+import PointerGlow from '@/components/PointerGlow';
+import ScrollReveal from '@/components/ScrollReveal';
+import SitewideAnnouncementTicker from '@/components/SitewideAnnouncementTicker';
 import { AppPreferencesProvider } from '@/contexts/AppPreferencesContext';
 
+const fraunces = Fraunces({
+  subsets: ['latin'],
+  variable: '--font-display-raw',
+  weight: ['500', '600', '700'],
+  style: ['normal', 'italic'],
+  display: 'swap',
+});
+const publicSans = Public_Sans({
+  subsets: ['latin'],
+  variable: '--font-sans-brand',
+  weight: ['400', '500', '600', '700'],
+  display: 'swap',
+});
+const plexMono = IBM_Plex_Mono({
+  subsets: ['latin'],
+  variable: '--font-mono-brand',
+  weight: ['400', '500', '600'],
+  display: 'swap',
+});
+
 const PRODUCTION_UI_RELEASE = 'fabrictrad-textile-showroom-2026-09-05';
-const BRAND_ICON_192 = 'https://cdn.shopify.com/s/files/1/0841/4966/6010/files/fabrictrad-app-icon-192.png?v=1788032573';
-const BRAND_ICON_512 = 'https://cdn.shopify.com/s/files/1/0841/4966/6010/files/fabrictrad-app-icon-512.png?v=1788032540';
-const BRAND_APPLE_ICON = 'https://cdn.shopify.com/s/files/1/0841/4966/6010/files/fabrictrad-apple-touch-icon.png?v=1788032584';
-const BRAND_SOCIAL_PREVIEW = 'https://cdn.shopify.com/s/files/1/0841/4966/6010/files/fabrictrad-social-preview.jpg?v=1788032550';
+const BRAND_ICON_192 = '/assets/brand/fabrictrad-app-icon-192.png';
+const BRAND_ICON_512 = '/assets/brand/fabrictrad-app-icon-512.png';
+const BRAND_APPLE_ICON = '/assets/brand/fabrictrad-apple-touch-icon.png';
+const BRAND_SOCIAL_PREVIEW = '/assets/brand/fabrictrad-social-preview.jpg';
 
 export const viewport: Viewport = {
   width: 'device-width',
@@ -96,19 +131,31 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning data-scroll-behavior="smooth" data-fabrictrad-release={PRODUCTION_UI_RELEASE}>
+    <html
+      lang="en"
+      suppressHydrationWarning
+      data-scroll-behavior="smooth"
+      data-fabrictrad-release={PRODUCTION_UI_RELEASE}
+      className={`${fraunces.variable} ${publicSans.variable} ${plexMono.variable}`}
+    >
       <head>
         <meta name="fabrictrad-release" content={PRODUCTION_UI_RELEASE} />
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{localStorage.setItem('fabrictrad:theme','light');document.documentElement.classList.remove('dark');document.documentElement.dataset.theme='light';document.documentElement.style.colorScheme='light';}catch(e){document.documentElement.classList.remove('dark');document.documentElement.dataset.theme='light';document.documentElement.style.colorScheme='light';}})();`,
+            __html: `(function(){try{var stored=localStorage.getItem('fabrictrad:theme');var resolved=stored==='dark'?true:stored==='light'?false:window.matchMedia('(prefers-color-scheme: dark)').matches;document.documentElement.classList.toggle('dark',resolved);document.documentElement.dataset.theme=resolved?'dark':'light';document.documentElement.style.colorScheme=resolved?'dark':'light';}catch(e){}})();`,
           }}
         />
       </head>
       <body className="ft-root">
+        <noscript>
+          <style>{'.ft-reveal{opacity:1!important;transform:none!important;transition:none!important;}'}</style>
+        </noscript>
         <AuthProvider>
           <AppPreferencesProvider>
             <AppClientEnhancements />
+            <PointerGlow />
+            <ScrollReveal />
+            <SitewideAnnouncementTicker />
             <PageContinuity />
             <PublicHowToUseNavigation />
             <SitewideLanguageControl />

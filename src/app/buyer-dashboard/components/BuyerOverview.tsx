@@ -116,10 +116,10 @@ export default function BuyerOverview({ onNavigate }: Props) {
   const busy = loading || bulkLoading;
 
   const statCards = [
-    { label: 'Awaiting seller', value: String(pendingSeller.length), icon: 'ClockIcon', color: 'text-warning', bg: 'bg-warning/10 border-warning/20', tab: 'orders' as DashTab },
-    { label: 'Payment due', value: String(paymentDue.length), icon: 'CreditCardIcon', color: 'text-primary', bg: 'bg-primary/10 border-primary/20', tab: 'orders' as DashTab },
-    { label: 'Active shipments', value: String(activeShipments.length), icon: 'TruckIcon', color: 'text-purple-700', bg: 'bg-purple-500/10 border-purple-500/20', tab: 'tracking' as DashTab },
-    { label: 'Paid this month', value: formatMoney(monthPaid.reduce((sum, order) => sum + order.amount, 0)), icon: 'CurrencyRupeeIcon', color: 'text-success', bg: 'bg-success/10 border-success/20', tab: 'orders' as DashTab },
+    { label: 'Awaiting seller', value: String(pendingSeller.length), icon: 'ClockIcon', color: 'text-warning', tab: 'orders' as DashTab },
+    { label: 'Payment due', value: String(paymentDue.length), icon: 'CreditCardIcon', color: 'text-primary', tab: 'orders' as DashTab },
+    { label: 'Active shipments', value: String(activeShipments.length), icon: 'TruckIcon', color: 'text-purple-700', tab: 'tracking' as DashTab },
+    { label: 'Paid this month', value: formatMoney(monthPaid.reduce((sum, order) => sum + order.amount, 0)), icon: 'CurrencyRupeeIcon', color: 'text-success', tab: 'orders' as DashTab },
   ];
 
   return (
@@ -127,7 +127,7 @@ export default function BuyerOverview({ onNavigate }: Props) {
       <div className="mb-6"><h1 className="text-xl font-800 text-foreground">{greeting()}, {buyerName}</h1><p className="text-sm text-muted-foreground">Live catalogue, bulk, payment and delivery status for this account</p></div>
 
       <div className="mb-8 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {statCards.map((card) => <button key={card.label} type="button" onClick={() => onNavigate(card.tab)} className={`stat-card border text-left transition hover:-translate-y-0.5 hover:shadow-md ${card.bg}`}><Icon name={card.icon} size={20} className={card.color} /><p className={`mt-3 text-2xl font-800 ${card.color}`}>{busy ? '—' : card.value}</p><p className="mt-1 text-xs font-700 leading-tight text-muted-foreground">{card.label}</p></button>)}
+        {statCards.map((card) => <button key={card.label} type="button" onClick={() => onNavigate(card.tab)} className="ft-tile text-left transition hover:-translate-y-0.5"><Icon name={card.icon} size={20} className={card.color} /><span className={`ft-tile-value ${card.color}`}>{busy ? '—' : card.value}</span><span className="ft-tile-label normal-case tracking-normal">{card.label}</span></button>)}
       </div>
 
       <section className="mb-6 rounded-2xl border border-border bg-card">

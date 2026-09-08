@@ -1,49 +1,112 @@
 'use client';
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import toast from 'react-hot-toast';
 import Icon from '@/components/ui/AppIcon';
 import AppImage from '@/components/ui/AppImage';
 import InWebsiteChat from '@/app/components/InWebsiteChat';
 import WhatsAppCatalogPanel from '@/app/seller-dashboard/components/WhatsAppCatalogPanel';
+import { useAuth } from '@/contexts/AuthContext';
+import { createClient } from '@/lib/supabase/client';
 
 interface InboxThread {
   id: string;
-  buyerId: string;
-  buyerName: string;
-  buyerAvatar: string;
-  subject: string;
-  lastMessage: string;
-  lastAt: string;
+  context_type: 'product_inquiry' | 'requirement_response' | 'post_purchase';
+  context_title: string;
+  otherPartyId: string;
+  otherPartyName: string;
+  otherPartyAvatar: string;
+  lastMessage: string | null;
+  lastAt: string | null;
   unread: number;
-  type: 'product_inquiry' | 'requirement_response' | 'post_purchase';
-  productName?: string;
 }
-
-const accountThreads: InboxThread[] = [];
 
 const typeConfig: Record<string, { label: string; color: string; icon: string }> = {
   product_inquiry: {
     label: 'Product Inquiry',
-    color: 'bg-primary/10 text-primary border-primary/20',
+    color: 'ft-pill ft-pill-active',
     icon: 'ShoppingBagIcon',
   },
   requirement_response: {
     label: 'Requirement',
-    color: 'bg-amber-50 text-amber-700 border-amber-200',
+    color: 'ft-pill ft-pill-pending',
     icon: 'MegaphoneIcon',
   },
   post_purchase: {
     label: 'Post-Purchase',
-    color: 'bg-success/10 text-success border-success/20',
+    color: 'ft-pill ft-pill-success',
     icon: 'CheckCircleIcon',
   },
 };
 
-export default function SellerInbox() {
-  const [threads] = useState<InboxThread[]>(accountThreads);
-  const [activeThread, setActiveThread] = useState<InboxThread | null>(null);
-  const [filter, setFilter] = useState<'all' | InboxThread['type']>('all');
+function relativeTime(value: string | null) {
+  if (!value) return '';
+  const diffMs = Date.now() - new Date(value).getTime();
+  const minutes = Math.floor(diffMs / 60000);
+  if (minutes < 1) return 'Just now';
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}d ago`;
+  return new Date(value).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
+}
 
-  const filtered = threads.filter((t) => filter === 'all' || t.type === filter);
+export default function SellerInbox() {
+  const { user } = useAuth();
+  const supabase = useMemo(() => createClient(), []);
+  const [threads, setThreads] = useState<InboxThread[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [activeThread, setActiveThread] = useState<InboxThread | null>(null);
+  const [filter, setFilter] = useState<'all' | InboxThread['context_type']>('all');
+
+  const load = useCallback(async () => {
+    if (!user?.id) {
+      setThreads([]);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    const { data, error } = await supabase.rpc('my_chat_threads');
+    if (error) {
+      toast.error(error.message);
+      setThreads([]);
+      setLoading(false);
+      return;
+    }
+    setThreads(
+      ((data || []) as any[])
+        .filter((row) => row.role === 'seller')
+        .map((row) => ({
+          id: row.id,
+          context_type: row.context_type,
+          context_title: row.context_title,
+          otherPartyId: row.other_party_id,
+          otherPartyName: row.other_party_name,
+          otherPartyAvatar: row.other_party_avatar,
+          lastMessage: row.last_message,
+          lastAt: row.last_message_at,
+          unread: Number(row.unread || 0),
+        }))
+    );
+    setLoading(false);
+  }, [user?.id, supabase]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    const channel = supabase
+      .channel(`seller-inbox-${user.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_threads', filter: `seller_id=eq.${user.id}` }, () => void load())
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [user?.id, supabase, load]);
+
+  const filtered = threads.filter((t) => filter === 'all' || t.context_type === filter);
   const totalUnread = threads.reduce((sum, t) => sum + t.unread, 0);
 
   return (
@@ -96,7 +159,12 @@ export default function SellerInbox() {
       </div>
 
       <div className="space-y-3">
-        {filtered.length === 0 && (
+        {loading && (
+          <div className="py-12 text-center">
+            <span className="mx-auto block h-7 w-7 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          </div>
+        )}
+        {!loading && filtered.length === 0 && (
           <div className="rounded-2xl border border-dashed border-border bg-card py-12 text-center text-muted-foreground">
             <Icon name="ChatBubbleLeftRightIcon" size={32} className="mx-auto mb-3 opacity-40" />
             <p className="font-700 text-foreground">No account messages yet</p>
@@ -107,7 +175,7 @@ export default function SellerInbox() {
           </div>
         )}
         {filtered.map((thread) => {
-          const tc = typeConfig[thread.type];
+          const tc = typeConfig[thread.context_type];
           return (
             <button
               key={thread.id}
@@ -118,8 +186,8 @@ export default function SellerInbox() {
                 <div className="relative shrink-0">
                   <div className="w-10 h-10 rounded-full overflow-hidden bg-muted">
                     <AppImage
-                      src={thread.buyerAvatar}
-                      alt={`${thread.buyerName} buyer profile photo`}
+                      src={thread.otherPartyAvatar}
+                      alt={`${thread.otherPartyName} buyer profile photo`}
                       width={40}
                       height={40}
                       className="object-cover"
@@ -133,25 +201,17 @@ export default function SellerInbox() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-2 flex-wrap">
-                    <p
-                      className={`text-sm font-700 text-foreground ${thread.unread > 0 ? 'font-800' : ''}`}
-                    >
-                      {thread.buyerName}
+                    <p className={`text-sm font-700 text-foreground ${thread.unread > 0 ? 'font-800' : ''}`}>
+                      {thread.otherPartyName}
                     </p>
-                    <span className="text-xs text-muted-foreground shrink-0">{thread.lastAt}</span>
+                    <span className="text-xs text-muted-foreground shrink-0">{relativeTime(thread.lastAt)}</span>
                   </div>
-                  <p className="text-xs text-muted-foreground mt-0.5 truncate">{thread.subject}</p>
-                  <p
-                    className={`text-xs mt-1 truncate ${thread.unread > 0 ? 'text-foreground font-600' : 'text-muted-foreground'}`}
-                  >
-                    {thread.lastMessage}
+                  <p className="text-xs text-muted-foreground mt-0.5 truncate">{thread.context_title}</p>
+                  <p className={`text-xs mt-1 truncate ${thread.unread > 0 ? 'text-foreground font-600' : 'text-muted-foreground'}`}>
+                    {thread.lastMessage || 'No messages yet'}
                   </p>
                   <div className="mt-2">
-                    <span
-                      className={`text-xs font-600 border px-2 py-0.5 rounded-full ${tc.color}`}
-                    >
-                      {tc.label}
-                    </span>
+                    <span className={tc.color}>{tc.label}</span>
                   </div>
                 </div>
               </div>
@@ -162,12 +222,17 @@ export default function SellerInbox() {
 
       {activeThread && (
         <InWebsiteChat
+          threadId={activeThread.id}
+          contextType={activeThread.context_type}
           contextId={activeThread.id}
-          contextTitle={activeThread.subject}
-          otherPartyName={activeThread.buyerName}
-          otherPartyAvatar={activeThread.buyerAvatar}
+          contextTitle={activeThread.context_title}
+          otherPartyName={activeThread.otherPartyName}
+          otherPartyAvatar={activeThread.otherPartyAvatar}
           currentUserRole="seller"
-          onClose={() => setActiveThread(null)}
+          onClose={() => {
+            setActiveThread(null);
+            void load();
+          }}
         />
       )}
     </div>
