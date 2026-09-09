@@ -9,6 +9,7 @@ import {
   type ChangeEvent,
   type DragEvent,
 } from 'react';
+import Link from 'next/link';
 import toast from 'react-hot-toast';
 import Icon from '@/components/ui/AppIcon';
 import { useAuth } from '@/contexts/AuthContext';
@@ -19,6 +20,19 @@ import {
   type CatalogMediaDraftItem,
 } from '@/lib/hooks/useCatalogMediaDraft';
 import { type ParsedCatalogDraft, type SaleChannel } from '@/lib/catalogAssistant';
+import {
+  HSN_QUICK_PICKS,
+  describeHsn,
+  describeSellerProductError,
+  liveListingBlockers,
+  normalizeHsn,
+  previewGstRate,
+  validateHsn,
+} from '@/app/seller-dashboard/lib/sellerListingGuards';
+// Phone-first styling for this screen only. Kept out of src/app/layout.tsx on
+// purpose so it ships with the seller route bundle; every rule is scoped to
+// .ft-upload-flow.
+import '@/styles/seller-upload-flow.css';
 
 type ViewType = CatalogMediaDraftItem['viewType'];
 type LocalAttachment = CatalogMediaDraftItem & { previewUrl: string };
@@ -56,6 +70,7 @@ type ProductForm = {
   widthInches: string;
   gsm: string;
   workType: string;
+  hsnCode: string;
   saleChannel: SaleChannel;
   productUrl: string;
   showProductUrl: boolean;
@@ -71,6 +86,11 @@ type ComposerSnapshot = {
 type SellerState = {
   id: string;
   verificationStatus: string;
+  /**
+   * Mirrors `require_verified_gstin_for_live_listing()`: the database accepts a
+   * live listing when `gstin_status = 'active'` OR `gstin_verified` is true.
+   */
+  gstinVerified: boolean;
 };
 
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
@@ -125,6 +145,7 @@ function blankForm(draftKey = makeDraftKey()): ProductForm {
     widthInches: '',
     gsm: '',
     workType: '',
+    hsnCode: '',
     saleChannel: 'both',
     productUrl: '',
     showProductUrl: false,
@@ -229,6 +250,13 @@ export default function SellerCatalogAssistant() {
   const [savingDraft, setSavingDraft] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
+  /**
+   * Real inbound-WhatsApp readiness from /api/whatsapp/status. The shortcut
+   * below is only rendered when the provider credentials AND the webhook secret
+   * are both configured — otherwise nothing a seller sends would ever arrive,
+   * and advertising it would be a lie.
+   */
+  const [whatsappReady, setWhatsappReady] = useState(false);
 
   const snapshot = useMemo<ComposerSnapshot>(
     () => ({ form, aiText, remoteMedia }),
@@ -291,7 +319,7 @@ export default function SellerCatalogAssistant() {
     const supabase = createClient();
     const { data, error } = await supabase
       .from('seller_profiles')
-      .select('id,verification_status')
+      .select('id,verification_status,gstin_status,gstin_verified')
       .eq('user_id', user.id)
       .maybeSingle();
     if (error) throw error;
@@ -299,6 +327,7 @@ export default function SellerCatalogAssistant() {
     const resolved = {
       id: String(data.id),
       verificationStatus: String(data.verification_status || ''),
+      gstinVerified: data.gstin_status === 'active' || data.gstin_verified === true,
     };
     setSellerState(resolved);
     return resolved;
@@ -314,13 +343,14 @@ export default function SellerCatalogAssistant() {
         const supabase = createClient();
         const { data: seller } = await supabase
           .from('seller_profiles')
-          .select('id,verification_status')
+          .select('id,verification_status,gstin_status,gstin_verified')
           .eq('user_id', user.id)
           .maybeSingle();
         if (!seller?.id || cancelled) return;
         setSellerState({
           id: String(seller.id),
           verificationStatus: String(seller.verification_status || ''),
+          gstinVerified: seller.gstin_status === 'active' || seller.gstin_verified === true,
         });
         const { data: rows, error } = await supabase
           .from('seller_product_drafts')
@@ -353,6 +383,22 @@ export default function SellerCatalogAssistant() {
       cancelled = true;
     };
   }, [composerLoaded, isDemoAccount, localSavedAt, user?.id]);
+
+  useEffect(() => {
+    if (!user?.id || isDemoAccount) return;
+    let cancelled = false;
+    fetch('/api/whatsapp/status', { cache: 'no-store', credentials: 'same-origin' })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload: { channelReady?: boolean; webhookReady?: boolean } | null) => {
+        if (!cancelled) {
+          setWhatsappReady(Boolean(payload?.channelReady) && Boolean(payload?.webhookReady));
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [isDemoAccount, user?.id]);
 
   const updateForm = <K extends keyof ProductForm>(key: K, value: ProductForm[K]) => {
     setForm((current) => ({ ...current, [key]: value }));
@@ -540,7 +586,7 @@ export default function SellerCatalogAssistant() {
       setServerSavedAt(now);
       toast.success('Draft saved. You can return and continue later.');
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Draft could not be saved.');
+      toast.error(describeSellerProductError(error, 'Draft could not be saved.'));
     } finally {
       setSavingDraft(false);
     }
@@ -566,12 +612,35 @@ export default function SellerCatalogAssistant() {
     return missing;
   }, [form.availableQuantity, form.description, form.name, form.pricePerUnit, form.unitLabel, imageCount]);
 
+  /**
+   * The two database rules that decide whether `status = 'active'` is even
+   * possible. Checked up front so the seller sees a sentence they can act on
+   * instead of a Postgres exception after a long upload.
+   */
+  const gateBlockers = useMemo(
+    () =>
+      liveListingBlockers({
+        gstinVerified: sellerState?.gstinVerified === true,
+        hsnCode: form.hsnCode,
+      }),
+    [form.hsnCode, sellerState?.gstinVerified]
+  );
+  const hsnKnown = validateHsn(form.hsnCode);
+  const hsnLabel = hsnKnown ? describeHsn(form.hsnCode) : '';
+  const hsnGstRate = hsnKnown ? previewGstRate(form.hsnCode, positiveNumber(form.pricePerUnit)) : null;
+  // Until the seller profile has loaded we do not know the GSTIN state, so the
+  // gate notice stays hidden rather than guessing.
+  const gateKnown = Boolean(sellerState) && !isDemoAccount;
+
   const publish = async () => {
     if (publishing || savingDraft) return;
     if (isDemoAccount) return toast.error('Use a real verified seller account to publish products.');
     if (!user?.id) return toast.error('Sign in again to publish this product.');
     if (publishMissing.length) return toast.error(`Before publishing, add: ${publishMissing.join(', ')}.`);
     if (!isOptionalUrlValid(form.productUrl)) return toast.error('Product URL must begin with http:// or https://, or be left blank.');
+    if (form.hsnCode.trim() && !validateHsn(form.hsnCode)) {
+      return toast.error('HSN must be 4, 6 or 8 digits. Clear the box to save this as a draft without it.');
+    }
     setPublishing(true);
     try {
       const seller = await resolveSeller();
@@ -579,6 +648,12 @@ export default function SellerCatalogAssistant() {
       if (seller.verificationStatus !== 'verified') {
         throw new Error('Your seller account must be approved before products can go live.');
       }
+      // Mirror the database gate. When it cannot pass, the product is still
+      // created — as a draft — instead of failing after the media upload.
+      const blockers = liveListingBlockers({
+        gstinVerified: seller.gstinVerified,
+        hsnCode: form.hsnCode,
+      });
       const media = await uploadPendingMedia(seller.id);
       const images = media.filter((item) => item.mediaType === 'image').map((item) => item.publicUrl);
       if (!images.length) throw new Error('Add at least one product photo before publishing.');
@@ -608,6 +683,7 @@ export default function SellerCatalogAssistant() {
         gsm: optionalPositiveNumber(form.gsm),
         width_inches: optionalPositiveNumber(form.widthInches),
         work_type: form.workType.trim() || 'Plain',
+        hsn_code: normalizeHsn(form.hsnCode) || null,
         custom_attributes: attributes,
         product_url: form.productUrl.trim() || null,
         image_url: images[0],
@@ -615,7 +691,7 @@ export default function SellerCatalogAssistant() {
         dispatch_days: 3,
         origin_city: profile?.city || null,
         origin_state: profile?.state || null,
-        status: 'active',
+        status: blockers.length ? 'draft' : 'active',
         source: 'manual',
         source_reference: sourceReference,
         // Admin moderation must review every new listing before it goes live.
@@ -683,9 +759,16 @@ export default function SellerCatalogAssistant() {
       setRemoteMedia([]);
       setLocalMedia([]);
       setServerSavedAt(null);
-      toast.success('Product published. Your custom names, unit and attributes are saved exactly as entered.');
+      if (blockers.length) {
+        toast(
+          `Saved as a draft — nothing is lost. ${blockers.map((item) => item.message).join(' ')} ${blockers[0].fix}`,
+          { duration: 9000, icon: '📝' }
+        );
+      } else {
+        toast.success('Product published and sent for FabricTrad review. It goes live to buyers once approved.');
+      }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Product could not be published.');
+      toast.error(describeSellerProductError(error, 'Product could not be published.'), { duration: 8000 });
     } finally {
       setPublishing(false);
     }
@@ -719,19 +802,37 @@ export default function SellerCatalogAssistant() {
   const textInput = 'input-base mt-2 w-full rounded-xl px-4 py-3 text-sm';
 
   return (
-    <div className="mx-auto max-w-6xl pb-8">
+    <div className="ft-upload-flow mx-auto max-w-6xl">
       <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <p className="text-xs font-800 uppercase tracking-[0.15em] text-primary">Add product</p>
           <h1 className="mt-1 text-2xl font-800 text-foreground">Create your product your way</h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-            Fabric names, categories, quality, product type and stock units are fully editable. Suggestions are optional — you can type any value used by your business.
+            Only six things are needed: name, description, price, unit, stock and one photo. Everything else is optional and editable later.
           </p>
         </div>
-        <button type="button" onClick={newProduct} className="btn-secondary inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-xs">
+        <button type="button" onClick={newProduct} className="btn-secondary inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-xs">
           <Icon name="PlusIcon" size={15} /> New product
         </button>
       </div>
+
+      {whatsappReady && (
+        <Link
+          href="/seller-dashboard?tab=inbox"
+          className="mb-4 flex min-h-14 items-center gap-3 rounded-2xl border border-[#25D366]/30 bg-[#25D366]/5 p-3 sm:p-3.5"
+        >
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#25D366] text-white">
+            <Icon name="ChatBubbleLeftRightIcon" size={19} />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-800 text-foreground">Prefer WhatsApp? Send products from your phone</span>
+            <span className="mt-0.5 block text-xs leading-5 text-muted-foreground">
+              Register your seller WhatsApp number once, then message product details and photos. They arrive here as drafts.
+            </span>
+          </span>
+          <Icon name="ChevronRightIcon" size={17} className="shrink-0 text-muted-foreground" />
+        </Link>
+      )}
 
       {(localSavedAt || mediaSavedAt || serverSavedAt) && (
         <div className="mb-4 flex flex-wrap gap-2 text-[11px] font-800">
@@ -821,6 +922,48 @@ export default function SellerCatalogAssistant() {
               </div>
             </div>
 
+            <div className="rounded-2xl border border-border bg-muted/20 p-4">
+              <label className="text-xs font-800" htmlFor="seller-upload-hsn">
+                HSN code <span className="text-muted-foreground">needed only to go live</span>
+              </label>
+              <input
+                id="seller-upload-hsn"
+                inputMode="numeric"
+                autoComplete="off"
+                value={form.hsnCode}
+                onChange={(e) => updateForm('hsnCode', normalizeHsn(e.target.value))}
+                className={`${textInput} font-mono`}
+                placeholder="e.g. 5208"
+                aria-describedby="seller-upload-hsn-help"
+              />
+              <p id="seller-upload-hsn-help" className="mt-2 text-[11px] leading-5 text-muted-foreground">
+                {hsnKnown ? (
+                  <>
+                    <span className="font-800 text-success">Valid HSN.</span>{' '}
+                    {hsnLabel ? `${hsnLabel}. ` : ''}
+                    {hsnGstRate !== null ? `GST on the buyer invoice: ${hsnGstRate}%.` : ''}
+                  </>
+                ) : form.hsnCode.trim() ? (
+                  <span className="font-800 text-warning">HSN must be 4, 6 or 8 digits — you have {normalizeHsn(form.hsnCode).length}.</span>
+                ) : (
+                  'Drafts can be saved without it. A 4, 6 or 8 digit HSN is required before a product can go live, because it sets the GST rate on the buyer invoice.'
+                )}
+              </p>
+              <div className="ft-hsn-picks">
+                {HSN_QUICK_PICKS.map((code) => (
+                  <button
+                    key={code}
+                    type="button"
+                    onClick={() => updateForm('hsnCode', code)}
+                    title={describeHsn(code) || `HSN ${code}`}
+                    className={`ft-hsn-pick ${normalizeHsn(form.hsnCode) === code ? 'is-selected' : ''}`}
+                  >
+                    {code}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
                 <label className="text-xs font-800">Sell to</label>
@@ -887,15 +1030,15 @@ export default function SellerCatalogAssistant() {
             {allMedia.length > 0 && (
               <div className="mt-4 space-y-3">
                 {allMedia.map((item) => (
-                  <article key={`${item.source}-${item.id}`} className="grid grid-cols-[76px_1fr_auto] gap-3 rounded-xl border border-border p-3">
-                    <div className="h-20 overflow-hidden rounded-lg bg-muted">
+                  <article key={`${item.source}-${item.id}`} className="ft-upload-media-row">
+                    <div className="h-16 overflow-hidden rounded-lg bg-muted sm:h-20">
                       {item.mediaType === 'video' ? <video src={item.previewUrl} className="h-full w-full object-cover" muted playsInline /> : <img src={item.previewUrl} alt={item.filename} className="h-full w-full object-cover" />}
                     </div>
                     <div className="min-w-0">
                       <p className="truncate text-xs font-800">{item.filename}</p>
                       <p className="mt-0.5 text-[11px] text-muted-foreground">{formatBytes(item.fileSize)}{item.durationSeconds ? ` · ${item.durationSeconds.toFixed(1)} sec` : ''}{item.source === 'remote' ? ' · saved' : ' · pending save'}</p>
                     </div>
-                    <button type="button" onClick={() => item.source === 'local' ? removeLocalMedia(item.id) : setRemoteMedia((current) => current.filter((remote) => remote.id !== item.id))} className="h-9 rounded-lg px-2 text-error" aria-label={`Remove ${item.filename}`}><Icon name="TrashIcon" size={16} /></button>
+                    <button type="button" onClick={() => item.source === 'local' ? removeLocalMedia(item.id) : setRemoteMedia((current) => current.filter((remote) => remote.id !== item.id))} className="grid h-11 w-11 place-items-center rounded-lg text-error" aria-label={`Remove ${item.filename}`}><Icon name="TrashIcon" size={16} /></button>
                   </article>
                 ))}
               </div>
@@ -916,25 +1059,69 @@ export default function SellerCatalogAssistant() {
           <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
             <p className="text-xs font-800 uppercase tracking-wide text-muted-foreground">Ready to publish</p>
             <h2 className="mt-1 text-base font-800">{publishMissing.length ? `${publishMissing.length} required item${publishMissing.length === 1 ? '' : 's'} left` : 'Everything required is ready'}</h2>
-            <div className="mt-3 flex flex-wrap gap-2">
+            <div className="ft-upload-checklist mt-3">
               {['product name', 'description', 'price', 'stock quantity', 'measurement unit', 'at least 1 photo'].map((requirement) => {
                 const missing = publishMissing.includes(requirement);
-                return <span key={requirement} className={`rounded-full px-2.5 py-1 text-[11px] font-800 ${missing ? 'bg-warning/10 text-warning' : 'bg-success/10 text-success'}`}>{missing ? '○' : '✓'} {requirement}</span>;
+                return <span key={requirement} className={`ft-upload-check ${missing ? 'is-missing' : ''}`}>{missing ? '○' : '✓'} {requirement}</span>;
               })}
             </div>
+
+            {gateKnown && (
+              <div className={`ft-upload-gate mt-4 ${gateBlockers.length ? '' : 'is-ready'}`}>
+                <Icon
+                  name={gateBlockers.length ? 'ExclamationTriangleIcon' : 'CheckCircleIcon'}
+                  size={17}
+                  className={`mt-0.5 shrink-0 ${gateBlockers.length ? 'text-warning' : 'text-success'}`}
+                />
+                <div className="ft-upload-gate-body">
+                  {gateBlockers.length ? (
+                    <>
+                      <strong>This will be saved as a draft, not published</strong>
+                      <ul className="mt-1 list-disc space-y-1 pl-4">
+                        {gateBlockers.map((blocker) => (
+                          <li key={blocker.key}>
+                            {blocker.message} {blocker.fix}
+                          </li>
+                        ))}
+                      </ul>
+                      {gateBlockers.some((blocker) => blocker.key === 'gstin') && (
+                        <Link href="/seller-dashboard?tab=profile" className="mt-1.5 inline-block font-800 text-primary hover:underline">
+                          Check GST verification →
+                        </Link>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <strong>Ready to go live</strong>
+                      Your GSTIN is verified and the HSN is valid, so this product will be published and queued for FabricTrad review.
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
           </section>
         </div>
       </div>
 
-      <section className="mt-5 rounded-2xl border border-border bg-card p-4 shadow-sm sm:p-5">
+      <section className="ft-upload-actionbar">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-sm font-800">Save whenever you want</p>
-            <p className="mt-1 text-xs text-muted-foreground">Drafts can be saved incomplete. URL, video, GSM, width, quality and custom attributes are optional.</p>
-          </div>
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <button type="button" onClick={() => void saveDraft()} disabled={savingDraft || publishing} className="btn-secondary inline-flex min-w-36 items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm disabled:opacity-50"><Icon name="DocumentCheckIcon" size={17} /> {savingDraft ? 'Saving…' : 'Save draft'}</button>
-            <button type="button" onClick={() => void publish()} disabled={publishing || savingDraft} className="btn-primary inline-flex min-w-44 items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm disabled:opacity-50"><Icon name="RocketLaunchIcon" size={17} /> {publishing ? 'Publishing…' : 'Publish product'}</button>
+          <p className="text-xs leading-5 text-muted-foreground sm:max-w-md">
+            {publishMissing.length
+              ? `Still needed to publish: ${publishMissing.join(', ')}. A draft can be saved right now.`
+              : gateKnown && gateBlockers.length
+                ? 'This product will be saved as a draft — see the reason above. Nothing you have entered is lost.'
+                : 'Drafts can be saved incomplete. URL, video, GSM, width, quality and custom attributes are optional.'}
+          </p>
+          <div className="ft-upload-actionbar-buttons">
+            <button type="button" onClick={() => void saveDraft()} disabled={savingDraft || publishing} className="btn-secondary inline-flex items-center justify-center gap-2 rounded-xl px-5 text-sm disabled:opacity-50"><Icon name="DocumentCheckIcon" size={17} /> {savingDraft ? 'Saving…' : 'Save draft'}</button>
+            <button type="button" onClick={() => void publish()} disabled={publishing || savingDraft} className="btn-primary inline-flex items-center justify-center gap-2 rounded-xl px-5 text-sm disabled:opacity-50">
+              <Icon name="RocketLaunchIcon" size={17} />
+              {publishing
+                ? 'Saving…'
+                : gateKnown && gateBlockers.length
+                  ? 'Save product as draft'
+                  : 'Publish product'}
+            </button>
           </div>
         </div>
       </section>

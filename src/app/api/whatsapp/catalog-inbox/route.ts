@@ -42,6 +42,33 @@ export async function GET() {
     .limit(50);
   if (error) return json({ error: 'WhatsApp catalogue inbox could not be loaded.' }, 503);
 
+  // A seller who messaged a product in needs to know what happened to it, not
+  // just that the message was received. These are real columns on
+  // seller_products — nothing here is inferred or invented.
+  const productIds = Array.from(
+    new Set((data || []).map((item) => item.product_id).filter((value): value is string => Boolean(value)))
+  );
+  const productsById = new Map<
+    string,
+    { name: string | null; sku: string | null; status: string | null; approval_status: string | null; hsn_code: string | null }
+  >();
+  if (productIds.length) {
+    const { data: products } = await admin
+      .from('seller_products')
+      .select('id,name,sku,status,approval_status,hsn_code')
+      .eq('seller_id', seller.id)
+      .in('id', productIds);
+    (products || []).forEach((product) => {
+      productsById.set(String(product.id), {
+        name: product.name ?? null,
+        sku: product.sku ?? null,
+        status: product.status ?? null,
+        approval_status: product.approval_status ?? null,
+        hsn_code: product.hsn_code ?? null,
+      });
+    });
+  }
+
   const items = await Promise.all(
     (data || []).map(async (item) => {
       let mediaUrl: string | null = null;
@@ -51,7 +78,7 @@ export async function GET() {
           .createSignedUrl(item.media_storage_path, 60 * 30);
         mediaUrl = signed.data?.signedUrl || null;
       }
-      return { ...item, mediaUrl };
+      return { ...item, mediaUrl, product: item.product_id ? productsById.get(String(item.product_id)) || null : null };
     })
   );
 

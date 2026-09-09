@@ -1,7 +1,10 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import Icon from '@/components/ui/AppIcon';
+import { pillClassForStatus } from '@/lib/statusPill';
+import { listingStateSummary } from '@/app/seller-dashboard/lib/sellerListingGuards';
 
 type ParsedVariant = {
   colorName?: string;
@@ -34,6 +37,14 @@ type SellerIdentityPayload = {
   error?: string;
 };
 
+type IngestedProduct = {
+  name: string | null;
+  sku: string | null;
+  status: string | null;
+  approval_status: string | null;
+  hsn_code: string | null;
+};
+
 type InboxItem = {
   id: string;
   wa_message_id: string;
@@ -46,6 +57,7 @@ type InboxItem = {
   error_message: string | null;
   received_at: string;
   mediaUrl: string | null;
+  product?: IngestedProduct | null;
 };
 
 type StatusPayload = {
@@ -54,6 +66,23 @@ type StatusPayload = {
   webhookReady?: boolean;
   mediaReady?: boolean;
   businessNumber?: string | null;
+};
+
+/**
+ * `whatsapp_catalog_ingestions.status` uses its own vocabulary. Map it onto the
+ * shared tone vocabulary in src/lib/statusPill.ts rather than hardcoding
+ * colours here; the readable label still comes from the stored status itself.
+ */
+const INGESTION_TONE_STATUS: Record<string, string> = {
+  product_created: 'approved',
+  attached: 'approved',
+  media_queued: 'pending',
+  needs_clarification: 'pending',
+  format_sent: 'draft',
+  session_reset: 'draft',
+  duplicate_sku: 'rejected',
+  unsupported_media: 'rejected',
+  failed: 'failed',
 };
 
 const money = (value: unknown) => {
@@ -146,11 +175,30 @@ export default function WhatsAppCatalogPanel() {
     };
   }, [load]);
 
+  /**
+   * Inbound seller messages only reach FabricTrad when BOTH the Gupshup sending
+   * credentials and the webhook shared secret are configured — the webhook
+   * rejects every callback with 401 without the secret. The panel must not
+   * invite a seller to message a number that cannot answer, so both flags are
+   * required before the deep link is offered.
+   */
+  const channelLive = Boolean(status?.channelReady) && Boolean(status?.webhookReady);
+
   const whatsappUrl = useMemo(() => {
     const number = status?.businessNumber?.replace(/\D/g, '');
-    if (!number || !identity?.ready) return null;
+    if (!number || !identity?.ready || !channelLive) return null;
     return `https://wa.me/${number}?text=${encodeURIComponent('FORMAT')}`;
-  }, [status?.businessNumber, identity?.ready]);
+  }, [status?.businessNumber, identity?.ready, channelLive]);
+
+  const notReadyReason = !status
+    ? 'Checking the WhatsApp connection…'
+    : !status.channelReady
+      ? 'WhatsApp business number not connected yet'
+      : !status.webhookReady
+        ? 'WhatsApp is connected for sending, but inbound messages are not wired up yet'
+        : !identity?.ready
+          ? 'Save your seller WhatsApp identity first'
+          : '';
 
   const saveIdentity = async () => {
     setIdentitySaving(true);
@@ -202,8 +250,8 @@ export default function WhatsAppCatalogPanel() {
               <Icon name="PaperAirplaneIcon" size={16} /> Open WhatsApp with FORMAT
             </a>
           ) : (
-            <span className="inline-flex min-h-11 items-center rounded-xl border border-warning/20 bg-warning/10 px-4 py-2 text-xs font-800 text-warning">
-              {status?.businessNumber ? 'Save seller WhatsApp identity first' : 'Gupshup business number not connected yet'}
+            <span className="inline-flex min-h-11 max-w-full items-center rounded-xl border border-warning/20 bg-warning/10 px-4 py-2 text-xs font-800 leading-4 text-warning">
+              {notReadyReason}
             </span>
           )}
           <button
@@ -232,7 +280,7 @@ export default function WhatsAppCatalogPanel() {
           <label className="text-xs font-800 text-foreground">Seller WhatsApp<input inputMode="numeric" value={identityForm.whatsappNo} onChange={(e) => setIdentityForm((v) => ({ ...v, whatsappNo: e.target.value.replace(/\D/g, '').slice(0, 10) }))} className="input-base mt-1.5 w-full px-3 py-2.5 font-mono font-400" placeholder="WhatsApp used to upload products" /></label>
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-3">
-          <button type="button" onClick={() => void saveIdentity()} disabled={identitySaving} className="inline-flex min-h-10 items-center rounded-xl bg-foreground px-4 text-xs font-800 text-background disabled:opacity-60">
+          <button type="button" onClick={() => void saveIdentity()} disabled={identitySaving} className="inline-flex min-h-11 items-center rounded-xl bg-foreground px-4 text-xs font-800 text-background disabled:opacity-60">
             {identitySaving ? 'Saving…' : identity?.ready ? 'Update seller WhatsApp identity' : 'Save seller WhatsApp identity'}
           </button>
           {identityMessage && <p className={`text-xs font-700 ${identityMessage.startsWith('Saved') ? 'text-emerald-700' : 'text-error'}`}>{identityMessage}</p>}
@@ -241,13 +289,30 @@ export default function WhatsAppCatalogPanel() {
         <details className="mt-4 rounded-xl border border-border bg-muted/20 p-3">
           <summary className="cursor-pointer text-xs font-800 text-foreground">Predefined product format — required & optional fields</summary>
           <pre className="mt-3 overflow-x-auto whitespace-pre-wrap rounded-xl bg-slate-950 p-4 text-[11px] leading-5 text-slate-100">{SELLER_FORMAT}</pre>
-          <p className="mt-2 text-[11px] leading-5 text-muted-foreground">Photos/videos sent for the product are attached automatically, so image_url is optional. Use NEW PRODUCT before the next item. Duplicate SKU values are never auto-created.</p>
+          <p className="mt-2 text-[11px] leading-5 text-muted-foreground">
+            Photos/videos sent for the product are attached automatically, so image_url is optional. Use NEW PRODUCT before the next
+            item. Duplicate SKU values are never auto-created. Leave <span className="font-mono">status</span> as{' '}
+            <span className="font-mono">draft</span> — this format has no HSN field, and a listing cannot go live without one, so
+            publish from Products after adding the HSN there.
+          </p>
         </details>
       </div>
 
-      {!status?.channelReady && (
+      {status && !channelLive && (
         <div className="border-b border-warning/20 bg-warning/5 px-4 py-3 text-xs leading-5 text-muted-foreground sm:px-5">
-          <strong className="text-foreground">Connection status:</strong> FabricTrad's webhook and dashboard path are installed, but the official Meta WhatsApp Business credentials/number still need to be configured before real messages can arrive.
+          <strong className="text-foreground">Connection status:</strong>{' '}
+          {!status.channelReady
+            ? "FabricTrad's webhook and dashboard path are installed, but the WhatsApp Business credentials and number still need to be configured before real messages can arrive."
+            : 'The WhatsApp business number is connected, but the inbound webhook secret is not configured yet, so messages sent to it are rejected before they reach your catalogue. Nothing you send now would be saved.'}
+        </div>
+      )}
+
+      {channelLive && (
+        <div className="border-b border-border bg-muted/20 px-4 py-3 text-xs leading-5 text-muted-foreground sm:px-5">
+          <strong className="text-foreground">What happens to a WhatsApp product:</strong> it is created in your store and queued
+          for FabricTrad review. HSN cannot be sent over WhatsApp, so add it in{' '}
+          <Link href="/seller-dashboard?tab=inventory" className="font-800 text-primary hover:underline">Products</Link>{' '}
+          before publishing — a listing cannot go live without a 4, 6 or 8 digit HSN and a verified GSTIN.
         </div>
       )}
 
@@ -271,24 +336,40 @@ export default function WhatsAppCatalogPanel() {
             <Icon name="DevicePhoneMobileIcon" size={28} className="mx-auto text-muted-foreground" />
             <p className="mt-3 text-sm font-800 text-foreground">No WhatsApp product submissions yet</p>
             <p className="mx-auto mt-1 max-w-lg text-xs leading-5 text-muted-foreground">
-              Save a dedicated seller WhatsApp identity above, open WhatsApp with FORMAT, then send one product's required fields and its photos. FabricTrad will validate and add the product to this store automatically.
+              {channelLive
+                ? "Save a dedicated seller WhatsApp identity above, open WhatsApp with FORMAT, then send one product's required fields and its photos. FabricTrad will validate and add the product to this store automatically."
+                : 'This channel is not connected yet, so no WhatsApp message can reach your catalogue at the moment. Add products from the Add product screen meanwhile — nothing else in your store is affected.'}
             </p>
           </div>
         ) : (
           <div className="space-y-3">
             {items.slice(0, 12).map((item) => {
               const draft = item.parsed_draft;
+              const listingState = item.product ? listingStateSummary(item.product) : null;
               return (
-                <article key={item.id} className="rounded-2xl border border-border bg-muted/15 p-4">
+                <article key={item.id} className="rounded-2xl border border-border bg-muted/15 p-3.5 sm:p-4">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="rounded-full bg-[#25D366]/10 px-2.5 py-1 text-[11px] font-800 text-[#128C7E]">WhatsApp</span>
-                        <span className="rounded-full border border-border bg-card px-2.5 py-1 text-[11px] font-700 text-muted-foreground">{item.status.replace(/_/g, ' ')}</span>
+                        <span className={pillClassForStatus(INGESTION_TONE_STATUS[item.status] || 'draft')}>{item.status.replace(/_/g, ' ')}</span>
                         <span className="text-[11px] text-muted-foreground">{new Date(item.received_at).toLocaleString('en-IN')}</span>
                       </div>
-                      <h3 className="mt-3 text-base font-800 text-foreground">{draft?.name || 'Product details need review'}</h3>
+                      <h3 className="mt-3 text-base font-800 text-foreground">{item.product?.name || draft?.name || 'Product details need review'}</h3>
                       {item.message_text && <p className="mt-1 line-clamp-3 whitespace-pre-wrap text-xs leading-5 text-muted-foreground">{item.message_text}</p>}
+                      {item.error_message && (
+                        <p className="mt-1.5 text-[11px] font-700 leading-5 text-error">{item.error_message}</p>
+                      )}
+                      {listingState && (
+                        <p className="mt-2 text-[11px] leading-5 text-muted-foreground">
+                          <span className={pillClassForStatus(listingState.pillStatus)}>{listingState.pillStatus}</span>{' '}
+                          <span className="align-middle">
+                            {item.product?.sku ? `${item.product.sku} — ` : ''}
+                            {listingState.reason}
+                          </span>{' '}
+                          <Link href="/seller-dashboard?tab=inventory" className="font-800 text-primary hover:underline">Open in Products</Link>
+                        </p>
+                      )}
 
                       {draft && (
                         <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
