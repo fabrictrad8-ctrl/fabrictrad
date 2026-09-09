@@ -28,6 +28,7 @@ import SellerBuyerRequests from '@/app/seller-dashboard/components/SellerBuyerRe
 import SellerBillingDocuments from '@/app/seller-dashboard/components/SellerBillingDocuments';
 import SellerStoreIdentity from '@/app/seller-dashboard/components/SellerStoreIdentity';
 import CommerceNotificationBell from '@/app/components/CommerceNotificationBell';
+import AiAssistantWidget from '@/components/AiAssistantWidget';
 
 type SellerTab =
   | 'overview'
@@ -224,7 +225,7 @@ export default function SellerDashboardLayout() {
   );
 
   return (
-    <div className="ft-workspace-shell">
+    <div className="ft-workspace-shell ft-seller-admin">
       <div className="ft-workspace-shell-grid">
         <aside className="ft-dock hidden shrink-0 md:flex">{sidebar}</aside>
 
@@ -323,6 +324,8 @@ export default function SellerDashboardLayout() {
           <button key={item.key} type="button" onClick={() => navigateTo(item.key)} className={`ft-workspace-tab flex flex-col items-center gap-1 rounded-lg py-2 text-[10px] font-850 ${activeTab === item.key ? 'is-active' : ''}`}><Icon name={item.icon as 'HomeIcon'} size={18} /> {item.label}</button>
         ))}
       </nav>
+
+      <AiAssistantWidget role="seller" context={`Seller is currently viewing: ${activeItem.label} (${activeItem.description})`} />
     </div>
   );
 }

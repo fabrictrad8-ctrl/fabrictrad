@@ -70,7 +70,7 @@ function AuthVisual() {
   return (
     <section className="ft-auth-glass ft-auth-visual-panel" aria-label="FabricTrad">
       <Link href="/" className="mb-6 inline-flex w-fit items-center" aria-label="FabricTrad"><AppLogo size={40} /></Link>
-      <div className="relative h-52 overflow-hidden rounded-[18px]">
+      <div className="ft-auth-showcase-frame relative h-52 overflow-hidden rounded-[18px]">
         <TiltShowcase>
           <Image src="/images/textile-showroom.webp" alt="" fill sizes="(max-width: 900px) 100vw, 500px" className="object-cover" />
           <div className="ft-textile-caption">

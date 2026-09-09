@@ -138,7 +138,7 @@ function StorefrontClient({ handle }: { handle: string }) {
         <div className="absolute inset-0 bg-gradient-to-t from-background via-background/40 to-transparent" />
         <div className="relative z-10 mx-auto w-full max-w-[1200px]">
           <div className="flex flex-wrap items-center gap-2">
-            {seller.isVerified && <span className="ft-badge ft-badge--success"><Icon name="CheckBadgeIcon" size={13} /> Verified seller</span>}
+            {seller.isVerified && <span className="ft-badge ft-badge--success ft-badge--premium"><Icon name="CheckBadgeIcon" size={13} /> Verified seller</span>}
             {seller.isEarlyBird && <span className="ft-badge ft-badge--warning"><Icon name="SparklesIcon" size={13} /> Founding seller #{seller.earlyBirdRank}</span>}
           </div>
           <h1 className="mt-3 text-3xl font-800 tracking-tight text-foreground">{seller.name}</h1>

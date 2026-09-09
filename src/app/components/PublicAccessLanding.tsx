@@ -120,7 +120,7 @@ export default function PublicAccessLanding() {
           <p className="ft-future-hero-copy">{copy.heroCopy}</p>
 
           <div className="ft-future-hero-actions">
-            <Link href="/login" className="ft-primary-action rounded-xl">
+            <Link href="/login" className="ft-primary-action ft-hero-cta-premium rounded-xl">
               {copy.enterFabricTrad} <Icon name="ArrowRightIcon" size={17} />
             </Link>
             <Link href="/how-to-use/start" className="ft-secondary-action rounded-xl">

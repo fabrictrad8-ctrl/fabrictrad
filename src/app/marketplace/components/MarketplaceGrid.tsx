@@ -231,18 +231,27 @@ export default function MarketplaceGrid() {
       {loading && <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{Array.from({ length: 8 }).map((_, index) => <div key={index} className="overflow-hidden rounded-lg border border-border bg-card"><div className="aspect-square animate-pulse bg-muted" /><div className="space-y-3 p-4"><div className="h-4 w-3/4 animate-pulse rounded bg-muted" /><div className="h-3 w-1/2 animate-pulse rounded bg-muted" /><div className="h-9 animate-pulse rounded-lg bg-muted" /></div></div>)}</div>}
 
       {!loading && visibleProducts.length > 0 && (
-        <div className={view === 'grid' ? 'grid gap-3 sm:grid-cols-2 xl:grid-cols-4' : 'space-y-3'}>
+        <div className={view === 'grid' ? 'ft-marketplace-grid grid gap-3 sm:grid-cols-2 xl:grid-cols-4' : 'space-y-3'}>
           {visibleProducts.map((product) => {
             const visibleColors = product.variants?.slice(0, 6) || [];
             const lowAvailability = product.available <= Math.max(product.moq * 3, 10);
+            const isLowStock = product.available > 0 && product.available <= 5;
+            const secondaryImage = product.images && product.images.length > 1 ? product.images[1] : null;
             return (
               <article key={product.id} className={`ft-marketplace-product-card overflow-hidden ${view === 'list' ? 'flex min-h-52' : ''}`}>
                 <div className={`relative overflow-hidden ${view === 'list' ? 'w-44 shrink-0 sm:w-60' : ''}`}>
                   <Link href={productDetailHref(product)} onClick={() => trackFunnelStep('product_view', { product_id: product.id })} className={`ft-marketplace-product-image relative block overflow-hidden ${view === 'list' ? 'w-44 shrink-0 sm:w-60' : 'aspect-square'}`}>
-                    <AppImage src={product.image} alt={product.alt} fill sizes={view === 'list' ? '240px' : '(max-width: 640px) 50vw, 25vw'} className="object-cover transition duration-300 hover:scale-[1.025]" />
+                    <div className="ft-marketplace-image-base absolute inset-0">
+                      <AppImage src={product.image} alt={product.alt} fill sizes={view === 'list' ? '240px' : '(max-width: 640px) 50vw, 25vw'} className="object-cover transition duration-300 hover:scale-[1.025]" />
+                    </div>
+                    {secondaryImage && (
+                      <div className="ft-marketplace-image-hover absolute inset-0 opacity-0 transition-opacity duration-300">
+                        <AppImage src={secondaryImage} alt={product.alt} fill sizes={view === 'list' ? '240px' : '(max-width: 640px) 50vw, 25vw'} className="object-cover transition duration-300 hover:scale-[1.025]" />
+                      </div>
+                    )}
                     <div className="absolute left-2 top-2 flex flex-wrap gap-1">
                       {product.badge === 'new' && <span className="rounded bg-[#cc0c39] px-2 py-1 text-[10px] font-850 text-white">New</span>}
-                      <span className="rounded bg-success px-2 py-1 text-[10px] font-850 text-white">In stock</span>
+                      {isLowStock ? <span className="rounded bg-warning px-2 py-1 text-[10px] font-850 text-white">Only {product.available} left</span> : <span className="rounded bg-success px-2 py-1 text-[10px] font-850 text-white">In stock</span>}
                     </div>
                   </Link>
                   <button
@@ -255,7 +264,7 @@ export default function MarketplaceGrid() {
                   </button>
                 </div>
 
-                <div className="flex min-w-0 flex-1 flex-col p-3.5">
+                <div className="ft-marketplace-card-body flex min-w-0 flex-1 flex-col p-3.5">
                   <div className="min-w-0">
                     <Link href={productDetailHref(product)} className="block line-clamp-2 text-[14px] font-750 leading-5 text-foreground hover:text-[#b12704]">{product.name}</Link>
                     {(product.category || (product.work && product.work !== 'Plain')) && (

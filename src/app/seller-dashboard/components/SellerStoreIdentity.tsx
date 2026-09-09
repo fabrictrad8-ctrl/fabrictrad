@@ -98,7 +98,7 @@ export default function SellerStoreIdentity() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {data?.isVerified && (
-            <span className="ft-badge ft-badge--success"><Icon name="CheckBadgeIcon" size={13} /> Verified seller</span>
+            <span className="ft-badge ft-badge--success ft-badge--premium"><Icon name="CheckBadgeIcon" size={13} /> Verified seller</span>
           )}
           {data?.isEarlyBird && (
             <span className="ft-badge ft-badge--warning"><Icon name="SparklesIcon" size={13} /> Founding seller #{data.earlyBirdRank}</span>

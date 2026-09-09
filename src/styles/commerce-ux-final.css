@@ -216,10 +216,47 @@
   background: #f7f8f8 !important;
 }
 
+/* Amazon/Flipkart-style secondary image on hover: two stacked images inside
+   .ft-marketplace-product-image (rendered by MarketplaceGrid.tsx only when a
+   product has a genuine second image), crossfaded on hover. Gated behind
+   (hover: hover) and (pointer: fine) so touch devices - which have no real
+   hover - keep showing the primary image and never get stuck mid-fade. */
+@media (hover: hover) and (pointer: fine) {
+  .ft-marketplace-product-image:hover .ft-marketplace-image-base {
+    opacity: 0 !important;
+  }
+  .ft-marketplace-product-image:hover .ft-marketplace-image-hover {
+    opacity: 1 !important;
+  }
+}
+
+/* Tighter, denser results grid (closer to Amazon/Flipkart) while keeping
+   every card's CTA row aligned along the bottom edge regardless of how much
+   title/meta text a given product has - .ft-marketplace-grid only wraps the
+   grid-view listing (list view keeps its own row layout untouched). */
+.ft-marketplace-grid {
+  gap: 10px !important;
+}
+
+.ft-marketplace-grid .ft-marketplace-product-card {
+  display: flex !important;
+  flex-direction: column !important;
+  height: 100% !important;
+}
+
+.ft-marketplace-grid .ft-marketplace-card-body {
+  flex: 1 1 auto !important;
+  display: flex !important;
+  flex-direction: column !important;
+  padding: 12px !important;
+}
+
 .ft-marketplace-buy-meta {
   border: 0 !important;
   border-radius: 6px !important;
   background: #f7f8f8 !important;
+  gap: 6px 10px !important;
+  padding: 8px 10px !important;
 }
 /* This box's background is a hardcoded light grey regardless of the
    site's own light/dark theme, but its MOQ/Dispatch/Invoice values use
@@ -330,6 +367,160 @@ body[data-route='buyer-dashboard'] .ft-command-trigger {
   display: none !important;
 }
 
+/* ---------- Seller admin: Shopify-admin density pass ----------
+   The seller dashboard actually renders through the shared "workspace
+   shell" (see workspace-shell.css: .ft-dock / .ft-dock-bar /
+   .ft-canvas-main / .ft-workspace-nav-item), not through the
+   .ft-admin-shell/.ft-admin-sidebar markup the rules above target — that
+   pair belongs to the buyer dashboard's shell and is not present on this
+   route's DOM. .ft-seller-admin is applied directly on the seller
+   dashboard's root element (SellerDashboardLayout.tsx) so this block can
+   restyle the real classes without touching the buyer dashboard or the
+   admin portal, which reuse the exact same shell component/classnames. */
+
+.ft-seller-admin .ft-dock,
+.ft-seller-admin .ft-dock-bar,
+.ft-seller-admin .ft-canvas-main {
+  border-radius: 12px !important;
+}
+
+.ft-seller-admin .ft-dock {
+  width: 232px !important;
+  background: color-mix(in srgb, var(--card) 94%, transparent) !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05) !important;
+}
+
+/* premium-accents.css adds a sapphire glow ring to the plain .ft-dock-bar
+   selector sitewide; that reads well on the buyer/admin dock bars but
+   fights this block's own flat, glow-free Shopify-admin intent. Reset it
+   back to flat here, !important like the rest of this block, so it wins
+   regardless of the two files' import order. */
+.ft-seller-admin .ft-dock-bar {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05) !important;
+}
+
+.ft-seller-admin .ft-workspace-group-label {
+  font-weight: 750 !important;
+}
+
+/* Crisper active-state: a filled rounded rect behind the icon+label,
+   like Shopify's admin nav, instead of the workspace shell's gradient
+   wash + left accent bar (still used everywhere else that shares this
+   component). */
+.ft-seller-admin .ft-workspace-nav-item {
+  min-height: 32px !important;
+  border-radius: 8px !important;
+  font-weight: 650 !important;
+}
+
+.ft-seller-admin .ft-workspace-nav-item:hover:not(.is-active) {
+  background: color-mix(in srgb, var(--foreground) 6%, transparent) !important;
+  color: var(--foreground) !important;
+}
+
+.ft-seller-admin .ft-workspace-nav-item.is-active {
+  background: var(--card) !important;
+  color: var(--foreground) !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.09) !important;
+  font-weight: 800 !important;
+}
+
+/* Overview: horizontal stat-card row (SellerOverview.tsx uses
+   .ft-shopify-card for its "Today" tiles and quick-stat row — this class
+   had no styling anywhere in the codebase, so those cards rendered with
+   no border/shadow/radius at all). Kept in line with this file's own
+   .ft-glass-card convention just above (border-color, 12px radius,
+   flat 1px shadow) rather than the sitewide 3D-tilt hover card treatment,
+   to read as dense/flat like Shopify admin instead of playful. */
+.ft-seller-admin .ft-shopify-card {
+  border: 1px solid #dedfe2;
+  border-radius: 12px;
+  background: var(--card);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  transform: none !important;
+  transition: box-shadow 140ms ease, border-color 140ms ease;
+}
+
+.ft-seller-admin .ft-shopify-card:hover {
+  border-color: #b8bec6;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.08) !important;
+  transform: none !important;
+}
+
+/* Stat tiles (Fulfilment / Earnings / Variant catalogue summary rows)
+   reuse the sitewide .ft-tile, whose hover state is a playful 3D
+   perspective tilt — flattened here to match the dense, flat Shopify
+   admin feel for this one surface without touching .ft-tile globally. */
+.ft-seller-admin .ft-tile {
+  border-radius: 10px;
+  transform: none !important;
+}
+
+.ft-seller-admin .ft-tile:hover {
+  transform: none !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06) !important;
+}
+
+/* Status pills: slightly denser than the sitewide default so they read
+   as compact table badges rather than marketing-style chips. */
+.ft-seller-admin .ft-pill {
+  padding: 3px 9px;
+  font-size: 10.5px;
+}
+
+/* Dense data tables (Fulfilment monthly breakdown, and any other real
+   <table> in the seller admin) — clear, uppercase, letter-spaced header
+   row on a tinted background, comfortable-but-compact row height, and a
+   hover highlight per row. Header styling is visual only: none of these
+   tables have working column sort, so no sort affordance is implied. */
+.ft-seller-admin table {
+  border-collapse: collapse;
+}
+
+.ft-seller-admin table thead th {
+  background: color-mix(in srgb, var(--foreground) 4%, transparent);
+  border-bottom: 1px solid var(--border);
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+
+.ft-seller-admin table tbody td {
+  border-bottom: 1px solid var(--border);
+  padding-top: 11px;
+  padding-bottom: 11px;
+}
+
+.ft-seller-admin table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.ft-seller-admin table tbody tr:hover {
+  background: color-mix(in srgb, var(--foreground) 3%, transparent);
+}
+
+/* Order / shipment / dispute list rows (Orders, Catalogue orders,
+   Fulfilment) are rendered as divide-y lists and bordered article cards
+   rather than <table> markup, since each row can expand into a delivery
+   form — restyled here to read as dense table rows: a hover highlight on
+   every list row, and tighter card padding/radius so more rows fit. */
+.ft-seller-admin .divide-y.divide-border > * {
+  transition: background-color 120ms ease;
+}
+
+.ft-seller-admin .divide-y.divide-border > *:hover {
+  background: color-mix(in srgb, var(--foreground) 3%, transparent);
+}
+
+.ft-seller-admin .space-y-4 > article,
+.ft-seller-admin .space-y-3 > article {
+  border-radius: 10px;
+}
+
 /* ---------- Notification settings: clearer locked/optional states ---------- */
 button[aria-label*='(required)'] {
   opacity: 1 !important;
@@ -357,5 +548,18 @@ button[aria-label*='(required)']::after {
 
   .ft-marketplace-product-card {
     border-radius: 8px !important;
+  }
+
+  .ft-marketplace-grid {
+    gap: 8px !important;
+  }
+
+  .ft-marketplace-grid .ft-marketplace-card-body {
+    padding: 10px !important;
+  }
+
+  .ft-marketplace-buy-meta {
+    gap: 5px 8px !important;
+    padding: 7px 8px !important;
   }
 }

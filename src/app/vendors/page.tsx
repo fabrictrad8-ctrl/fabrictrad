@@ -232,7 +232,7 @@ export default function VendorsPage() {
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
                           {vendor.verified && (
-                            <span className="ft-badge ft-badge--success">
+                            <span className="ft-badge ft-badge--success ft-badge--premium">
                               <Icon name="CheckBadgeIcon" size={13} /> Verified seller
                             </span>
                           )}

@@ -16,6 +16,7 @@ import BuyerWishlist from '@/app/buyer-dashboard/components/BuyerWishlist';
 import NotificationPreferences from '@/app/components/NotificationPreferences';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCart } from '@/lib/hooks/useCart';
+import AiAssistantWidget from '@/components/AiAssistantWidget';
 
 type DashboardTab = 'overview' | 'orders' | 'tracking' | 'cart' | 'wishlist' | 'requirements' | 'inbox' | 'disputes' | 'notifications' | 'account';
 type NavItem = { key: DashboardTab; label: string; icon: string; description: string };
@@ -189,6 +190,8 @@ export default function ModernBuyerDashboardLayout() {
           { key: 'account' as DashboardTab, label: 'Account', icon: 'UserCircleIcon' },
         ].map((item) => <button key={item.key} type="button" onClick={() => navigateTo(item.key)} className={`relative flex flex-col items-center gap-1 rounded-lg py-2 text-[10px] font-850 ${activeTab === item.key ? 'bg-primary/10 text-primary' : 'text-muted-foreground'}`}><Icon name={item.icon as 'HomeIcon'} size={18} /> {item.label}{item.key === 'cart' && lineCount > 0 && <span className="absolute right-[22%] top-1 grid h-4 min-w-4 place-items-center rounded-full bg-primary px-1 text-[9px] font-850 text-white">{lineCount}</span>}</button>)}
       </nav>
+
+      <AiAssistantWidget role="buyer" context={`Buyer is currently viewing: ${activeItem.label} (${activeItem.description})`} />
     </div>
   );
 }

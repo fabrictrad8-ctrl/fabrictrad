@@ -1,0 +1,167 @@
+/* Premium accent palette — gold, silver and jewel-tone (sapphire/amethyst/
+   emerald) touches layered on top of the existing glass system.
+   ------------------------------------------------------------------
+   This file does NOT introduce a light/dark variable-swap theming system —
+   this codebase doesn't use one (see site-motion-and-polish.css / brand-
+   identity-2026.css: colors are hardcoded per-selector, occasionally gated
+   by `html:not(.dark)` or `.dark`, and a handful of "premium" accents like
+   --ft-gold are deliberately the SAME value in both themes via a var()
+   fallback rather than a real dark override). These new tokens follow that
+   same pattern: plain values on a bare :root, identical in both themes,
+   because premium/decorative surfaces should read the same regardless of
+   the active theme.
+
+   --ft-gold / --ft-gold-strong already exist (site-motion-and-polish.css),
+   but only on `html:not(.dark) body.ft-root` — every existing usage
+   compensates with a `var(--ft-gold, #c9a24b)` fallback, which is why gold
+   already looks identical in dark mode today. They're mirrored here on a
+   bare :root with the SAME values (not redefined/duplicated with a
+   different color) so they're also reachable from surfaces outside
+   `.ft-root` (e.g. the public landing page's `.ft-showroom`, which never
+   carries that class) without relying on every call site remembering the
+   fallback.
+
+   Load order: imported last in src/app/layout.tsx, after every other
+   style bundle (including brand-identity-2026.css and commerce-ux-final.css),
+   so these accents can win the cascade for the specific, narrow selectors
+   below without needing !important everywhere.
+
+   Explicitly OUT OF SCOPE, left untouched by this file:
+   - The marketplace's Amazon-style buyer scheme in commerce-ux-final.css
+     (.ft-marketplace-*, .ft-buyer-header, .ft-add-cart-action, .ft-amazon-*).
+   - The seller admin's Shopify-style gray scheme in commerce-ux-final.css
+     (.ft-seller-admin-scoped rules).
+   Both are intentional, separately-negotiated designs — nothing in this
+   file targets those selectors, directly or via inheritance overrides. */
+
+:root {
+  /* Warm metallic gold — reused site identity, not a new color. */
+  --ft-gold: #c9a24b;
+  --ft-gold-strong: #a9812f;
+  --ft-gold-glow: linear-gradient(135deg, #f3dda3, #c9a24b 50%, #a9812f);
+
+  /* Cool metallic silver — new. */
+  --ft-silver: #c0c0c0;
+  --ft-silver-strong: #8f9296;
+  --ft-silver-glow: linear-gradient(135deg, #f4f5f7, #c0c0c0 55%, #8f9296);
+
+  /* Jewel tones — sapphire blue, amethyst purple, emerald green. Deep and
+     saturated rather than neon, so they read as gemstones, not highlighter. */
+  --ft-sapphire: #2f5fd1;
+  --ft-sapphire-strong: #1e3f96;
+  --ft-sapphire-glow: linear-gradient(135deg, #8fb0ff, #2f5fd1 55%, #1e3f96);
+
+  --ft-amethyst: #7c4dbd;
+  --ft-amethyst-strong: #5c3592;
+  --ft-amethyst-glow: linear-gradient(135deg, #c9a6f2, #7c4dbd 55%, #5c3592);
+
+  --ft-emerald: #1f9d6b;
+  --ft-emerald-strong: #147049;
+  --ft-emerald-glow: linear-gradient(135deg, #7fe0b4, #1f9d6b 55%, #147049);
+
+  /* Shared trio gradient for thin decorative dividers/hairlines — distinct
+     from the existing saffron/gold/indigo brand gradient used elsewhere
+     (auth-shell.css, site-header.css) so it reads as its own accent rather
+     than a duplicate of the brand mark. */
+  --ft-jewel-divider: linear-gradient(90deg, transparent, var(--ft-sapphire), var(--ft-amethyst), var(--ft-emerald), transparent);
+}
+
+/* ---------- Premium badge / pill treatment ---------- */
+/* A new modifier, additive to the existing .ft-badge system (commerce-glass.css)
+   — applied only to specific verified/premium-tier badges in JSX, never
+   swapped in for the generic .ft-badge--success/--warning states used for
+   plain "active"/"live" indicators elsewhere. Fixed colors on purpose: this
+   is a premium surface, so it looks the same in both themes. */
+.ft-badge--premium {
+  border: 1px solid color-mix(in srgb, var(--ft-gold-strong) 45%, transparent);
+  background: var(--ft-gold-glow);
+  color: #3c2e0c;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(255, 255, 255, 0.25) inset;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+.ft-badge--premium svg {
+  color: #3c2e0c;
+}
+
+/* ---------- Auth: gold frame on the buyer/seller sign-in showcase image ----------
+   The auth visual panel (.ft-auth-visual-panel, auth-shell.css) already
+   carries a saffron/gold/indigo top hairline via .ft-auth-glass::before and
+   a gold-bordered shield icon on the admin variant (.ft-auth-shield) — this
+   adds the missing equivalent for the buyer/seller variant's showcase
+   image, framing it instead of leaving it a plain rounded rectangle.
+   Additive only: no existing background/structural rule is touched. */
+.ft-auth-showcase-frame {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ft-gold) 55%, transparent), 0 12px 28px -14px rgba(169, 129, 47, 0.45);
+}
+
+/* ---------- Public landing hero: gold CTA glow + jewel section divider ---------- */
+/* .ft-primary-action is already `position: relative` (site-motion-and-polish.css,
+   needed for its own shine-sweep pseudo-element), so this only adds the glow. */
+.ft-hero-cta-premium {
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--ft-gold) 60%, transparent), 0 14px 34px -14px rgba(169, 129, 47, 0.55);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .ft-hero-cta-premium:hover {
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--ft-gold) 80%, transparent), 0 18px 40px -14px rgba(169, 129, 47, 0.65);
+  }
+}
+
+/* .ft-future-bento is already `position: relative` (fabrictrad-future.css). */
+.ft-future-bento::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(420px, 60%);
+  height: 1px;
+  background: var(--ft-jewel-divider);
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+/* ---------- Dashboard header accents (buyer / seller / admin) ---------- */
+/* Buyer dashboard (.ft-admin-shell.ft-buyer-account) already gets a gold
+   nav-active treatment from site-motion-and-polish.css
+   (.ft-admin-sidebar nav button.is-active). This adds a complementary
+   silver hairline under its header bar so the buyer workspace carries both
+   metals rather than only gold. Scoped to .ft-buyer-account specifically so
+   it never reaches the (separately styled, out-of-scope) seller admin
+   surface even though both historically shared .ft-admin-header. */
+/* No position override here: the header is already `sticky` (a Tailwind
+   utility class in JSX), which — like any non-static position value — is
+   itself a positioning context for this absolutely positioned pseudo, so
+   adding `position: relative` here would only risk fighting that utility
+   class for specificity and silently breaking the sticky behavior. */
+.ft-buyer-account .ft-admin-header::after {
+  content: '';
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 0;
+  height: 2px;
+  background: var(--ft-silver-glow);
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+/* Seller dashboard and admin portal share the .ft-workspace-shell /
+   .ft-dock-bar / .ft-workspace-nav-item structure (workspace-shell.css).
+   Neither selector below is scoped under .ft-seller-admin — that's a
+   separate, unrelated (and currently unused) class from the excluded
+   Shopify-style scheme in commerce-ux-final.css. */
+.ft-workspace-nav-item.is-active {
+  box-shadow:
+    inset 3px 0 0 0 var(--ft-saffron),
+    0 0 0 1px color-mix(in srgb, var(--ft-gold) 22%, transparent);
+}
+
+.ft-dock-bar {
+  box-shadow: 0 16px 40px -22px rgba(15, 23, 42, 0.4), 0 0 0 1px color-mix(in srgb, var(--ft-sapphire) 14%, transparent);
+}
+
+.dark .ft-dock-bar {
+  box-shadow: 0 16px 40px -18px rgba(0, 0, 0, 0.55), 0 0 0 1px color-mix(in srgb, var(--ft-sapphire) 24%, transparent);
+}

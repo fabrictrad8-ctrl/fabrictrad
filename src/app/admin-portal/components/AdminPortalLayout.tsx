@@ -26,6 +26,7 @@ import AdminFulfillmentAnalytics from '@/app/admin-portal/components/AdminFulfil
 import AdminSellerMetrics from '@/app/admin-portal/components/AdminSellerMetrics';
 import AdminAnalyticsCharts from '@/app/admin-portal/components/AdminAnalyticsCharts';
 import AdminDisputes from '@/app/admin-portal/components/AdminDisputes';
+import AiAssistantWidget from '@/components/AiAssistantWidget';
 
 type AdminTab =
   | 'dashboard'
@@ -286,6 +287,8 @@ export default function AdminPortalLayout() {
       </nav>
 
       <span className="sr-only">Signed in as {adminName}</span>
+
+      <AiAssistantWidget role="admin" context={`Administrator is currently viewing: ${activeItem.label} (${activeItem.description})`} />
     </div>
   );
 }

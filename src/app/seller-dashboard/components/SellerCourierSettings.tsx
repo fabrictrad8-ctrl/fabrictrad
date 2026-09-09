@@ -7,7 +7,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { createClient } from '@/lib/supabase/client';
 import { validTrackingUrl } from '@/lib/shippingValidation';
 import { firstOrderItem, formatMoney, useSellerBulkOrders } from '@/lib/hooks/useAccountOrders';
-import { pillClassForStatus } from '@/lib/statusPill';
+import { pillClassForStatus, pillLabel } from '@/lib/statusPill';
 
 type OrderKind = 'bulk' | 'catalog';
 type CourierType = 'shiprocket' | 'local';
@@ -400,9 +400,7 @@ export default function SellerCourierSettings() {
             </div>
             {selectedShipment && (
               <div className="text-right">
-                <p className="text-xs font-800 text-success">
-                  {String(selectedShipment.status || 'pending').replaceAll('_', ' ')}
-                </p>
+                <span className={pillClassForStatus(selectedShipment.status)}>{pillLabel(selectedShipment.status)}</span>
                 <p className="mt-1 text-xs text-muted-foreground">
                   AWB {selectedShipment.awb_number || 'pending'}
                 </p>
