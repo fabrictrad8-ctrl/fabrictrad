@@ -77,23 +77,22 @@ export default function CommerceNotificationFeed({ mode }: { mode: 'buyer' | 'se
     setRows((current) => current.map((row) => ({ ...row, is_read: true })));
   };
 
-  const decideOrder = async (notification: NotificationRow, action: 'accept' | 'reject') => {
+  // Sellers no longer accept orders — stock is committed at checkout and
+  // seller_decide_catalog_order's accept branch now raises. Declining an unpaid
+  // order is the only real seller decision left, so that is all this offers.
+  const rejectOrder = async (notification: NotificationRow) => {
     if (!notification.entity_id) return;
-    let reason = '';
-    if (action === 'reject') {
-      reason = window.prompt('Reason for rejecting this order:')?.trim() || '';
-      if (!reason) return;
-    }
+    const reason = window.prompt('Tell the buyer why you cannot fulfil this order:')?.trim() || '';
+    if (!reason) return;
     setBusyId(notification.id);
     try {
-      const { error } = await supabase.rpc('seller_decide_catalog_order', {
+      const { error } = await supabase.rpc('seller_reject_catalog_order', {
         p_order_id: notification.entity_id,
-        p_action: action,
-        p_reason: reason || null,
+        p_reason: reason,
       });
       if (error) throw error;
       await markRead(notification.id);
-      toast.success(action === 'accept' ? 'Order accepted. The buyer can pay now.' : 'Order rejected. The buyer was updated.');
+      toast.success('Order declined. The buyer was notified and their stock released.');
       await load();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Order could not be updated.');
@@ -158,12 +157,12 @@ export default function CommerceNotificationFeed({ mode }: { mode: 'buyer' | 'se
                     <p className="mt-1 text-[10px] text-muted-foreground">{new Date(row.created_at).toLocaleString('en-IN')}</p>
 
                     {canSellerDecide && (
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        <button type="button" disabled={busyId === row.id} onClick={() => void decideOrder(row, 'accept')} className="rounded-xl bg-success px-4 py-2 text-xs font-800 text-white disabled:opacity-50">
-                          <Icon name="CheckIcon" size={13} className="mr-1 inline" /> Accept order
-                        </button>
-                        <button type="button" disabled={busyId === row.id} onClick={() => void decideOrder(row, 'reject')} className="rounded-xl border border-error/20 bg-error/5 px-4 py-2 text-xs font-800 text-error disabled:opacity-50">
-                          Reject
+                      <div className="mt-3 flex flex-wrap items-center gap-2">
+                        <span className="text-[11px] leading-4 text-muted-foreground">
+                          Stock is already reserved for this buyer — no acceptance needed. Decline only if you cannot fulfil it.
+                        </span>
+                        <button type="button" disabled={busyId === row.id} onClick={() => void rejectOrder(row)} className="rounded-xl border border-error/20 bg-error/5 px-4 py-2 text-xs font-800 text-error disabled:opacity-50">
+                          Can&apos;t fulfil
                         </button>
                       </div>
                     )}
