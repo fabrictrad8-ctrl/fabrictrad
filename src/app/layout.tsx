@@ -35,6 +35,7 @@ import '../styles/scroll-motion.css';
 import '../styles/announcement-ticker.css';
 import '../styles/premium-accents.css';
 import '../styles/ai-assistant-widget.css';
+import '../styles/logo-shine.css';
 import { AuthProvider } from '@/contexts/AuthContext';
 import AppClientEnhancements from '@/components/AppClientEnhancements';
 import RouteExperienceEnhancer from '@/components/RouteExperienceEnhancer';

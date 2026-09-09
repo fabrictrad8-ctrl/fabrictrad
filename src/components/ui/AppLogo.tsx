@@ -16,6 +16,9 @@ interface AppLogoProps {
   className?: string;
   onClick?: () => void;
   variant?: LogoVariant;
+  /** Glossy shimmer sweep across the logo artwork. Default on — pass false for
+   * dense contexts (e.g. a tiny inline icon) where the animation would just be noise. */
+  shine?: boolean;
 }
 
 const OFFICIAL_LOGOS: Record<LogoVariant, { src: string; width: number; height: number }> = {
@@ -42,6 +45,7 @@ const AppLogo = memo(function AppLogo({
   className = '',
   onClick,
   variant = 'horizontal',
+  shine = true,
 }: AppLogoProps) {
   const router = useRouter();
   const { user, profile } = useAuth();
@@ -73,6 +77,8 @@ const AppLogo = memo(function AppLogo({
 
   const official = OFFICIAL_LOGOS[variant];
   const renderedWidth = Math.max(1, Math.round((size * official.width) / official.height));
+  const resolvedSrc = src || official.src;
+  const shineStyle = shine ? ({ '--ft-logo-mask': `url(${resolvedSrc})` } as React.CSSProperties) : undefined;
 
   return (
     <div
@@ -81,28 +87,31 @@ const AppLogo = memo(function AppLogo({
       data-fabrictrad-brand-logo="official-uploaded-logo"
       data-fabrictrad-logo-variant={variant}
     >
-      {src ? (
-        <AppImage
-          src={src}
-          alt="FabricTrad"
-          width={size}
-          height={size}
-          className="flex-shrink-0 object-contain"
-          priority={true}
-          unoptimized={src.startsWith('/assets/') || src.endsWith('.svg')}
-        />
-      ) : (
-        <img
-          src={official.src}
-          alt="FabricTrad — Textile Trading Platform"
-          width={renderedWidth}
-          height={size}
-          loading="eager"
-          decoding="async"
-          className="block max-w-none shrink-0 object-contain"
-          style={{ width: `${renderedWidth}px`, height: `${size}px` }}
-        />
-      )}
+      <div className={shine ? 'ft-logo-shine-wrap' : undefined} style={shineStyle}>
+        {src ? (
+          <AppImage
+            src={src}
+            alt="FabricTrad"
+            width={size}
+            height={size}
+            className="flex-shrink-0 object-contain"
+            priority={true}
+            unoptimized={src.startsWith('/assets/') || src.endsWith('.svg')}
+          />
+        ) : (
+          <img
+            src={official.src}
+            alt="FabricTrad — Textile Trading Platform"
+            width={renderedWidth}
+            height={size}
+            loading="eager"
+            decoding="async"
+            className="block max-w-none shrink-0 object-contain"
+            style={{ width: `${renderedWidth}px`, height: `${size}px` }}
+          />
+        )}
+        {shine && <span className="ft-logo-shine-sweep" aria-hidden="true" />}
+      </div>
     </div>
   );
 });

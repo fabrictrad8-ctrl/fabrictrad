@@ -1,0 +1,49 @@
+/* Shiny/glossy shimmer for the FabricTrad logo, used everywhere <AppLogo> renders. */
+
+.ft-logo-shine-wrap {
+  position: relative;
+  display: inline-flex;
+  filter: drop-shadow(0 1px 6px rgba(212, 160, 23, 0.22));
+}
+
+.ft-logo-shine-sweep {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  /* Clipped to the logo's own alpha shape so the shine only crosses the
+     actual glyph/graphic pixels, never the transparent bounding box. */
+  -webkit-mask-image: var(--ft-logo-mask, none);
+  mask-image: var(--ft-logo-mask, none);
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  background-image: linear-gradient(
+    115deg,
+    transparent 30%,
+    rgba(255, 255, 255, 0.85) 47%,
+    rgba(255, 246, 214, 0.95) 51%,
+    transparent 68%
+  );
+  background-size: 300% 300%;
+  background-position: -120% -120%;
+  mix-blend-mode: overlay;
+  animation: ft-logo-shine 6.5s ease-in-out infinite;
+  animation-delay: 1.2s;
+}
+
+@keyframes ft-logo-shine {
+  0%, 42% { background-position: -120% -120%; }
+  62%, 100% { background-position: 120% 120%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ft-logo-shine-sweep {
+    display: none;
+  }
+  .ft-logo-shine-wrap {
+    filter: none;
+  }
+}
