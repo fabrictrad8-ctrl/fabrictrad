@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import Icon from '@/components/ui/AppIcon';
 import OrderLifecyclePanel from '@/components/commerce/OrderLifecyclePanel';
@@ -304,6 +304,21 @@ export default function SellerCatalogOrders() {
     });
     return tally;
   }, [orders, shipments]);
+
+  // The default stage is "to dispatch", which is empty for most sellers most of
+  // the time — landing there showed "N need you" beside "Nothing in this stage",
+  // leaving the seller to hunt for the orders. Land once on the first stage that
+  // actually holds something, most urgent first, without overriding a manual
+  // choice afterwards.
+  const autoStagePicked = useRef(false);
+  useEffect(() => {
+    if (autoStagePicked.current || loading || !orders.length) return;
+    autoStagePicked.current = true;
+    if (counts[tab]) return;
+    const firstPopulated = (['to_dispatch', 'in_transit', 'awaiting_payment', 'buyer_review', 'completed'] as const)
+      .find((stage) => counts[stage]);
+    setTab(firstPopulated ?? 'all');
+  }, [counts, loading, orders.length, tab]);
 
   const visibleOrders = useMemo(
     () => (tab === 'all' ? orders : orders.filter((order) => stageOf(order, shipments[order.id]) === tab)),

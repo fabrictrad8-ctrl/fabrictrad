@@ -361,10 +361,15 @@ export default function SellerAttentionCenter({ onNavigate }: Props) {
 
   return (
     <>
+      {/* While the sheet is up it already states the blocking items, and it sits
+          over the page behind a backdrop. Rendering the banner underneath at the
+          same time repeated every one of them verbatim. The banner takes over
+          once the sheet has been acknowledged. */}
       <section
         className="ft-attention-banner mb-5"
         data-tone={topTone}
         aria-label="Things that need your attention"
+        hidden={sheetOpen}
       >
         <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-2.5">
           <Icon

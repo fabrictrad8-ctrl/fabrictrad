@@ -191,7 +191,10 @@ export default function SellerDashboardPage() {
       </Suspense>
       <Link
         href="/seller-product-rules"
-        className="fixed bottom-24 right-4 z-40 flex h-12 w-12 items-center justify-center rounded-full border border-primary/30 bg-card/95 text-primary shadow-xl backdrop-blur-xl transition hover:-translate-y-0.5 hover:bg-primary hover:text-white md:bottom-6 md:right-6 md:h-auto md:w-auto md:min-h-12 md:gap-2 md:px-4 md:py-3 md:text-xs md:font-800"
+        /* Sits directly above the AI assistant launcher, which is fixed in the
+           same bottom-right corner (z-55). At bottom-6/bottom-24 the two
+           overlapped: the launcher covered this button on every seller tab. */
+        className="fixed bottom-44 right-4 z-40 flex h-12 w-12 items-center justify-center rounded-full border border-primary/30 bg-card/95 text-primary shadow-xl backdrop-blur-xl transition hover:-translate-y-0.5 hover:bg-primary hover:text-white md:bottom-24 md:right-6 md:h-auto md:w-auto md:min-h-12 md:gap-2 md:px-4 md:py-3 md:text-xs md:font-800"
         aria-label="Open product buyer quantity rules — GTIN & buyer limits"
       >
         <Icon name="AdjustmentsHorizontalIcon" size={19} />

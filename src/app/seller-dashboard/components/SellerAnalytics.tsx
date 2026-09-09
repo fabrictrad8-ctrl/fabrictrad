@@ -141,8 +141,16 @@ export default function SellerAnalytics() {
   const totalGMV = paidOrders.reduce((sum, order) => sum + order.amount, 0);
   const avgOrderValue = paidOrders.length ? totalGMV / paidOrders.length : 0;
   const decided = filteredOrders.filter((order) => acceptedStatuses.has(order.status) || rejectedStatuses.has(order.status));
-  const accepted = decided.filter((order) => acceptedStatuses.has(order.status));
-  const acceptanceRate = decided.length ? Math.round((accepted.length / decided.length) * 100) : null;
+  // "Accepted" is no longer a step a seller performs — buyers check out instantly
+  // and stock is committed there and then. What is still meaningful is how many
+  // orders reached payment versus fell away, so this is a completion rate.
+  // These three buckets are shown side by side as though they partition the
+  // orders, so "progressing" must exclude the ones already counted as paid —
+  // otherwise a paid order is counted twice and the buckets exceed the total.
+  const progressing = decided.filter(
+    (order) => acceptedStatuses.has(order.status) && !paidStatuses.has(order.status)
+  );
+  const completionRate = decided.length ? Math.round((paidOrders.length / decided.length) * 100) : null;
 
   const exportRows = filteredOrders.map((order) => ({
     'Order ID': order.id,
@@ -191,7 +199,7 @@ export default function SellerAnalytics() {
           ['Total orders', busy ? '—' : totalOrders.toLocaleString('en-IN'), 'ShoppingBagIcon', 'text-primary'],
           ['Captured GMV', busy ? '—' : formatINR(totalGMV), 'CurrencyRupeeIcon', 'text-success'],
           ['Avg paid order', busy ? '—' : formatINR(avgOrderValue), 'ChartBarIcon', 'text-secondary'],
-          ['Acceptance rate', busy ? '—' : acceptanceRate === null ? '—' : `${acceptanceRate}%`, 'CheckCircleIcon', 'text-warning'],
+          ['Orders completed', busy ? '—' : completionRate === null ? '—' : `${completionRate}%`, 'CheckCircleIcon', 'text-warning'],
         ].map(([label, value, icon, color]) => (
           <div key={String(label)} className="rounded-2xl border border-border bg-card p-4">
             <Icon name={String(icon)} size={20} className={String(color)} />
@@ -226,8 +234,8 @@ export default function SellerAnalytics() {
       <section className="rounded-2xl border border-border bg-card p-5">
         <h2 className="text-sm font-800 text-foreground">Status health</h2>
         <div className="mt-4 grid gap-3 sm:grid-cols-3">
-          <div className="rounded-xl bg-primary/5 p-4"><p className="text-xs text-muted-foreground">Accepted / progressing</p><p className="mt-1 text-xl font-800 text-primary">{accepted.length}</p></div>
-          <div className="rounded-xl bg-error/5 p-4"><p className="text-xs text-muted-foreground">Rejected / cancelled</p><p className="mt-1 text-xl font-800 text-error">{decided.length - accepted.length}</p></div>
+          <div className="rounded-xl bg-primary/5 p-4"><p className="text-xs text-muted-foreground">Awaiting payment</p><p className="mt-1 text-xl font-800 text-primary">{progressing.length}</p></div>
+          <div className="rounded-xl bg-error/5 p-4"><p className="text-xs text-muted-foreground">Rejected / cancelled</p><p className="mt-1 text-xl font-800 text-error">{decided.length - progressing.length - paidOrders.length}</p></div>
           <div className="rounded-xl bg-success/5 p-4"><p className="text-xs text-muted-foreground">Paid / fulfilled</p><p className="mt-1 text-xl font-800 text-success">{paidOrders.length}</p></div>
         </div>
       </section>
