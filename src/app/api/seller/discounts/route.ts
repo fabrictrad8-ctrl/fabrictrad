@@ -109,13 +109,17 @@ export async function POST(request: NextRequest) {
       return json({ error: 'Codes must be 3-32 characters: letters, numbers, hyphens or underscores only.' }, 400);
     }
     code = rawCode.toUpperCase();
+    // Coupon rows belonging to other accounts are deliberately not readable
+    // (they would expose rival sellers' private codes), so this pre-check can
+    // only catch the seller's own duplicates. A clash with someone else's code
+    // is caught by the unique index and translated below.
     const { data: existingCode, error: codeLookupError } = await supabase
       .from('discount_campaigns')
       .select('id')
       .ilike('code', code)
       .maybeSingle();
     if (codeLookupError) return json({ error: 'The code could not be checked for uniqueness.' }, 503);
-    if (existingCode?.id) return json({ error: 'That code is already in use by another campaign.' }, 409);
+    if (existingCode?.id) return json({ error: 'You already have a campaign using that code.' }, 409);
   }
 
   const today = new Date().toISOString().slice(0, 10);
@@ -140,7 +144,15 @@ export async function POST(request: NextRequest) {
     })
     .select('*')
     .single();
-  if (error) return json({ error: error.message }, 400);
+  if (error) {
+    // discount_campaigns_code_unique_idx — the code is taken, possibly by a
+    // campaign this seller cannot see. Say that plainly instead of leaking a
+    // raw constraint message.
+    if (error.code === '23505') {
+      return json({ error: 'That code is already taken. Try a different one.' }, 409);
+    }
+    return json({ error: error.message }, 400);
+  }
 
   return json({ campaign: { ...data, displayStatus: displayStatus(data) } }, 201);
 }
