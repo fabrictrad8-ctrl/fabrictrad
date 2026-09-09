@@ -31,6 +31,7 @@ type CatalogOrder = {
   payment_due_at: string | null;
   notes: string | null;
   created_at: string;
+  product_name_snapshot?: string | null;
   seller_products?: { name?: string | null; sku?: string | null } | null;
   seller_product_variants?: { color_name?: string | null; design_name?: string | null } | null;
 };
@@ -99,7 +100,7 @@ export default function BuyerCatalogOrders() {
     const { data, error } = await supabase
       .from('catalog_order_requests')
       .select(
-        'id,buyer_id,seller_id,product_id,variant_id,quantity,unit,price_per_unit,subtotal,gst_amount,total_amount,status,payment_status,amount_paid,amount_refunded,payment_terms,deposit_percent,payment_due_at,notes,created_at,seller_products!catalog_order_requests_product_id_fkey(name,sku),seller_product_variants!catalog_order_requests_variant_id_fkey(color_name,design_name)'
+        'id,buyer_id,seller_id,product_id,variant_id,quantity,unit,price_per_unit,subtotal,gst_amount,total_amount,status,payment_status,amount_paid,amount_refunded,payment_terms,deposit_percent,payment_due_at,notes,created_at,product_name_snapshot,seller_products!catalog_order_requests_product_id_fkey(name,sku),seller_product_variants!catalog_order_requests_variant_id_fkey(color_name,design_name)'
       )
       .eq('buyer_id', user.id)
       .order('created_at', { ascending: false })
@@ -232,7 +233,7 @@ export default function BuyerCatalogOrders() {
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <p className="truncate text-sm font-800 text-foreground">{product?.name || 'Marketplace product'}</p>
+                      <p className="truncate text-sm font-800 text-foreground">{order.product_name_snapshot || product?.name || 'Marketplace product'}</p>
                       <span className={pillClassForStatus(order.status)}>{statusLabel[order.status]}</span>
                       <span className={pillClassForStatus(order.payment_status)}>{paymentLabel[order.payment_status]}</span>
                       {invoice && <span className="ft-pill ft-pill-success">Invoice issued</span>}

@@ -431,7 +431,7 @@ export default function ProductInfoV2() {
         p_payment_terms: paymentTerms,
         p_deposit_percent: depositPercent,
         p_requires_review: requiresReview,
-        p_notes: `${buyerType === 'end_user' ? 'Buy for me' : 'Retail Store'} request for ${product.name}`,
+        p_notes: `${buyerType === 'end_user' ? 'Personal' : 'Retail Store'} order for ${product.name}`,
         p_discount_code: discountCode.trim() || null,
       });
       if (error) throw error;
