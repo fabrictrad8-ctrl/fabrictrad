@@ -41,6 +41,16 @@ const destinationFor = (role: AccountRole, requestedNext: string | null) => {
  * missing, the server session endpoint performs a safe repair instead of the
  * browser guessing a role from stale auth metadata.
  */
+/** Ceiling for the whole poll, covering transient network failures. */
+const MAX_ATTEMPTS = 60;
+/**
+ * How many consecutive definitive "not signed in" replies to tolerate before
+ * giving up. Two seconds is ample for the browser to persist an auth cookie
+ * immediately after sign-in, and it stops a signed-out visitor from hammering
+ * the endpoint for the full attempt ceiling.
+ */
+const UNAUTHENTICATED_GRACE_ATTEMPTS = 8;
+
 export default function LoginRedirectGuard() {
   const searchParams = useSearchParams();
   const { user, profile, loading } = useAuth();
@@ -65,6 +75,7 @@ export default function LoginRedirectGuard() {
   useEffect(() => {
     let cancelled = false;
     let attempts = 0;
+    let unauthenticatedReplies = 0;
     let timer: number | undefined;
     const query = requestedNext ? `?next=${encodeURIComponent(requestedNext)}` : '';
 
@@ -90,11 +101,23 @@ export default function LoginRedirectGuard() {
           window.location.replace('/login?error=account_inactive');
           return;
         }
+
+        // 401 is a definitive "no session", not a transient error. Only a short
+        // grace window is needed, to cover the moment just after sign-in where
+        // the auth cookie has not finished persisting. Polling all the way to
+        // the attempt ceiling meant every signed-out visitor fired dozens of
+        // failing requests at this endpoint for fifteen seconds.
+        if (response.status === 401) {
+          unauthenticatedReplies += 1;
+          if (unauthenticatedReplies >= UNAUTHENTICATED_GRACE_ATTEMPTS) return;
+        } else {
+          unauthenticatedReplies = 0;
+        }
       } catch {
-        // Retry briefly while the browser finishes persisting the auth cookie.
+        // Network hiccup rather than an answer — keep retrying within the ceiling.
       }
 
-      if (!cancelled && attempts < 60) {
+      if (!cancelled && attempts < MAX_ATTEMPTS) {
         timer = window.setTimeout(checkPersistedSession, 250);
       }
     };
