@@ -82,10 +82,15 @@ export default function ProductOrderStatusCard() {
     void load();
     const timer = window.setInterval(() => void load(), 10000);
     const onFocus = () => void load();
+    // A just-placed order must show its Pay button immediately rather than
+    // waiting out the poll interval, so buying flows straight into payment.
+    const onOrderPlaced = () => void load();
     window.addEventListener('focus', onFocus);
+    window.addEventListener('fabrictrad:order-placed', onOrderPlaced);
     return () => {
       window.clearInterval(timer);
       window.removeEventListener('focus', onFocus);
+      window.removeEventListener('fabrictrad:order-placed', onOrderPlaced);
     };
   }, [load]);
 

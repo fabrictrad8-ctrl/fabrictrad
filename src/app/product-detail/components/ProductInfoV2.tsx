@@ -428,6 +428,17 @@ export default function ProductInfoV2() {
           ? 'Order submitted for your company’s approval.'
           : 'Order confirmed and stock reserved. Pay now to complete it.'
       );
+      // Refresh the order/payment card straight away and bring it into view so
+      // buying flows directly into payment instead of sending the buyer away.
+      window.dispatchEvent(new Event('fabrictrad:order-placed'));
+      if (!requiresReview) {
+        window.setTimeout(() => {
+          document.getElementById('order-status')?.scrollIntoView({
+            behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+            block: 'center',
+          });
+        }, 150);
+      }
     } catch (caught) {
       toast.error(
         caught instanceof Error ? caught.message : 'The order could not be placed.'
@@ -693,14 +704,23 @@ export default function ProductInfoV2() {
               <p className="mt-3 text-xs font-700 text-foreground">
                 {requiresReview
                   ? 'Next: your company approver signs this off, then payment opens in your Buyer Dashboard.'
-                  : 'Your stock is reserved. Pay from your Buyer Dashboard within 30 minutes to complete the order.'}
+                  : 'Your stock is reserved for 30 minutes. Complete payment to confirm the order.'}
               </p>
               <button
                 type="button"
-                onClick={() => router.push('/buyer-dashboard')}
+                onClick={() => {
+                  if (requiresReview) {
+                    router.push('/buyer-dashboard');
+                    return;
+                  }
+                  document.getElementById('order-status')?.scrollIntoView({
+                    behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+                    block: 'center',
+                  });
+                }}
                 className="btn-primary mt-3 inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs"
               >
-                Open Buyer Dashboard <Icon name="ArrowRightIcon" size={14} />
+                {requiresReview ? 'Open Buyer Dashboard' : 'Pay now'} <Icon name="ArrowRightIcon" size={14} />
               </button>
             </div>
           </div>
