@@ -1,0 +1,160 @@
+/* Seller "needs your attention" surface (SellerAttentionCenter).
+   Imported from that component only — deliberately NOT from src/app/layout.tsx
+   so it stays inside the seller-dashboard bundle. Every rule below is scoped to
+   a .ft-attention-* class owned by that one component.
+
+   Status colours are NOT defined here: severity pills come from
+   src/lib/statusPill.ts (.ft-pill-*), and the accent colours reuse the existing
+   --error / --warning / --muted-foreground design tokens.
+
+   Layering notes (mobile matters most — sellers are on phones):
+   - The banner is in normal document flow. It never overlays anything, so it
+     cannot cover the mobile tab bar or the AI assistant launcher.
+   - The blocking sheet is the only fixed element. Its backdrop sits at
+     z-index 58 and the sheet itself at 59: above the workspace dock bar and
+     mobile tab bar (z-index 40 in workspace-shell.css) and above the AI
+     assistant FAB (z-index 55 in ai-assistant-widget.css) so a genuinely
+     blocking message is not painted underneath dashboard chrome, but below the
+     announcement ticker (70) and the workspace command dialog (100).
+   - On <768px the sheet is anchored above the fixed bottom tab bar
+     (~64px + safe-area) so the seller can still navigate away from it, and it
+     is capped in height so long lists scroll inside the sheet instead of
+     pushing the close button off screen. */
+
+.ft-attention-banner {
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--muted-foreground);
+  border-radius: 16px;
+  background: var(--card);
+  overflow: hidden;
+}
+.ft-attention-banner[data-tone='blocking'] {
+  border-left-color: var(--error);
+  background: color-mix(in srgb, var(--error) 5%, var(--card));
+}
+.ft-attention-banner[data-tone='urgent'] {
+  border-left-color: var(--warning);
+  background: color-mix(in srgb, var(--warning) 5%, var(--card));
+}
+.ft-attention-banner[data-tone='watch'] {
+  border-left-color: var(--muted-foreground);
+}
+
+.ft-attention-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 14px;
+  border-top: 1px solid var(--border);
+}
+.ft-attention-row:first-of-type {
+  border-top: 0;
+}
+
+.ft-attention-mark {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--foreground) 7%, transparent);
+  color: var(--muted-foreground);
+}
+.ft-attention-row[data-tone='blocking'] .ft-attention-mark,
+.ft-attention-mark[data-tone='blocking'] {
+  background: color-mix(in srgb, var(--error) 12%, transparent);
+  color: var(--error);
+}
+.ft-attention-row[data-tone='urgent'] .ft-attention-mark,
+.ft-attention-mark[data-tone='urgent'] {
+  background: color-mix(in srgb, var(--warning) 14%, transparent);
+  color: var(--warning);
+}
+
+/* Full-width tap target on phones; inline on anything wider. */
+.ft-attention-action {
+  flex: 1 1 100%;
+  min-height: 44px;
+}
+@media (min-width: 640px) {
+  .ft-attention-action {
+    flex: 0 0 auto;
+    align-self: center;
+  }
+}
+
+.ft-attention-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 58;
+  background: rgba(15, 17, 21, 0.55);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  animation: ft-attention-fade 160ms ease both;
+}
+
+.ft-attention-sheet {
+  position: fixed;
+  z-index: 59;
+  left: 50%;
+  bottom: calc(76px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  width: min(560px, calc(100vw - 20px));
+  max-height: min(74vh, calc(100vh - 190px));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--border);
+  border-top: 4px solid var(--error);
+  border-radius: 20px;
+  background: var(--card);
+  box-shadow: 0 28px 60px -24px rgba(0, 0, 0, 0.55);
+  animation: ft-attention-rise 220ms cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+@media (min-width: 768px) {
+  .ft-attention-sheet {
+    top: 50%;
+    bottom: auto;
+    transform: translate(-50%, -50%);
+    max-height: min(80vh, 720px);
+  }
+}
+
+@keyframes ft-attention-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes ft-attention-rise {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+@media (min-width: 768px) {
+  @keyframes ft-attention-rise {
+    from {
+      opacity: 0;
+      transform: translate(-50%, calc(-50% + 12px));
+    }
+    to {
+      opacity: 1;
+      transform: translate(-50%, -50%);
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ft-attention-backdrop,
+  .ft-attention-sheet {
+    animation: none !important;
+  }
+}

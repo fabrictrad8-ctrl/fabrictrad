@@ -16,6 +16,7 @@ import SellerVariantCatalog from '@/app/seller-dashboard/components/SellerVarian
 import SellerCatalogPricing from '@/app/seller-dashboard/components/SellerCatalogPricing';
 import SellerAnalytics from '@/app/seller-dashboard/components/SellerAnalytics';
 import SellerCatalogAssistant from '@/app/seller-dashboard/components/SellerCatalogAssistant';
+import SellerAttentionCenter from '@/app/seller-dashboard/components/SellerAttentionCenter';
 import SellerProfileReadiness from '@/app/seller-dashboard/components/SellerProfileReadiness';
 import SellerEarnings from '@/app/seller-dashboard/components/SellerEarnings';
 import SellerDisputes from '@/app/seller-dashboard/components/SellerDisputes';
@@ -289,6 +290,8 @@ export default function SellerDashboardLayout() {
 
           <main className="ft-canvas-main min-w-0 px-3 pb-24 pt-4 sm:px-5 lg:px-7">
           <div className="mx-auto">
+            {/* Real blockers first, then the detailed verification checklist. */}
+            <SellerAttentionCenter onNavigate={navigateTo} />
             <SellerProfileReadiness />
 
             {activeTab === 'overview' && <SellerOverview onNavigate={navigateTo} />}
