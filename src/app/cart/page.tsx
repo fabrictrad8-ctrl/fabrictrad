@@ -6,6 +6,7 @@ import Footer from '@/components/Footer';
 import AppImage from '@/components/ui/AppImage';
 import Icon from '@/components/ui/AppIcon';
 import { cartItemHref, useCart } from '@/lib/hooks/useCart';
+import CartAiAssistant from '@/app/cart/CartAiAssistant';
 
 const money = (value: number) =>
   new Intl.NumberFormat('en-IN', {
@@ -150,6 +151,7 @@ export default function CartPage() {
         </section>
       </div>
       <Footer />
+      <CartAiAssistant />
     </main>
   );
 }

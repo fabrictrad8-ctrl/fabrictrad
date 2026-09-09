@@ -5,6 +5,7 @@ import Link from 'next/link';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import Icon from '@/components/ui/AppIcon';
+import AiAssistantWidget from '@/components/AiAssistantWidget';
 
 const topics = [
   { title: 'Buying fabrics', icon: 'ShoppingBagIcon', copy: 'Watch the buyer flow for discovery, product review, ordering, payment and tracking.', href: '/how-to-use?role=buyer' },
@@ -32,6 +33,25 @@ export default function HelpPage() {
     const normalized = query.trim().toLowerCase();
     return faqs.filter(([question, answer]) => !normalized || `${question} ${answer}`.toLowerCase().includes(normalized));
   }, [query]);
+
+  // Give the assistant the same FAQ text the page is showing, so it answers
+  // from FabricTrad's own published policy rather than generic marketplace
+  // assumptions. The FAQ list is a static constant on this page, so this is
+  // real on-screen content, not a summary of it.
+  const assistantContext = useMemo(() => {
+    const trimmed = query.trim();
+    return [
+      'Page: FabricTrad public help centre.',
+      trimmed
+        ? `The visitor has filtered the FAQ list by "${trimmed}", leaving ${filteredFaqs.length} of ${faqs.length} entries.`
+        : `All ${faqs.length} FAQ entries are shown.`,
+      'These are the published FAQs on this page — answer from them wherever they apply, quoting the policy accurately:',
+      faqs.map(([question, answer]) => `Q: ${question} A: ${answer}`).join(' '),
+      'Help topics linked on this page: ' + topics.map((topic) => `${topic.title} (${topic.href})`).join(', ') + '.',
+      'Support is reached by emailing fabrictrad8@gmail.com with the registered email, account ID and order ID. FabricTrad support never asks for a password, full card details or an OTP.',
+      'You have no access to this visitor\'s account, orders, shipments or payments, and you cannot place an order, change an order, issue a refund or look up a tracking number. Point them to the relevant dashboard tab or to support email for anything account-specific, and never invent an order ID, tracking number, date or amount.',
+    ].join(' ');
+  }, [filteredFaqs.length, query]);
 
   return (
     <main className="ft-storefront min-h-screen">
@@ -105,6 +125,7 @@ export default function HelpPage() {
         </section>
       </div>
       <Footer />
+      <AiAssistantWidget role="buyer" context={assistantContext} />
     </main>
   );
 }

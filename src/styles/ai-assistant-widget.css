@@ -17,7 +17,20 @@
    - On mobile (<768px) all three layouts render a fixed, full-width bottom
      tab bar (~64px + safe-area-inset-bottom). Both the FAB and the panel
      are pushed up clear of it there so neither ever overlaps those five
-     nav buttons. */
+     nav buttons.
+   - Storefront routes (marketplace, product detail, cart, help) have no
+     bottom tab bar, but two other fixed controls share this corner and are
+     handled by the collision rules at the end of this file:
+       1. .ft-sitewide-language-control (layout.tsx, `fixed bottom-4 right-4`,
+          z-index 30) — the fallback language/appearance button, which renders
+          on any route where no embedded picker is visible. It sits in exactly
+          the same corner as the FAB, so it is pushed above it.
+       2. .ft-product-sticky-cta (mobile-native-feel.css) — on <=1023px the
+          product page's "Add to cart" bar becomes a full-width fixed bar at
+          bottom: 0, z-index 45. The FAB (z-index 55) would otherwise render
+          directly on top of the primary purchase button, so both FAB and
+          panel are lifted clear of it. Above 1024px that bar is inline in the
+          buy rail and no adjustment is needed. */
 
 .ft-ai-widget-fab {
   position: fixed;
@@ -75,6 +88,19 @@
     width: auto;
     max-height: min(70vh, calc(100vh - 200px));
   }
+}
+
+/* .ft-glass-card's fill (brand-identity-2026.css) is a 62-66% translucent
+   wash that depends on backdrop-filter to stay legible — it's tuned for
+   panels resting on a page's own gradient. This panel instead lands on top of
+   dense body copy (help FAQs, product specs, cart lines), where that fill
+   leaves the page text readable straight through the conversation, and any
+   context where backdrop-filter is unavailable makes it worse. Opt the panel
+   out of the glass fill and keep a solid surface; the card's border, radius
+   and shadow treatment are untouched. */
+html .ft-root .ft-ai-widget-panel.ft-glass-card {
+  background: var(--card) !important;
+  border: 1px solid var(--border);
 }
 
 @keyframes ft-ai-widget-in {
@@ -279,10 +305,48 @@
   }
 }
 
+/* Signed-out state — the chat route is authenticated and per-user quota'd, so
+   visitors without a session get an explanation and a sign-in link instead of
+   an input box that could only ever 401. */
+.ft-ai-widget-signedout {
+  padding: 16px 14px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.ft-ai-widget-signedout-copy {
+  font-size: 0.8125rem;
+  line-height: 1.55;
+  color: var(--muted-foreground);
+}
+.ft-ai-widget-signedout-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 0 16px;
+  border-radius: 12px;
+  background: var(--primary);
+  color: #fff;
+  font-size: 0.8125rem;
+  font-weight: 800;
+  text-decoration: none;
+  transition: transform 140ms ease, filter 140ms ease;
+}
+.ft-ai-widget-signedout-cta:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.05);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .ft-ai-widget-fab,
-  .ft-ai-widget-send {
+  .ft-ai-widget-send,
+  .ft-ai-widget-signedout-cta {
     transition: none;
+  }
+  .ft-ai-widget-signedout-cta:hover {
+    transform: none;
   }
   .ft-ai-widget-panel {
     animation: none;
@@ -292,5 +356,60 @@
   }
   .ft-ai-widget-spinner {
     animation-duration: 1.4s;
+  }
+}
+
+/* ---- Collision handling with other fixed bottom-right controls ---- */
+
+/* The fallback language/appearance button (layout.tsx) is fixed bottom-right
+   at 16px with a 44px hit area — the exact footprint of the FAB. Whenever the
+   assistant is on the page, lift it above the FAB so both stay tappable. The
+   mobile override in sitewide-mobile-responsive.css sets its `bottom` with
+   !important, so these have to match that weight to take effect. */
+body:has(.ft-ai-widget-fab) .ft-sitewide-language-control {
+  bottom: 82px !important;
+}
+
+@media (max-width: 767px) {
+  /* FAB sits at calc(84px + safe-area) here and is 52px tall. */
+  body:has(.ft-ai-widget-fab) .ft-sitewide-language-control {
+    bottom: calc(148px + env(safe-area-inset-bottom)) !important;
+  }
+}
+
+/* The mobile offsets above reserve room for the dashboard bottom tab bars.
+   Storefront routes (.ft-storefront — marketplace, product detail, cart, help
+   and the other public pages; never the buyer/seller/admin shells, which is
+   what makes this safe) have no bottom bar, so the FAB would otherwise float
+   in dead space and eat thumb-reach for nothing. Drop it back down there.
+   Product detail is also .ft-storefront but does get a fixed bar, and the
+   sticky-CTA rules below deliberately follow this block to override it. */
+@media (max-width: 767px) {
+  body:has(.ft-storefront) .ft-ai-widget-fab {
+    bottom: max(18px, env(safe-area-inset-bottom));
+  }
+  body:has(.ft-storefront) .ft-ai-widget-panel {
+    bottom: calc(82px + env(safe-area-inset-bottom));
+    max-height: min(70vh, calc(100vh - 140px));
+  }
+  body:has(.ft-storefront):has(.ft-ai-widget-fab) .ft-sitewide-language-control {
+    bottom: calc(82px + env(safe-area-inset-bottom)) !important;
+  }
+}
+
+/* The product page's sticky "Add to cart" bar is a full-width fixed bar at
+   bottom: 0 on <=1023px. Without this the FAB renders on top of the primary
+   purchase CTA — worst on tablets (768-1023px), where the FAB's base
+   `bottom: 18px` puts it squarely over the button. */
+@media (max-width: 1023px) {
+  body:has(.ft-product-sticky-cta) .ft-ai-widget-fab {
+    bottom: calc(96px + env(safe-area-inset-bottom));
+  }
+  body:has(.ft-product-sticky-cta) .ft-ai-widget-panel {
+    bottom: calc(160px + env(safe-area-inset-bottom));
+    max-height: min(66vh, calc(100vh - 230px));
+  }
+  body:has(.ft-product-sticky-cta):has(.ft-ai-widget-fab) .ft-sitewide-language-control {
+    bottom: calc(160px + env(safe-area-inset-bottom)) !important;
   }
 }

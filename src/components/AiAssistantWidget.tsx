@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import Icon from '@/components/ui/AppIcon';
 import { useAuth } from '@/contexts/AuthContext';
 import { useChat } from '@/lib/hooks/useChat';
@@ -62,8 +64,18 @@ const ROLE_COPY: Record<
 };
 
 export default function AiAssistantWidget({ role, context }: AiAssistantWidgetProps) {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
+  const pathname = usePathname();
   const copy = ROLE_COPY[role];
+
+  // The signed-out sign-in link wants the current query string too, but
+  // useSearchParams() would force every page mounting this widget to sit
+  // behind a Suspense boundary (otherwise Next fails the build for the
+  // statically-rendered ones, e.g. /help and /cart). Reading location.search
+  // after mount gets the same value without that constraint, and this is only
+  // ever used in the client-rendered signed-out branch.
+  const [search, setSearch] = useState('');
+  useEffect(() => setSearch(window.location.search), [pathname]);
 
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<DisplayMessage[]>([{ role: 'assistant', content: copy.greeting }]);
@@ -109,10 +121,64 @@ export default function AiAssistantWidget({ role, context }: AiAssistantWidgetPr
     if (open) inputRef.current?.focus();
   }, [open]);
 
-  // The chat-completion route requires an authenticated Supabase session (returns 401 otherwise).
-  // Every layout this widget is mounted in is already auth-gated, but this guard keeps the
-  // component safe if it's ever reused somewhere that isn't.
-  if (!user) return null;
+  // Don't flash the signed-out prompt while the session is still being restored.
+  if (loading) return null;
+
+  // The chat-completion route requires an authenticated Supabase session (401 otherwise) AND
+  // burns a per-user daily quota (consume_api_quota with p_feature 'ai_chat'). Both of those
+  // protections are keyed to a user id, so there is deliberately no anonymous chat path here:
+  // an unauthenticated caller has no quota ceiling, which would make the endpoint a free,
+  // unmetered LLM proxy. Signed-out visitors on public routes (help, cart) therefore get the
+  // launcher plus a sign-in prompt — never an input box that would only 401 on submit.
+  if (!user) {
+    const next = `${pathname || '/'}${search}`;
+    return (
+      <>
+        <button
+          type="button"
+          onClick={() => setOpen((value) => !value)}
+          className="ft-ai-widget-fab"
+          aria-label={open ? `Close ${copy.title}` : `Open ${copy.title}`}
+          aria-expanded={open}
+        >
+          <Icon name={open ? 'XMarkIcon' : 'SparklesIcon'} size={22} />
+        </button>
+
+        {open && (
+          <section className="ft-ai-widget-panel ft-glass-card" role="dialog" aria-label={copy.title}>
+            <header className="ft-ai-widget-header">
+              <span className="ft-ai-widget-header-icon">
+                <Icon name="SparklesIcon" size={16} />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="ft-ai-widget-title">{copy.title}</p>
+                <p className="ft-ai-widget-subtitle">Sign in to chat</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                className="ft-ai-widget-close"
+                aria-label="Close assistant"
+              >
+                <Icon name="XMarkIcon" size={16} />
+              </button>
+            </header>
+
+            <div className="ft-ai-widget-signedout">
+              <p className="ft-ai-widget-signedout-copy">
+                The FabricTrad assistant answers questions about fabrics, MOQ, pricing, shipping and
+                returns. Sign in to your account to start a conversation.
+              </p>
+              <Link href={`/login?next=${encodeURIComponent(next)}`} className="ft-ai-widget-signedout-cta">
+                Sign in to continue
+                <Icon name="ArrowRightIcon" size={15} />
+              </Link>
+            </div>
+          </section>
+        )}
+      </>
+    );
+  }
 
   const handleSend = () => {
     const text = input.trim();

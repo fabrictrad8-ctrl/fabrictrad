@@ -11,6 +11,7 @@ import RelatedProducts from '@/app/product-detail/components/RelatedProducts';
 import ModernFabricDrapeViewer from '@/app/product-detail/components/ModernFabricDrapeViewer';
 import BuyerOnlyGuard from '@/components/BuyerOnlyGuard';
 import ProductBreadcrumb from '@/app/product-detail/components/ProductBreadcrumb';
+import ProductAiAssistant from '@/app/product-detail/components/ProductAiAssistant';
 import { CurrentProductShareButton } from '@/components/ProductShareButton';
 import Icon from '@/components/ui/AppIcon';
 import styles from './virtual-drape-responsive.module.css';
@@ -92,6 +93,7 @@ export default function ProductDetailPage() {
           </section>
         </div>
         <Footer />
+        <ProductAiAssistant />
       </main>
     </BuyerOnlyGuard>
   );

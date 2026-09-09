@@ -7,6 +7,7 @@ import MarketplaceBanner from '@/app/marketplace/components/MarketplaceBanner';
 import MarketplaceActiveFilters from '@/app/marketplace/components/MarketplaceActiveFilters';
 import MarketplaceQueryBridge from '@/app/marketplace/components/MarketplaceQueryBridge';
 import BestsellerShowcase from '@/app/marketplace/components/BestsellerShowcase';
+import MarketplaceAiAssistant from '@/app/marketplace/components/MarketplaceAiAssistant';
 import BuyerOnlyGuard from '@/components/BuyerOnlyGuard';
 
 export default function MarketplacePage() {
@@ -27,6 +28,7 @@ export default function MarketplacePage() {
           </div>
         </div>
         <Footer />
+        <MarketplaceAiAssistant />
       </main>
     </BuyerOnlyGuard>
   );
