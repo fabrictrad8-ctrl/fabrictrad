@@ -41,6 +41,62 @@ const json = (body: Record<string, unknown>, status = 200) =>
   });
 
 const roundMoney = (value: number) => Math.round(value * 100) / 100;
+
+/**
+ * Resolves the address a catalogue order would actually ship to, using the same
+ * precedence as /api/shiprocket/create-order: a B2B company location's shipping
+ * address when the order has one, otherwise the buyer's own profile address
+ * (buyer_profiles.billing_address, falling back to user_profiles columns).
+ * Kept deliberately in step with that route so payment cannot be allowed for an
+ * address fulfilment would later reject.
+ */
+async function resolveCatalogDeliveryAddress(
+  admin: ReturnType<typeof createAdminClient>,
+  buyerUserId: string,
+  companyLocationId: string | null
+): Promise<{ complete: boolean }> {
+  const str = (value: unknown) => (typeof value === 'string' ? value.trim() : '');
+  const isComplete = (line1: string, city: string, state: string, pin: string) =>
+    line1.length >= 3 && Boolean(city) && Boolean(state) && /^[1-9][0-9]{5}$/.test(pin);
+
+  if (companyLocationId) {
+    const { data } = await admin
+      .from('b2b_company_locations')
+      .select('shipping_address,billing_address')
+      .eq('id', companyLocationId)
+      .maybeSingle();
+    const source = (data?.shipping_address || data?.billing_address || null) as Record<string, unknown> | null;
+    if (source) {
+      return {
+        complete: isComplete(
+          str(source.line1 || source.address_line1 || source.address),
+          str(source.city),
+          str(source.state),
+          str(source.pincode || source.postal_code)
+        ),
+      };
+    }
+  }
+
+  const [{ data: buyerProfile }, { data: userProfile }] = await Promise.all([
+    admin.from('buyer_profiles').select('billing_address').eq('user_id', buyerUserId).maybeSingle(),
+    admin
+      .from('user_profiles')
+      .select('address_line1,city,state,pincode')
+      .eq('id', buyerUserId)
+      .maybeSingle(),
+  ]);
+
+  const billing = (buyerProfile?.billing_address || {}) as Record<string, unknown>;
+  return {
+    complete: isComplete(
+      str(billing.line1 || billing.address_line1) || str(userProfile?.address_line1),
+      str(billing.city) || str(userProfile?.city),
+      str(billing.state) || str(userProfile?.state),
+      str(billing.pincode) || str(userProfile?.pincode)
+    ),
+  };
+}
 const safeRate = (raw: string | undefined, fallback: number, maximum: number) => {
   const value = Number(raw ?? fallback);
   return Number.isFinite(value) && value >= 0 && value <= maximum ? value : fallback;
@@ -266,7 +322,7 @@ export async function POST(request: NextRequest) {
       ? await admin
           .from('catalog_order_requests')
           .select(
-            'id,buyer_id,seller_id,status,total_amount,payment_terms,deposit_percent,payment_status,amount_paid,amount_refunded,payment_due_at'
+            'id,buyer_id,seller_id,status,total_amount,payment_terms,deposit_percent,payment_status,amount_paid,amount_refunded,payment_due_at,company_location_id'
           )
           .eq('id', orderId)
           .eq('buyer_id', user.id)
@@ -297,7 +353,30 @@ export async function POST(request: NextRequest) {
     return json({ error: 'This order is not currently ready for payment.' }, 409);
   }
   if (!order.seller_id) {
-    return json({ error: 'A seller must confirm the order before payment.' }, 409);
+    return json({ error: 'This order is not attached to a seller and cannot be paid.' }, 409);
+  }
+
+  // A catalogue order ships to the buyer's saved address, and
+  // /api/shiprocket/create-order refuses an incomplete one. Without this check a
+  // buyer could pay in full for an order that could then never be dispatched, so
+  // the address is verified here — before any money moves — rather than failing
+  // afterwards at fulfilment.
+  if (orderType === 'catalog') {
+    const deliveryAddress = await resolveCatalogDeliveryAddress(
+      admin,
+      String(user.id),
+      order.company_location_id ? String(order.company_location_id) : null
+    );
+    if (!deliveryAddress.complete) {
+      return json(
+        {
+          error:
+            'Add a complete delivery address (street, city, state and 6-digit PIN code) to your profile before paying, otherwise this order cannot be shipped.',
+          code: 'DELIVERY_ADDRESS_REQUIRED',
+        },
+        409
+      );
+    }
   }
 
   const totalAmount = roundMoney(

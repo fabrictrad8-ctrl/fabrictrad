@@ -38,6 +38,35 @@ export default function ProductOrderStatusCard() {
   const [order, setOrder] = useState<CatalogOrder | null>(null);
   const [shipment, setShipment] = useState<Shipment | null>(null);
   const [loading, setLoading] = useState(false);
+  // Null until a complete address is found, so the Pay button stays disabled
+  // rather than letting a buyer pay for something that can never be dispatched.
+  const [deliverTo, setDeliverTo] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!user?.id) {
+      setDeliverTo(null);
+      return;
+    }
+    let active = true;
+    void (async () => {
+      const [{ data: buyerProfile }, { data: userProfile }] = await Promise.all([
+        supabase.from('buyer_profiles').select('billing_address').eq('user_id', user.id).maybeSingle(),
+        supabase.from('user_profiles').select('address_line1,city,state,pincode').eq('id', user.id).maybeSingle(),
+      ]);
+      if (!active) return;
+      const billing = (buyerProfile?.billing_address || {}) as Record<string, unknown>;
+      const str = (value: unknown) => (typeof value === 'string' ? value.trim() : '');
+      const line1 = str(billing.line1 || billing.address_line1) || str(userProfile?.address_line1);
+      const city = str(billing.city) || str(userProfile?.city);
+      const state = str(billing.state) || str(userProfile?.state);
+      const pin = str(billing.pincode) || str(userProfile?.pincode);
+      const complete = line1.length >= 3 && Boolean(city) && Boolean(state) && /^[1-9][0-9]{5}$/.test(pin);
+      setDeliverTo(complete ? [line1, city, state, pin].filter(Boolean).join(', ') : null);
+    })();
+    return () => {
+      active = false;
+    };
+  }, [supabase, user?.id]);
 
   const load = useCallback(async () => {
     if (!user?.id || product.source !== 'seller' || !product.rawProductId) {
@@ -143,7 +172,26 @@ export default function ProductOrderStatusCard() {
 
       {canPay && (
         <div className="mt-4">
+          {/* Amazon-style: confirm where this is going before paying. The payment
+              route enforces the same rule server-side, so this exists to explain
+              the block up front instead of failing after the buyer commits. */}
+          <div className={`mb-3 rounded-xl border p-3 ${deliverTo ? 'border-border bg-muted/40' : 'border-warning/40 bg-warning/5'}`}>
+            <p className="text-[11px] font-850 uppercase tracking-wider text-muted-foreground">Deliver to</p>
+            {deliverTo ? (
+              <p className="mt-1 text-xs leading-5 text-foreground">{deliverTo}</p>
+            ) : (
+              <>
+                <p className="mt-1 text-xs leading-5 text-warning">
+                  No complete delivery address on your account. Add a street, city, state and 6-digit PIN code, or this order cannot be shipped.
+                </p>
+                <Link href="/profile" className="mt-2 inline-flex items-center gap-1 text-xs font-850 text-primary">
+                  Add delivery address <Icon name="ArrowRightIcon" size={13} />
+                </Link>
+              </>
+            )}
+          </div>
           <RazorpayCheckout
+            disabled={!deliverTo}
             amount={remaining}
             orderId={order.id}
             orderType="catalog"
