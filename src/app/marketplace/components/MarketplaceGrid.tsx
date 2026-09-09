@@ -53,7 +53,7 @@ export default function MarketplaceGrid() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { profile } = useAuth();
-  const { add } = useCart();
+  const { add, items: cartItems } = useCart();
   const { has: hasWishlisted, toggle: toggleWishlist } = useWishlist();
   const [products, setProducts] = useState<MarketplaceListing[]>([]);
   const [loading, setLoading] = useState(true);
@@ -210,6 +210,14 @@ export default function MarketplaceGrid() {
     document.getElementById('marketplace-results')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
+  // Any variant of a product counts as "in cart" here, because the grid card
+  // adds the product's default variant rather than offering a variant picker.
+  const cartQuantityFor = (productId: string) => {
+    const lines = cartItems.filter((item) => item.productId === productId);
+    if (!lines.length) return null;
+    return lines.reduce((sum, line) => sum + line.quantity, 0);
+  };
+
   const addProductToCart = (product: CatalogProduct) => {
     const defaultVariant = product.variants?.find((variant) => variant.available > 0) || null;
     const quantity = Number(defaultVariant?.moq ?? product.moq ?? 1);
@@ -298,6 +306,7 @@ export default function MarketplaceGrid() {
               view={view}
               sponsored={isSponsored(product)}
               wishlisted={hasWishlisted(product.id)}
+              cartQuantity={cartQuantityFor(product.id)}
               onToggleWishlist={() => void toggleWishlist(product)}
               onAddToCart={() => addProductToCart(product)}
               onOpen={() => trackFunnelStep('product_view', { product_id: product.id })}

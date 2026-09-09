@@ -316,10 +316,15 @@ export default function ProductInfoV2() {
       endUserMode === 'disabled' ||
       !['retail', 'both'].includes(product.saleChannel || 'b2b'));
 
+  // Quantity lives in the URL alongside `variant` so the Add to cart button (a
+  // sibling component) sees the same choice, and so returning from the cart —
+  // whose links already carry ?qty= — restores what the buyer had picked.
   useEffect(() => {
-    if (Number.isFinite(minimum)) setQty(minimum);
+    if (!Number.isFinite(minimum)) return;
+    const fromUrl = Number(searchParams.get('qty'));
+    setQty(Number.isFinite(fromUrl) && fromUrl >= minimum ? fromUrl : minimum);
     setOrderResult(null);
-  }, [minimum, product.selectedVariantId]);
+  }, [minimum, product.selectedVariantId, searchParams]);
 
   const catalogBasePrice = Number(catalogRule?.price_override || basePrice);
   const eligibleBreak = (Array.isArray(catalogRule?.price_breaks) ? catalogRule.price_breaks : [])
@@ -367,6 +372,15 @@ export default function ProductInfoV2() {
     const constrained = Math.max(minimum, Math.min(maximum, value));
     const steps = Math.round((constrained - minimum) / increment);
     return Number((minimum + steps * increment).toFixed(2));
+  };
+
+  // Publishes the chosen quantity to the URL so Add to cart picks it up.
+  const applyQuantity = (value: number) => {
+    const next = clampQuantity(value);
+    setQty(next);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('qty', String(next));
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   };
 
   const submitOrder = async () => {
@@ -573,7 +587,7 @@ export default function ProductInfoV2() {
           <label className="block text-sm font-700 text-foreground">
             Quantity ({unit})
             <div className="mt-1.5 flex items-center gap-2">
-              <button type="button" onClick={() => setQty(clampQuantity(qty - increment))} className="ft-icon-button" aria-label="Reduce quantity">
+              <button type="button" onClick={() => applyQuantity(qty - increment)} className="ft-icon-button" aria-label="Reduce quantity">
                 <Icon name="MinusIcon" size={16} />
               </button>
               <input
@@ -582,10 +596,10 @@ export default function ProductInfoV2() {
                 min={minimum}
                 max={Number.isFinite(maximum) ? maximum : undefined}
                 step={increment}
-                onChange={(event) => setQty(clampQuantity(Number(event.target.value)))}
+                onChange={(event) => applyQuantity(Number(event.target.value))}
                 className="input-base min-w-0 flex-1 px-4 py-3 text-center font-800"
               />
-              <button type="button" onClick={() => setQty(clampQuantity(qty + increment))} className="ft-icon-button" aria-label="Increase quantity">
+              <button type="button" onClick={() => applyQuantity(qty + increment)} className="ft-icon-button" aria-label="Increase quantity">
                 <Icon name="PlusIcon" size={16} />
               </button>
             </div>

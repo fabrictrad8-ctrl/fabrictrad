@@ -60,6 +60,8 @@ type Props = {
   view: 'grid' | 'list';
   sponsored: boolean;
   wishlisted: boolean;
+  /** Quantity already in the cart for this product, or null if it is not in the cart. */
+  cartQuantity: number | null;
   onToggleWishlist: () => void;
   onAddToCart: () => void;
   onOpen: () => void;
@@ -70,6 +72,7 @@ export default function MarketplaceProductCard({
   view,
   sponsored,
   wishlisted,
+  cartQuantity,
   onToggleWishlist,
   onAddToCart,
   onOpen,
@@ -190,10 +193,17 @@ export default function MarketplaceProductCard({
         )}
 
         <div className="ftm-actions">
-          <button type="button" onClick={onAddToCart} disabled={outOfStock} className="ftm-buy">
-            <Icon name="ShoppingCartIcon" size={14} style={{ flex: '0 0 auto' }} />
-            {outOfStock ? 'Unavailable' : 'Add to cart'}
-          </button>
+          {cartQuantity !== null && !outOfStock ? (
+            <Link href="/cart" className="ftm-buy" aria-label={`Go to cart — ${product.name} is in your cart`}>
+              <Icon name="CheckIcon" size={14} style={{ flex: '0 0 auto' }} />
+              Go to cart
+            </Link>
+          ) : (
+            <button type="button" onClick={onAddToCart} disabled={outOfStock} className="ftm-buy">
+              <Icon name="ShoppingCartIcon" size={14} style={{ flex: '0 0 auto' }} />
+              {outOfStock ? 'Unavailable' : 'Add to cart'}
+            </button>
+          )}
           <Link href={href} onClick={onOpen} className="ftm-detail" aria-label={`View details for ${product.name}`}>
             Details
           </Link>
