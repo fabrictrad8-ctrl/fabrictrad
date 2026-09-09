@@ -269,9 +269,10 @@ export default function Header() {
                     className="ft-nav-workspace-btn"
                     aria-expanded={workspaceOpen}
                     aria-haspopup="menu"
+                    aria-label="Workspaces"
                   >
                     <span className="ft-nav-workspace-dot" />
-                    <span>Workspaces</span>
+                    <span className="ft-nav-workspace-label">Workspaces</span>
                     <Icon name="ChevronDownIcon" size={14} />
                   </button>
 

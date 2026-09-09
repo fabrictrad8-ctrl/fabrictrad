@@ -129,6 +129,10 @@ body.ft-root header.ft-nav-shell.fixed.top-0 {
   border-radius: 10px;
   color: var(--foreground);
   transition: background-color 140ms ease;
+  /* These labels are short and deliberately stacked. Without this they get
+     squeezed by the neighbouring controls and break mid-word — "Your Orde rs". */
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 .ft-nav-orders-link:hover {
   background: color-mix(in srgb, var(--foreground) 6%, transparent);
@@ -145,9 +149,27 @@ body.ft-root header.ft-nav-shell.fixed.top-0 {
   font-size: 0.8rem;
   font-weight: 750;
   transition: border-color 140ms ease, background-color 140ms ease;
+  /* "Workspaces" was breaking into "Works paces" once the right-hand controls
+     ran out of room. Hold the pill's shape instead of wrapping the label. */
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 .ft-nav-workspace-btn:hover {
   border-color: color-mix(in srgb, var(--foreground) 25%, var(--border));
+}
+
+/* Between the md breakpoint and roughly 1100px the signed-in header carries
+   orders, workspaces, wishlist, cart, notifications and the profile menu at
+   once. Now that the labels refuse to wrap, the longest one collapses to its
+   dot and chevron here so the row stays on one line instead of overflowing.
+   The button keeps its accessible name, so the control is unchanged. */
+@media (max-width: 1100px) {
+  .ft-nav-workspace-label {
+    display: none;
+  }
+  .ft-nav-workspace-btn {
+    padding-inline: 10px;
+  }
 }
 .ft-nav-workspace-dot {
   width: 7px;
