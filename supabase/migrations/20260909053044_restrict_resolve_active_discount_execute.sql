@@ -1,0 +1,11 @@
+-- Reconstructed from the applied live migration 20260909053044_restrict_resolve_active_discount_execute.
+-- resolve_active_discount increments discount_campaigns.usage_count as a side
+-- effect. It's meant to be called only from inside the
+-- enforce_catalog_order_policy_and_tax trigger (which runs as its own
+-- SECURITY DEFINER owner and can call it regardless of these grants).
+-- Without this, PostgREST's default exposure of every public-schema
+-- function let anon/authenticated call it directly over the REST API and
+-- burn through a usage-limited campaign's redemptions without ever placing
+-- a real order - unlike the existing record_discount_redemption(), which
+-- checks real order ownership before incrementing anything.
+revoke execute on function public.resolve_active_discount(uuid, uuid, text, uuid, numeric, text) from public, anon, authenticated;

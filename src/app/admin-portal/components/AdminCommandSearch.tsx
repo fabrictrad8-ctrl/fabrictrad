@@ -15,16 +15,21 @@ type SearchResult = {
 
 const navigationResults: SearchResult[] = [
   { id: 'nav-home', kind: 'Navigation', title: 'Home', subtitle: 'Live commerce overview and tasks', href: '/admin-portal', icon: 'HomeIcon' },
+  { id: 'nav-activity', kind: 'Navigation', title: 'Activity', subtitle: 'Operational timeline', href: '/admin-portal?tab=activity', icon: 'BoltIcon' },
   { id: 'nav-orders', kind: 'Navigation', title: 'Orders', subtitle: 'Search, filter and manage every order', href: '/admin-portal?tab=orders', icon: 'ShoppingBagIcon' },
+  { id: 'nav-bespoke', kind: 'Navigation', title: 'Custom orders', subtitle: 'Tailoring, trials and approvals', href: '/admin-portal?tab=bespoke', icon: 'ScissorsIcon' },
   { id: 'nav-products', kind: 'Navigation', title: 'Products', subtitle: 'Review listings, inventory and GTIN status', href: '/admin-portal?tab=listings', icon: 'TagIcon' },
   { id: 'nav-customers', kind: 'Navigation', title: 'Customers', subtitle: 'Buyer, seller and business accounts', href: '/admin-portal?tab=customers', icon: 'UsersIcon' },
   { id: 'nav-sellers', kind: 'Navigation', title: 'Seller verification', subtitle: 'GST, documents, bank and publishing access', href: '/admin-portal?tab=sellers', icon: 'BuildingStorefrontIcon' },
   { id: 'nav-payments', kind: 'Navigation', title: 'Payments', subtitle: 'Razorpay captures, failures and refunds', href: '/admin-portal?tab=payments', icon: 'CreditCardIcon' },
   { id: 'nav-disputes', kind: 'Navigation', title: 'Returns & disputes', subtitle: 'Evidence, resolutions and refund reviews', href: '/admin-portal?tab=disputes', icon: 'ChatBubbleLeftRightIcon' },
   { id: 'nav-reconciliation', kind: 'Navigation', title: 'Reconciliation', subtitle: 'Commission and settlements', href: '/admin-portal?tab=reconciliation', icon: 'ArrowsRightLeftIcon' },
+  { id: 'nav-fulfillment', kind: 'Navigation', title: 'Fulfillment', subtitle: 'Shipments and delivery', href: '/admin-portal?tab=fulfillment', icon: 'TruckIcon' },
   { id: 'nav-analytics', kind: 'Navigation', title: 'Analytics', subtitle: 'Seller and fulfillment performance', href: '/admin-portal?tab=seller-metrics', icon: 'PresentationChartLineIcon' },
+  { id: 'nav-top-sellers', kind: 'Navigation', title: 'Top sellers', subtitle: 'Marketplace leaders', href: '/admin-portal?tab=top-sellers', icon: 'TrophyIcon' },
   { id: 'nav-discounts', kind: 'Navigation', title: 'Discounts', subtitle: 'Campaigns and promotion controls', href: '/admin-portal?tab=discounts', icon: 'ReceiptPercentIcon' },
   { id: 'nav-sponsored', kind: 'Navigation', title: 'Sponsored Listings', subtitle: 'Paid placement in the marketplace grid', href: '/admin-portal?tab=sponsored', icon: 'MegaphoneIcon' },
+  { id: 'nav-errors', kind: 'Navigation', title: 'Error monitor', subtitle: 'Runtime and webhook issues', href: '/admin-portal?tab=errors', icon: 'ExclamationTriangleIcon' },
   { id: 'nav-settings', kind: 'Navigation', title: 'Settings', subtitle: 'Platform policy and operational settings', href: '/admin-portal?tab=settings', icon: 'CogIcon' },
 ];
 

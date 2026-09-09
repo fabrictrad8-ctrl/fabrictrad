@@ -36,7 +36,14 @@ export default function AdminActivityFeed() {
     setLoading(true);
     setError('');
     const supabase = createClient();
-    const [ordersResult, paymentsResult, productsResult, registrationsResult] = await Promise.all([
+    const [
+      bulkOrdersResult,
+      bulkPaymentsResult,
+      catalogOrdersResult,
+      catalogPaymentsResult,
+      productsResult,
+      registrationsResult,
+    ] = await Promise.all([
       supabase
         .from('bulk_orders')
         .select('id,status,buyer_company,buyer_name,net_total,created_at,updated_at')
@@ -44,6 +51,16 @@ export default function AdminActivityFeed() {
         .limit(50),
       supabase
         .from('bulk_order_payments')
+        .select('id,status,amount,razorpay_payment_id,created_at,updated_at')
+        .order('updated_at', { ascending: false })
+        .limit(50),
+      supabase
+        .from('catalog_order_requests')
+        .select('id,buyer_id,status,total_amount,created_at,updated_at')
+        .order('updated_at', { ascending: false })
+        .limit(50),
+      supabase
+        .from('catalog_order_payments')
         .select('id,status,amount,razorpay_payment_id,created_at,updated_at')
         .order('updated_at', { ascending: false })
         .limit(50),
@@ -60,8 +77,10 @@ export default function AdminActivityFeed() {
     ]);
 
     const firstError = [
-      ordersResult.error,
-      paymentsResult.error,
+      bulkOrdersResult.error,
+      bulkPaymentsResult.error,
+      catalogOrdersResult.error,
+      catalogPaymentsResult.error,
       productsResult.error,
       registrationsResult.error,
     ].find(Boolean);
@@ -72,19 +91,58 @@ export default function AdminActivityFeed() {
       return;
     }
 
-    const orderActivities: Activity[] = (ordersResult.data || []).map((order) => ({
-      id: `order-${order.id}-${order.updated_at}`,
+    const catalogBuyerIds = [
+      ...new Set((catalogOrdersResult.data || []).map((order) => order.buyer_id).filter(Boolean)),
+    ];
+    const catalogBuyers = new Map<string, { full_name: string | null; business_name: string | null }>();
+    if (catalogBuyerIds.length) {
+      const { data: buyerRows } = await supabase
+        .from('user_profiles')
+        .select('id,full_name,business_name')
+        .in('id', catalogBuyerIds);
+      (buyerRows || []).forEach((buyer) => {
+        catalogBuyers.set(buyer.id, { full_name: buyer.full_name, business_name: buyer.business_name });
+      });
+    }
+
+    const bulkOrderActivities: Activity[] = (bulkOrdersResult.data || []).map((order) => ({
+      id: `bulk-order-${order.id}-${order.updated_at}`,
       createdAt: order.updated_at || order.created_at,
       icon: 'ShoppingBagIcon',
       iconBg: 'bg-primary/10',
       iconColor: 'text-primary',
-      title: `Order ${String(order.status || 'draft').replaceAll('_', ' ')}`,
+      title: `Bulk order ${String(order.status || 'draft').replaceAll('_', ' ')}`,
       desc: `${order.buyer_company || order.buyer_name || 'Buyer'} · ₹${Number(order.net_total || 0).toLocaleString('en-IN')}`,
       meta: `FT-BULK-${String(order.id).slice(0, 8).toUpperCase()}`,
     }));
 
-    const paymentActivities: Activity[] = (paymentsResult.data || []).map((payment) => ({
-      id: `payment-${payment.id}-${payment.updated_at}`,
+    const catalogOrderActivities: Activity[] = (catalogOrdersResult.data || []).map((order) => {
+      const buyer = order.buyer_id ? catalogBuyers.get(order.buyer_id) : null;
+      return {
+        id: `catalog-order-${order.id}-${order.updated_at}`,
+        createdAt: order.updated_at || order.created_at,
+        icon: 'ShoppingBagIcon',
+        iconBg: 'bg-primary/10',
+        iconColor: 'text-primary',
+        title: `Order ${String(order.status || 'pending').replaceAll('_', ' ')}`,
+        desc: `${buyer?.business_name || buyer?.full_name || 'Buyer'} · ₹${Number(order.total_amount || 0).toLocaleString('en-IN')}`,
+        meta: `FT-CAT-${String(order.id).slice(0, 8).toUpperCase()}`,
+      };
+    });
+
+    const bulkPaymentActivities: Activity[] = (bulkPaymentsResult.data || []).map((payment) => ({
+      id: `bulk-payment-${payment.id}-${payment.updated_at}`,
+      createdAt: payment.updated_at || payment.created_at,
+      icon: 'CreditCardIcon',
+      iconBg: 'bg-success/10',
+      iconColor: 'text-success',
+      title: `Bulk payment ${String(payment.status || 'created').replaceAll('_', ' ')}`,
+      desc: `₹${Number(payment.amount || 0).toLocaleString('en-IN')} payment record updated`,
+      meta: payment.razorpay_payment_id || String(payment.id),
+    }));
+
+    const catalogPaymentActivities: Activity[] = (catalogPaymentsResult.data || []).map((payment) => ({
+      id: `catalog-payment-${payment.id}-${payment.updated_at}`,
       createdAt: payment.updated_at || payment.created_at,
       icon: 'CreditCardIcon',
       iconBg: 'bg-success/10',
@@ -119,7 +177,14 @@ export default function AdminActivityFeed() {
     );
 
     setActivities(
-      [...orderActivities, ...paymentActivities, ...productActivities, ...registrationActivities]
+      [
+        ...bulkOrderActivities,
+        ...catalogOrderActivities,
+        ...bulkPaymentActivities,
+        ...catalogPaymentActivities,
+        ...productActivities,
+        ...registrationActivities,
+      ]
         .filter((activity) => activity.createdAt)
         .sort(
           (left, right) =>
