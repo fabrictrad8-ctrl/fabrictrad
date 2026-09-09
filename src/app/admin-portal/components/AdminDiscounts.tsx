@@ -8,6 +8,7 @@ type Campaign = {
   name: string;
   campaign_type: string;
   target_product_key: string | null;
+  code: string | null;
   discount_percent: number;
   min_order_value: number;
   max_discount: number | null;
@@ -44,6 +45,7 @@ const emptyForm = {
   name: '',
   campaignType: '',
   targetProductKey: '',
+  code: '',
   discountPercent: '',
   minOrderValue: '',
   maxDiscount: '',
@@ -94,6 +96,7 @@ export default function AdminDiscounts() {
       name: campaign.name,
       campaignType: campaign.campaign_type,
       targetProductKey: campaign.target_product_key || '',
+      code: campaign.code || '',
       discountPercent: String(campaign.discount_percent),
       minOrderValue: String(campaign.min_order_value),
       maxDiscount: campaign.max_discount === null ? '' : String(campaign.max_discount),
@@ -116,6 +119,7 @@ export default function AdminDiscounts() {
         name: form.name,
         campaignType: form.campaignType,
         targetProductKey: form.targetProductKey || null,
+        code: form.code || null,
         discountPercent: Number(form.discountPercent),
         minOrderValue: form.minOrderValue ? Number(form.minOrderValue) : 0,
         maxDiscount: form.maxDiscount || null,
@@ -177,7 +181,7 @@ export default function AdminDiscounts() {
       <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
         <div>
           <h1 className="text-xl font-800 text-foreground">Discount & Promotions</h1>
-          <p className="mt-1 text-xs text-muted-foreground">Campaigns configured here are not yet applied automatically at checkout — that redemption wiring is a separate follow-up.</p>
+          <p className="mt-1 text-xs text-muted-foreground">Eligible campaigns apply automatically at checkout, or via the code buyers enter for Coupon Code campaigns. Free Shipping campaigns don&apos;t auto-apply yet — there&apos;s no separate shipping charge to waive.</p>
         </div>
         <button onClick={openCreate} className="btn-primary px-4 py-2 text-sm rounded-xl flex items-center gap-2">
           <Icon name="PlusIcon" size={16} />
@@ -217,6 +221,25 @@ export default function AdminDiscounts() {
               <div>
                 <label className="block text-xs font-700 text-foreground mb-1.5">Target seller id *</label>
                 <input type="text" value={form.targetProductKey} onChange={(e) => setForm((f) => ({ ...f, targetProductKey: e.target.value }))} placeholder="seller_profiles.id" className="input-base w-full px-3 py-2 text-sm rounded-xl" disabled={!!editingId} />
+              </div>
+            )}
+            {form.campaignType === 'Buyer-specific' && (
+              <div>
+                <label className="block text-xs font-700 text-foreground mb-1.5">Target buyer email *</label>
+                <input type="email" value={form.targetProductKey} onChange={(e) => setForm((f) => ({ ...f, targetProductKey: e.target.value }))} placeholder="buyer@example.com" className="input-base w-full px-3 py-2 text-sm rounded-xl" disabled={!!editingId} />
+                <p className="mt-1 text-[11px] text-muted-foreground">Must match the email on an existing FabricTrad account.</p>
+              </div>
+            )}
+            {form.campaignType === 'Coupon Code' && (
+              <div>
+                <label className="block text-xs font-700 text-foreground mb-1.5">Code buyers type in *</label>
+                <input type="text" value={form.code} onChange={(e) => setForm((f) => ({ ...f, code: e.target.value.toUpperCase() }))} placeholder="e.g. FESTIVE10" maxLength={32} className="input-base w-full px-3 py-2 text-sm rounded-xl uppercase" disabled={!!editingId} />
+                <p className="mt-1 text-[11px] text-muted-foreground">3-32 characters: letters, numbers, hyphens or underscores. Not case-sensitive at checkout.</p>
+              </div>
+            )}
+            {form.campaignType === 'Free Shipping' && (
+              <div className="sm:col-span-2 lg:col-span-3 rounded-xl border border-warning/30 bg-warning/5 p-3 text-xs text-warning">
+                FabricTrad does not currently charge buyers a separate shipping fee at checkout, so there is nothing for this campaign type to waive — it will not auto-apply at checkout until a real shipping charge exists to discount.
               </div>
             )}
             <div>
@@ -279,6 +302,7 @@ export default function AdminDiscounts() {
                     {campaign.displayStatus.charAt(0).toUpperCase() + campaign.displayStatus.slice(1)}
                   </span>
                   <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded-full">{campaign.campaign_type}</span>
+                  {campaign.code && <span className="mono-id">{campaign.code}</span>}
                 </div>
                 <p className="text-base font-800 text-foreground mb-1">{campaign.name}</p>
                 <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">

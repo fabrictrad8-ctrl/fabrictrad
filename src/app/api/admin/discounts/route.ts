@@ -79,7 +79,8 @@ export async function POST(request: NextRequest) {
   const startDate = String(body.startDate || '');
   const endDate = String(body.endDate || '');
   const fundedBy = String(body.fundedBy || 'FabricTrad');
-  const targetProductKey = body.targetProductKey ? String(body.targetProductKey).trim() : null;
+  let targetProductKey = body.targetProductKey ? String(body.targetProductKey).trim() : null;
+  const rawCode = typeof body.code === 'string' ? body.code.trim() : '';
 
   if (name.length < 3 || name.length > 120) return json({ error: 'Campaign name must be 3-120 characters.' }, 400);
   if (!CAMPAIGN_TYPES.includes(campaignType as (typeof CAMPAIGN_TYPES)[number])) return json({ error: 'Invalid campaign type.' }, 400);
@@ -93,16 +94,51 @@ export async function POST(request: NextRequest) {
   if (campaignType === 'Category' && !targetProductKey) return json({ error: 'Category campaigns need a target category.' }, 400);
   if (campaignType === 'Seller-specific' && !targetProductKey) return json({ error: 'Seller-specific campaigns need a target seller.' }, 400);
 
+  const supabase = await createClient();
+
+  // Buyer-specific campaigns are targeted by the buyer's real account id, but an
+  // admin realistically only has the buyer's email on hand (from a support
+  // conversation, say) - accept the email and resolve it to the account id here,
+  // matching the same target_product_key mechanism the other targeted types use.
+  if (campaignType === 'Buyer-specific') {
+    const email = targetProductKey?.trim().toLowerCase();
+    if (!email) return json({ error: 'Buyer-specific campaigns need the target buyer’s email.' }, 400);
+    const { data: buyerAccount, error: buyerLookupError } = await supabase
+      .from('user_profiles')
+      .select('id')
+      .ilike('email', email)
+      .maybeSingle();
+    if (buyerLookupError) return json({ error: 'The buyer account could not be looked up.' }, 503);
+    if (!buyerAccount?.id) return json({ error: 'No FabricTrad account was found for that email.' }, 400);
+    targetProductKey = buyerAccount.id;
+  }
+
+  let code: string | null = null;
+  if (campaignType === 'Coupon Code') {
+    if (!rawCode) return json({ error: 'Coupon Code campaigns need the code buyers will type in.' }, 400);
+    if (!/^[A-Za-z0-9_-]{3,32}$/.test(rawCode)) {
+      return json({ error: 'Codes must be 3-32 characters: letters, numbers, hyphens or underscores only.' }, 400);
+    }
+    code = rawCode.toUpperCase();
+    const { data: existingCode, error: codeLookupError } = await supabase
+      .from('discount_campaigns')
+      .select('id')
+      .ilike('code', code)
+      .maybeSingle();
+    if (codeLookupError) return json({ error: 'The code could not be checked for uniqueness.' }, 503);
+    if (existingCode?.id) return json({ error: 'That code is already in use by another campaign.' }, 409);
+  }
+
   const today = new Date().toISOString().slice(0, 10);
   const status = startDate > today ? 'scheduled' : 'active';
 
-  const supabase = await createClient();
   const { data, error } = await supabase
     .from('discount_campaigns')
     .insert({
       name,
       campaign_type: campaignType,
       target_product_key: targetProductKey,
+      code,
       discount_percent: discountPercent,
       min_order_value: minOrderValue,
       max_discount: maxDiscount,
