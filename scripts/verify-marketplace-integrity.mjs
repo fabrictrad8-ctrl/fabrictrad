@@ -84,7 +84,13 @@ requireText('src/lib/invoiceDocument.ts', 'Tax invoice');
 requireText('src/app/api/invoices/[invoiceId]/route.ts', 'renderInvoiceDocument');
 requireText('src/components/commerce/OrderLifecyclePanel.tsx', 'seller_tax_invoices');
 requireText('src/components/commerce/OrderLifecyclePanel.tsx', "orderType: 'catalog'");
-requireText('src/app/seller-dashboard/components/SellerCatalogOrders.tsx', "payment_status !== 'paid'");
+// Fulfilment is now gated positively (must be paid) rather than negatively
+// (must not be unpaid), which is the stricter form of the same invariant:
+// a seller can never mark an order fulfilled before payment is captured.
+requireText(
+  'src/app/seller-dashboard/components/SellerCatalogOrders.tsx',
+  "order.status === 'paid' && order.payment_status === 'paid'"
+);
 requireText('src/app/seller-dashboard/components/SellerOrders.tsx', "order.payment_status !== 'paid'");
 
 // Shiprocket must support both real order types, and neither branch can ship before capture.
@@ -113,7 +119,10 @@ requireText('src/app/buyer-dashboard/components/BuyerCatalogOrders.tsx', '<Razor
 
 // Actionable notifications are backed by real persisted commerce notifications.
 requireText('src/app/components/CommerceNotificationFeed.tsx', "from('commerce_notifications')");
-requireText('src/app/components/CommerceNotificationFeed.tsx', "rpc('seller_decide_catalog_order'");
+// Sellers no longer accept orders — stock is committed at checkout and
+// seller_decide_catalog_order's accept branch raises. Declining an unpaid
+// order is the only real seller decision left, so that is what must stay wired.
+requireText('src/app/components/CommerceNotificationFeed.tsx', "rpc('seller_reject_catalog_order'");
 requireText('src/app/components/CommerceNotificationFeed.tsx', '<RazorpayCheckout');
 requireText('src/app/components/NotificationPreferences.tsx', '<CommerceNotificationFeed mode={mode} />');
 requireText('supabase/migrations/20260822154500_commerce_notifications_and_order_actions.sql', 'commerce_notifications');
