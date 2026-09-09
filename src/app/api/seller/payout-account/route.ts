@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { MARKETPLACE_PLATFORM_PERCENT, MARKETPLACE_SELLER_PERCENT } from '@/lib/marketplaceSplit';
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
@@ -34,7 +35,7 @@ export async function GET() {
   try {
     const { seller } = await sellerAccess();
     const { account, ready } = await refreshPayoutAccount(seller.id);
-    return json({ account: publicAccount(account), ready, sellerSharePercent: 90, platformSharePercent: 10 });
+    return json({ account: publicAccount(account), ready, sellerSharePercent: MARKETPLACE_SELLER_PERCENT, platformSharePercent: MARKETPLACE_PLATFORM_PERCENT });
   } catch (error) { return fail(error); }
 }
 

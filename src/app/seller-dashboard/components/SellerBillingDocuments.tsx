@@ -236,7 +236,7 @@ export default function SellerBillingDocuments() {
           <div>
             <h2 className="text-sm font-800 text-foreground">Automatic billing is the primary workflow</h2>
             <p className="mt-1 text-xs leading-5 text-muted-foreground">
-              Accepted order → buyer pays → Razorpay capture is verified → seller earnings are recognised → invoice is generated → invoice email is sent to the buyer. An authorised or initiated payment does not create earnings or a final invoice.
+              Order placed → buyer pays → Razorpay capture is verified → seller earnings are recognised → invoice is generated → invoice email is sent to the buyer. An authorised or initiated payment does not create earnings or a final invoice.
             </p>
           </div>
         </div>

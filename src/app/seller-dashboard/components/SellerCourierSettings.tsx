@@ -382,7 +382,7 @@ export default function SellerCourierSettings() {
             <Icon name="TruckIcon" size={28} className="mx-auto text-muted-foreground" />
             <p className="mt-2 text-sm font-800">No paid orders ready to ship</p>
             <p className="mt-1 text-xs text-muted-foreground">
-              Accepted orders appear here automatically after Razorpay confirms full payment.
+              Orders appear here automatically once Razorpay confirms full payment.
             </p>
           </div>
         )}

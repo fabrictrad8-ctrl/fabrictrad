@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { MARKETPLACE_PLATFORM_PERCENT, MARKETPLACE_SELLER_PERCENT } from '@/lib/marketplaceSplit';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { requireAdministrator } from '@/lib/server/requireAdministrator';
 import { getRazorpayCredentials } from '@/lib/razorpayCredentials';
@@ -23,7 +24,7 @@ export async function GET() {
     checkedAt: new Date().toISOString(),
     policies: Object.fromEntries((policies.data || []).map(row => [row.policy_key, row.policy_value])),
     payments: { configured: Boolean(credentials), mode: credentials?.keyId.startsWith('rzp_live_') ? 'live' : credentials?.keyId.startsWith('rzp_test_') ? 'test' : 'unavailable' },
-    payouts: { sellerSharePercent: 90, platformSharePercent: 10, verifiedAccounts: readySellers.count || 0, eligibleSellers: eligibleSellers.count || 0, missingAccounts: Math.max(0, (eligibleSellers.count || 0) - (readySellers.count || 0)) },
+    payouts: { sellerSharePercent: MARKETPLACE_SELLER_PERCENT, platformSharePercent: MARKETPLACE_PLATFORM_PERCENT, verifiedAccounts: readySellers.count || 0, eligibleSellers: eligibleSellers.count || 0, missingAccounts: Math.max(0, (eligibleSellers.count || 0) - (readySellers.count || 0)) },
     invoices: { emailConfigured, awaitingEmail: Math.max(0, (invoiceTotal.count || 0) - (acceptedInvoices.count || 0)), providerAccepted: acceptedInvoices.count || 0 },
     whatsapp: { channelConfigured: Boolean(process.env.GUPSHUP_API_KEY && process.env.GUPSHUP_SOURCE_NUMBER), callbackSecretConfigured: String(process.env.GUPSHUP_WEBHOOK_SECRET || '').length >= 32, audience: 'sellers_only' },
     drape: { configured: Boolean(process.env.OPENAI_API_KEY || process.env.GEMINI_API_KEY), full3dReady: false },

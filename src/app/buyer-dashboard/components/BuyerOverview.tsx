@@ -116,7 +116,11 @@ export default function BuyerOverview({ onNavigate }: Props) {
   const busy = loading || bulkLoading;
 
   const statCards = [
-    { label: 'Awaiting seller', value: String(pendingSeller.length), icon: 'ClockIcon', color: 'text-warning', tab: 'orders' as DashTab },
+    // Mixes two different waits: a catalogue order sits at 'pending' while the
+    // buyer's OWN company approver signs it off (sellers no longer accept
+    // orders at all), whereas a bulk enquiry at draft/quote_sent really is
+    // waiting on the seller. "Awaiting seller" was wrong for the first case.
+    { label: 'Awaiting quote or approval', value: String(pendingSeller.length), icon: 'ClockIcon', color: 'text-warning', tab: 'orders' as DashTab },
     { label: 'Payment due', value: String(paymentDue.length), icon: 'CreditCardIcon', color: 'text-primary', tab: 'orders' as DashTab },
     { label: 'Active shipments', value: String(activeShipments.length), icon: 'TruckIcon', color: 'text-purple-700', tab: 'tracking' as DashTab },
     { label: 'Paid this month', value: formatMoney(monthPaid.reduce((sum, order) => sum + order.amount, 0)), icon: 'CurrencyRupeeIcon', color: 'text-success', tab: 'orders' as DashTab },

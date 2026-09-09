@@ -203,7 +203,7 @@ export default function BuyerCatalogOrders() {
           <p className="text-xs font-800 uppercase tracking-[0.14em] text-primary">Marketplace purchases</p>
           <h2 className="mt-1 text-lg font-800 text-foreground">Direct product orders</h2>
           <p className="mt-1 text-xs text-muted-foreground">
-            Seller acceptance, Razorpay capture, automatic GST invoices and shipment tracking are stored here.
+            Razorpay capture, automatic GST invoices and shipment tracking are stored here.
           </p>
         </div>
         <button type="button" onClick={() => void loadOrders()} className="btn-secondary inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs">
