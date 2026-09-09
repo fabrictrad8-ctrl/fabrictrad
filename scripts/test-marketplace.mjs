@@ -16,7 +16,22 @@ const next = require('next/server');
 function fixture(options = {}) {
   const calls = [];
   const records = {
-    user_profiles: { role: 'buyer', is_active: true, can_buy: true, can_sell: true, ...options.profile },
+    // A shippable delivery address is part of a valid buyer now: the order RPC
+    // refuses to create an order without one and the payment route refuses to
+    // charge for one, because fulfilment cannot dispatch it. The default buyer
+    // therefore has an address; tests that want the missing-address path
+    // override `profile`.
+    user_profiles: {
+      role: 'buyer',
+      is_active: true,
+      can_buy: true,
+      can_sell: true,
+      address_line1: '12 Ring Road',
+      city: 'Surat',
+      state: 'Gujarat',
+      pincode: '395002',
+      ...options.profile,
+    },
     seller_profiles: { id: 'seller', user_id: 'seller-user' },
     seller_products: { id: productId, seller_id: 'seller', name: 'Blue textile', image_url: 'https://images.unsplash.com/example.jpg', ...options.product },
     seller_product_variants: options.variant || null,

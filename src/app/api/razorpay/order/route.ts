@@ -356,29 +356,6 @@ export async function POST(request: NextRequest) {
     return json({ error: 'This order is not attached to a seller and cannot be paid.' }, 409);
   }
 
-  // A catalogue order ships to the buyer's saved address, and
-  // /api/shiprocket/create-order refuses an incomplete one. Without this check a
-  // buyer could pay in full for an order that could then never be dispatched, so
-  // the address is verified here — before any money moves — rather than failing
-  // afterwards at fulfilment.
-  if (orderType === 'catalog') {
-    const deliveryAddress = await resolveCatalogDeliveryAddress(
-      admin,
-      String(user.id),
-      order.company_location_id ? String(order.company_location_id) : null
-    );
-    if (!deliveryAddress.complete) {
-      return json(
-        {
-          error:
-            'Add a complete delivery address (street, city, state and 6-digit PIN code) to your profile before paying, otherwise this order cannot be shipped.',
-          code: 'DELIVERY_ADDRESS_REQUIRED',
-        },
-        409
-      );
-    }
-  }
-
   const totalAmount = roundMoney(
     Number(orderType === 'catalog' ? order.total_amount : order.net_total || 0)
   );
@@ -455,6 +432,34 @@ export async function POST(request: NextRequest) {
   if (existing?.status === 'authorized') return json({ error: 'A payment is awaiting capture. Please wait for reconciliation.', code: 'PAYMENT_CAPTURE_PENDING' }, 409);
   if (existing && (existing.split_version !== MARKETPLACE_SPLIT_VERSION || existing.transfer_account_id !== transferAccount)) {
     return json({ error: 'This earlier checkout needs review by FabricTrad before payment. A new payment has not been created.', code: 'LEGACY_CHECKOUT_REVIEW_REQUIRED' }, 409);
+  }
+
+  // A catalogue order ships to the buyer's saved address, and
+  // /api/shiprocket/create-order refuses an incomplete one, so paying for an
+  // order with no address buys something that can never be dispatched. Orders
+  // created now cannot reach this point without one — submit_catalog_order_request
+  // raises FT002 — so this guards orders created before that gate existed.
+  //
+  // Deliberately checked after the seller-payout and legacy-checkout guards:
+  // those are conditions the buyer cannot do anything about, and telling someone
+  // to add an address when the seller cannot be paid at all sends them to fix
+  // the wrong thing.
+  if (orderType === 'catalog') {
+    const deliveryAddress = await resolveCatalogDeliveryAddress(
+      admin,
+      String(user.id),
+      order.company_location_id ? String(order.company_location_id) : null
+    );
+    if (!deliveryAddress.complete) {
+      return json(
+        {
+          error:
+            'Add a complete delivery address (street, city, state and 6-digit PIN code) to your profile before paying, otherwise this order cannot be shipped.',
+          code: 'DELIVERY_ADDRESS_REQUIRED',
+        },
+        409
+      );
+    }
   }
 
   if (
