@@ -7,7 +7,7 @@ import toast from 'react-hot-toast';
 import AppImage from '@/components/ui/AppImage';
 import Icon from '@/components/ui/AppIcon';
 import { trackFunnelStep } from '@/lib/analytics';
-import { productDetailHref, type CatalogProduct, type CatalogVariant } from '@/lib/catalog';
+import { mapSellerProductSummary, productDetailHref, type CatalogProduct } from '@/lib/catalog';
 import { createClient } from '@/lib/supabase/client';
 import { useCart } from '@/lib/hooks/useCart';
 import { useWishlist } from '@/lib/hooks/useWishlist';
@@ -48,66 +48,6 @@ function matchesDispatch(value: number, selected: string[]) {
   });
 }
 
-function mapVariantSummary(value: unknown): CatalogVariant[] {
-  if (!Array.isArray(value)) return [];
-  return value.map((entry, index) => {
-    const row = entry && typeof entry === 'object' ? entry as Record<string, unknown> : {};
-    const image = row.image ? String(row.image) : null;
-    return {
-      id: String(row.id || `summary-${index}`), key: String(row.id || `summary-${index}`), code: String(row.code || ''),
-      colorName: String(row.color || 'Assorted'), colorHex: row.colorHex ? String(row.colorHex) : null,
-      designName: String(row.design || 'Standard'), description: String(row.description || ''), price: Number(row.price || 0),
-      unit: String(row.unit || 'mtr'), available: Number(row.available || 0), moq: Number(row.moq || 1), image, images: image ? [image] : [],
-    };
-  });
-}
-
-function mapSellerProduct(row: Record<string, unknown>, sellerName: string): CatalogProduct {
-  const variants = mapVariantSummary(row.variant_summary);
-  const image = String(row.image_url || variants.find((variant) => variant.image)?.image || '/assets/images/no_image.png');
-  const extraImages = Array.isArray(row.image_urls) ? row.image_urls.map(String) : [];
-  const variantImages = variants.flatMap((variant) => variant.images);
-  const prices = variants.map((variant) => variant.price).filter((price) => price > 0);
-  const colors = Array.isArray(row.variant_colors) ? row.variant_colors.map(String) : variants.map((variant) => variant.colorName);
-  const available = Math.max(0, Number(row.available_quantity || 0) - Number(row.reserved_quantity || 0));
-
-  return {
-    id: `seller-${String(row.id)}`,
-    rawProductId: String(row.id),
-    source: 'seller',
-    sellerId: String(row.seller_id),
-    name: String(row.name || 'Untitled fabric'),
-    seller: sellerName,
-    city: [row.origin_city, row.origin_state].filter(Boolean).join(', ') || 'India',
-    category: String(row.category || 'Other'),
-    price: prices.length ? Math.min(...prices) : Number(row.price_per_unit || 0),
-    priceMax: prices.length ? Math.max(...prices) : Number(row.price_per_unit || 0),
-    unit: String(row.unit || 'mtr'),
-    moq: variants.length ? Math.min(...variants.map((variant) => variant.moq)) : Number(row.moq || 1),
-    available,
-    gsm: Number(row.gsm || 0),
-    width: row.width_inches ? `${Number(row.width_inches)} inches` : 'Width not specified',
-    work: String(row.work_type || 'Plain'),
-    rating: 0,
-    reviews: 0,
-    badge: row.created_at && Date.now() - new Date(String(row.created_at)).getTime() < 30 * 86400000 ? 'new' : null,
-    verified: true,
-    image,
-    images: [...new Set([image, ...variantImages, ...extraImages].filter(Boolean))],
-    alt: `${String(row.name || 'Fabric')} supplied by ${sellerName}`,
-    dispatchDays: Number(row.dispatch_days || 3),
-    gst: Number(row.gst_rate || 0) > 0,
-    description: String(row.description || ''),
-    sku: row.sku ? String(row.sku) : null,
-    variantCount: Number(row.variant_count || variants.length),
-    colors,
-    variants,
-    searchTerms: String(row.search_terms || ''),
-    saleChannel: row.sale_channel === 'retail' || row.sale_channel === 'both' ? row.sale_channel as 'retail' | 'both' : 'b2b',
-    packageFormat: (row.package_format || 'Fabric Only') as CatalogProduct['packageFormat'],
-  };
-}
-
 export default function MarketplaceGrid() {
   const router = useRouter();
   const pathname = usePathname();
@@ -144,7 +84,7 @@ export default function MarketplaceGrid() {
       (sellers || []).forEach((seller) => names.set(seller.id, seller.display_name || seller.legal_business_name || 'Verified FabricTrad Seller'));
     }
 
-    setProducts((rows || []).map((row) => mapSellerProduct(row as Record<string, unknown>, names.get(row.seller_id) || 'Verified FabricTrad Seller')));
+    setProducts((rows || []).map((row) => mapSellerProductSummary(row as Record<string, unknown>, names.get(row.seller_id) || 'Verified FabricTrad Seller')));
     setLoading(false);
   }, [profile?.account_kind]);
 

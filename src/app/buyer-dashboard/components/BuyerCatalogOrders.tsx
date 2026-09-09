@@ -8,6 +8,7 @@ import OrderLifecyclePanel from '@/components/commerce/OrderLifecyclePanel';
 import { useAuth } from '@/contexts/AuthContext';
 import { createClient } from '@/lib/supabase/client';
 import { pillClassForStatus } from '@/lib/statusPill';
+import SellerReviewSheet from '@/components/commerce/SellerReviewSheet';
 
 type CatalogOrder = {
   id: string;
@@ -74,10 +75,15 @@ const money = (value: unknown) =>
     Number(value || 0)
   );
 
+type SellerReview = { id: string; seller_id: string; rating: number; title: string; body: string };
+
 export default function BuyerCatalogOrders() {
   const { user, isDemoAccount } = useAuth();
   const [orders, setOrders] = useState<CatalogOrder[]>([]);
   const [invoicesByOrder, setInvoicesByOrder] = useState<Record<string, InvoiceSummary>>({});
+  const [reviewsBySeller, setReviewsBySeller] = useState<Record<string, SellerReview>>({});
+  const [sellerNamesById, setSellerNamesById] = useState<Record<string, string>>({});
+  const [reviewSheetSeller, setReviewSheetSeller] = useState<{ id: string; name: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
 
@@ -119,6 +125,35 @@ export default function BuyerCatalogOrders() {
       }
     } else {
       setInvoicesByOrder({});
+    }
+
+    const fulfilledSellerIds = Array.from(
+      new Set(loadedOrders.filter((order) => order.status === 'fulfilled').map((order) => order.seller_id))
+    );
+    if (fulfilledSellerIds.length) {
+      const [{ data: buyerProfile }, { data: sellerRows }] = await Promise.all([
+        supabase.from('buyer_profiles').select('id').eq('user_id', user.id).maybeSingle(),
+        supabase.from('seller_directory').select('id,display_name,legal_business_name').in('id', fulfilledSellerIds),
+      ]);
+      const names: Record<string, string> = {};
+      for (const row of sellerRows || []) {
+        names[row.id] = row.display_name || row.legal_business_name || 'this seller';
+      }
+      setSellerNamesById(names);
+
+      if (buyerProfile?.id) {
+        const { data: reviewRows } = await supabase
+          .from('seller_reviews')
+          .select('id,seller_id,rating,title,body')
+          .eq('buyer_id', buyerProfile.id)
+          .in('seller_id', fulfilledSellerIds);
+        const next: Record<string, SellerReview> = {};
+        for (const row of (reviewRows || []) as SellerReview[]) next[row.seller_id] = row;
+        setReviewsBySeller(next);
+      }
+    } else {
+      setReviewsBySeller({});
+      setSellerNamesById({});
     }
     setLoading(false);
   }, [isDemoAccount, user?.id]);
@@ -262,6 +297,21 @@ export default function BuyerCatalogOrders() {
                   {order.payment_status === 'paid' && order.status === 'accepted' && (
                     <span className="inline-flex items-center gap-2 rounded-xl bg-success/10 px-4 py-2 text-xs font-800 text-success"><Icon name="CheckCircleIcon" size={15} /> Fully paid — reconciling fulfilment</span>
                   )}
+                  {order.status === 'fulfilled' && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setReviewSheetSeller({
+                          id: order.seller_id,
+                          name: sellerNamesById[order.seller_id] || 'this seller',
+                        })
+                      }
+                      className="btn-secondary inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs"
+                    >
+                      <Icon name="StarIcon" size={14} />
+                      {reviewsBySeller[order.seller_id] ? 'Edit your review' : 'Leave a review'}
+                    </button>
+                  )}
                 </div>
 
                 <OrderLifecyclePanel
@@ -281,6 +331,15 @@ export default function BuyerCatalogOrders() {
           })}
         </div>
       )}
+
+      <SellerReviewSheet
+        open={Boolean(reviewSheetSeller)}
+        onClose={() => setReviewSheetSeller(null)}
+        sellerId={reviewSheetSeller?.id || ''}
+        sellerName={reviewSheetSeller?.name || 'this seller'}
+        existingReview={reviewSheetSeller ? reviewsBySeller[reviewSheetSeller.id] : undefined}
+        onSubmitted={() => void loadOrders()}
+      />
     </section>
   );
 }

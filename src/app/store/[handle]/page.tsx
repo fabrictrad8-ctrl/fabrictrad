@@ -9,6 +9,7 @@ import BuyerOnlyGuard from '@/components/BuyerOnlyGuard';
 import AppImage from '@/components/ui/AppImage';
 import Icon from '@/components/ui/AppIcon';
 import { createClient } from '@/lib/supabase/client';
+import StarRatingDisplay from '@/components/commerce/StarRatingDisplay';
 
 type StoreProfile = {
   id: string;
@@ -32,9 +33,21 @@ type StoreProduct = {
   image: string | null;
 };
 
+type SellerReviewRow = {
+  id: string;
+  rating: number;
+  title: string;
+  body: string;
+  is_verified_purchase: boolean;
+  created_at: string;
+};
+
 function StorefrontClient({ handle }: { handle: string }) {
   const [seller, setSeller] = useState<StoreProfile | null | undefined>(undefined);
   const [products, setProducts] = useState<StoreProduct[]>([]);
+  const [reviews, setReviews] = useState<SellerReviewRow[]>([]);
+  const [ratingAverage, setRatingAverage] = useState(0);
+  const [ratingCount, setRatingCount] = useState(0);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -94,6 +107,20 @@ function StorefrontClient({ handle }: { handle: string }) {
           image: row.image_url || null,
         }))
       );
+
+      const [{ data: reviewRows }, { data: aggregate }] = await Promise.all([
+        supabase
+          .from('seller_reviews')
+          .select('id,rating,title,body,is_verified_purchase,created_at')
+          .eq('seller_id', profile.id)
+          .order('created_at', { ascending: false })
+          .limit(20),
+        supabase.from('seller_rating_aggregates').select('review_count,avg_rating').eq('seller_id', profile.id).maybeSingle(),
+      ]);
+      if (!mounted) return;
+      setReviews((reviewRows || []) as SellerReviewRow[]);
+      setRatingCount(Number(aggregate?.review_count || 0));
+      setRatingAverage(Number(aggregate?.avg_rating || 0));
     };
     void load();
     return () => {
@@ -142,6 +169,7 @@ function StorefrontClient({ handle }: { handle: string }) {
             {seller.isEarlyBird && <span className="ft-badge ft-badge--warning"><Icon name="SparklesIcon" size={13} /> Founding seller #{seller.earlyBirdRank}</span>}
           </div>
           <h1 className="mt-3 text-3xl font-800 tracking-tight text-foreground">{seller.name}</h1>
+          <StarRatingDisplay rating={ratingAverage} count={ratingCount} className="mt-2" />
           {seller.bio && <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">{seller.bio}</p>}
         </div>
       </section>
@@ -191,6 +219,52 @@ function StorefrontClient({ handle }: { handle: string }) {
               <Icon name="ArchiveBoxIcon" size={32} className="mx-auto text-muted-foreground" />
               <h3 className="mt-3 text-sm font-800">No live products right now</h3>
               <p className="mt-1 text-xs text-muted-foreground">This store has no approved, in-stock listings at the moment.</p>
+            </div>
+          </div>
+        )}
+      </section>
+
+      <section className="ft-storefront-content pb-12">
+        <div className="mb-5 flex items-center justify-between gap-3">
+          <h2 className="text-lg font-800 text-foreground">Buyer reviews</h2>
+          <StarRatingDisplay rating={ratingAverage} count={ratingCount} />
+        </div>
+        {reviews.length ? (
+          <div className="space-y-3">
+            {reviews.map((review) => (
+              <article key={review.id} className="rounded-2xl border border-border bg-card p-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="inline-flex items-center gap-0.5">
+                    {[1, 2, 3, 4, 5].map((value) => (
+                      <Icon
+                        key={value}
+                        name="StarIcon"
+                        variant="solid"
+                        size={14}
+                        className={value <= review.rating ? 'text-warning' : 'text-muted-foreground/25'}
+                      />
+                    ))}
+                  </span>
+                  <span className="text-sm font-800 text-foreground">{review.title}</span>
+                  {review.is_verified_purchase && (
+                    <span className="ft-badge ft-badge--success">
+                      <Icon name="CheckBadgeIcon" size={12} /> Verified purchase
+                    </span>
+                  )}
+                </div>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">{review.body}</p>
+                <p className="mt-2 text-[11px] text-muted-foreground">
+                  {new Date(review.created_at).toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: 'numeric' })}
+                </p>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <div className="ft-card ft-empty-state">
+            <div>
+              <Icon name="StarIcon" size={30} className="mx-auto text-muted-foreground" />
+              <h3 className="mt-3 text-sm font-800">No reviews yet</h3>
+              <p className="mt-1 text-xs text-muted-foreground">Reviews appear here once buyers rate a fulfilled order from this store.</p>
             </div>
           </div>
         )}
