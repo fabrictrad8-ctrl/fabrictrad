@@ -7,6 +7,7 @@ import { type CatalogMedia } from '@/lib/catalog';
 import { useProduct } from '@/lib/hooks/useProduct';
 import { useHorizontalSwipe } from '@/lib/hooks/useHorizontalSwipe';
 import { useImagePanZoom } from '@/lib/hooks/useImagePanZoom';
+import { useTilt3D } from '@/lib/hooks/useTilt3D';
 
 const VIEW_LABELS: Record<CatalogMedia['viewType'], string> = {
   front: 'Front',
@@ -20,6 +21,7 @@ export default function ProductGallery() {
   const { product, loading } = useProduct();
   const [activeIndex, setActiveIndex] = useState(0);
   const [fullscreen, setFullscreen] = useState(false);
+  const [tilt3DEnabled, setTilt3DEnabled] = useState(false);
 
   const media = useMemo<CatalogMedia[]>(() => {
     if (product.media?.length) return product.media;
@@ -38,11 +40,13 @@ export default function ProductGallery() {
     onSwipeLeft: () => { if (media.length > 1) showNext(); },
     onSwipeRight: () => { if (media.length > 1) showPrevious(); },
   });
+  const tilt3D = useTilt3D(tilt3DEnabled);
 
   useEffect(() => {
     setActiveIndex(0);
     panZoom.reset();
     setFullscreen(false);
+    setTilt3DEnabled(false);
     // panZoom.reset is stable (useCallback with no deps that change here);
     // omitting it keeps this effect scoped to an actual product change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -60,10 +64,12 @@ export default function ProductGallery() {
   const showPrevious = () => {
     setActiveIndex((current) => (current - 1 + media.length) % media.length);
     panZoom.reset();
+    setTilt3DEnabled(false);
   };
   const showNext = () => {
     setActiveIndex((current) => (current + 1) % media.length);
     panZoom.reset();
+    setTilt3DEnabled(false);
   };
   // Swiping past the last/first image intentionally does nothing rather
   // than wrapping — wrapping under a swipe reads as "nothing happened."
@@ -95,10 +101,16 @@ export default function ProductGallery() {
         />
       ) : large ? (
         <div
-          {...panZoom.bind}
+          {...(tilt3DEnabled ? tilt3D.bind : panZoom.bind)}
           role="button"
           tabIndex={0}
-          aria-label={panZoom.isZoomed ? `Zoom out of ${product.name}` : `Drag to pan, scroll or pinch to zoom into ${product.name}`}
+          aria-label={
+            tilt3DEnabled
+              ? 'Drag to tilt this photo in 3D'
+              : panZoom.isZoomed
+                ? `Zoom out of ${product.name}`
+                : `Drag to pan, scroll or pinch to zoom into ${product.name}`
+          }
           className="relative h-full w-full select-none"
         >
           <AppImage
@@ -108,7 +120,7 @@ export default function ProductGallery() {
             priority
             sizes="100vw"
             className="pointer-events-none"
-            style={{ ...panZoom.imageStyle, objectFit: 'contain' }}
+            style={tilt3DEnabled ? { ...tilt3D.style, objectFit: 'contain' } : { ...panZoom.imageStyle, objectFit: 'contain' }}
           />
         </div>
       ) : (
@@ -165,14 +177,37 @@ export default function ProductGallery() {
         {activeIndex + 1} / {media.length}
       </div>
       {active.type === 'image' && (
-        <button
-          type="button"
-          onClick={() => (large ? (panZoom.isZoomed ? panZoom.reset() : panZoom.zoomIn()) : setFullscreen(true))}
-          className="absolute bottom-3 right-3 flex items-center gap-1.5 rounded-lg bg-black/60 px-2.5 py-1.5 text-xs text-white"
-        >
-          <Icon name="MagnifyingGlassPlusIcon" size={13} />
-          {large && panZoom.isZoomed ? 'Zoom out' : 'View detail'}
-        </button>
+        <div className="absolute bottom-3 right-3 flex items-center gap-2">
+          {large && (
+            <button
+              type="button"
+              onClick={() => {
+                if (!tilt3DEnabled) panZoom.reset();
+                setTilt3DEnabled((current) => !current);
+              }}
+              aria-pressed={tilt3DEnabled}
+              className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs text-white ${tilt3DEnabled ? 'bg-primary' : 'bg-black/60'}`}
+            >
+              <Icon name="CubeIcon" size={13} />
+              {tilt3DEnabled ? '3D on' : '3D view'}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => {
+              if (large) {
+                if (tilt3DEnabled) setTilt3DEnabled(false);
+                if (panZoom.isZoomed) panZoom.reset(); else panZoom.zoomIn();
+              } else {
+                setFullscreen(true);
+              }
+            }}
+            className="flex items-center gap-1.5 rounded-lg bg-black/60 px-2.5 py-1.5 text-xs text-white"
+          >
+            <Icon name="MagnifyingGlassPlusIcon" size={13} />
+            {large && panZoom.isZoomed ? 'Zoom out' : 'View detail'}
+          </button>
+        </div>
       )}
     </div>
   );
@@ -191,6 +226,7 @@ export default function ProductGallery() {
                 onClick={() => {
                   setActiveIndex(index);
                   panZoom.reset();
+                  setTilt3DEnabled(false);
                 }}
                 className={`relative h-20 w-20 shrink-0 overflow-hidden rounded-xl border-2 bg-muted ${
                   activeIndex === index ? 'border-primary ring-2 ring-primary/10' : 'border-border hover:border-muted-foreground'
@@ -246,6 +282,7 @@ export default function ProductGallery() {
             onClick={() => {
               setFullscreen(false);
               panZoom.reset();
+              setTilt3DEnabled(false);
             }}
             className="absolute right-4 top-4 z-10 flex h-11 w-11 items-center justify-center rounded-full bg-white/15 text-white backdrop-blur hover:bg-white/25"
             aria-label="Close product media viewer"

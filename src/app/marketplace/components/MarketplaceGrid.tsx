@@ -258,6 +258,11 @@ export default function MarketplaceGrid() {
                 <div className="flex min-w-0 flex-1 flex-col p-3.5">
                   <div className="min-w-0">
                     <Link href={productDetailHref(product)} className="block line-clamp-2 text-[14px] font-750 leading-5 text-foreground hover:text-[#b12704]">{product.name}</Link>
+                    {(product.category || (product.work && product.work !== 'Plain')) && (
+                      <p className="mt-0.5 truncate text-[11.5px] font-600 text-muted-foreground">
+                        {[product.category, product.work !== 'Plain' ? product.work : null].filter(Boolean).join(' · ')}
+                      </p>
+                    )}
                     <div className="mt-1 flex items-center gap-1 text-[11px] text-muted-foreground"><Icon name="ShieldCheckIcon" size={12} className="text-success" /><span className="truncate">{product.seller}</span></div>
                   </div>
 

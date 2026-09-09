@@ -221,6 +221,21 @@
   border-radius: 6px !important;
   background: #f7f8f8 !important;
 }
+/* This box's background is a hardcoded light grey regardless of the
+   site's own light/dark theme, but its MOQ/Dispatch/Invoice values use
+   the theme-adaptive .text-foreground utility — which resolves to
+   near-white in dark mode, rendering those values invisible against
+   this permanently-light card ("Available" survived only because it
+   uses the fixed success/warning colors instead, not text-foreground).
+   Pinning just .text-foreground/.text-muted-foreground here to fixed,
+   light-card-appropriate colors fixes it in both themes, without
+   touching Available's own warning/success color coding. */
+.ft-marketplace-buy-meta .text-foreground {
+  color: #1f2937 !important;
+}
+.ft-marketplace-buy-meta .text-muted-foreground {
+  color: #6b7280 !important;
+}
 
 .ft-add-cart-action,
 .ft-amazon-primary {

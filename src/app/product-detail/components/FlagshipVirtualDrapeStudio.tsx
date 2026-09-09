@@ -12,6 +12,7 @@ import {
   inferDrapeProductStyle,
 } from '@/lib/drapeProductStyle';
 import DrapeCreditPurchase from './DrapeCreditPurchase';
+import { useTilt3D } from '@/lib/hooks/useTilt3D';
 
 type CreditBalance = { freeTrialsRemaining: number; purchasedCredits: number; totalRemaining: number };
 
@@ -90,6 +91,8 @@ export default function FlagshipVirtualDrapeStudio() {
   const [errorCode, setErrorCode] = useState('');
   const [balance, setBalance] = useState<CreditBalance | null>(null);
   const [showPurchase, setShowPurchase] = useState(false);
+  const [tilt3DEnabled, setTilt3DEnabled] = useState(false);
+  const tilt3D = useTilt3D(tilt3DEnabled);
 
   const variants = useMemo(() => product.variants || [], [product.variants]);
   const selectedVariant = useMemo(
@@ -658,11 +661,23 @@ export default function FlagshipVirtualDrapeStudio() {
         <div ref={resultRef} className="min-w-0 p-4 sm:p-6 lg:p-8">
           <div className="relative flex min-h-[440px] items-center justify-center overflow-hidden rounded-[1.75rem] border border-border bg-[#0c1320] sm:min-h-[560px]">
             {result ? (
-              <div className="relative h-[72vh] min-h-[440px] max-h-[820px] w-full">
+              <div className="relative h-[72vh] min-h-[440px] max-h-[820px] w-full" {...tilt3D.bind} style={{ ...tilt3D.style, overflow: 'hidden', borderRadius: 'inherit' }}>
                 <PersonImage src={result} alt="AI generated FabricTrad virtual drape result" />
-                <div className="absolute left-3 top-3 rounded-full border border-success/25 bg-black/65 px-3 py-1.5 text-[11px] font-800 text-success backdrop-blur">
+                <div className="pointer-events-none absolute left-3 top-3 rounded-full border border-success/25 bg-black/65 px-3 py-1.5 text-[11px] font-800 text-success backdrop-blur">
                   AI GENERATED · {provider || 'OpenAI'}
                 </div>
+                <button
+                  type="button"
+                  onClick={() => setTilt3DEnabled((current) => !current)}
+                  onPointerDown={(event) => event.stopPropagation()}
+                  aria-pressed={tilt3DEnabled}
+                  className={`absolute right-3 top-3 flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-800 backdrop-blur ${
+                    tilt3DEnabled ? 'border-primary/40 bg-primary text-white' : 'border-white/15 bg-black/65 text-white'
+                  }`}
+                >
+                  <Icon name="CubeIcon" size={13} />
+                  {tilt3DEnabled ? '3D on' : '3D view'}
+                </button>
               </div>
             ) : subjectMode === 'own_photo' && personImage ? (
               <div className="relative h-[68vh] min-h-[420px] max-h-[760px] w-full max-w-xl">
