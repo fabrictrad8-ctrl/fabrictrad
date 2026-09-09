@@ -10,7 +10,7 @@ const topics = [
   { title: 'Buying fabrics', icon: 'ShoppingBagIcon', copy: 'Watch the buyer flow for discovery, product review, ordering, payment and tracking.', href: '/how-to-use?role=buyer' },
   { title: 'Selling on FabricTrad', icon: 'BuildingStorefrontIcon', copy: 'Watch the seller flow for verification, catalogue, inventory, orders and fulfilment.', href: '/how-to-use?role=seller' },
   { title: 'Account & verification', icon: 'ShieldCheckIcon', copy: 'Login, phone, identity, GST, profile and security settings.', href: '/profile' },
-  { title: 'Orders & fulfilment', icon: 'TruckIcon', copy: 'Seller acceptance, payment, shipment tracking and issue evidence.', href: '/buyer-dashboard?tab=orders' },
+  { title: 'Orders & fulfilment', icon: 'TruckIcon', copy: 'Payment, shipment tracking and issue evidence for every order.', href: '/buyer-dashboard?tab=orders' },
   { title: 'Buyer requirements', icon: 'MegaphoneIcon', copy: 'Post sourcing needs, review responses and use secure messaging.', href: '/buyer-requirements' },
   { title: 'Privacy & platform rules', icon: 'DocumentTextIcon', copy: 'Read data practices, responsibilities and prohibited activity.', href: '/privacy' },
 ];
@@ -19,7 +19,7 @@ const faqs = [
   ['Can one account buy and sell?', 'Yes. A verified account can keep buying access and activate seller tools with GST business details on the same login.'],
   ['Why is my seller dashboard unavailable?', 'Complete seller activation, upload the required documents and make sure the account has can_sell access. Pending verification information is shown in the seller profile readiness panel.'],
   ['Can buyers order a single piece?', 'Products configured for retail can allow a quantity of one. Other listings can enforce seller-defined MOQ or package quantities.'],
-  ['How do seller order requests work?', 'The buyer submits a quantity request. The seller accepts, rejects or confirms an available quantity. Accepted requests can proceed to payment and fulfilment.'],
+  ['Do I have to wait for the seller to accept my order?', 'No. Placing an order reserves the stock straight away and payment opens immediately. If you do not pay, the reservation is released automatically after 30 minutes and the stock returns to the seller. A seller can still decline an unpaid order in the rare case they cannot fulfil it.'],
   ['Where can I track a shipment?', 'Open Buyer dashboard → Track shipments. Sellers can manage dispatch and tracking from Seller dashboard → Fulfilment.'],
   ['How do I upload multiple products?', 'Use Seller dashboard → Inventory → Import CSV, or use the AI Catalogue Studio for media and structured product extraction.'],
   ['What should I do if payment fails?', 'Do not retry repeatedly. Check the order status first, then use the same order page or contact support with the FabricTrad order ID and payment reference.'],

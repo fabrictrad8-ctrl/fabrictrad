@@ -42,7 +42,7 @@ export default function ProductCartAction() {
         {available > 0 ? 'Add to cart' : 'Currently unavailable'}
       </button>
       <p className="ft-product-sticky-cta-note mt-2 text-center text-[10px] leading-4 text-muted-foreground">
-        Cart keeps this product for review. Buyer-specific MOQ, price, GST and stock are rechecked before the order request is submitted.
+        Adding to cart does not reserve stock. Your MOQ, price, GST and live stock are rechecked when you place the order.
       </p>
     </div>
   );

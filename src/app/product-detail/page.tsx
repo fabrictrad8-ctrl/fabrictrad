@@ -80,8 +80,8 @@ export default function ProductDetailPage() {
                   <p className="text-xs font-850 uppercase tracking-wider text-muted-foreground">How checkout works</p>
                   <ol className="mt-3 space-y-3 text-xs leading-5 text-muted-foreground">
                     <li className="flex gap-2"><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10 font-850 text-primary">1</span><span>Choose a live variant and quantity.</span></li>
-                    <li className="flex gap-2"><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10 font-850 text-primary">2</span><span>The seller confirms stock and accepts the order request.</span></li>
-                    <li className="flex gap-2"><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10 font-850 text-primary">3</span><span>Pay through Razorpay after acceptance. Captured payment updates the order and billing records.</span></li>
+                    <li className="flex gap-2"><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10 font-850 text-primary">2</span><span>Place the order. Stock is reserved for you straight away — no waiting on seller approval.</span></li>
+                    <li className="flex gap-2"><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10 font-850 text-primary">3</span><span>Pay through Razorpay to complete it. Unpaid reservations are released automatically after 30 minutes.</span></li>
                   </ol>
                   <a href="/buyer-dashboard?tab=orders" className="mt-4 inline-flex items-center gap-1 text-xs font-850 text-primary">Open your orders <Icon name="ArrowRightIcon" size={13} /></a>
                 </div>

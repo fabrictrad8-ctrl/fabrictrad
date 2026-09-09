@@ -424,11 +424,13 @@ export default function ProductInfoV2() {
       }
       setOrderResult(data as OrderResult);
       toast.success(
-        requiresReview ? 'Order submitted for company review.' : 'Order request sent to the seller.'
+        requiresReview
+          ? 'Order submitted for your company’s approval.'
+          : 'Order confirmed and stock reserved. Pay now to complete it.'
       );
     } catch (caught) {
       toast.error(
-        caught instanceof Error ? caught.message : 'The order request could not be submitted.'
+        caught instanceof Error ? caught.message : 'The order could not be placed.'
       );
     } finally {
       setSubmitting(false);
@@ -643,7 +645,10 @@ export default function ProductInfoV2() {
           </div>
 
           <div className="rounded-xl border border-border bg-card p-3 text-xs leading-5 text-muted-foreground">
-            <span className="font-800 text-foreground">How buying works:</span> submit this real order request, the seller accepts it, then Razorpay payment becomes available in your Buyer Dashboard. The order is never marked paid before server-side payment verification succeeds.
+            <span className="font-800 text-foreground">How buying works:</span>{' '}
+            {requiresReview
+              ? 'Your company requires internal approval on orders, so this goes to your approver first. Once approved, stock is reserved and Razorpay payment opens.'
+              : 'Placing the order reserves your stock immediately — no seller approval needed. Pay by Razorpay to complete it; unpaid reservations are released after 30 minutes. An order is never marked paid until server-side payment verification succeeds.'}
           </div>
 
           <button
@@ -653,10 +658,10 @@ export default function ProductInfoV2() {
             className="btn-primary w-full py-3 text-sm disabled:opacity-50"
           >
             {submitting
-              ? 'Creating real order…'
+              ? 'Placing your order…'
               : requiresReview
-                ? 'Submit for company review'
-                : 'Send order request'}
+                ? 'Submit for company approval'
+                : 'Buy now'}
           </button>
         </div>
       )}
@@ -686,7 +691,9 @@ export default function ProductInfoV2() {
                 </p>
               )}
               <p className="mt-3 text-xs font-700 text-foreground">
-                Next: wait for seller acceptance, then pay securely from Buyer Dashboard.
+                {requiresReview
+                  ? 'Next: your company approver signs this off, then payment opens in your Buyer Dashboard.'
+                  : 'Your stock is reserved. Pay from your Buyer Dashboard within 30 minutes to complete the order.'}
               </p>
               <button
                 type="button"

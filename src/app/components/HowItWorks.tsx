@@ -13,10 +13,10 @@ const steps = [
   },
   {
     number: '02',
-    icon: 'DocumentCheckIcon',
-    title: 'Submit Order Request',
+    icon: 'ShoppingBagIcon',
+    title: 'Buy It Straight Away',
     description:
-      'Select quantity and submit your request. Seller confirms availability within their response window.',
+      'Pick your variant and quantity and place the order. Stock is reserved for you immediately — no waiting on seller approval.',
     color: 'bg-amber-50 text-amber-600',
     accent: '#D97706',
   },

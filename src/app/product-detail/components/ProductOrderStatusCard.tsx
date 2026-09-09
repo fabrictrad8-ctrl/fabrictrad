@@ -106,12 +106,12 @@ export default function ProductOrderStatusCard() {
           <p className="text-[11px] font-800 uppercase tracking-[0.14em] text-primary">Your current order</p>
           <h2 className="mt-1 text-base font-800 text-foreground">
             {canPay
-              ? 'Seller accepted — payment is ready'
+              ? 'Stock reserved — pay to complete your order'
               : paid
                 ? shipment
                   ? 'Paid — shipment in progress'
                   : 'Payment complete — awaiting dispatch'
-                : 'Order sent — waiting for seller'}
+                : 'Order placed — awaiting your company’s approval'}
           </h2>
         </div>
         <button type="button" onClick={() => void load()} className="ft-icon-button !min-h-8 !min-w-8" aria-label="Refresh order status">

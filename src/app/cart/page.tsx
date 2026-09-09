@@ -16,6 +16,9 @@ const money = (value: number) =>
 
 export default function CartPage() {
   const { items, lineCount, estimatedTotal, remove, updateQuantity, clear } = useCart();
+  // Each order is created against a single seller, so the number of distinct
+  // sellers is what actually determines how many checkouts the buyer faces.
+  const sellerCount = new Set(items.map((item) => item.seller).filter(Boolean)).size;
 
   return (
     <main className="ft-storefront min-h-screen">
@@ -48,7 +51,7 @@ export default function CartPage() {
               </span>
               <h2 className="mt-4 text-xl font-850 text-foreground">Your cart is waiting</h2>
               <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-muted-foreground">
-                Browse verified textile listings and use Add to cart to keep products together before placing order requests.
+                Browse verified textile listings and add products to your cart to keep them together while you shop.
               </p>
               <Link href="/marketplace" className="ft-amazon-primary mt-5 inline-flex min-h-10 items-center justify-center gap-2 px-5 text-sm font-800">
                 Continue shopping <Icon name="ArrowRightIcon" size={15} />
@@ -83,7 +86,7 @@ export default function CartPage() {
                             {item.available > 0 ? `${item.available.toLocaleString('en-IN')} ${item.unit} available` : 'Availability will be rechecked'}
                           </p>
                           <p className="mt-1 text-[11px] text-muted-foreground">
-                            Minimum {item.minimum} {item.unit}. Final buyer-specific price, MOQ and GST are revalidated before the order request is submitted.
+                            Minimum {item.minimum} {item.unit}. Your account price, MOQ and GST are rechecked on the product page before you pay.
                           </p>
 
                           <div className="mt-3 flex flex-wrap items-center gap-3">
@@ -121,24 +124,24 @@ export default function CartPage() {
               <aside className="sticky top-20 rounded-xl border border-border bg-card p-5 shadow-sm">
                 <div className="flex items-start gap-2 rounded-lg bg-success/10 p-3 text-xs leading-5 text-success">
                   <Icon name="ShieldCheckIcon" size={17} className="mt-0.5 shrink-0" />
-                  <span>Stock and account-specific purchasing rules are checked again before any order is created.</span>
+                  <span>Live stock and your account pricing are rechecked at the moment you place the order.</span>
                 </div>
                 <div className="mt-5 flex items-baseline justify-between gap-3">
                   <span className="text-sm text-foreground">Estimated subtotal ({lineCount} item{lineCount === 1 ? '' : 's'}):</span>
                   <strong className="text-xl font-850 text-foreground">{money(estimatedTotal)}</strong>
                 </div>
                 <p className="mt-2 text-[11px] leading-5 text-muted-foreground">
-                  This is a shopping estimate. Contract pricing, GST, quantity limits and seller acceptance are confirmed on each product before payment.
+                  This is a shopping estimate. Your account pricing, GST and quantity limits are confirmed on the product page before you pay.
                 </p>
                 <Link href={cartItemHref(items[0])} className="ft-amazon-primary mt-4 flex min-h-11 w-full items-center justify-center text-sm font-850">
-                  Start order review
+                  {sellerCount > 1 ? `Proceed to buy (${sellerCount} sellers)` : 'Proceed to buy'}
                 </Link>
                 <Link href="/marketplace" className="mt-3 flex min-h-10 w-full items-center justify-center text-xs font-800 text-primary hover:underline">
                   Continue shopping
                 </Link>
-                {lineCount > 1 && (
+                {sellerCount > 1 && (
                   <div className="mt-4 border-t border-border pt-4 text-[11px] leading-5 text-muted-foreground">
-                    FabricTrad orders can have different sellers, buyer rules and approval steps. Review each cart line before submission rather than silently combining incompatible seller orders.
+                    Your cart holds products from {sellerCount} sellers, each with its own pricing and shipping. You check out one seller at a time so every order stays correctly attached to its seller.
                   </div>
                 )}
               </aside>
