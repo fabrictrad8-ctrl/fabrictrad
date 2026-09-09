@@ -240,7 +240,9 @@ export default function SellerBuyerRequests() {
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div className="min-w-0 flex-1">
                 <div className="mb-2 flex flex-wrap items-center gap-2">
-                  <span className="mono-id">{request.id}</span>
+                  {/* A full UUID is unreadable and is an internal identifier;
+                      every other surface shows a short reference (FT-CAT-…). */}
+                  <span className="mono-id">FT-REQ-{request.id.slice(0, 8).toUpperCase()}</span>
                   <span className="rounded-full border border-success/20 bg-success/10 px-2 py-0.5 text-xs font-700 text-success">
                     Buyer posted
                   </span>

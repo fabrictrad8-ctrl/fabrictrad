@@ -29,6 +29,10 @@ export default function CommerceNotificationFeed({ mode }: { mode: 'buyer' | 'se
   const [rows, setRows] = useState<NotificationRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
+  // Which referenced orders are still open to a seller decline. A notification
+  // is a historical record and never changes, so without this the feed kept
+  // offering "Can't fulfil" on orders that had since been paid or auto-cancelled.
+  const [declinableOrders, setDeclinableOrders] = useState<Set<string>>(new Set());
 
   const load = useCallback(async () => {
     if (!user?.id) {
@@ -45,7 +49,29 @@ export default function CommerceNotificationFeed({ mode }: { mode: 'buyer' | 'se
       .order('created_at', { ascending: false })
       .limit(40);
     if (error) toast.error(error.message);
-    setRows((data || []) as NotificationRow[]);
+    const notifications = (data || []) as NotificationRow[];
+    setRows(notifications);
+
+    // seller_reject_catalog_order only accepts an order still sitting at
+    // 'accepted' with nothing captured, so resolve that rather than assuming.
+    if (mode === 'seller') {
+      const orderIds = [...new Set(
+        notifications.filter((row) => row.kind === 'new_order' && row.entity_id).map((row) => String(row.entity_id))
+      )];
+      if (orderIds.length) {
+        const { data: orders } = await supabase
+          .from('catalog_order_requests')
+          .select('id,status,amount_paid')
+          .in('id', orderIds);
+        setDeclinableOrders(new Set(
+          (orders || [])
+            .filter((row) => row.status === 'accepted' && Number(row.amount_paid || 0) <= 0)
+            .map((row) => String(row.id))
+        ));
+      } else {
+        setDeclinableOrders(new Set());
+      }
+    }
     setLoading(false);
   }, [mode, supabase, user?.id]);
 
@@ -140,7 +166,7 @@ export default function CommerceNotificationFeed({ mode }: { mode: 'buyer' | 'se
         <div className="divide-y divide-border">
           {rows.map((row) => {
             const totalAmount = Number(row.metadata?.totalAmount || 0);
-            const canSellerDecide = mode === 'seller' && row.kind === 'new_order' && Boolean(row.entity_id);
+            const canSellerDecide = mode === 'seller' && row.kind === 'new_order' && Boolean(row.entity_id) && declinableOrders.has(String(row.entity_id));
             const canBuyerPay = mode === 'buyer' && row.kind === 'order_accepted' && Boolean(row.entity_id);
             return (
               <article key={row.id} className={`p-4 sm:p-5 ${row.is_read ? '' : 'bg-primary/[0.035]'}`}>
