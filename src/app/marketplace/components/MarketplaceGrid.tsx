@@ -59,6 +59,7 @@ export default function MarketplaceGrid() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [view, setView] = useState<'grid' | 'list'>('grid');
+  const [sponsoredIds, setSponsoredIds] = useState<Set<string>>(new Set());
 
   useEffect(() => { trackFunnelStep('marketplace_view', { page: 'marketplace' }); }, []);
 
@@ -72,6 +73,7 @@ export default function MarketplaceGrid() {
     const { data: rows, error: productError } = await query;
     if (productError) {
       setProducts([]);
+      setSponsoredIds(new Set());
       setError('The marketplace catalogue could not be loaded.');
       setLoading(false);
       return;
@@ -83,6 +85,21 @@ export default function MarketplaceGrid() {
       const { data: sellers } = await supabase.from('seller_directory').select('id,display_name,legal_business_name').in('id', sellerIds);
       (sellers || []).forEach((seller) => names.set(seller.id, seller.display_name || seller.legal_business_name || 'Verified FabricTrad Seller'));
     }
+
+    const productIds = [...new Set((rows || []).map((row) => row.id).filter(Boolean))];
+    const sponsored = new Set<string>();
+    if (productIds.length) {
+      const today = new Date().toISOString().slice(0, 10);
+      const { data: placements } = await supabase
+        .from('sponsored_placements')
+        .select('product_id')
+        .in('product_id', productIds)
+        .eq('status', 'active')
+        .lte('start_date', today)
+        .gte('end_date', today);
+      (placements || []).forEach((placement) => sponsored.add(String(placement.product_id)));
+    }
+    setSponsoredIds(sponsored);
 
     setProducts((rows || []).map((row) => mapSellerProductSummary(row as Record<string, unknown>, names.get(row.seller_id) || 'Verified FabricTrad Seller')));
     setLoading(false);
@@ -129,9 +146,22 @@ export default function MarketplaceGrid() {
     }
   }, [params, products, sort]);
 
+  const isSponsored = useCallback(
+    (product: CatalogProduct) => !!product.rawProductId && sponsoredIds.has(product.rawProductId),
+    [sponsoredIds]
+  );
+
   const pageCount = Math.max(1, Math.ceil(filteredProducts.length / PAGE_SIZE));
   const page = Math.min(requestedPage, pageCount);
-  const visibleProducts = filteredProducts.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const visibleProducts = useMemo(() => {
+    const pageSlice = filteredProducts.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+    if (!sponsoredIds.size) return pageSlice;
+    // Boost sponsored items to the front of this page only, preserving the
+    // relative order within each group (no product is dropped or hidden).
+    const boosted = pageSlice.filter((product) => isSponsored(product));
+    const rest = pageSlice.filter((product) => !isSponsored(product));
+    return boosted.length ? [...boosted, ...rest] : pageSlice;
+  }, [filteredProducts, page, sponsoredIds, isSponsored]);
 
   const updateParam = (key: string, value?: string) => {
     const next = new URLSearchParams(searchParams.toString());
@@ -206,6 +236,7 @@ export default function MarketplaceGrid() {
 
                 <div className="ft-marketplace-card-body flex min-w-0 flex-1 flex-col p-3.5">
                   <div className="min-w-0">
+                    {isSponsored(product) && <p className="text-[10px] font-700 uppercase tracking-wide text-muted-foreground">Sponsored</p>}
                     <Link href={productDetailHref(product)} className="block line-clamp-2 text-[14px] font-750 leading-5 text-foreground hover:text-[#b12704]">{product.name}</Link>
                     {(product.category || (product.work && product.work !== 'Plain')) && (
                       <p className="mt-0.5 truncate text-[11.5px] font-600 text-muted-foreground">

@@ -15,6 +15,7 @@ import AdminSellers from '@/app/admin-portal/components/AdminSellers';
 import AdminOrders from '@/app/admin-portal/components/AdminOrders';
 import AdminBespokeOrders from '@/app/admin-portal/components/AdminBespokeOrders';
 import AdminDiscounts from '@/app/admin-portal/components/AdminDiscounts';
+import AdminSponsoredListings from '@/app/admin-portal/components/AdminSponsoredListings';
 import AdminActivityFeed from '@/app/admin-portal/components/AdminActivityFeed';
 import AdminListings from '@/app/admin-portal/components/AdminListings';
 import AdminPayments from '@/app/admin-portal/components/AdminPayments';
@@ -42,6 +43,7 @@ type AdminTab =
   | 'seller-metrics'
   | 'top-sellers'
   | 'discounts'
+  | 'sponsored'
   | 'activity'
   | 'errors'
   | 'settings';
@@ -91,6 +93,7 @@ const navGroups: NavGroup[] = [
       { key: 'seller-metrics', label: 'Analytics', icon: 'PresentationChartLineIcon', description: 'Seller performance' },
       { key: 'top-sellers', label: 'Top sellers', icon: 'TrophyIcon', description: 'Marketplace leaders' },
       { key: 'discounts', label: 'Discounts', icon: 'ReceiptPercentIcon', description: 'Campaigns and promotions' },
+      { key: 'sponsored', label: 'Sponsored Listings', icon: 'MegaphoneIcon', description: 'Paid placement in the marketplace grid' },
     ],
   },
   {
@@ -263,6 +266,7 @@ export default function AdminPortalLayout() {
             )}
             {activeTab === 'top-sellers' && <AdminTopSellers />}
             {activeTab === 'discounts' && <AdminDiscounts />}
+            {activeTab === 'sponsored' && <AdminSponsoredListings />}
             {activeTab === 'activity' && <AdminActivityFeed />}
             {activeTab === 'errors' && <AdminErrorMonitor />}
             {activeTab === 'settings' && <AdminSettings />}

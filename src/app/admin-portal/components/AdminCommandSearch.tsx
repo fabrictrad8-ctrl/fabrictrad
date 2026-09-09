@@ -24,6 +24,7 @@ const navigationResults: SearchResult[] = [
   { id: 'nav-reconciliation', kind: 'Navigation', title: 'Reconciliation', subtitle: 'Commission and settlements', href: '/admin-portal?tab=reconciliation', icon: 'ArrowsRightLeftIcon' },
   { id: 'nav-analytics', kind: 'Navigation', title: 'Analytics', subtitle: 'Seller and fulfillment performance', href: '/admin-portal?tab=seller-metrics', icon: 'PresentationChartLineIcon' },
   { id: 'nav-discounts', kind: 'Navigation', title: 'Discounts', subtitle: 'Campaigns and promotion controls', href: '/admin-portal?tab=discounts', icon: 'ReceiptPercentIcon' },
+  { id: 'nav-sponsored', kind: 'Navigation', title: 'Sponsored Listings', subtitle: 'Paid placement in the marketplace grid', href: '/admin-portal?tab=sponsored', icon: 'MegaphoneIcon' },
   { id: 'nav-settings', kind: 'Navigation', title: 'Settings', subtitle: 'Platform policy and operational settings', href: '/admin-portal?tab=settings', icon: 'CogIcon' },
 ];
 
