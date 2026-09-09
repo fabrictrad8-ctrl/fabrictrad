@@ -27,6 +27,7 @@ export const SELLER_CATALOG_OPTIONAL_FIELDS = [
   'origin_city',
   'origin_state',
   'status',
+  'hsn_code',
   'retail_store_min_quantity',
   'retail_store_max_quantity',
   'end_user_min_quantity',
@@ -51,6 +52,7 @@ export type SellerCatalogDraft = {
   origin_city?: string;
   origin_state?: string;
   status?: string;
+  hsn_code?: string;
   sale_channel?: string;
   retail_store_min_quantity?: number;
   retail_store_max_quantity?: number;
@@ -119,6 +121,10 @@ const fieldAliases: Record<string, keyof SellerCatalogDraft> = {
   origin_state: 'origin_state',
   'origin state': 'origin_state',
   status: 'status',
+  hsn: 'hsn_code',
+  hsn_code: 'hsn_code',
+  'hsn code': 'hsn_code',
+  hsncode: 'hsn_code',
   sale_channel: 'sale_channel',
   'sale channel': 'sale_channel',
   channel: 'sale_channel',
@@ -239,6 +245,15 @@ export function validateSellerCatalogDraft(draft: SellerCatalogDraft) {
   if (draft.unit && !['mtr', 'kg', 'piece', 'roll', 'yard', 'farma', 'custom'].includes(draft.unit)) errors.push('unit must be mtr, kg, piece, roll, yard, farma or custom');
   if (draft.sale_channel && !['b2b', 'retail', 'both'].includes(draft.sale_channel)) errors.push('sale_channel must be b2b, retail or both');
   if (draft.status && !['draft', 'active', 'archived'].includes(draft.status)) errors.push('status must be draft, active or archived');
+  if (draft.hsn_code && !/^[0-9]{4}([0-9]{2})?([0-9]{2})?$/.test(draft.hsn_code)) {
+    errors.push('hsn must be 4, 6 or 8 digits');
+  }
+  // require_verified_gstin_for_live_listing() refuses an active listing without
+  // a valid HSN, so asking for it here turns a confusing database failure into
+  // a clear instruction the seller can act on in WhatsApp.
+  if (draft.status === 'active' && !draft.hsn_code) {
+    errors.push('hsn is required to publish live — send hsn = 5407 (or your code), or use status = draft');
+  }
   if (draft.image_url && !/^https:\/\/[^\s]+$/i.test(draft.image_url)) errors.push('image_url must be a valid https URL');
 
   const minMaxPairs: Array<[keyof SellerCatalogDraft, keyof SellerCatalogDraft]> = [

@@ -8,6 +8,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { createClient } from '@/lib/supabase/client';
 import { useProduct } from '@/lib/hooks/useProduct';
 import { useWishlist } from '@/lib/hooks/useWishlist';
+import { useDeliveryAddress } from '@/lib/hooks/useDeliveryAddress';
 import { describeHsn, indiaGstRuleText, resolveIndiaGstRate } from '@/lib/indiaTax';
 
 type BuyerType = 'retail_store' | 'end_user';
@@ -105,6 +106,7 @@ export default function ProductInfoV2() {
   const [submitting, setSubmitting] = useState(false);
   const [orderResult, setOrderResult] = useState<OrderResult | null>(null);
   const { has: hasWishlisted, toggle: toggleWishlist } = useWishlist();
+  const { formatted: deliveryAddress, ready: deliveryReady } = useDeliveryAddress();
   const saved = hasWishlisted(product.id);
 
   useEffect(() => {
@@ -676,10 +678,34 @@ export default function ProductInfoV2() {
               : 'Placing the order reserves your stock immediately — no seller approval needed. Pay by Razorpay to complete it; unpaid reservations are released after 30 minutes. An order is never marked paid until server-side payment verification succeeds.'}
           </div>
 
+          {/* The database refuses an order with no shippable address (FT002),
+              because placing one commits the seller's stock. Say so before the
+              buyer clicks, rather than after. */}
+          {user && deliveryReady && !deliveryAddress && (
+            <div className="rounded-xl border border-warning/40 bg-warning/5 p-3">
+              <p className="text-xs font-850 text-warning">Add a delivery address to order</p>
+              <p className="mt-1 text-[11px] leading-5 text-muted-foreground">
+                We need a street, city, state and 6-digit PIN code before this order can be placed, otherwise it cannot be shipped to you.
+              </p>
+              <button
+                type="button"
+                onClick={() => router.push('/profile')}
+                className="mt-2 inline-flex items-center gap-1 text-xs font-850 text-primary"
+              >
+                Add delivery address <Icon name="ArrowRightIcon" size={13} />
+              </button>
+            </div>
+          )}
+          {user && deliveryAddress && (
+            <p className="text-[11px] leading-5 text-muted-foreground">
+              <span className="font-850 text-foreground">Deliver to:</span> {deliveryAddress}
+            </p>
+          )}
+
           <button
             type="button"
             onClick={submitOrder}
-            disabled={submitting || available <= 0 || maximum < minimum}
+            disabled={submitting || available <= 0 || maximum < minimum || (deliveryReady && !!user && !deliveryAddress)}
             className="btn-primary w-full py-3 text-sm disabled:opacity-50"
           >
             {submitting
