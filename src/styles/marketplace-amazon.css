@@ -1,0 +1,1390 @@
+/* ==========================================================================
+   FabricTrad marketplace browse experience (Amazon-density redesign)
+   --------------------------------------------------------------------------
+   Scope: ONLY the /marketplace browse surface. Every selector is namespaced
+   with `ftm-` so none of the older `.ft-marketplace-*` rules in the globally
+   imported stylesheets (many of which use !important) can fight these, and so
+   these rules can never leak into product-detail, dashboards or the storefront.
+
+   Imported from src/app/marketplace/page.tsx (not from the root layout).
+
+   Motion policy: every transition/animation in this file lives inside a
+   `@media (prefers-reduced-motion: no-preference)` block. Nothing here moves
+   for a user who has asked for reduced motion. No WebGL, no 3D libraries --
+   transform/opacity only, so it stays cheap on a mid-range Android phone.
+   ========================================================================== */
+
+.ftm-root {
+  --ftm-surface: #ffffff;
+  --ftm-surface-sunken: #f4f6f6;
+  --ftm-page: #eaeded;
+  --ftm-line: #d5d9d9;
+  --ftm-line-strong: #b9c0c0;
+  --ftm-ink: #0f1111;
+  --ftm-ink-muted: #565959;
+  --ftm-ink-faint: #767a7a;
+  --ftm-deal: #b12704;
+  --ftm-accent: #e7602b;
+  --ftm-link: #0f1111;
+  --ftm-success: #067d62;
+  --ftm-warn: #b45309;
+  --ftm-cta: #ffd814;
+  --ftm-cta-hover: #f7ca00;
+  --ftm-cta-border: #fcd200;
+  --ftm-radius: 8px;
+  --ftm-shadow: 0 1px 2px rgba(15, 17, 17, 0.06);
+  --ftm-shadow-lift: 0 6px 20px rgba(15, 17, 17, 0.14);
+}
+
+:where(html.dark) .ftm-root,
+:where(.dark) .ftm-root {
+  --ftm-surface: #171e27;
+  --ftm-surface-sunken: #1e2732;
+  --ftm-page: #0f151c;
+  --ftm-line: #303a47;
+  --ftm-line-strong: #435162;
+  --ftm-ink: #eef2f6;
+  --ftm-ink-muted: #a4b0bd;
+  --ftm-ink-faint: #8794a2;
+  --ftm-deal: #ff7a59;
+  --ftm-link: #eef2f6;
+  --ftm-success: #34d399;
+  --ftm-warn: #fbbf24;
+  --ftm-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --ftm-shadow-lift: 0 8px 26px rgba(0, 0, 0, 0.5);
+}
+
+/* --------------------------------------------------------------------------
+   Page frame
+   -------------------------------------------------------------------------- */
+.ftm-page {
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 10px 12px 40px;
+}
+
+@media (min-width: 1024px) {
+  .ftm-page {
+    padding: 14px 20px 56px;
+  }
+}
+
+.ftm-layout {
+  display: grid;
+  gap: 14px;
+  align-items: start;
+}
+
+@media (min-width: 1024px) {
+  .ftm-layout {
+    grid-template-columns: 232px minmax(0, 1fr);
+    gap: 18px;
+  }
+}
+
+@media (min-width: 1440px) {
+  .ftm-layout {
+    grid-template-columns: 252px minmax(0, 1fr);
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Compact search header (replaces the tall hero)
+   -------------------------------------------------------------------------- */
+.ftm-searchbar {
+  background: #131921;
+  color: #ffffff;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.ftm-searchbar-inner {
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+@media (min-width: 1024px) {
+  .ftm-searchbar-inner {
+    padding: 10px 20px;
+  }
+}
+
+.ftm-search {
+  display: flex;
+  align-items: stretch;
+  min-height: 42px;
+  border-radius: var(--ftm-radius);
+  overflow: hidden;
+  background: #ffffff;
+  border: 2px solid transparent;
+}
+
+.ftm-search:focus-within {
+  border-color: #f59e0b;
+}
+
+.ftm-search-scope {
+  flex: 0 0 auto;
+  max-width: 148px;
+  border: 0;
+  border-right: 1px solid #dcdfdf;
+  background: #f0f2f2;
+  color: #0f1111;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 0 8px;
+  outline: none;
+  display: none;
+}
+
+@media (min-width: 640px) {
+  .ftm-search-scope {
+    display: block;
+  }
+}
+
+.ftm-search-field {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: #0f1111;
+  font-size: 15px;
+  padding: 0 10px;
+}
+
+.ftm-search-field::placeholder {
+  color: #6b7280;
+}
+
+.ftm-search-submit {
+  flex: 0 0 auto;
+  width: 50px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  background: #febd69;
+  color: #0f1111;
+  cursor: pointer;
+}
+
+.ftm-search-submit:hover {
+  background: #f3a847;
+}
+
+.ftm-searchbar-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 16px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.ftm-searchbar-meta a {
+  color: #ffffff;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.ftm-searchbar-meta a:hover {
+  text-decoration: underline;
+}
+
+/* Horizontal category rail */
+.ftm-navrail {
+  background: #232f3e;
+}
+
+.ftm-navrail-inner {
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 0 12px;
+  display: flex;
+  gap: 2px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.ftm-navrail-inner::-webkit-scrollbar {
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  .ftm-navrail-inner {
+    padding: 0 20px;
+  }
+}
+
+.ftm-navrail-item {
+  flex: 0 0 auto;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #ffffff;
+  font-size: 12.5px;
+  font-weight: 650;
+  padding: 9px 10px;
+  border-radius: 4px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.ftm-navrail-item:hover {
+  border-color: rgba(255, 255, 255, 0.6);
+}
+
+.ftm-navrail-item.is-active {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.75);
+}
+
+/* --------------------------------------------------------------------------
+   Left filter rail
+   -------------------------------------------------------------------------- */
+.ftm-rail {
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  .ftm-rail {
+    display: block;
+    position: sticky;
+    top: 72px;
+    max-height: calc(100vh - 88px);
+    overflow-y: auto;
+    padding-right: 4px;
+    scrollbar-gutter: stable;
+  }
+}
+
+.ftm-filter-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--ftm-line);
+}
+
+.ftm-filter-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 850;
+  color: var(--ftm-ink);
+}
+
+.ftm-filter-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--ftm-accent);
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 850;
+}
+
+.ftm-filter-clear {
+  border: 0;
+  background: none;
+  color: var(--ftm-accent);
+  font-size: 12px;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.ftm-filter-clear:hover {
+  text-decoration: underline;
+}
+
+.ftm-filter-group {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--ftm-line);
+}
+
+.ftm-filter-group:last-child {
+  border-bottom: 0;
+}
+
+.ftm-filter-legend {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border: 0;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--ftm-ink);
+  text-align: left;
+}
+
+.ftm-filter-body {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.ftm-filter-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 32px;
+  padding: 4px 6px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--ftm-ink);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ftm-filter-option:hover {
+  background: var(--ftm-surface-sunken);
+}
+
+.ftm-filter-option.is-active {
+  color: var(--ftm-accent);
+  font-weight: 800;
+}
+
+.ftm-filter-box {
+  flex: 0 0 auto;
+  width: 15px;
+  height: 15px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--ftm-line-strong);
+  border-radius: 3px;
+  background: var(--ftm-surface);
+}
+
+.ftm-filter-option.is-active .ftm-filter-box {
+  background: var(--ftm-accent);
+  border-color: var(--ftm-accent);
+  color: #ffffff;
+}
+
+.ftm-price-presets {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.ftm-price-fields {
+  margin-top: 8px;
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 6px;
+  align-items: center;
+}
+
+.ftm-price-input {
+  width: 100%;
+  min-width: 0;
+  height: 32px;
+  padding: 0 8px;
+  border: 1px solid var(--ftm-line-strong);
+  border-radius: 6px;
+  background: var(--ftm-surface);
+  color: var(--ftm-ink);
+  font-size: 12.5px;
+  outline: none;
+}
+
+.ftm-price-input:focus {
+  border-color: var(--ftm-accent);
+  box-shadow: 0 0 0 3px rgba(231, 96, 43, 0.16);
+}
+
+.ftm-price-go {
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--ftm-line-strong);
+  border-radius: 6px;
+  background: var(--ftm-surface-sunken);
+  color: var(--ftm-ink);
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.ftm-price-go:hover {
+  background: var(--ftm-line);
+}
+
+.ftm-switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  min-height: 40px;
+  border: 0;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  color: var(--ftm-ink);
+  font-size: 13px;
+  font-weight: 700;
+  text-align: left;
+}
+
+.ftm-switch {
+  position: relative;
+  flex: 0 0 auto;
+  width: 40px;
+  height: 22px;
+  border-radius: 999px;
+  background: var(--ftm-line-strong);
+}
+
+.ftm-switch.is-on {
+  background: var(--ftm-success);
+}
+
+.ftm-switch-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.ftm-switch.is-on .ftm-switch-knob {
+  left: 20px;
+}
+
+/* --------------------------------------------------------------------------
+   Results toolbar
+   -------------------------------------------------------------------------- */
+.ftm-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  margin-bottom: 10px;
+  border: 1px solid var(--ftm-line);
+  border-radius: var(--ftm-radius);
+  background: var(--ftm-surface);
+}
+
+.ftm-toolbar-count {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--ftm-ink);
+}
+
+.ftm-toolbar-note {
+  font-size: 11px;
+  color: var(--ftm-ink-muted);
+}
+
+.ftm-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ftm-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 34px;
+  padding: 0 8px;
+  border: 1px solid var(--ftm-line-strong);
+  border-radius: 6px;
+  background: var(--ftm-surface-sunken);
+  color: var(--ftm-ink);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.ftm-sort select {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  outline: none;
+  max-width: 150px;
+}
+
+.ftm-iconbtn {
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--ftm-line-strong);
+  border-radius: 6px;
+  background: var(--ftm-surface);
+  color: var(--ftm-ink-muted);
+  cursor: pointer;
+}
+
+.ftm-iconbtn:hover:not(:disabled) {
+  background: var(--ftm-surface-sunken);
+  color: var(--ftm-ink);
+}
+
+.ftm-iconbtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ftm-viewtoggle {
+  display: none;
+  overflow: hidden;
+  border: 1px solid var(--ftm-line-strong);
+  border-radius: 6px;
+}
+
+@media (min-width: 640px) {
+  .ftm-viewtoggle {
+    display: flex;
+  }
+}
+
+.ftm-viewtoggle button {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 0;
+  background: var(--ftm-surface);
+  color: var(--ftm-ink-muted);
+  cursor: pointer;
+}
+
+.ftm-viewtoggle button.is-active {
+  background: var(--ftm-accent);
+  color: #ffffff;
+}
+
+.ftm-filter-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--ftm-line-strong);
+  border-radius: 6px;
+  background: var(--ftm-surface);
+  color: var(--ftm-ink);
+  font-size: 12.5px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+@media (min-width: 1024px) {
+  .ftm-filter-trigger {
+    display: none;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Active filter chips
+   -------------------------------------------------------------------------- */
+.ftm-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.ftm-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--ftm-line-strong);
+  border-radius: 999px;
+  background: var(--ftm-surface);
+  color: var(--ftm-ink);
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.ftm-chip:hover {
+  border-color: var(--ftm-accent);
+  color: var(--ftm-accent);
+}
+
+.ftm-chip-clear {
+  border: 0;
+  background: none;
+  color: var(--ftm-accent);
+  font-size: 11.5px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.ftm-chip-clear:hover {
+  text-decoration: underline;
+}
+
+/* --------------------------------------------------------------------------
+   Product grid -- 2 columns even at 375px, which is the single biggest
+   reduction in scroll length versus the previous single-column mobile list.
+   -------------------------------------------------------------------------- */
+.ftm-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+@media (min-width: 640px) {
+  .ftm-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .ftm-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1600px) {
+  .ftm-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+.ftm-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* --------------------------------------------------------------------------
+   Card
+   -------------------------------------------------------------------------- */
+.ftm-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  height: 100%;
+  overflow: hidden;
+  border: 1px solid var(--ftm-line);
+  border-radius: var(--ftm-radius);
+  background: var(--ftm-surface);
+  box-shadow: var(--ftm-shadow);
+}
+
+.ftm-card:focus-within {
+  border-color: var(--ftm-accent);
+  box-shadow: 0 0 0 3px rgba(231, 96, 43, 0.16);
+}
+
+.ftm-card.is-row {
+  flex-direction: row;
+}
+
+.ftm-card-media {
+  position: relative;
+  flex: 0 0 auto;
+  background: var(--ftm-surface-sunken);
+}
+
+.ftm-card:not(.is-row) .ftm-card-media {
+  aspect-ratio: 1 / 1;
+}
+
+.ftm-card.is-row .ftm-card-media {
+  width: 132px;
+  align-self: stretch;
+}
+
+@media (min-width: 640px) {
+  .ftm-card.is-row .ftm-card-media {
+    width: 196px;
+  }
+}
+
+.ftm-media-link {
+  position: absolute;
+  inset: 0;
+  display: block;
+  overflow: hidden;
+}
+
+.ftm-img {
+  position: absolute;
+  inset: 0;
+}
+
+.ftm-img-hover {
+  opacity: 0;
+}
+
+.ftm-flags {
+  position: absolute;
+  left: 6px;
+  top: 6px;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  pointer-events: none;
+}
+
+.ftm-flag {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 850;
+  line-height: 1.4;
+  letter-spacing: 0.01em;
+  color: #ffffff;
+}
+
+.ftm-flag-deal {
+  background: var(--ftm-deal);
+}
+
+.ftm-flag-new {
+  background: #232f3e;
+}
+
+.ftm-flag-low {
+  background: #b45309;
+}
+
+.ftm-wish {
+  position: absolute;
+  right: 6px;
+  top: 6px;
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--ftm-line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--ftm-ink-muted);
+  cursor: pointer;
+}
+
+:where(html.dark) .ftm-wish,
+:where(.dark) .ftm-wish {
+  background: rgba(23, 30, 39, 0.9);
+}
+
+.ftm-wish.is-on {
+  border-color: var(--ftm-accent);
+  color: var(--ftm-accent);
+}
+
+.ftm-card-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 8px 9px 9px;
+  gap: 2px;
+}
+
+@media (min-width: 640px) {
+  .ftm-card-body {
+    padding: 10px 11px 11px;
+  }
+}
+
+.ftm-sponsored {
+  font-size: 9.5px;
+  font-weight: 750;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ftm-ink-faint);
+}
+
+.ftm-title {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.32;
+  color: var(--ftm-link);
+  text-decoration: none;
+}
+
+@media (min-width: 640px) {
+  .ftm-title {
+    font-size: 13.5px;
+  }
+}
+
+.ftm-title:hover {
+  color: var(--ftm-deal);
+  text-decoration: underline;
+}
+
+.ftm-subline {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  color: var(--ftm-ink-muted);
+}
+
+.ftm-rating {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--ftm-ink-muted);
+}
+
+.ftm-stars {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  color: #f0a020;
+}
+
+.ftm-price-row {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  margin-top: 4px;
+}
+
+.ftm-price {
+  font-size: 17px;
+  font-weight: 800;
+  line-height: 1.1;
+  color: var(--ftm-ink);
+  letter-spacing: -0.01em;
+}
+
+@media (min-width: 640px) {
+  .ftm-price {
+    font-size: 19px;
+  }
+}
+
+.ftm-price-unit {
+  font-size: 11px;
+  font-weight: 650;
+  color: var(--ftm-ink-muted);
+}
+
+.ftm-price-was {
+  font-size: 11.5px;
+  color: var(--ftm-ink-faint);
+  text-decoration: line-through;
+}
+
+.ftm-price-off {
+  font-size: 11.5px;
+  font-weight: 800;
+  color: var(--ftm-deal);
+  font-style: normal;
+}
+
+.ftm-price-range {
+  font-size: 10.5px;
+  color: var(--ftm-ink-faint);
+}
+
+.ftm-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+  margin-top: 3px;
+  font-size: 11px;
+  color: var(--ftm-ink-muted);
+}
+
+.ftm-facts b {
+  font-weight: 800;
+  color: var(--ftm-ink);
+}
+
+.ftm-low {
+  margin-top: 3px;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--ftm-warn);
+}
+
+.ftm-seller {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 3px;
+  min-width: 0;
+  font-size: 11px;
+  color: var(--ftm-ink-muted);
+}
+
+.ftm-seller span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ftm-swatches {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  margin-top: 5px;
+}
+
+.ftm-swatch {
+  width: 13px;
+  height: 13px;
+  border-radius: 999px;
+  border: 1px solid var(--ftm-line-strong);
+}
+
+.ftm-swatch-more {
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--ftm-ink-faint);
+}
+
+.ftm-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 5px;
+  margin-top: auto;
+  padding-top: 8px;
+}
+
+.ftm-buy {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 34px;
+  padding: 0 8px;
+  border: 1px solid var(--ftm-cta-border);
+  border-radius: 999px;
+  background: var(--ftm-cta);
+  color: #0f1111;
+  font-size: 11.5px;
+  font-weight: 850;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.ftm-buy:hover:not(:disabled) {
+  background: var(--ftm-cta-hover);
+}
+
+.ftm-buy:disabled {
+  background: var(--ftm-surface-sunken);
+  border-color: var(--ftm-line);
+  color: var(--ftm-ink-faint);
+  cursor: not-allowed;
+}
+
+.ftm-detail {
+  display: inline-grid;
+  place-items: center;
+  min-width: 34px;
+  min-height: 34px;
+  padding: 0 8px;
+  border: 1px solid var(--ftm-line-strong);
+  border-radius: 999px;
+  background: var(--ftm-surface);
+  color: var(--ftm-ink);
+  font-size: 11.5px;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.ftm-detail:hover {
+  background: var(--ftm-surface-sunken);
+  border-color: var(--ftm-accent);
+  color: var(--ftm-accent);
+}
+
+/* Row (list) variant keeps the same tokens, just re-flows */
+.ftm-card.is-row .ftm-card-body {
+  padding: 10px 12px;
+}
+
+.ftm-card.is-row .ftm-title {
+  -webkit-line-clamp: 2;
+  font-size: 14px;
+}
+
+.ftm-card.is-row .ftm-actions {
+  grid-template-columns: auto auto;
+  justify-content: start;
+}
+
+/* --------------------------------------------------------------------------
+   Skeletons, empty and error states
+   -------------------------------------------------------------------------- */
+.ftm-skel-card {
+  overflow: hidden;
+  border: 1px solid var(--ftm-line);
+  border-radius: var(--ftm-radius);
+  background: var(--ftm-surface);
+}
+
+.ftm-skel-media {
+  aspect-ratio: 1 / 1;
+  background: var(--ftm-surface-sunken);
+}
+
+.ftm-skel-lines {
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.ftm-skel-line {
+  height: 10px;
+  border-radius: 4px;
+  background: var(--ftm-surface-sunken);
+}
+
+.ftm-skel-line.is-short {
+  width: 55%;
+}
+
+.ftm-skel-line.is-tall {
+  height: 28px;
+  margin-top: 4px;
+}
+
+.ftm-empty {
+  padding: 48px 20px;
+  text-align: center;
+  border: 1px dashed var(--ftm-line-strong);
+  border-radius: 12px;
+  background: var(--ftm-surface);
+}
+
+.ftm-empty h2 {
+  margin-top: 12px;
+  font-size: 18px;
+  font-weight: 850;
+  color: var(--ftm-ink);
+}
+
+.ftm-empty p {
+  margin: 6px auto 0;
+  max-width: 460px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--ftm-ink-muted);
+}
+
+.ftm-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding: 12px 14px;
+  border: 1px solid rgba(177, 39, 4, 0.24);
+  border-radius: var(--ftm-radius);
+  background: rgba(177, 39, 4, 0.08);
+  color: var(--ftm-deal);
+  font-size: 13px;
+}
+
+.ftm-retry {
+  border: 0;
+  background: none;
+  color: inherit;
+  font-weight: 850;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* --------------------------------------------------------------------------
+   Pagination
+   -------------------------------------------------------------------------- */
+.ftm-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 22px;
+}
+
+.ftm-pager button {
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--ftm-line-strong);
+  border-radius: 999px;
+  background: var(--ftm-surface);
+  color: var(--ftm-ink);
+  font-size: 12.5px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.ftm-pager button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.ftm-pager-status {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--ftm-ink-muted);
+}
+
+/* --------------------------------------------------------------------------
+   Bestseller strip (real sales data only)
+   -------------------------------------------------------------------------- */
+.ftm-strip {
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--ftm-line);
+  border-radius: var(--ftm-radius);
+  background: var(--ftm-surface);
+}
+
+.ftm-strip-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.ftm-strip-head h2 {
+  font-size: 14px;
+  font-weight: 850;
+  color: var(--ftm-ink);
+}
+
+.ftm-strip-head p {
+  font-size: 11px;
+  color: var(--ftm-ink-muted);
+}
+
+.ftm-strip-rail {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  scrollbar-width: thin;
+}
+
+.ftm-strip-item {
+  flex: 0 0 auto;
+  width: 128px;
+  border: 1px solid var(--ftm-line);
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--ftm-surface);
+  text-decoration: none;
+}
+
+@media (min-width: 640px) {
+  .ftm-strip-item {
+    width: 144px;
+  }
+}
+
+.ftm-strip-media {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  background: var(--ftm-surface-sunken);
+}
+
+.ftm-strip-rank {
+  position: absolute;
+  left: 5px;
+  top: 5px;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: #232f3e;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 850;
+}
+
+.ftm-strip-body {
+  padding: 7px 8px 8px;
+}
+
+.ftm-strip-title {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 11.5px;
+  font-weight: 650;
+  line-height: 1.3;
+  color: var(--ftm-link);
+}
+
+.ftm-strip-price {
+  margin-top: 3px;
+  font-size: 13px;
+  font-weight: 850;
+  color: var(--ftm-ink);
+}
+
+.ftm-strip-sold {
+  margin-top: 2px;
+  font-size: 10px;
+  font-weight: 750;
+  color: var(--ftm-success);
+}
+
+/* --------------------------------------------------------------------------
+   Mobile filter sheet body
+   -------------------------------------------------------------------------- */
+.ftm-sheet {
+  color: var(--ftm-ink);
+}
+
+.ftm-sheet .ftm-filter-group:first-of-type {
+  padding-top: 0;
+}
+
+/* --------------------------------------------------------------------------
+   Motion -- everything below is skipped entirely under reduced motion.
+   -------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: no-preference) {
+  .ftm-card {
+    transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
+    will-change: transform;
+  }
+
+  .ftm-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--ftm-shadow-lift);
+    border-color: var(--ftm-line-strong);
+  }
+
+  .ftm-img,
+  .ftm-img-hover {
+    transition: opacity 260ms ease, transform 320ms ease;
+  }
+
+  .ftm-card:hover .ftm-img,
+  .ftm-card:hover .ftm-img-hover {
+    transform: scale(1.035);
+  }
+
+  .ftm-buy,
+  .ftm-detail,
+  .ftm-chip,
+  .ftm-iconbtn,
+  .ftm-filter-option,
+  .ftm-navrail-item,
+  .ftm-wish {
+    transition: background-color 140ms ease, color 140ms ease, border-color 140ms ease,
+      transform 140ms ease;
+  }
+
+  .ftm-buy:active:not(:disabled),
+  .ftm-detail:active,
+  .ftm-wish:active {
+    transform: scale(0.97);
+  }
+
+  .ftm-switch,
+  .ftm-switch-knob {
+    transition: background-color 160ms ease, left 160ms ease;
+  }
+
+  .ftm-skel-media,
+  .ftm-skel-line {
+    background-image: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0.6) 50%,
+      transparent 100%
+    );
+    background-size: 200% 100%;
+    background-repeat: no-repeat;
+    animation: ftm-shimmer 1.25s linear infinite;
+  }
+
+  :where(html.dark) .ftm-skel-media,
+  :where(html.dark) .ftm-skel-line,
+  :where(.dark) .ftm-skel-media,
+  :where(.dark) .ftm-skel-line {
+    background-image: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0.08) 50%,
+      transparent 100%
+    );
+  }
+
+  .ftm-grid > *,
+  .ftm-list > * {
+    animation: ftm-rise 220ms ease both;
+  }
+
+  @keyframes ftm-shimmer {
+    from {
+      background-position: 150% 0;
+    }
+    to {
+      background-position: -50% 0;
+    }
+  }
+
+  @keyframes ftm-rise {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+}
+
+/* Touch devices have no real hover: never swap to the secondary image there,
+   so a tap can't leave a card stuck mid-crossfade. */
+@media (hover: hover) and (pointer: fine) {
+  .ftm-media-link:hover .ftm-img-base {
+    opacity: 0;
+  }
+
+  .ftm-media-link:hover .ftm-img-hover {
+    opacity: 1;
+  }
+}

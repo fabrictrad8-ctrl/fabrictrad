@@ -168,8 +168,10 @@ export default function AdminActivityFeed() {
         id: `registration-${registration.id}-${registration.updated_at}`,
         createdAt: registration.updated_at || registration.created_at,
         icon: 'BuildingStorefrontIcon',
-        iconBg: 'bg-amber-50',
-        iconColor: 'text-amber-700',
+        // Theme tokens rather than a fixed amber-50 ground, which stayed
+        // light-mode-only while every other row here uses a token tint.
+        iconBg: 'bg-warning/10',
+        iconColor: 'text-warning',
         title: `Seller registration ${String(registration.registration_status).replaceAll('_', ' ')}`,
         desc: registration.business_name || 'Seller application',
         meta: String(registration.id),
@@ -207,9 +209,10 @@ export default function AdminActivityFeed() {
     <div>
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-xl font-800 text-foreground">Activity Feed</h1>
+          <h1 className="text-xl font-800 text-foreground">Activity feed</h1>
           <p className="mt-1 text-xs text-muted-foreground">
-            Recent production events from orders, payments, listings, and seller reviews.
+            Recent production events from catalogue and bulk orders, their payments, product
+            listings and seller registrations — newest first, 50 records per source.
           </p>
         </div>
         <button
@@ -224,8 +227,9 @@ export default function AdminActivityFeed() {
       </div>
 
       {error && (
-        <div className="mb-4 rounded-xl border border-error/20 bg-error/5 px-4 py-3 text-sm text-error">
-          {error}
+        <div role="alert" className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-error/20 bg-error/5 px-4 py-3 text-sm text-error">
+          <span>{error}</span>
+          <button type="button" onClick={() => void loadActivities()} className="font-800 underline">Retry</button>
         </div>
       )}
 

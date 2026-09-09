@@ -1,17 +1,39 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import Icon from '@/components/ui/AppIcon';
 import BottomSheet from '@/components/BottomSheet';
+import { createClient } from '@/lib/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 
-const filterGroups = [
-  { label: 'Fabric Type', key: 'fabricType', options: ['Silk', 'Cotton', 'Polyester', 'Net & Netting', 'Georgette', 'Organza', 'Velvet', 'Handloom', 'Linen', 'Denim', 'Wool'] },
-  { label: 'GSM Range', key: 'gsm', options: ['< 80 GSM', '80-120 GSM', '120-200 GSM', '200-300 GSM', '300+ GSM'] },
-  { label: 'Width', key: 'width', options: ['36 inches', '44 inches', '54 inches', '58 inches', '60 inches', '72 inches'] },
-  { label: 'Work Type', key: 'work', options: ['Plain', 'Embroidered', 'Zari Work', 'Block Print', 'Digital Print', 'Handloom', 'Sequence'] },
-  { label: 'Dispatch Time', key: 'dispatch', options: ['Same Day', '1-2 Days', '3-5 Days', '5-7 Days'] },
-] as const;
+/**
+ * Static ranges are derived buckets over real numeric columns (gsm,
+ * dispatch_days, moq, price_per_unit) and are applied by MarketplaceGrid.
+ * The value lists that are NOT ranges - fabric type, work type and width - are
+ * loaded from the live catalogue below, so the rail never offers a facet that
+ * cannot match a single product.
+ */
+const GSM_OPTIONS = ['< 80 GSM', '80-120 GSM', '120-200 GSM', '200-300 GSM', '300+ GSM'];
+const DISPATCH_OPTIONS = ['Same Day', '1-2 Days', '3-5 Days', '5-7 Days'];
+const PRICE_BANDS = [
+  { label: 'Under ₹500', min: '', max: '500' },
+  { label: '₹500 – ₹1,000', min: '500', max: '1000' },
+  { label: '₹1,000 – ₹2,500', min: '1000', max: '2500' },
+  { label: '₹2,500 – ₹5,000', min: '2500', max: '5000' },
+  { label: 'Over ₹5,000', min: '5000', max: '' },
+];
+const MOQ_OPTIONS = [
+  { label: 'Up to 10', value: '10' },
+  { label: 'Up to 50', value: '50' },
+  { label: 'Up to 100', value: '100' },
+  { label: 'Up to 500', value: '500' },
+];
+
+const MULTI_KEYS = ['fabricType', 'gsm', 'width', 'work', 'dispatch'] as const;
+const ALL_KEYS = [...MULTI_KEYS, 'minPrice', 'maxPrice', 'maxMoq', 'deals'] as const;
+
+type Facets = { fabricTypes: string[]; works: string[]; widths: string[] };
 
 function valuesFor(params: URLSearchParams, key: string) {
   return (params.get(key) || '').split(',').map((value) => value.trim()).filter(Boolean);
@@ -21,25 +43,68 @@ export default function MarketplaceFilters() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const [expanded, setExpanded] = useState<string[]>(['fabricType', 'work']);
+  const { profile } = useAuth();
+  const [expanded, setExpanded] = useState<string[]>(['price', 'fabricType', 'work']);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [facets, setFacets] = useState<Facets>({ fabricTypes: [], works: [], widths: [] });
+
+  const accountKind = profile?.account_kind;
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      const supabase = createClient();
+      let query = supabase
+        .from('seller_products')
+        .select('category,work_type,width_inches')
+        .eq('status', 'active')
+        .eq('approval_status', 'approved')
+        .gt('available_quantity', 0);
+      if (accountKind === 'individual') query = query.eq('end_user_enabled', true).in('sale_channel', ['retail', 'both']);
+      const { data } = await query;
+      if (cancelled || !data) return;
+      const fabricTypes = new Set<string>();
+      const works = new Set<string>();
+      const widths = new Set<string>();
+      data.forEach((row) => {
+        if (row.category) fabricTypes.add(String(row.category));
+        if (row.work_type) works.add(String(row.work_type));
+        if (row.width_inches) widths.add(`${Number(row.width_inches)} inches`);
+      });
+      setFacets({
+        fabricTypes: [...fabricTypes].sort((a, b) => a.localeCompare(b)),
+        works: [...works].sort((a, b) => a.localeCompare(b)),
+        widths: [...widths].sort((a, b) => Number.parseFloat(a) - Number.parseFloat(b)),
+      });
+    };
+    void load();
+    return () => { cancelled = true; };
+  }, [accountKind]);
 
   const selected = useMemo(() => {
     const params = new URLSearchParams(searchParams.toString());
-    return Object.fromEntries(filterGroups.map((group) => [group.key, valuesFor(params, group.key)]));
+    return Object.fromEntries(MULTI_KEYS.map((key) => [key, valuesFor(params, key)])) as Record<string, string[]>;
   }, [searchParams]);
 
-  const priceMax = Number(searchParams.get('maxPrice') || 5000);
-  const moqMax = Number(searchParams.get('maxMoq') || 500);
-  const verifiedOnly = searchParams.get('verified') === '1';
-  const totalActive = Object.values(selected).flat().length + Number(verifiedOnly) + Number(priceMax !== 5000) + Number(moqMax !== 500);
+  const minPrice = searchParams.get('minPrice') || '';
+  const maxPrice = searchParams.get('maxPrice') || '';
+  const maxMoq = searchParams.get('maxMoq') || '';
+  const dealsOnly = searchParams.get('deals') === '1';
 
-  const updateParams = (update: (params: URLSearchParams) => void) => {
+  const [draftMin, setDraftMin] = useState(minPrice);
+  const [draftMax, setDraftMax] = useState(maxPrice);
+  useEffect(() => { setDraftMin(minPrice); setDraftMax(maxPrice); }, [minPrice, maxPrice]);
+
+  const totalActive =
+    Object.values(selected).flat().length +
+    Number(!!minPrice) + Number(!!maxPrice) + Number(!!maxMoq) + Number(dealsOnly);
+
+  const updateParams = useCallback((update: (params: URLSearchParams) => void) => {
     const params = new URLSearchParams(searchParams.toString());
     update(params);
     params.delete('page');
     router.replace(`${pathname}${params.size ? `?${params.toString()}` : ''}`, { scroll: false });
-  };
+  }, [pathname, router, searchParams]);
 
   const toggleOption = (key: string, value: string) => updateParams((params) => {
     const current = valuesFor(params, key);
@@ -47,47 +112,179 @@ export default function MarketplaceFilters() {
     if (next.length) params.set(key, next.join(',')); else params.delete(key);
   });
 
-  const clearAll = () => updateParams((params) => ['fabricType', 'gsm', 'width', 'work', 'dispatch', 'verified', 'maxPrice', 'maxMoq'].forEach((key) => params.delete(key)));
+  const setSingle = (key: string, value: string) => updateParams((params) => {
+    if (value) params.set(key, value); else params.delete(key);
+  });
+
+  const applyBand = (band: (typeof PRICE_BANDS)[number]) => updateParams((params) => {
+    const active = (params.get('minPrice') || '') === band.min && (params.get('maxPrice') || '') === band.max;
+    if (active || (!band.min && !band.max)) {
+      params.delete('minPrice');
+      params.delete('maxPrice');
+      return;
+    }
+    if (band.min) params.set('minPrice', band.min); else params.delete('minPrice');
+    if (band.max) params.set('maxPrice', band.max); else params.delete('maxPrice');
+  });
+
+  const applyCustomPrice = () => updateParams((params) => {
+    const min = Number(draftMin);
+    const max = Number(draftMax);
+    if (Number.isFinite(min) && min > 0) params.set('minPrice', String(Math.round(min))); else params.delete('minPrice');
+    if (Number.isFinite(max) && max > 0) params.set('maxPrice', String(Math.round(max))); else params.delete('maxPrice');
+  });
+
+  const clearAll = () => updateParams((params) => ALL_KEYS.forEach((key) => params.delete(key)));
+
+  const group = (
+    key: string,
+    label: string,
+    body: React.ReactNode,
+    options?: { alwaysOpen?: boolean }
+  ) => {
+    const open = options?.alwaysOpen || expanded.includes(key);
+    return (
+      <div className="ftm-filter-group" key={key}>
+        <button
+          type="button"
+          className="ftm-filter-legend"
+          onClick={() => setExpanded((current) => current.includes(key) ? current.filter((item) => item !== key) : [...current, key])}
+          aria-expanded={open}
+        >
+          {label}
+          <Icon name={open ? 'ChevronUpIcon' : 'ChevronDownIcon'} size={15} />
+        </button>
+        {open && <div className="ftm-filter-body">{body}</div>}
+      </div>
+    );
+  };
+
+  const checkboxList = (key: string, options: string[]) => (
+    <>
+      {options.map((option) => {
+        const active = (selected[key] || []).includes(option);
+        return (
+          <button
+            key={option}
+            type="button"
+            onClick={() => toggleOption(key, option)}
+            className={`ftm-filter-option${active ? ' is-active' : ''}`}
+            aria-pressed={active}
+          >
+            <span className="ftm-filter-box">{active && <Icon name="CheckIcon" size={10} />}</span>
+            {option}
+          </button>
+        );
+      })}
+    </>
+  );
 
   const filterContent = (
-    <div className="space-y-5">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2"><Icon name="FunnelIcon" size={16} className="text-foreground" /><span className="text-sm font-850 text-foreground">Refine results</span>{totalActive > 0 && <span className="rounded-full bg-primary px-1.5 py-0.5 text-xs font-800 text-white">{totalActive}</span>}</div>
-        {totalActive > 0 && <button type="button" onClick={clearAll} className="text-xs font-750 text-primary hover:underline">Clear</button>}
+    <div className="ftm-sheet">
+      <div className="ftm-filter-head">
+        <span className="ftm-filter-title">
+          <Icon name="FunnelIcon" size={15} />
+          Refine results
+          {totalActive > 0 && <span className="ftm-filter-count">{totalActive}</span>}
+        </span>
+        {totalActive > 0 && <button type="button" onClick={clearAll} className="ftm-filter-clear">Clear all</button>}
       </div>
 
-      <button type="button" onClick={() => updateParams((params) => verifiedOnly ? params.delete('verified') : params.set('verified', '1'))} className="flex w-full items-center justify-between border-b border-border py-2 text-left" aria-pressed={verifiedOnly}>
-        <span className="flex items-center gap-2"><Icon name="ShieldCheckIcon" size={14} className="text-success" /><span className="text-sm font-700 text-foreground">Verified sellers</span></span>
-        <span className={`relative h-6 w-11 rounded-full transition-colors ${verifiedOnly ? 'bg-success' : 'bg-muted-foreground/30'}`}><span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${verifiedOnly ? 'translate-x-5' : 'translate-x-0.5'}`} /></span>
-      </button>
-
-      <div>
-        <div className="mb-2 flex items-center justify-between"><p className="text-sm font-750 text-foreground">Price up to</p><output className="text-xs font-800 text-primary">₹{priceMax.toLocaleString('en-IN')}/m</output></div>
-        <input aria-label="Maximum price per metre" type="range" min={100} max={10000} step={100} value={priceMax} onChange={(event) => updateParams((params) => { const value = Number(event.target.value); if (value === 5000) params.delete('maxPrice'); else params.set('maxPrice', String(value)); })} className="w-full accent-primary" />
+      <div className="ftm-filter-group">
+        <button
+          type="button"
+          className="ftm-switch-row"
+          onClick={() => setSingle('deals', dealsOnly ? '' : '1')}
+          aria-pressed={dealsOnly}
+        >
+          <span>Discounted only</span>
+          <span className={`ftm-switch${dealsOnly ? ' is-on' : ''}`}><span className="ftm-switch-knob" /></span>
+        </button>
       </div>
 
-      <div>
-        <div className="mb-2 flex items-center justify-between"><p className="text-sm font-750 text-foreground">MOQ up to</p><output className="text-xs font-800 text-primary">{moqMax} mtrs</output></div>
-        <input aria-label="Maximum minimum order quantity" type="range" min={1} max={1000} step={5} value={moqMax} onChange={(event) => updateParams((params) => { const value = Number(event.target.value); if (value === 500) params.delete('maxMoq'); else params.set('maxMoq', String(value)); })} className="w-full accent-primary" />
-      </div>
+      {group('price', 'Price per unit', (
+        <>
+          <div className="ftm-price-presets">
+            {PRICE_BANDS.map((band) => {
+              const active = minPrice === band.min && maxPrice === band.max;
+              return (
+                <button
+                  key={band.label}
+                  type="button"
+                  onClick={() => applyBand(band)}
+                  className={`ftm-filter-option${active ? ' is-active' : ''}`}
+                  aria-pressed={active}
+                >
+                  <span className="ftm-filter-box">{active && <Icon name="CheckIcon" size={10} />}</span>
+                  {band.label}
+                </button>
+              );
+            })}
+          </div>
+          <div className="ftm-price-fields">
+            <input
+              className="ftm-price-input"
+              type="number"
+              inputMode="numeric"
+              min={0}
+              placeholder="Min ₹"
+              aria-label="Minimum price per unit"
+              value={draftMin}
+              onChange={(event) => setDraftMin(event.target.value)}
+            />
+            <input
+              className="ftm-price-input"
+              type="number"
+              inputMode="numeric"
+              min={0}
+              placeholder="Max ₹"
+              aria-label="Maximum price per unit"
+              value={draftMax}
+              onChange={(event) => setDraftMax(event.target.value)}
+            />
+            <button type="button" className="ftm-price-go" onClick={applyCustomPrice}>Go</button>
+          </div>
+        </>
+      ), { alwaysOpen: true })}
 
-      {filterGroups.map((group) => (
-        <div key={group.key} className="border-t border-border pt-4">
-          <button type="button" onClick={() => setExpanded((current) => current.includes(group.key) ? current.filter((key) => key !== group.key) : [...current, group.key])} className="mb-2 flex w-full items-center justify-between" aria-expanded={expanded.includes(group.key)}>
-            <span className="text-sm font-800 text-foreground">{group.label}</span><Icon name={expanded.includes(group.key) ? 'ChevronUpIcon' : 'ChevronDownIcon'} size={16} className="text-muted-foreground" />
-          </button>
-          {expanded.includes(group.key) && <div className="space-y-1">{group.options.map((option) => {
-            const active = (selected[group.key] || []).includes(option);
-            return <button key={option} type="button" onClick={() => toggleOption(group.key, option)} className={`flex w-full items-center gap-2 rounded-md px-1.5 py-1.5 text-[13px] transition ${active ? 'bg-primary/10 font-750 text-primary' : 'text-foreground hover:bg-muted'}`} aria-pressed={active}><span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${active ? 'border-primary bg-primary' : 'border-border'}`}>{active && <Icon name="CheckIcon" size={10} className="text-white" />}</span>{option}</button>;
-          })}</div>}
-        </div>
+      {!!facets.fabricTypes.length && group('fabricType', 'Fabric type', checkboxList('fabricType', facets.fabricTypes))}
+      {!!facets.works.length && group('work', 'Work type', checkboxList('work', facets.works))}
+
+      {group('moq', 'Minimum order quantity', (
+        <>
+          {MOQ_OPTIONS.map((option) => {
+            const active = maxMoq === option.value;
+            return (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => setSingle('maxMoq', active ? '' : option.value)}
+                className={`ftm-filter-option${active ? ' is-active' : ''}`}
+                aria-pressed={active}
+              >
+                <span className="ftm-filter-box">{active && <Icon name="CheckIcon" size={10} />}</span>
+                {option.label}
+              </button>
+            );
+          })}
+        </>
       ))}
+
+      {group('gsm', 'GSM range', checkboxList('gsm', GSM_OPTIONS))}
+      {!!facets.widths.length && group('width', 'Width', checkboxList('width', facets.widths))}
+      {group('dispatch', 'Dispatch time', checkboxList('dispatch', DISPATCH_OPTIONS))}
     </div>
   );
 
   return (
     <>
-      <div className="mb-2 lg:hidden"><button type="button" onClick={() => setMobileOpen(true)} className="btn-secondary flex items-center gap-2 rounded-lg px-4 py-2 text-sm"><Icon name="FunnelIcon" size={16} />Filters {totalActive > 0 && `(${totalActive})`}</button></div>
+      <aside className="ftm-rail" aria-label="Marketplace filters">{filterContent}</aside>
+
+      <button type="button" onClick={() => setMobileOpen(true)} className="ftm-filter-trigger" data-ftm-mobile-filter>
+        <Icon name="FunnelIcon" size={15} />
+        Filters{totalActive > 0 ? ` (${totalActive})` : ''}
+      </button>
+
       <BottomSheet
         open={mobileOpen}
         onClose={() => setMobileOpen(false)}
@@ -96,7 +293,6 @@ export default function MarketplaceFilters() {
       >
         {filterContent}
       </BottomSheet>
-      <aside className="hidden w-60 shrink-0 lg:block" aria-label="Marketplace filters"><div className="ft-marketplace-filters-card sticky top-20 max-h-[calc(100vh-6rem)] overflow-y-auto scrollbar-thin">{filterContent}</div></aside>
     </>
   );
 }

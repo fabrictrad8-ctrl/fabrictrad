@@ -69,7 +69,7 @@ const en: PublicLandingCopy = {
   buyerMarketplace: 'Buyer marketplace', buyerMarketplaceCopy: 'Search, compare, request, pay and track.', sellerOperations: 'Seller operations', sellerOperationsCopy: 'Products, orders, money and fulfilment.', aiVirtualDrape: 'AI Virtual Drape', aiVirtualDrapeCopy: 'Preview the seller textile on your photo or an AI model.',
   workspacesKicker: 'One platform, two focused workspaces', workspacesTitle: 'Simple at the surface. Serious underneath.', workspacesCopy: 'Buyers should feel like they are shopping, not operating an ERP. Sellers should feel like they are running a modern store, not navigating a buyer website.',
   buyer: 'Buyer', marketplaceFirst: 'Marketplace-first', buyerWorkspaceCopy: 'Discovery, orders, payment and tracking.', seller: 'Seller', operationsFirst: 'Operations-first', sellerWorkspaceCopy: 'Catalogue, fulfilment, earnings and analytics.', admin: 'Admin', controlFirst: 'Control-first', adminWorkspaceCopy: 'Verification, risk, transactions and operations.',
-  lifecycleKicker: 'A connected order lifecycle', lifecycleTitle: 'From product discovery to paid fulfilment without losing context.', lifecycleCopy: 'Every important step remains attached to the real order: seller acceptance, Razorpay capture, invoice generation, shipment creation, tracking and support.', lifecycleStepOne: 'Discover a live product or post a sourcing requirement.', lifecycleStepTwo: 'Seller confirms the order and stock before payment opens.', lifecycleStepThree: 'Verified payment unlocks invoicing, earnings and fulfilment.',
+  lifecycleKicker: 'A connected order lifecycle', lifecycleTitle: 'From product discovery to paid fulfilment without losing context.', lifecycleCopy: 'Every important step remains attached to the real order: stock reservation, Razorpay capture, invoice generation, shipment creation, tracking and support.', lifecycleStepOne: 'Discover a live product or post a sourcing requirement.', lifecycleStepTwo: 'Buy it straight away — stock is reserved for you immediately.', lifecycleStepThree: 'Verified payment unlocks invoicing, earnings and fulfilment.',
   capabilities: [
     { title: 'Search-first buying', copy: 'Compare verified sellers, stock, MOQ, price, variants and dispatch details from one marketplace.' },
     { title: 'Merchant command centre', copy: 'Run products, inventory, orders, payments, invoices, shipping and analytics without leaving FabricTrad.' },
@@ -79,7 +79,7 @@ const en: PublicLandingCopy = {
   trustKicker: 'Built for trust at scale', trustTitle: 'Clear commerce beats visual noise.', trustCopy: 'FabricTrad prioritises readable contrast, obvious next actions, role-specific navigation and responsive layouts while keeping advanced functionality available when it is useful.',
   trustItems: [
     { title: 'Verified network', copy: 'Seller verification and role-aware account access.' },
-    { title: 'Protected payments', copy: 'Seller acceptance followed by server-verified Razorpay payment.' },
+    { title: 'Protected payments', copy: 'Server-verified Razorpay payment before any order is marked paid.' },
     { title: 'Connected fulfilment', copy: 'Paid-order shipping and tracking stay attached to the same order.' },
   ],
   footerHowToUse: 'How to use', footerHelp: 'Help', footerPrivacy: 'Privacy', footerTerms: 'Terms',

@@ -249,7 +249,7 @@ export default function AdminCustomers() {
           <span>Live Supabase profiles</span>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1120px] text-sm">
+          <table className="ft-admin-table w-full min-w-[1120px] text-sm">
             <thead className="bg-muted/70 text-left text-xs font-800 text-muted-foreground">
               <tr>
                 <th className="px-4 py-3">Customer</th>
@@ -262,6 +262,9 @@ export default function AdminCustomers() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
+              {loading && !customers.length && Array.from({ length: 6 }).map((_, index) => (
+                <tr key={`skeleton-${index}`}><td colSpan={7} className="px-4 py-4"><div className="ft-admin-skeleton h-10" /></td></tr>
+              ))}
               {!loading && filtered.length === 0 && (
                 <tr><td colSpan={7} className="px-6 py-14 text-center text-sm text-muted-foreground">No customer accounts match this view.</td></tr>
               )}
@@ -269,7 +272,7 @@ export default function AdminCustomers() {
                 const focused = focusId === customer.id;
                 const admin = isAdminCustomer(customer);
                 return (
-                  <tr id={`customer-${customer.id}`} key={customer.id} className={focused ? 'bg-primary/10 ring-1 ring-inset ring-primary/30' : 'hover:bg-muted/30'}>
+                  <tr id={`customer-${customer.id}`} key={customer.id} className={focused ? 'bg-primary/10 ring-1 ring-inset ring-primary/30' : 'ft-admin-row'}>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
                         <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-xs font-800 text-primary">

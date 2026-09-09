@@ -1,27 +1,60 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import Icon from '@/components/ui/AppIcon';
+import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 
-const categories = ['All Fabrics', 'Silk', 'Cotton', 'Net & Netting', 'Georgette', 'Polyester', 'Handloom', 'Velvet', 'Organza', 'Linen', 'Denim', 'Wool'];
-const quickFilters = [
-  { label: 'Verified sellers', icon: 'ShieldCheckIcon', key: 'verified', value: '1' },
-  { label: 'MOQ up to 50 m', icon: 'ArchiveBoxIcon', key: 'maxMoq', value: '50' },
-  { label: 'Dispatch in 1–2 days', icon: 'TruckIcon', key: 'dispatch', value: '1-2 Days' },
-  { label: 'Under ₹1,000/m', icon: 'TagIcon', key: 'maxPrice', value: '1000' },
-] as const;
+const ALL_FABRICS = 'All fabrics';
 
+/**
+ * Compact Amazon-style search strip + category rail. This replaces the tall
+ * marketing hero: the browse page now spends its first viewport on search,
+ * categories and products instead of copy.
+ *
+ * The category rail is built from the live catalogue (distinct
+ * seller_products.category over the same active/approved/in-stock predicate the
+ * grid uses), so every chip resolves to at least one real product.
+ */
 export default function MarketplaceBanner() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { profile } = useAuth();
   const [query, setQuery] = useState(searchParams.get('search') || '');
-  const selectedFabricTypes = useMemo(() => (searchParams.get('fabricType') || '').split(',').map((value) => value.trim()).filter(Boolean), [searchParams]);
-  const [searchCategory, setSearchCategory] = useState(selectedFabricTypes[0] || 'All Fabrics');
+  const [categories, setCategories] = useState<string[]>([]);
+
+  const accountKind = profile?.account_kind;
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      const supabase = createClient();
+      let request = supabase
+        .from('seller_products')
+        .select('category')
+        .eq('status', 'active')
+        .eq('approval_status', 'approved')
+        .gt('available_quantity', 0);
+      if (accountKind === 'individual') request = request.eq('end_user_enabled', true).in('sale_channel', ['retail', 'both']);
+      const { data } = await request;
+      if (cancelled || !data) return;
+      const unique = [...new Set(data.map((row) => String(row.category || '')).filter(Boolean))];
+      setCategories(unique.sort((a, b) => a.localeCompare(b)));
+    };
+    void load();
+    return () => { cancelled = true; };
+  }, [accountKind]);
+
+  const selectedFabricTypes = useMemo(
+    () => (searchParams.get('fabricType') || '').split(',').map((value) => value.trim()).filter(Boolean),
+    [searchParams]
+  );
+  const [searchScope, setSearchScope] = useState(ALL_FABRICS);
+
+  useEffect(() => { setQuery(searchParams.get('search') || ''); }, [searchParams]);
 
   const updateParams = (update: (params: URLSearchParams) => void) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -35,76 +68,87 @@ export default function MarketplaceBanner() {
     updateParams((params) => {
       const value = query.trim();
       if (value) params.set('search', value); else params.delete('search');
-      if (searchCategory === 'All Fabrics') params.delete('fabricType'); else params.set('fabricType', searchCategory);
+      if (searchScope === ALL_FABRICS) params.delete('fabricType'); else params.set('fabricType', searchScope);
     });
   };
 
   const selectCategory = (category: string) => {
-    setSearchCategory(category);
+    setSearchScope(category === ALL_FABRICS ? ALL_FABRICS : category);
     updateParams((params) => {
       params.delete('category');
-      if (category === 'All Fabrics') params.delete('fabricType'); else params.set('fabricType', category);
+      if (category === ALL_FABRICS) params.delete('fabricType'); else params.set('fabricType', category);
     });
   };
-
-  const toggleQuickFilter = (key: string, value: string) => updateParams((params) => {
-    if (params.get(key) === value) params.delete(key); else params.set(key, value);
-  });
 
   const deliveryLocation = [profile?.city, profile?.state].filter(Boolean).join(', ');
   const buyerMode = profile?.account_kind === 'business' ? 'Business buying' : 'Personal buying';
 
   return (
-    <section className="ft-marketplace-hero" aria-labelledby="marketplace-title">
-      <div className="ft-marketplace-hero-inner">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-3 text-[11px] text-white/70">
-          <div className="flex flex-wrap items-center gap-4">
-            <span className="inline-flex items-center gap-1.5"><Icon name="MapPinIcon" size={13} /> {deliveryLocation ? `Delivering to ${deliveryLocation}` : 'Add delivery location from your profile'}</span>
-            <span className="inline-flex items-center gap-1.5"><Icon name="UserCircleIcon" size={13} /> {buyerMode}</span>
+    <>
+      <section className="ftm-searchbar" aria-labelledby="marketplace-title">
+        <div className="ftm-searchbar-inner">
+          <h1 id="marketplace-title" className="sr-only">FabricTrad marketplace</h1>
+
+          <form className="ftm-search" onSubmit={handleSearch} role="search" aria-label="Marketplace product search">
+            <select
+              value={searchScope}
+              onChange={(event) => setSearchScope(event.target.value)}
+              aria-label="Search within category"
+              className="ftm-search-scope"
+            >
+              <option>{ALL_FABRICS}</option>
+              {categories.map((category) => <option key={category}>{category}</option>)}
+            </select>
+            <input
+              id="marketplace-search"
+              type="search"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search fabric, colour, work, supplier or SKU"
+              aria-label="Search marketplace products"
+              autoComplete="off"
+              className="ftm-search-field"
+            />
+            <button type="submit" className="ftm-search-submit" aria-label="Search">
+              <Icon name="MagnifyingGlassIcon" size={20} />
+            </button>
+          </form>
+
+          <div className="ftm-searchbar-meta">
+            <span className="inline-flex items-center gap-1.5">
+              <Icon name="MapPinIcon" size={13} />
+              {deliveryLocation ? `Delivering to ${deliveryLocation}` : 'Add a delivery location in your profile'}
+            </span>
+            <span className="inline-flex items-center gap-1.5"><Icon name="UserCircleIcon" size={13} />{buyerMode}</span>
+            <Link href="/buyer-dashboard?tab=orders">Your orders</Link>
+            <Link href="/buyer-requirements">Post a sourcing requirement</Link>
+            <Link href="/vendors">Verified vendors</Link>
           </div>
-          <Link href="/buyer-dashboard?tab=orders" className="font-800 text-white hover:text-primary hover:underline">Your orders</Link>
         </div>
+      </section>
 
-        <div className="ft-marketplace-heading">
-          <div>
-            <p className="mb-2 text-[11px] font-850 uppercase tracking-[0.16em] text-orange-700">FabricTrad marketplace</p>
-            <h1 id="marketplace-title">Find the right fabric, seller and quantity faster.</h1>
+      {categories.length > 0 && (
+        <nav className="ftm-navrail" aria-label="Fabric categories">
+          <div className="ftm-navrail-inner">
+            {[ALL_FABRICS, ...categories].map((category) => {
+              const active = category === ALL_FABRICS
+                ? selectedFabricTypes.length === 0
+                : selectedFabricTypes.includes(category);
+              return (
+                <button
+                  key={category}
+                  type="button"
+                  onClick={() => selectCategory(category)}
+                  className={`ftm-navrail-item${active ? ' is-active' : ''}`}
+                  aria-pressed={active}
+                >
+                  {category}
+                </button>
+              );
+            })}
           </div>
-          <p>Compare real seller inventory, price per unit, MOQ, variants and dispatch time before you open the product page.</p>
-        </div>
-
-        <form className="ft-marketplace-search" onSubmit={handleSearch} role="search" aria-label="Marketplace product search">
-          <select value={searchCategory} onChange={(event) => setSearchCategory(event.target.value)} aria-label="Search category" className="mr-3 hidden h-10 max-w-40 border-0 border-r border-slate-200 bg-slate-50 px-2 text-xs font-750 text-slate-700 outline-none sm:block">
-            {categories.map((category) => <option key={category}>{category}</option>)}
-          </select>
-          <div className="flex min-w-0 items-center gap-2">
-            <Icon name="MagnifyingGlassIcon" size={20} className="shrink-0 text-slate-500" />
-            <input id="marketplace-search" type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search fabric, colour, work, supplier, HSN or SKU" aria-label="Search marketplace products" autoComplete="off" />
-          </div>
-          <button type="submit">Search</button>
-        </form>
-
-        <div className="ft-marketplace-category-row" aria-label="Fabric categories">
-          {categories.map((category) => {
-            const active = category === 'All Fabrics' ? selectedFabricTypes.length === 0 : selectedFabricTypes.includes(category);
-            return <button key={category} type="button" onClick={() => selectCategory(category)} className={`ft-marketplace-category ${active ? 'is-active' : ''}`} aria-pressed={active}>{category}</button>;
-          })}
-        </div>
-
-        <div className="ft-marketplace-quick-row" aria-label="Quick filters">
-          {quickFilters.map((filter) => {
-            const active = searchParams.get(filter.key) === filter.value;
-            return <button key={filter.label} type="button" onClick={() => toggleQuickFilter(filter.key, filter.value)} className={`ft-marketplace-quick-filter ${active ? 'is-active' : ''}`} aria-pressed={active}><Icon name={filter.icon} size={15} />{filter.label}</button>;
-          })}
-        </div>
-
-        <div className="ft-marketplace-utility-links" aria-label="Purchasing tools">
-          <Link href="/buyer-requirements" className="ft-marketplace-utility-link"><Icon name="MegaphoneIcon" size={15} /> Post a sourcing requirement</Link>
-          <Link href="/company-purchasing" className="ft-marketplace-utility-link"><Icon name="BuildingOfficeIcon" size={15} /> Company purchasing settings</Link>
-          <Link href="/buyer-dashboard?tab=orders" className="ft-marketplace-utility-link"><Icon name="ArrowPathIcon" size={15} /> Reorder and track purchases</Link>
-          <Link href="/vendors" className="ft-marketplace-utility-link"><Icon name="ShieldCheckIcon" size={15} /> Browse verified vendors</Link>
-        </div>
-      </div>
-    </section>
+        </nav>
+      )}
+    </>
   );
 }

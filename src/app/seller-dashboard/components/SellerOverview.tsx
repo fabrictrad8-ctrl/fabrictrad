@@ -16,6 +16,7 @@ type CatalogOrder = {
   payment_status: string;
   total_amount: number;
   amount_paid: number;
+  amount_refunded: number;
   created_at: string;
   seller_products?: { name?: string | null } | null;
 };
@@ -31,7 +32,13 @@ type Product = {
   hsn_code: string | null;
 };
 
-type Shipment = { id: string; status: string | null; updated_at: string };
+type Shipment = {
+  id: string;
+  status: string | null;
+  updated_at: string;
+  catalog_order_id: string | null;
+  bulk_order_id: string | null;
+};
 const activeShipmentStatuses = (status?: string | null) => !['delivered', 'cancelled', 'failed', 'rto_delivered'].includes(String(status || '').toLowerCase());
 
 export default function SellerOverview({ onNavigate }: Props) {
@@ -57,9 +64,9 @@ export default function SellerOverview({ onNavigate }: Props) {
     }
 
     const [catalogResult, productResult, shipmentResult] = await Promise.all([
-      supabase.from('catalog_order_requests').select('id,status,payment_status,total_amount,amount_paid,created_at,seller_products(name)').eq('seller_id', seller.id).order('created_at', { ascending: false }).limit(250),
+      supabase.from('catalog_order_requests').select('id,status,payment_status,total_amount,amount_paid,amount_refunded,created_at,seller_products(name)').eq('seller_id', seller.id).order('created_at', { ascending: false }).limit(250),
       supabase.from('seller_products').select('id,name,status,approval_status,available_quantity,reserved_quantity,min_stock,hsn_code').eq('seller_id', seller.id).order('updated_at', { ascending: false }).limit(1000),
-      supabase.from('seller_shipments').select('id,status,updated_at').eq('seller_id', seller.id).order('updated_at', { ascending: false }).limit(250),
+      supabase.from('seller_shipments').select('id,status,updated_at,catalog_order_id,bulk_order_id').eq('seller_id', seller.id).order('updated_at', { ascending: false }).limit(250),
     ]);
 
     const queryError = catalogResult.error || productResult.error || shipmentResult.error;
@@ -86,18 +93,34 @@ export default function SellerOverview({ onNavigate }: Props) {
     return () => { cancelled = true; };
   }, [user?.id]);
 
-  const pendingCatalog = catalogOrders.filter((order) => order.status === 'pending');
-  const pendingBulk = bulkOrders.filter((order) => ['draft', 'quote_sent'].includes(String(order.status || '')));
+  // Catalogue orders sit at 'pending' only while the *buyer's* company admin
+  // approves them — the seller has no action there, so it is reported as a
+  // waiting state, never as a task.
+  const awaitingBuyerApproval = catalogOrders.filter((order) => order.status === 'pending');
+  // Bulk enquiries are the one flow where the seller genuinely decides.
+  const bulkToQuote = bulkOrders.filter((order) => ['draft', 'quote_sent'].includes(String(order.status || '')));
   const paymentDue = [
     ...catalogOrders.filter((order) => order.status === 'accepted' && order.payment_status !== 'paid'),
     ...bulkOrders.filter((order) => order.status === 'confirmed' && order.payment_status !== 'paid'),
   ];
+  const shippedCatalogIds = new Set(shipments.map((shipment) => shipment.catalog_order_id).filter(Boolean) as string[]);
+  const shippedBulkIds = new Set(shipments.map((shipment) => shipment.bulk_order_id).filter(Boolean) as string[]);
+  const toDispatch = [
+    ...catalogOrders.filter((order) => order.status === 'paid' && order.payment_status === 'paid' && !shippedCatalogIds.has(order.id)),
+    ...bulkOrders.filter((order) => order.status === 'paid' && order.payment_status === 'paid' && !shippedBulkIds.has(order.id)),
+  ];
   const activeShipments = shipments.filter((shipment) => activeShipmentStatuses(shipment.status));
   const liveProducts = products.filter((product) => product.status === 'active' && product.approval_status === 'approved');
-  const lowStock = liveProducts.filter((product) => Math.max(0, Number(product.available_quantity || 0) - Number(product.reserved_quantity || 0)) <= Number(product.min_stock || 0));
+  // available_quantity is decremented at checkout; reserved_quantity holds stock
+  // for company-review orders where available_quantity has not moved yet. What a
+  // buyer can actually order today is the difference.
+  const sellableNow = (product: Product) =>
+    Math.max(0, Number(product.available_quantity || 0) - Number(product.reserved_quantity || 0));
+  const outOfStock = liveProducts.filter((product) => sellableNow(product) <= 0);
+  const lowStock = liveProducts.filter((product) => sellableNow(product) > 0 && sellableNow(product) <= Number(product.min_stock || 0));
   const missingHsn = liveProducts.filter((product) => !product.hsn_code?.trim());
-  const capturedSales = catalogOrders.filter((order) => order.payment_status === 'paid').reduce((sum, order) => sum + Number(order.amount_paid || order.total_amount || 0), 0)
-    + bulkOrders.filter((order) => order.payment_status === 'paid').reduce((sum, order) => sum + Number(order.amount_paid || order.net_total || 0), 0);
+  const capturedSales = catalogOrders.filter((order) => order.payment_status === 'paid').reduce((sum, order) => sum + Math.max(0, Number(order.amount_paid || order.total_amount || 0) - Number(order.amount_refunded || 0)), 0)
+    + bulkOrders.filter((order) => order.payment_status === 'paid').reduce((sum, order) => sum + Math.max(0, Number(order.amount_paid || order.net_total || 0) - Number(order.amount_refunded || 0)), 0);
 
   const recent = useMemo(() => {
     const catalog = catalogOrders.map((order) => ({ id: `FT-CAT-${order.id.slice(0, 8).toUpperCase()}`, product: order.seller_products?.name || 'Catalogue product', status: order.status, paymentStatus: order.payment_status, amount: Number(order.total_amount || 0), createdAt: order.created_at, kind: 'Catalogue' }));
@@ -118,9 +141,9 @@ export default function SellerOverview({ onNavigate }: Props) {
   const setupComplete = setupSteps.filter((step) => step.complete).length;
 
   const actionItems = [
-    { label: 'Orders waiting for your decision', count: pendingCatalog.length + pendingBulk.length, icon: 'ClockIcon', tone: 'text-warning', tab: 'orders' as SellerTab },
-    { label: 'Buyers waiting to pay', count: paymentDue.length, icon: 'CreditCardIcon', tone: 'text-primary', tab: 'orders' as SellerTab },
-    { label: 'Products at or below minimum stock', count: lowStock.length, icon: 'ExclamationTriangleIcon', tone: lowStock.length ? 'text-error' : 'text-success', tab: 'inventory' as SellerTab },
+    { label: 'Paid orders to dispatch', count: toDispatch.length, icon: 'TruckIcon', tone: toDispatch.length ? 'text-primary' : 'text-success', tab: 'orders' as SellerTab },
+    { label: 'Bulk enquiries to quote', count: bulkToQuote.length, icon: 'ClockIcon', tone: bulkToQuote.length ? 'text-warning' : 'text-success', tab: 'orders' as SellerTab },
+    { label: 'Live products out of stock', count: outOfStock.length, icon: 'ExclamationTriangleIcon', tone: outOfStock.length ? 'text-error' : 'text-success', tab: 'inventory' as SellerTab },
     { label: 'Live products missing HSN', count: missingHsn.length, icon: 'DocumentTextIcon', tone: missingHsn.length ? 'text-warning' : 'text-success', tab: 'inventory' as SellerTab },
   ];
 
@@ -142,7 +165,7 @@ export default function SellerOverview({ onNavigate }: Props) {
 
       <section className="ft-shopify-card overflow-hidden">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3 sm:px-5">
-          <div><h2 className="text-sm font-850 text-foreground">Today</h2><p className="mt-0.5 text-xs text-muted-foreground">Tasks that could block sales, payment or fulfilment</p></div>
+          <div><h2 className="text-sm font-850 text-foreground">Today</h2><p className="mt-0.5 text-xs text-muted-foreground">What is actually waiting on you right now</p></div>
           <button type="button" onClick={() => void load()} className="ft-icon-button" aria-label="Refresh seller home"><Icon name="ArrowPathIcon" size={15} className={loading ? 'animate-spin' : ''} /></button>
         </div>
         <div className="grid md:grid-cols-2 xl:grid-cols-4">
@@ -153,6 +176,24 @@ export default function SellerOverview({ onNavigate }: Props) {
             </button>
           ))}
         </div>
+        {!busy && (paymentDue.length > 0 || awaitingBuyerApproval.length > 0) && (
+          <p className="border-t border-border px-4 py-2.5 text-xs leading-5 text-muted-foreground sm:px-5">
+            <Icon name="ClockIcon" size={13} className="mr-1.5 inline align-[-2px]" />
+            Waiting on someone else:{' '}
+            {paymentDue.length > 0 && (
+              <span className="font-750 text-foreground">
+                {paymentDue.length} order{paymentDue.length === 1 ? '' : 's'} unpaid
+              </span>
+            )}
+            {paymentDue.length > 0 && awaitingBuyerApproval.length > 0 && ' · '}
+            {awaitingBuyerApproval.length > 0 && (
+              <span className="font-750 text-foreground">
+                {awaitingBuyerApproval.length} held for buyer-company approval
+              </span>
+            )}
+            . No action needed from you.
+          </p>
+        )}
       </section>
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,.65fr)]">
@@ -181,13 +222,13 @@ export default function SellerOverview({ onNavigate }: Props) {
         {[
           { label: 'Live products', value: liveProducts.length, icon: 'ArchiveBoxIcon', tone: 'text-foreground', tab: 'inventory' as SellerTab },
           { label: 'Active shipments', value: activeShipments.length, icon: 'TruckIcon', tone: 'text-secondary', tab: 'courier' as SellerTab },
-          { label: 'Captured sales', value: formatMoney(capturedSales), icon: 'BanknotesIcon', tone: 'text-success', tab: 'earnings' as SellerTab },
-          { label: 'Low stock', value: lowStock.length, icon: 'ExclamationTriangleIcon', tone: lowStock.length ? 'text-error' : 'text-success', tab: 'inventory' as SellerTab },
+          { label: 'Captured sales, net of refunds', value: formatMoney(capturedSales), icon: 'BanknotesIcon', tone: 'text-success', tab: 'earnings' as SellerTab },
+          { label: 'Low stock', value: lowStock.length, icon: 'ExclamationTriangleIcon', tone: lowStock.length ? 'text-warning' : 'text-success', tab: 'inventory' as SellerTab },
         ].map((stat) => <button key={stat.label} type="button" onClick={() => onNavigate(stat.tab)} className="ft-shopify-card p-4 text-left transition hover:border-[#b8bec6]"><Icon name={stat.icon} size={18} className={stat.tone} /><p className={`mt-3 text-xl font-850 ${stat.tone}`}>{busy ? '—' : stat.value}</p><p className="mt-1 text-xs font-700 text-muted-foreground">{stat.label}</p></button>)}
       </div>
 
       <div className="grid gap-5 lg:grid-cols-2">
-        <section className="ft-shopify-card p-5"><div className="flex items-start justify-between gap-3"><div><h2 className="text-sm font-850">Inventory health</h2><p className="mt-1 text-xs text-muted-foreground">{products.length} total product record{products.length === 1 ? '' : 's'}</p></div><button type="button" onClick={() => onNavigate('inventory')} className="text-xs font-850 text-primary hover:underline">Manage</button></div><div className="mt-4 grid grid-cols-3 gap-2 text-center"><div className="rounded-lg bg-success/10 p-3"><p className="text-xl font-850 text-success">{liveProducts.length}</p><p className="text-[10px] text-muted-foreground">Live</p></div><div className="rounded-lg bg-warning/10 p-3"><p className="text-xl font-850 text-warning">{products.filter((product) => product.status === 'draft').length}</p><p className="text-[10px] text-muted-foreground">Draft</p></div><div className="rounded-lg bg-error/10 p-3"><p className="text-xl font-850 text-error">{lowStock.length}</p><p className="text-[10px] text-muted-foreground">Low stock</p></div></div></section>
+        <section className="ft-shopify-card p-5"><div className="flex items-start justify-between gap-3"><div><h2 className="text-sm font-850">Inventory health</h2><p className="mt-1 text-xs text-muted-foreground">{products.length} total product record{products.length === 1 ? '' : 's'}</p></div><button type="button" onClick={() => onNavigate('inventory')} className="text-xs font-850 text-primary hover:underline">Manage</button></div><div className="mt-4 grid grid-cols-2 gap-2 text-center sm:grid-cols-4"><div className="rounded-lg bg-success/10 p-3"><p className="text-xl font-850 text-success">{liveProducts.length}</p><p className="text-[10px] text-muted-foreground">Live</p></div><div className="rounded-lg bg-error/10 p-3"><p className="text-xl font-850 text-error">{outOfStock.length}</p><p className="text-[10px] text-muted-foreground">Out of stock</p></div><div className="rounded-lg bg-warning/10 p-3"><p className="text-xl font-850 text-warning">{lowStock.length}</p><p className="text-[10px] text-muted-foreground">Low stock</p></div><div className="rounded-lg bg-muted p-3"><p className="text-xl font-850 text-foreground">{products.filter((product) => product.status === 'draft').length}</p><p className="text-[10px] text-muted-foreground">Unpublished</p></div></div></section>
         <section className="ft-shopify-card p-5"><div className="flex items-start justify-between gap-3"><div><h2 className="text-sm font-850">Shipping</h2><p className="mt-1 text-xs text-muted-foreground">Current shipment ledger</p></div><button type="button" onClick={() => onNavigate('courier')} className="text-xs font-850 text-primary hover:underline">Open shipping</button></div>{activeShipments.length ? <div className="mt-4 rounded-lg bg-secondary/10 p-4"><p className="text-2xl font-850 text-secondary">{activeShipments.length}</p><p className="mt-1 text-xs text-muted-foreground">shipment{activeShipments.length === 1 ? '' : 's'} currently active</p><p className="mt-2 text-xs text-muted-foreground">Latest update {new Date(activeShipments[0].updated_at).toLocaleString('en-IN')}</p></div> : <div className="mt-4 rounded-lg border border-dashed border-border bg-muted/30 p-6 text-center"><Icon name="TruckIcon" size={26} className="mx-auto text-muted-foreground" /><p className="mt-2 text-sm font-850">No active shipments</p></div>}</section>
       </div>
     </div>

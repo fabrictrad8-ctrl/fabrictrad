@@ -177,7 +177,7 @@ export default function AdminTopSellers() {
 
       <section className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[920px] text-sm">
+          <table className="ft-admin-table w-full min-w-[920px] text-sm">
             <thead className="border-b border-border bg-muted/60">
               <tr>
                 <th className="px-4 py-3 text-left text-xs font-800 text-muted-foreground">Rank</th>
@@ -193,7 +193,7 @@ export default function AdminTopSellers() {
             </thead>
             <tbody className="divide-y divide-border">
               {loading && Array.from({ length: 5 }).map((_, index) => (
-                <tr key={index}><td colSpan={9} className="px-4 py-5"><div className="h-8 animate-pulse rounded-xl bg-muted" /></td></tr>
+                <tr key={index}><td colSpan={9} className="px-4 py-5"><div className="ft-admin-skeleton h-8" /></td></tr>
               ))}
               {!loading && sorted.length === 0 && (
                 <tr>
@@ -205,8 +205,8 @@ export default function AdminTopSellers() {
                 </tr>
               )}
               {!loading && sorted.map((seller, index) => (
-                <tr key={seller.id} className="hover:bg-muted/30">
-                  <td className="px-4 py-4"><span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-xs font-800 text-primary">{index + 1}</span></td>
+                <tr key={seller.id} className="ft-admin-row">
+                  <td className="px-4 py-4"><span className="ft-admin-num flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-xs font-800 text-primary">{index + 1}</span></td>
                   <td className="px-4 py-4">
                     <div className="flex items-center gap-3">
                       <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-secondary/10 text-xs font-800 text-secondary">{initials(seller.name)}</span>
@@ -217,12 +217,12 @@ export default function AdminTopSellers() {
                       </div>
                     </div>
                   </td>
-                  <td className="px-4 py-4 text-right font-800 text-foreground">{money(seller.gmv)}</td>
-                  <td className="px-4 py-4 text-center font-800 text-foreground">{seller.orders}</td>
-                  <td className="px-4 py-4 text-center"><span className="font-800 text-foreground">{seller.rating || '—'}</span><span className="block text-[11px] text-muted-foreground">{seller.reviews} reviews</span></td>
-                  <td className="px-4 py-4 text-center font-800 text-foreground">{seller.acceptanceRate}%</td>
-                  <td className="px-4 py-4 text-center font-800 text-foreground">{seller.fulfillmentRate}%</td>
-                  <td className="px-4 py-4 text-center font-800 text-foreground">{seller.refundRate}%</td>
+                  <td className="ft-admin-num px-4 py-4 text-right font-800 text-foreground">{money(seller.gmv)}</td>
+                  <td className="ft-admin-num px-4 py-4 text-center font-800 text-foreground">{seller.orders}</td>
+                  <td className="px-4 py-4 text-center"><span className="ft-admin-num font-800 text-foreground">{seller.rating || '—'}</span><span className="block text-[11px] text-muted-foreground">{seller.reviews} reviews</span></td>
+                  <td className="ft-admin-num px-4 py-4 text-center font-800 text-foreground">{seller.acceptanceRate}%</td>
+                  <td className="ft-admin-num px-4 py-4 text-center font-800 text-foreground">{seller.fulfillmentRate}%</td>
+                  <td className="ft-admin-num px-4 py-4 text-center font-800 text-foreground">{seller.refundRate}%</td>
                   <td className="px-4 py-4 text-center">
                     <span className={pillClassForStatus(seller.verificationStatus === 'inactive' ? 'cancelled' : seller.verificationStatus)}>
                       {statusLabel(seller.verificationStatus)}

@@ -181,7 +181,7 @@ export default function AdminDashboard() {
               </span>
               <div className="min-w-0">
                 <p className="text-xs font-800 uppercase tracking-[0.12em] text-muted-foreground">{metric.label}</p>
-                <p className="mt-1 truncate text-2xl font-800 tracking-tight text-foreground">{loading ? '—' : metric.value}</p>
+                <p className="ft-admin-num mt-1 truncate text-2xl font-800 tracking-tight text-foreground">{loading ? '—' : metric.value}</p>
                 <p className="mt-1 text-xs text-muted-foreground">{metric.detail}</p>
               </div>
             </div>
@@ -219,12 +219,12 @@ export default function AdminDashboard() {
           <h2 className="mt-1 text-lg font-800 text-foreground">Products ready to sell</h2>
           <div className="mt-5 grid grid-cols-3 gap-3">
             {[
-              ['Active', overview?.inventory.activeProducts || 0, 'text-success bg-success/10'],
-              ['Low stock', overview?.inventory.lowStockProducts || 0, 'text-warning bg-warning/10'],
-              ['Out of stock', overview?.inventory.outOfStockProducts || 0, 'text-error bg-error/10'],
+              ['Active', overview?.inventory.activeProducts || 0, 'text-success'],
+              ['Low stock', overview?.inventory.lowStockProducts || 0, 'text-warning'],
+              ['Out of stock', overview?.inventory.outOfStockProducts || 0, 'text-error'],
             ].map(([label, value, tone]) => (
               <div key={String(label)} className="rounded-xl border border-border bg-muted/30 p-4 text-center">
-                <p className={`text-2xl font-800 ${tone}`.split(' ')[0]}>{loading ? '—' : value}</p>
+                <p className={`ft-admin-num text-2xl font-800 ${tone}`}>{loading ? '—' : value}</p>
                 <p className="mt-1 text-xs font-700 text-muted-foreground">{label}</p>
               </div>
             ))}

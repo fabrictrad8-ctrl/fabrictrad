@@ -1,0 +1,213 @@
+/* ------------------------------------------------------------------
+   Seller workspace — fulfilment queue + inventory density pass.
+
+   Imported from src/app/seller-dashboard/components/SellerDashboardLayout.tsx
+   (NOT from src/app/layout.tsx) so it only ships with the seller route.
+
+   Every rule is scoped under .ft-seller-admin, which SellerDashboardLayout
+   puts on the seller dashboard root. The buyer dashboard and admin portal
+   reuse the same workspace-shell classnames, so an unscoped rule here would
+   leak into both.
+
+   This EXTENDS the Shopify-admin pass in commerce-ux-final.css
+   (.ft-seller-admin .ft-shopify-card / table / .ft-pill …) rather than
+   restating it: nothing here re-declares a card border, table header or pill
+   colour that file already owns. Status colours are never set here — those
+   come from src/lib/statusPill.ts via .ft-pill-*.
+   ------------------------------------------------------------------ */
+
+/* ---------- Fulfilment queue ---------- */
+
+.ft-seller-admin .ft-order-board-head {
+  background: color-mix(in srgb, var(--foreground) 2%, var(--card));
+}
+
+.ft-seller-admin .ft-order-tabs {
+  background: color-mix(in srgb, var(--foreground) 2%, var(--card));
+  scrollbar-width: thin;
+}
+
+.ft-seller-admin .ft-order-tab {
+  border: 1px solid transparent;
+  color: var(--muted-foreground);
+  background: transparent;
+  transition: background-color 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+
+.ft-seller-admin .ft-order-tab:hover:not(.is-active) {
+  background: color-mix(in srgb, var(--foreground) 6%, transparent);
+  color: var(--foreground);
+}
+
+.ft-seller-admin .ft-order-tab.is-active {
+  background: var(--card);
+  border-color: var(--border);
+  color: var(--foreground);
+  font-weight: 850;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+.ft-seller-admin .ft-order-row {
+  transition: background-color 120ms ease;
+}
+
+.ft-seller-admin .ft-order-row:hover {
+  background: color-mix(in srgb, var(--foreground) 2.5%, transparent);
+}
+
+.ft-seller-admin .ft-order-fact {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--foreground) 3%, transparent);
+  padding: 8px 10px;
+  min-width: 0;
+}
+
+.ft-seller-admin .ft-order-fact-label {
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+
+.ft-seller-admin .ft-order-fact-value {
+  margin-top: 3px;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--foreground);
+  overflow-wrap: anywhere;
+}
+
+/* ---------- Inventory: stock legibility ---------- */
+
+/* A stock row must read at a glance. The bar is a proportion of the seller's
+   own reorder threshold (min_stock), never an invented target: with no
+   threshold set there is nothing to compare against, so .is-untracked renders
+   a flat neutral rail instead of a fake fill. */
+.ft-seller-admin .ft-stock-meter {
+  height: 4px;
+  width: 100%;
+  max-width: 130px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--foreground) 10%, transparent);
+  overflow: hidden;
+}
+
+.ft-seller-admin .ft-stock-meter > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--success);
+  transition: width 220ms ease;
+}
+
+.ft-seller-admin .ft-stock-meter.is-low > span {
+  background: var(--warning);
+}
+
+.ft-seller-admin .ft-stock-meter.is-out > span {
+  background: var(--error);
+}
+
+.ft-seller-admin .ft-stock-meter.is-untracked > span {
+  background: color-mix(in srgb, var(--foreground) 22%, transparent);
+}
+
+/* Clickable KPI tiles that drive the table filter. */
+.ft-seller-admin .ft-stock-kpi {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--card);
+  padding: 12px 14px;
+  text-align: left;
+  transition: border-color 130ms ease, box-shadow 130ms ease, background-color 130ms ease;
+}
+
+.ft-seller-admin .ft-stock-kpi:hover {
+  border-color: color-mix(in srgb, var(--foreground) 26%, transparent);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.07);
+}
+
+.ft-seller-admin .ft-stock-kpi.is-active {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 1px var(--primary) inset;
+}
+
+.ft-seller-admin .ft-stock-kpi-value {
+  font-size: 20px;
+  font-weight: 850;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.ft-seller-admin .ft-stock-kpi-label {
+  margin-top: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted-foreground);
+}
+
+/* Sticky product-table header: long catalogues are scrolled, and losing the
+   column meanings halfway down is the main complaint a dense table creates. */
+.ft-seller-admin .ft-sticky-head thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  /* The shared table rule uses a translucent color-mix; a sticky header must
+     be opaque or rows show through it as they scroll under. */
+  background: color-mix(in srgb, var(--foreground) 4%, var(--card));
+}
+
+/* Mobile: the product table is ~1120px wide, which is unusable at 375px.
+   Below the md breakpoint the table is replaced by a stacked card list built
+   from the same rows, so no data or action is mobile-only or desktop-only. */
+.ft-seller-admin .ft-stock-card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--card);
+  padding: 12px;
+}
+
+.ft-seller-admin .ft-stock-card + .ft-stock-card {
+  margin-top: 8px;
+}
+
+/* ---------- Loading skeletons ---------- */
+
+.ft-seller-admin .ft-skeleton {
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--foreground) 6%, transparent) 25%,
+    color-mix(in srgb, var(--foreground) 11%, transparent) 37%,
+    color-mix(in srgb, var(--foreground) 6%, transparent) 63%
+  );
+  background-size: 400% 100%;
+  animation: ft-skeleton-sweep 1.4s ease-in-out infinite;
+}
+
+@keyframes ft-skeleton-sweep {
+  0% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0 50%;
+  }
+}
+
+/* ---------- Motion safety ----------
+   Every animated/transitioned rule in this file is neutralised here, matching
+   the accessibility contract the rest of the app already follows. */
+@media (prefers-reduced-motion: reduce) {
+  .ft-seller-admin .ft-order-tab,
+  .ft-seller-admin .ft-order-row,
+  .ft-seller-admin .ft-stock-kpi,
+  .ft-seller-admin .ft-stock-meter > span {
+    transition: none !important;
+  }
+
+  .ft-seller-admin .ft-skeleton {
+    animation: none !important;
+    background: color-mix(in srgb, var(--foreground) 8%, transparent);
+  }
+}

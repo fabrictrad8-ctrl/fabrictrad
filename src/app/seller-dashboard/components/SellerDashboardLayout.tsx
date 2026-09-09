@@ -30,6 +30,9 @@ import SellerStoreIdentity from '@/app/seller-dashboard/components/SellerStoreId
 import SellerDiscounts from '@/app/seller-dashboard/components/SellerDiscounts';
 import CommerceNotificationBell from '@/app/components/CommerceNotificationBell';
 import AiAssistantWidget from '@/components/AiAssistantWidget';
+// Seller-only stylesheet. Kept out of src/app/layout.tsx on purpose so it is
+// scoped to this route's bundle; every rule inside is scoped to .ft-seller-admin.
+import '@/styles/seller-workspace-orders.css';
 
 type SellerTab =
   | 'overview'
@@ -58,7 +61,7 @@ const navGroups: Array<{ label: string; items: NavItem[] }> = [
     label: 'Store',
     items: [
       { key: 'overview', label: 'Home', icon: 'HomeIcon', description: 'Store health and next actions' },
-      { key: 'orders', label: 'Orders', icon: 'ShoppingBagIcon', description: 'Accept, payment and fulfilment' },
+      { key: 'orders', label: 'Orders', icon: 'ShoppingBagIcon', description: 'Payment, dispatch and fulfilment' },
     ],
   },
   {
@@ -109,8 +112,8 @@ const validTabs = allItems.map((item) => item.key);
 const normaliseTab = (value: string | null): SellerTab => validTabs.includes(value as SellerTab) ? value as SellerTab : 'overview';
 const sellerSearchAliases: Record<SellerTab, string> = {
   overview: 'home overview store health tasks setup',
-  orders: 'orders sales purchases accept payment fulfil fulfillment status',
-  inventory: 'products inventory stock listings sku',
+  orders: 'orders sales purchases payment dispatch ship fulfil fulfillment delivery status cancel',
+  inventory: 'products inventory stock listings sku out of stock low stock restock unpublished draft',
   variants: 'variants colours colors designs gtin options',
   catalogs: 'catalog catalogue pricing price moq wholesale breaks',
   upload: 'add create upload new product listing ai',

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Icon from '@/components/ui/AppIcon';
 import { exportToCSV, exportToExcel } from '@/lib/exportUtils';
 
@@ -56,6 +56,7 @@ export default function AdminSellerMetrics() {
   const [generatedAt, setGeneratedAt] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const exportMenuRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async () => {
     if (dateFrom && dateTo && dateFrom > dateTo) {
@@ -92,6 +93,26 @@ export default function AdminSellerMetrics() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // The export menu previously had no dismissal path at all: once opened it
+  // stayed over the table until one of its two buttons was pressed.
+  useEffect(() => {
+    if (!showExportMenu) return;
+    const onPointerDown = (event: MouseEvent | TouchEvent) => {
+      if (!exportMenuRef.current?.contains(event.target as Node)) setShowExportMenu(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setShowExportMenu(false);
+    };
+    document.addEventListener('mousedown', onPointerDown);
+    document.addEventListener('touchstart', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown);
+      document.removeEventListener('touchstart', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [showExportMenu]);
 
   const sorted = useMemo(
     () => [...sellers].sort((a, b) => b[sortBy] - a[sortBy] || b.gmv - a.gmv || a.name.localeCompare(b.name)),
@@ -158,17 +179,19 @@ export default function AdminSellerMetrics() {
             <button type="button" onClick={() => void load()} disabled={loading} className="ft-icon-button" aria-label="Refresh seller metrics">
               <Icon name="ArrowPathIcon" size={17} className={loading ? 'animate-spin' : ''} />
             </button>
-            <div className="relative">
+            <div className="relative" ref={exportMenuRef}>
               <button
                 type="button"
                 onClick={() => setShowExportMenu((open) => !open)}
                 disabled={!sorted.length}
+                aria-expanded={showExportMenu}
+                aria-haspopup="menu"
                 className="ft-secondary-action inline-flex items-center gap-2 px-3 py-2 text-xs disabled:opacity-50"
               >
                 <Icon name="ArrowDownTrayIcon" size={14} /> Export
               </button>
               {showExportMenu && (
-                <div className="absolute right-0 top-full z-20 mt-2 min-w-40 overflow-hidden rounded-xl border border-border bg-card shadow-xl">
+                <div role="menu" className="absolute right-0 top-full z-20 mt-2 min-w-40 overflow-hidden rounded-xl border border-border bg-card shadow-xl">
                   <button
                     type="button"
                     onClick={() => {
@@ -228,7 +251,7 @@ export default function AdminSellerMetrics() {
 
       <section className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[980px] text-sm">
+          <table className="ft-admin-table w-full min-w-[980px] text-sm">
             <thead className="border-b border-border bg-muted/60">
               <tr>
                 <th className="px-4 py-3 text-left text-xs font-800 text-muted-foreground">Seller</th>
@@ -243,19 +266,19 @@ export default function AdminSellerMetrics() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {loading && Array.from({ length: 5 }).map((_, index) => <tr key={index}><td colSpan={9} className="px-4 py-5"><div className="h-8 animate-pulse rounded-xl bg-muted" /></td></tr>)}
+              {loading && Array.from({ length: 5 }).map((_, index) => <tr key={index}><td colSpan={9} className="px-4 py-5"><div className="ft-admin-skeleton h-8" /></td></tr>)}
               {!loading && sorted.length === 0 && <tr><td colSpan={9} className="px-6 py-14 text-center text-sm text-muted-foreground">No seller activity exists for the selected period.</td></tr>}
               {!loading && sorted.map((seller) => (
-                <tr key={seller.id} className="hover:bg-muted/30">
+                <tr key={seller.id} className="ft-admin-row">
                   <td className="px-4 py-4"><p className="font-800 text-foreground">{seller.name}</p><p className="text-xs text-muted-foreground">{seller.sellerRef} · {seller.city} · {seller.activeListings} listings</p></td>
-                  <td className="px-4 py-4 text-right font-800 text-foreground">{money(seller.gmv)}</td>
-                  <td className="px-4 py-4 text-right font-800 text-foreground">{money(seller.commission)}</td>
-                  <td className="px-4 py-4 text-center font-800 text-foreground">{seller.orders}</td>
-                  <td className="px-4 py-4 text-center font-800 text-foreground">{money(seller.avgOrderValue)}</td>
-                  <td className="px-4 py-4 text-center"><span className="font-800 text-foreground">{seller.rating || '—'}</span><span className="block text-[11px] text-muted-foreground">{seller.reviews} reviews</span></td>
-                  <td className="px-4 py-4 text-center font-800 text-foreground">{seller.acceptanceRate}%</td>
-                  <td className="px-4 py-4 text-center font-800 text-foreground">{seller.fulfillmentRate}%</td>
-                  <td className="px-4 py-4 text-center font-800 text-foreground">{seller.refundRate}%</td>
+                  <td className="ft-admin-num px-4 py-4 text-right font-800 text-foreground">{money(seller.gmv)}</td>
+                  <td className="ft-admin-num px-4 py-4 text-right font-800 text-foreground">{money(seller.commission)}</td>
+                  <td className="ft-admin-num px-4 py-4 text-center font-800 text-foreground">{seller.orders}</td>
+                  <td className="ft-admin-num px-4 py-4 text-center font-800 text-foreground">{money(seller.avgOrderValue)}</td>
+                  <td className="px-4 py-4 text-center"><span className="ft-admin-num font-800 text-foreground">{seller.rating || '—'}</span><span className="block text-[11px] text-muted-foreground">{seller.reviews} reviews</span></td>
+                  <td className="ft-admin-num px-4 py-4 text-center font-800 text-foreground">{seller.acceptanceRate}%</td>
+                  <td className="ft-admin-num px-4 py-4 text-center font-800 text-foreground">{seller.fulfillmentRate}%</td>
+                  <td className="ft-admin-num px-4 py-4 text-center font-800 text-foreground">{seller.refundRate}%</td>
                 </tr>
               ))}
             </tbody>

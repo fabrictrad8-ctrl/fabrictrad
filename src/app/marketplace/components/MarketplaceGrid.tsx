@@ -1,26 +1,26 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import toast from 'react-hot-toast';
-import AppImage from '@/components/ui/AppImage';
 import Icon from '@/components/ui/AppIcon';
 import { trackFunnelStep } from '@/lib/analytics';
-import { mapSellerProductSummary, productDetailHref, type CatalogProduct } from '@/lib/catalog';
+import { mapSellerProductSummary, type CatalogProduct } from '@/lib/catalog';
 import { createClient } from '@/lib/supabase/client';
 import { useCart } from '@/lib/hooks/useCart';
 import { useWishlist } from '@/lib/hooks/useWishlist';
 import { useAuth } from '@/contexts/AuthContext';
+import MarketplaceProductCard, { type MarketplaceListing } from './MarketplaceProductCard';
 
-const PAGE_SIZE = 16;
+const PAGE_SIZE = 24;
+
 const sortOptions = [
   { value: 'relevance', label: 'Featured' },
   { value: 'price-asc', label: 'Price: low to high' },
   { value: 'price-desc', label: 'Price: high to low' },
+  { value: 'newest', label: 'Newest arrivals' },
   { value: 'moq', label: 'Lowest MOQ' },
   { value: 'dispatch', label: 'Fastest dispatch' },
-  { value: 'newest', label: 'Newest arrivals' },
 ];
 
 function splitParam(params: URLSearchParams, key: string) {
@@ -55,7 +55,7 @@ export default function MarketplaceGrid() {
   const { profile } = useAuth();
   const { add } = useCart();
   const { has: hasWishlisted, toggle: toggleWishlist } = useWishlist();
-  const [products, setProducts] = useState<CatalogProduct[]>([]);
+  const [products, setProducts] = useState<MarketplaceListing[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [view, setView] = useState<'grid' | 'list'>('grid');
@@ -81,9 +81,21 @@ export default function MarketplaceGrid() {
 
     const sellerIds = [...new Set((rows || []).map((row) => row.seller_id).filter(Boolean))];
     const names = new Map<string, string>();
+    // Real per-SELLER ratings from the seller_rating_aggregates view (built on
+    // seller_reviews). There is no per-product rating source in this schema, so
+    // a seller with no review rows simply gets no rating rendered.
+    const ratings = new Map<string, { average: number; count: number }>();
     if (sellerIds.length) {
-      const { data: sellers } = await supabase.from('seller_directory').select('id,display_name,legal_business_name').in('id', sellerIds);
+      const [{ data: sellers }, { data: ratingRows }] = await Promise.all([
+        supabase.from('seller_directory').select('id,display_name,legal_business_name').in('id', sellerIds),
+        supabase.from('seller_rating_aggregates').select('seller_id,avg_rating,review_count').in('seller_id', sellerIds),
+      ]);
       (sellers || []).forEach((seller) => names.set(seller.id, seller.display_name || seller.legal_business_name || 'Verified FabricTrad Seller'));
+      (ratingRows || []).forEach((row) => {
+        const count = Number(row.review_count || 0);
+        const average = Number(row.avg_rating || 0);
+        if (count > 0 && average > 0) ratings.set(String(row.seller_id), { average, count });
+      });
     }
 
     const productIds = [...new Set((rows || []).map((row) => row.id).filter(Boolean))];
@@ -101,7 +113,23 @@ export default function MarketplaceGrid() {
     }
     setSponsoredIds(sponsored);
 
-    setProducts((rows || []).map((row) => mapSellerProductSummary(row as Record<string, unknown>, names.get(row.seller_id) || 'Verified FabricTrad Seller')));
+    setProducts(
+      (rows || []).map((row) => {
+        const base = mapSellerProductSummary(row as Record<string, unknown>, names.get(row.seller_id) || 'Verified FabricTrad Seller');
+        // seller_products.compare_at_price is nullable and DB-constrained to be
+        // greater than price_per_unit, so it is the only legitimate source for a
+        // strikethrough / "% off". mapSellerProductSummary does not carry it, so
+        // it is attached here from the same row rather than re-deriving anything.
+        const compareAtPrice = row.compare_at_price != null ? Number(row.compare_at_price) : null;
+        const createdAt = row.created_at ? new Date(String(row.created_at)).getTime() : NaN;
+        return {
+          ...base,
+          compareAtPrice: compareAtPrice && compareAtPrice > base.price ? compareAtPrice : null,
+          createdAtMs: Number.isFinite(createdAt) ? createdAt : null,
+          sellerRating: ratings.get(String(row.seller_id)) || null,
+        } satisfies MarketplaceListing;
+      })
+    );
     setLoading(false);
   }, [profile?.account_kind]);
 
@@ -119,8 +147,13 @@ export default function MarketplaceGrid() {
     const widths = splitParam(params, 'width');
     const works = splitParam(params, 'work');
     const dispatch = splitParam(params, 'dispatch');
-    const maxPrice = Number(params.get('maxPrice') || 5000);
-    const maxMoq = Number(params.get('maxMoq') || 500);
+    const minPriceRaw = Number(params.get('minPrice'));
+    const maxPriceRaw = Number(params.get('maxPrice'));
+    const minPrice = Number.isFinite(minPriceRaw) && minPriceRaw > 0 ? minPriceRaw : 0;
+    const maxPrice = Number.isFinite(maxPriceRaw) && maxPriceRaw > 0 ? maxPriceRaw : Infinity;
+    const maxMoqRaw = Number(params.get('maxMoq'));
+    const maxMoq = Number.isFinite(maxMoqRaw) && maxMoqRaw > 0 ? maxMoqRaw : Infinity;
+    const dealsOnly = params.get('deals') === '1';
 
     const filtered = products.filter((product) => {
       const variantSearch = product.variants?.flatMap((variant) => [variant.colorName, variant.designName, variant.description]).join(' ');
@@ -128,7 +161,9 @@ export default function MarketplaceGrid() {
       if (search && !searchable.includes(search)) return false;
       if (category && product.category !== category) return false;
       if (fabricTypes.length && !fabricTypes.includes(product.category)) return false;
-      if (product.price > maxPrice || product.moq > maxMoq) return false;
+      if (product.price < minPrice || product.price > maxPrice) return false;
+      if (product.moq > maxMoq) return false;
+      if (dealsOnly && !(product.compareAtPrice && product.compareAtPrice > product.price)) return false;
       if (!matchesGsm(product.gsm, gsm)) return false;
       if (widths.length && !widths.includes(product.width)) return false;
       if (works.length && !works.some((work) => searchable.includes(work.toLowerCase()))) return false;
@@ -141,7 +176,7 @@ export default function MarketplaceGrid() {
       case 'price-desc': return filtered.sort((a, b) => b.price - a.price);
       case 'moq': return filtered.sort((a, b) => a.moq - b.moq);
       case 'dispatch': return filtered.sort((a, b) => a.dispatchDays - b.dispatchDays);
-      case 'newest': return filtered.sort((a, b) => Number(b.badge === 'new') - Number(a.badge === 'new'));
+      case 'newest': return filtered.sort((a, b) => (b.createdAtMs ?? 0) - (a.createdAtMs ?? 0));
       default: return filtered.sort((a, b) => b.available - a.available || a.price - b.price);
     }
   }, [params, products, sort]);
@@ -170,6 +205,11 @@ export default function MarketplaceGrid() {
     router.replace(`${pathname}${next.size ? `?${next.toString()}` : ''}`, { scroll: false });
   };
 
+  const goToPage = (nextPage: number) => {
+    updateParam('page', String(nextPage));
+    document.getElementById('marketplace-results')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
   const addProductToCart = (product: CatalogProduct) => {
     const defaultVariant = product.variants?.find((variant) => variant.available > 0) || null;
     const quantity = Number(defaultVariant?.moq ?? product.moq ?? 1);
@@ -182,112 +222,97 @@ export default function MarketplaceGrid() {
 
   return (
     <section id="marketplace-results" className="scroll-mt-24">
-      <div className="ft-marketplace-results-toolbar mb-3 flex flex-col gap-3 border p-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p className="text-sm font-850 text-foreground">{loading ? 'Loading products…' : `${filteredProducts.length.toLocaleString('en-IN')} result${filteredProducts.length === 1 ? '' : 's'}`}</p>
-          <p className="text-xs text-muted-foreground">Approved, in-stock products from verified sellers.</p>
+      <div className="ftm-toolbar">
+        <div className="min-w-0">
+          <p className="ftm-toolbar-count">
+            {loading ? 'Loading products…' : `${filteredProducts.length.toLocaleString('en-IN')} result${filteredProducts.length === 1 ? '' : 's'}`}
+          </p>
+          <p className="ftm-toolbar-note">Approved, in-stock products from verified sellers.</p>
         </div>
-        <div className="flex items-center gap-2">
-          <button type="button" onClick={() => void loadProducts()} disabled={loading} className="ft-icon-button" aria-label="Refresh marketplace"><Icon name="ArrowPathIcon" size={17} className={loading ? 'animate-spin' : ''} /></button>
-          <label className="rounded-lg border border-border bg-card px-3 py-2 text-xs font-750 text-foreground"><span className="mr-1 text-muted-foreground">Sort:</span><select value={sort} onChange={(event) => updateParam('sort', event.target.value)} className="bg-transparent outline-none">{sortOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
-          <div className="hidden overflow-hidden rounded-lg border border-border sm:flex"><button type="button" onClick={() => setView('grid')} className={`px-3 py-2 ${view === 'grid' ? 'bg-primary/10 text-primary' : 'text-muted-foreground'}`} aria-label="Grid view"><Icon name="Squares2X2Icon" size={17} /></button><button type="button" onClick={() => setView('list')} className={`px-3 py-2 ${view === 'list' ? 'bg-primary/10 text-primary' : 'text-muted-foreground'}`} aria-label="List view"><Icon name="Bars3BottomLeftIcon" size={17} /></button></div>
+        <div className="ftm-toolbar-actions">
+          <button type="button" onClick={() => void loadProducts()} disabled={loading} className="ftm-iconbtn" aria-label="Refresh marketplace">
+            <Icon name="ArrowPathIcon" size={16} className={loading ? 'animate-spin' : ''} />
+          </button>
+          <label className="ftm-sort">
+            <span className="text-[11px] font-650 opacity-70">Sort</span>
+            <select value={sort} onChange={(event) => updateParam('sort', event.target.value)} aria-label="Sort results">
+              {sortOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </select>
+          </label>
+          <div className="ftm-viewtoggle">
+            <button type="button" onClick={() => setView('grid')} className={view === 'grid' ? 'is-active' : ''} aria-label="Grid view" aria-pressed={view === 'grid'}>
+              <Icon name="Squares2X2Icon" size={16} />
+            </button>
+            <button type="button" onClick={() => setView('list')} className={view === 'list' ? 'is-active' : ''} aria-label="List view" aria-pressed={view === 'list'}>
+              <Icon name="Bars3BottomLeftIcon" size={16} />
+            </button>
+          </div>
         </div>
       </div>
 
-      {error && <div role="alert" className="mb-4 flex items-center justify-between gap-3 rounded-lg border border-error/20 bg-error/10 px-4 py-4 text-sm text-error"><span>{error}</span><button type="button" onClick={() => void loadProducts()} className="font-850 underline">Retry</button></div>}
-
-      {!loading && !error && visibleProducts.length === 0 && <div className="rounded-xl border border-dashed border-border bg-card px-5 py-16 text-center"><Icon name="MagnifyingGlassIcon" size={36} className="mx-auto text-muted-foreground" /><h2 className="mt-4 text-xl font-850 text-foreground">{products.length ? 'No products match these filters' : 'No approved products are live yet'}</h2><p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-muted-foreground">{products.length ? 'Try fewer filters or search for a broader fabric type, seller, colour, GSM or SKU.' : 'Products appear after a verified seller has approved stock available.'}</p>{products.length > 0 && <button type="button" onClick={() => router.replace('/marketplace')} className="ft-primary-action mt-5 px-4 py-2.5 text-sm">Clear filters</button>}</div>}
-
-      {loading && <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{Array.from({ length: 8 }).map((_, index) => <div key={index} className="overflow-hidden rounded-lg border border-border bg-card"><div className="aspect-square animate-pulse bg-muted" /><div className="space-y-3 p-4"><div className="h-4 w-3/4 animate-pulse rounded bg-muted" /><div className="h-3 w-1/2 animate-pulse rounded bg-muted" /><div className="h-9 animate-pulse rounded-lg bg-muted" /></div></div>)}</div>}
-
-      {!loading && visibleProducts.length > 0 && (
-        <div className={view === 'grid' ? 'ft-marketplace-grid grid gap-3 sm:grid-cols-2 xl:grid-cols-4' : 'space-y-3'}>
-          {visibleProducts.map((product) => {
-            const visibleColors = product.variants?.slice(0, 6) || [];
-            const lowAvailability = product.available <= Math.max(product.moq * 3, 10);
-            const isLowStock = product.available > 0 && product.available <= 5;
-            const secondaryImage = product.images && product.images.length > 1 ? product.images[1] : null;
-            return (
-              <article key={product.id} className={`ft-marketplace-product-card overflow-hidden ${view === 'list' ? 'flex min-h-52' : ''}`}>
-                <div className={`relative overflow-hidden ${view === 'list' ? 'w-44 shrink-0 sm:w-60' : ''}`}>
-                  <Link href={productDetailHref(product)} onClick={() => trackFunnelStep('product_view', { product_id: product.id })} className={`ft-marketplace-product-image relative block overflow-hidden ${view === 'list' ? 'w-44 shrink-0 sm:w-60' : 'aspect-square'}`}>
-                    <div className="ft-marketplace-image-base absolute inset-0">
-                      <AppImage src={product.image} alt={product.alt} fill sizes={view === 'list' ? '240px' : '(max-width: 640px) 50vw, 25vw'} className="object-cover transition duration-300 hover:scale-[1.025]" />
-                    </div>
-                    {secondaryImage && (
-                      <div className="ft-marketplace-image-hover absolute inset-0 opacity-0 transition-opacity duration-300">
-                        <AppImage src={secondaryImage} alt={product.alt} fill sizes={view === 'list' ? '240px' : '(max-width: 640px) 50vw, 25vw'} className="object-cover transition duration-300 hover:scale-[1.025]" />
-                      </div>
-                    )}
-                    <div className="absolute left-2 top-2 flex flex-wrap gap-1">
-                      {product.badge === 'new' && <span className="rounded bg-[#cc0c39] px-2 py-1 text-[10px] font-850 text-white">New</span>}
-                      {isLowStock ? <span className="rounded bg-warning px-2 py-1 text-[10px] font-850 text-white">Only {product.available} left</span> : <span className="rounded bg-success px-2 py-1 text-[10px] font-850 text-white">In stock</span>}
-                    </div>
-                  </Link>
-                  <button
-                    type="button"
-                    onClick={() => void toggleWishlist(product)}
-                    className={`absolute right-2 top-2 z-10 rounded-full border p-1.5 backdrop-blur ${hasWishlisted(product.id) ? 'border-primary bg-primary/10 text-primary' : 'border-border bg-card/80 text-muted-foreground'}`}
-                    aria-label={hasWishlisted(product.id) ? 'Remove from wishlist' : 'Save to wishlist'}
-                  >
-                    <Icon name="HeartIcon" size={15} variant={hasWishlisted(product.id) ? 'solid' : 'outline'} />
-                  </button>
-                </div>
-
-                <div className="ft-marketplace-card-body flex min-w-0 flex-1 flex-col p-3.5">
-                  <div className="min-w-0">
-                    {isSponsored(product) && <p className="text-[10px] font-700 uppercase tracking-wide text-muted-foreground">Sponsored</p>}
-                    <Link href={productDetailHref(product)} className="block line-clamp-2 text-[14px] font-750 leading-5 text-foreground hover:text-[#b12704]">{product.name}</Link>
-                    {(product.category || (product.work && product.work !== 'Plain')) && (
-                      <p className="mt-0.5 truncate text-[11.5px] font-600 text-muted-foreground">
-                        {[product.category, product.work !== 'Plain' ? product.work : null].filter(Boolean).join(' · ')}
-                      </p>
-                    )}
-                    <div className="mt-1 flex items-center gap-1 text-[11px] text-muted-foreground"><Icon name="ShieldCheckIcon" size={12} className="text-success" /><span className="truncate">{product.seller}</span></div>
-                  </div>
-
-                  <p className="mt-1.5 text-[11px] text-muted-foreground">{product.city} · {product.gsm || '—'} GSM · {product.width}</p>
-
-                  {!!visibleColors.length && <div className="mt-2 flex items-center gap-1">{visibleColors.map((variant) => <span key={variant.id} title={`${variant.colorName} · ${variant.available} available`} className="h-4 w-4 rounded-full border border-border shadow-sm" style={{ backgroundColor: variant.colorHex || '#d1d5db' }} />)}{(product.variantCount || 0) > visibleColors.length && <span className="text-[10px] font-800 text-muted-foreground">+{(product.variantCount || 0) - visibleColors.length}</span>}</div>}
-
-                  <div className="mt-3">
-                    <p className="ft-marketplace-price">₹{product.price.toLocaleString('en-IN')}<span className="ml-1 text-xs font-700 text-muted-foreground">/{product.unit}</span></p>
-                    {product.priceMax && product.priceMax > product.price && <p className="text-[10px] text-muted-foreground">up to ₹{product.priceMax.toLocaleString('en-IN')}/{product.unit} by variant</p>}
-                  </div>
-
-                  <div className="ft-marketplace-buy-meta mt-3 grid grid-cols-2 gap-x-3 gap-y-2 p-2.5 text-[11px]">
-                    <div><span className="text-muted-foreground">MOQ</span><p className="font-800 text-foreground">{product.moq} {product.unit}</p></div>
-                    <div><span className="text-muted-foreground">Dispatch</span><p className="font-800 text-foreground">{product.dispatchDays} day{product.dispatchDays === 1 ? '' : 's'}</p></div>
-                    <div><span className="text-muted-foreground">Available</span><p className={`font-800 ${lowAvailability ? 'text-warning' : 'text-success'}`}>{product.available.toLocaleString('en-IN')} {product.unit}</p></div>
-                    <div><span className="text-muted-foreground">Invoice</span><p className="font-800 text-foreground">{product.gst ? 'GST supported' : 'Seller invoice'}</p></div>
-                  </div>
-
-                  <div className="mt-3 flex flex-wrap gap-1.5 text-[10px]">
-                    <span className="rounded-full bg-muted px-2 py-1 font-750 text-muted-foreground">{product.saleChannel === 'b2b' ? 'Business buyers' : product.saleChannel === 'retail' ? 'Personal buyers' : 'Business + personal'}</span>
-                    {(product.variantCount || 0) > 0 && <span className="rounded-full bg-muted px-2 py-1 font-750 text-muted-foreground">{product.variantCount} variants</span>}
-                  </div>
-
-                  <div className="mt-auto grid grid-cols-[1fr_auto] gap-2 pt-3">
-                    <button
-                      type="button"
-                      onClick={() => addProductToCart(product)}
-                      disabled={product.available <= 0}
-                      className="ft-add-cart-action inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-[#f0c14b] bg-[#ffd814] px-3 py-2 text-xs font-850 text-[#111827] shadow-sm transition hover:bg-[#f7ca00] disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      <Icon name="ShoppingCartIcon" size={15} /> Add to cart
-                    </button>
-                    <Link href={productDetailHref(product)} className="ft-secondary-action inline-flex min-h-10 items-center justify-center px-3 text-xs" aria-label={`View details for ${product.name}`}>
-                      Details
-                    </Link>
-                  </div>
-                </div>
-              </article>
-            );
-          })}
+      {error && (
+        <div role="alert" className="ftm-error">
+          <span>{error}</span>
+          <button type="button" onClick={() => void loadProducts()} className="ftm-retry">Retry</button>
         </div>
       )}
 
-      {!loading && filteredProducts.length > PAGE_SIZE && <nav className="mt-7 flex items-center justify-center gap-2" aria-label="Marketplace pagination"><button type="button" disabled={page <= 1} onClick={() => updateParam('page', String(page - 1))} className="ft-secondary-action px-3 py-2 text-xs disabled:opacity-40">Previous</button><span className="px-3 text-xs font-850 text-muted-foreground">Page {page} of {pageCount}</span><button type="button" disabled={page >= pageCount} onClick={() => updateParam('page', String(page + 1))} className="ft-secondary-action px-3 py-2 text-xs disabled:opacity-40">Next</button></nav>}
+      {loading && (
+        <div className="ftm-grid" aria-hidden="true">
+          {Array.from({ length: 12 }).map((_, index) => (
+            <div key={index} className="ftm-skel-card">
+              <div className="ftm-skel-media" />
+              <div className="ftm-skel-lines">
+                <div className="ftm-skel-line" />
+                <div className="ftm-skel-line is-short" />
+                <div className="ftm-skel-line is-tall" />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {!loading && !error && visibleProducts.length === 0 && (
+        <div className="ftm-empty">
+          <Icon name="MagnifyingGlassIcon" size={34} style={{ margin: '0 auto', color: 'var(--ftm-ink-faint)' }} />
+          <h2>{products.length ? 'No products match these filters' : 'No approved products are live yet'}</h2>
+          <p>
+            {products.length
+              ? 'Try fewer filters or search for a broader fabric type, seller, colour, GSM or SKU.'
+              : 'Products appear after a verified seller has approved stock available.'}
+          </p>
+          {products.length > 0 && (
+            <button type="button" onClick={() => router.replace('/marketplace')} className="ftm-buy mt-5 inline-flex px-5">
+              Clear filters
+            </button>
+          )}
+        </div>
+      )}
+
+      {!loading && visibleProducts.length > 0 && (
+        <div className={view === 'grid' ? 'ftm-grid' : 'ftm-list'}>
+          {visibleProducts.map((product) => (
+            <MarketplaceProductCard
+              key={product.id}
+              product={product}
+              view={view}
+              sponsored={isSponsored(product)}
+              wishlisted={hasWishlisted(product.id)}
+              onToggleWishlist={() => void toggleWishlist(product)}
+              onAddToCart={() => addProductToCart(product)}
+              onOpen={() => trackFunnelStep('product_view', { product_id: product.id })}
+            />
+          ))}
+        </div>
+      )}
+
+      {!loading && filteredProducts.length > PAGE_SIZE && (
+        <nav className="ftm-pager" aria-label="Marketplace pagination">
+          <button type="button" disabled={page <= 1} onClick={() => goToPage(page - 1)}>Previous</button>
+          <span className="ftm-pager-status">Page {page} of {pageCount}</span>
+          <button type="button" disabled={page >= pageCount} onClick={() => goToPage(page + 1)}>Next</button>
+        </nav>
+      )}
     </section>
   );
 }

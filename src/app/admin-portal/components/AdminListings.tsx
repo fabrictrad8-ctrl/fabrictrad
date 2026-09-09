@@ -163,28 +163,52 @@ export default function AdminListings() {
       return;
     }
     setSaving(true);
+    // A bulk review used to abort on the first failure and report "could not
+    // be saved", hiding the fact that earlier products in the batch HAD been
+    // updated. Every product is now attempted and the outcome reported
+    // exactly: how many changed, how many did not, and why.
+    const failed: string[] = [];
+    let applied = 0;
     try {
       for (const id of reviewing.ids) {
-        const response = await fetch(`/api/admin/products/${id}/review`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'same-origin',
-          body: JSON.stringify({ action: reviewing.action, notes }),
-        });
-        const payload = (await response.json().catch(() => ({}))) as { error?: string };
-        if (!response.ok) throw new Error(payload.error || 'Product review could not be saved.');
+        try {
+          const response = await fetch(`/api/admin/products/${id}/review`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({ action: reviewing.action, notes }),
+          });
+          const payload = (await response.json().catch(() => ({}))) as { error?: string };
+          if (!response.ok) throw new Error(payload.error || 'Product review could not be saved.');
+          applied += 1;
+        } catch (caughtError) {
+          failed.push(caughtError instanceof Error ? caughtError.message : 'Product review could not be saved.');
+        }
       }
-      toast.success(
-        reviewing.ids.length === 1
-          ? `Product ${reviewing.action === 'approve' ? 'approved' : reviewing.action === 'reject' ? 'rejected' : 'paused'}.`
-          : `${reviewing.ids.length} products updated.`
-      );
-      setReviewing(null);
-      setNotes('');
+
+      const verb =
+        reviewing.action === 'approve' ? 'approved' : reviewing.action === 'reject' ? 'rejected' : 'paused';
+      if (applied > 0) {
+        toast.success(
+          reviewing.ids.length === 1
+            ? `Product ${verb}.`
+            : `${applied} of ${reviewing.ids.length} products ${verb}.`
+        );
+      }
+      if (failed.length > 0) {
+        toast.error(
+          failed.length === reviewing.ids.length
+            ? failed[0]
+            : `${failed.length} product${failed.length === 1 ? '' : 's'} could not be updated: ${failed[0]}`
+        );
+      }
+
+      if (!failed.length) {
+        setReviewing(null);
+        setNotes('');
+      }
       setSelected([]);
       await loadProducts();
-    } catch (caughtError) {
-      toast.error(caughtError instanceof Error ? caughtError.message : 'Product review could not be saved.');
     } finally {
       setSaving(false);
     }
@@ -285,7 +309,7 @@ export default function AdminListings() {
           <span>Flexible seller catalogue</span>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1220px] text-sm">
+          <table className="ft-admin-table w-full min-w-[1220px] text-sm">
             <thead className="bg-muted/70 text-left text-xs font-800 text-muted-foreground">
               <tr>
                 <th className="w-12 px-4 py-3">
@@ -300,13 +324,16 @@ export default function AdminListings() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
+              {loading && !products.length && Array.from({ length: 6 }).map((_, index) => (
+                <tr key={`skeleton-${index}`}><td colSpan={7} className="px-4 py-4"><div className="ft-admin-skeleton h-10" /></td></tr>
+              ))}
               {!loading && filtered.length === 0 && <tr><td colSpan={7} className="px-6 py-14 text-center text-sm text-muted-foreground">No products match this view.</td></tr>}
               {filtered.map((product) => {
                 const status = effectiveStatus(product);
                 const focused = focusId === product.id;
                 const customEntries = Object.entries(product.custom_attributes || {}).slice(0, 4);
                 return (
-                  <tr id={`product-${product.id}`} key={product.id} className={focused ? 'bg-primary/10 ring-1 ring-inset ring-primary/30' : 'hover:bg-muted/30'}>
+                  <tr id={`product-${product.id}`} key={product.id} className={focused ? 'bg-primary/10 ring-1 ring-inset ring-primary/30' : 'ft-admin-row'}>
                     <td className="px-4 py-3">
                       <input type="checkbox" aria-label={`Select ${product.name || 'product'}`} checked={selected.includes(product.id)} onChange={() => setSelected((current) => current.includes(product.id) ? current.filter((id) => id !== product.id) : [...current, product.id])} className="rounded border-border text-primary focus:ring-primary" />
                     </td>

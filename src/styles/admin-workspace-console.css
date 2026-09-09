@@ -1,0 +1,224 @@
+/* Admin operations console — density, sticky table chrome and the
+   announcement-bar preview.
+   ------------------------------------------------------------------
+   Scope: imported once from AdminPortalLayout.tsx, so it only loads on
+   /admin-portal. Every rule is namespaced under .ft-admin-* (or is a
+   descendant of one) so nothing here can leak into the marketplace,
+   the seller dashboard or the buyer dashboard, which share the same
+   .ft-workspace-shell chrome from workspace-shell.css.
+
+   Colours are theme tokens only (--card, --border, --muted, --foreground,
+   --ft-saffron*, --ft-indigo*, --success, --error) so light and dark both
+   fall out of this file for free. The one deliberate exception is the
+   announcement preview, which hardcodes the same literal gradient and
+   white text as announcement-ticker.css because its whole job is to show
+   the operator the real bar's fixed appearance, not the admin theme's.
+
+   Every animation and transition in this file is disabled inside the
+   prefers-reduced-motion block at the bottom.
+   ------------------------------------------------------------------ */
+
+/* ---------- Dense operations tables ---------- */
+
+/* Header row stays visible while a long result set scrolls. The scroll
+   container is the table's own overflow-x wrapper plus .ft-canvas-main
+   vertically, so `position: sticky` resolves against the canvas. */
+.ft-admin-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: color-mix(in srgb, var(--card) 96%, var(--muted));
+  box-shadow: inset 0 -1px 0 var(--border);
+  white-space: nowrap;
+}
+
+.ft-admin-row {
+  transition: background-color 130ms ease, box-shadow 130ms ease;
+}
+.ft-admin-row:hover {
+  background: color-mix(in srgb, var(--foreground) 4%, transparent);
+}
+.ft-admin-row:focus-within {
+  background: color-mix(in srgb, var(--ft-saffron) 8%, transparent);
+  box-shadow: inset 3px 0 0 0 var(--ft-saffron);
+}
+
+/* Tabular figures keep money and counts on a common baseline grid. */
+.ft-admin-num {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+}
+
+/* ---------- Loading skeletons ---------- */
+
+.ft-admin-skeleton {
+  position: relative;
+  overflow: hidden;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--foreground) 8%, transparent);
+}
+.ft-admin-skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--foreground) 7%, transparent),
+    transparent
+  );
+  animation: ft-admin-skeleton-sweep 1.4s ease-in-out infinite;
+}
+@keyframes ft-admin-skeleton-sweep {
+  100% { transform: translateX(100%); }
+}
+
+/* ---------- Announcement bar control ---------- */
+
+/* Four mutually exclusive states, so the operator can never be unsure
+   whether the public is currently seeing the bar. */
+.ft-admin-ann-state {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  padding: 12px 14px;
+  background: color-mix(in srgb, var(--muted-foreground) 8%, transparent);
+  color: var(--foreground);
+}
+.ft-admin-ann-state[data-state='live'] {
+  border-color: color-mix(in srgb, var(--success) 45%, transparent);
+  background: color-mix(in srgb, var(--success) 12%, transparent);
+}
+.ft-admin-ann-state[data-state='scheduled'] {
+  border-color: color-mix(in srgb, var(--ft-indigo) 45%, transparent);
+  background: var(--ft-indigo-soft);
+}
+.ft-admin-ann-state[data-state='expired'] {
+  border-color: color-mix(in srgb, var(--error) 40%, transparent);
+  background: color-mix(in srgb, var(--error) 10%, transparent);
+}
+
+.ft-admin-ann-dot {
+  flex-shrink: 0;
+  width: 10px;
+  height: 10px;
+  margin-top: 5px;
+  border-radius: 999px;
+  background: var(--muted-foreground);
+}
+.ft-admin-ann-state[data-state='live'] .ft-admin-ann-dot {
+  background: var(--success);
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--success) 60%, transparent);
+  animation: ft-admin-ann-pulse 2s ease-out infinite;
+}
+.ft-admin-ann-state[data-state='scheduled'] .ft-admin-ann-dot { background: var(--ft-indigo); }
+.ft-admin-ann-state[data-state='expired'] .ft-admin-ann-dot { background: var(--error); }
+@keyframes ft-admin-ann-pulse {
+  70% { box-shadow: 0 0 0 8px transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+
+/* The preview deliberately reproduces announcement-ticker.css's real
+   appearance (fixed gradient, white text, 36px bar) rather than theming
+   itself, because the operator is judging the public bar, not this page. */
+.ft-admin-ann-preview {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 10px 0 12px;
+  border-radius: 10px;
+  overflow: hidden;
+  color: #fff;
+  background: linear-gradient(90deg, #e0431b, var(--ft-saffron, #f0570f) 45%, var(--ft-indigo, #3d5aa8));
+  background-size: 200% 100%;
+  animation: ft-admin-ann-shimmer 8s ease-in-out infinite;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.14) inset, 0 2px 10px rgba(0, 0, 0, 0.18);
+}
+@keyframes ft-admin-ann-shimmer {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+.ft-admin-ann-preview[data-muted='true'] {
+  filter: grayscale(0.85);
+  opacity: 0.6;
+}
+.ft-admin-ann-preview-badge,
+.ft-admin-ann-preview-close {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.2);
+}
+.ft-admin-ann-preview-badge { color: #fff296; }
+.ft-admin-ann-preview-close { color: #fff; }
+.ft-admin-ann-preview-track {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  mask-image: linear-gradient(90deg, transparent, #000 5%, #000 95%, transparent);
+}
+.ft-admin-ann-preview-content {
+  display: inline-flex;
+  align-items: center;
+  gap: 48px;
+  padding-left: 100%;
+  animation: ft-admin-ann-scroll 22s linear infinite;
+}
+@keyframes ft-admin-ann-scroll {
+  from { transform: translateX(0); }
+  to { transform: translateX(-100%); }
+}
+.ft-admin-ann-preview-message {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+.ft-admin-ann-preview-cta {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: #fff;
+  color: #c8360f;
+  font-size: 11px;
+  font-weight: 850;
+}
+
+@media (max-width: 480px) {
+  .ft-admin-ann-preview { padding: 0 8px 0 10px; gap: 6px; }
+  .ft-admin-ann-preview-content { gap: 32px; }
+  .ft-admin-ann-preview-message { font-size: 12px; }
+  .ft-admin-ann-preview-cta { padding: 2px 8px; font-size: 10px; }
+}
+
+/* ---------- Reduced motion ----------
+   One guard for everything this file animates. The ticker preview also
+   drops its marquee offset so the message stays readable in place, which
+   is what announcement-ticker.css does for the real bar. */
+@media (prefers-reduced-motion: reduce) {
+  .ft-admin-row,
+  .ft-admin-skeleton::after,
+  .ft-admin-ann-dot,
+  .ft-admin-ann-preview,
+  .ft-admin-ann-preview-content {
+    animation: none !important;
+    transition: none !important;
+  }
+  .ft-admin-ann-preview-content {
+    padding-left: 0;
+  }
+  .ft-admin-ann-preview-track {
+    overflow-x: auto;
+  }
+}

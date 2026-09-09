@@ -31,12 +31,12 @@ const emptyDelivery: DeliveryDraft = {
   estimatedDelivery: '',
   saved: false,
 };
-const tabs: { key: OrderTab; label: string; statuses: string[] }[] = [
-  { key: 'pending', label: 'Pending', statuses: ['draft', 'quote_sent'] },
-  { key: 'active', label: 'Accepted & Paid', statuses: ['confirmed', 'paid'] },
-  { key: 'shipping', label: 'Shipped', statuses: ['shipped'] },
-  { key: 'completed', label: 'Delivered', statuses: ['delivered'] },
-  { key: 'cancelled', label: 'Cancelled', statuses: ['cancelled', 'rejected', 'refunded'] },
+const tabs: { key: OrderTab; label: string; statuses: string[]; empty: string }[] = [
+  { key: 'pending', label: 'To quote', statuses: ['draft', 'quote_sent'], empty: 'No enquiries waiting on your quote' },
+  { key: 'active', label: 'Accepted & paid', statuses: ['confirmed', 'paid'], empty: 'No accepted bulk orders' },
+  { key: 'shipping', label: 'Shipped', statuses: ['shipped'], empty: 'No bulk orders in transit' },
+  { key: 'completed', label: 'Delivered', statuses: ['delivered'], empty: 'No delivered bulk orders' },
+  { key: 'cancelled', label: 'Cancelled', statuses: ['cancelled', 'rejected', 'refunded'], empty: 'No cancelled bulk orders' },
 ];
 const paymentLabels: Record<string, string> = {
   unpaid: 'Payment due',
@@ -206,9 +206,10 @@ export default function SellerOrders() {
     <div>
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-xl font-800 text-foreground">Order Queue</h1>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Accept orders, monitor captured payments, publish invoices and deliver only after full payment.
+          <h1 className="text-xl font-800 text-foreground">Bulk enquiries &amp; quotes</h1>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">
+            Negotiated bulk orders — these are the ones you do accept, counter or decline. Instant marketplace orders
+            are handled in the fulfilment queue above.
           </p>
         </div>
         <button
@@ -252,7 +253,7 @@ export default function SellerOrders() {
         <div className="rounded-2xl border border-dashed border-border bg-card py-16 text-center">
           <Icon name="ClipboardDocumentListIcon" size={34} className="mx-auto mb-3 text-muted-foreground" />
           <p className="text-sm font-800 text-foreground">
-            No {tabs.find((item) => item.key === tab)?.label.toLowerCase()} orders
+            {tabs.find((item) => item.key === tab)?.empty || 'Nothing here yet'}
           </p>
         </div>
       )}

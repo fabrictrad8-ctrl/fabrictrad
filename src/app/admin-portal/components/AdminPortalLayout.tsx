@@ -28,6 +28,7 @@ import AdminSellerMetrics from '@/app/admin-portal/components/AdminSellerMetrics
 import AdminAnalyticsCharts from '@/app/admin-portal/components/AdminAnalyticsCharts';
 import AdminDisputes from '@/app/admin-portal/components/AdminDisputes';
 import AiAssistantWidget from '@/components/AiAssistantWidget';
+import '@/styles/admin-workspace-console.css';
 
 type AdminTab =
   | 'dashboard'
@@ -231,9 +232,11 @@ export default function AdminPortalLayout() {
 
             <div className="ml-auto flex items-center gap-2">
               <div className="hidden sm:flex"><PreferenceControls compact /></div>
-              <button type="button" onClick={() => navigateTo('activity')} className="ft-icon-button relative" aria-label="Open administrator alerts">
+              {/* No unread badge: nothing in this layout tracks unread state,
+                  so a permanent red dot was a standing false alarm. The
+                  Home tab's action centre carries the real counts. */}
+              <button type="button" onClick={() => navigateTo('activity')} className="ft-icon-button" aria-label="Open the activity timeline">
                 <Icon name="BellIcon" size={18} />
-                <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-error ring-2 ring-card" />
               </button>
               <ProfileMenu />
             </div>

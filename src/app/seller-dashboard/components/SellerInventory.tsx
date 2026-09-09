@@ -168,6 +168,35 @@ function formFromProduct(product: InventoryProduct): ProductForm {
   };
 }
 
+type VariantRollup = {
+  total: number;
+  active: number;
+  outOfStock: number;
+  sellable: number;
+};
+
+/**
+ * What a buyer can order right now.
+ *
+ * `available_quantity` is decremented at checkout by
+ * `submit_catalog_order_request`. `reserved_quantity` holds stock for B2B
+ * orders still awaiting the buyer company's approval, where
+ * `available_quantity` has not moved yet. Neither column alone is the sellable
+ * figure — the difference is.
+ */
+function sellableStock(product: Pick<InventoryProduct, 'available_quantity' | 'reserved_quantity'>) {
+  return Math.max(0, Number(product.available_quantity || 0) - Number(product.reserved_quantity || 0));
+}
+
+type StockState = 'out' | 'low' | 'ok';
+
+function stockState(product: InventoryProduct): StockState {
+  const sellable = sellableStock(product);
+  if (sellable <= 0) return 'out';
+  if (sellable <= Number(product.min_stock || 0)) return 'low';
+  return 'ok';
+}
+
 function parseCsvLine(line: string) {
   const values: string[] = [];
   let value = '';
@@ -200,8 +229,12 @@ export default function SellerInventory() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<ProductForm>(blankProduct);
   const [query, setQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | ProductStatus | 'low-stock'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | ProductStatus | 'low-stock' | 'out-of-stock'>('all');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [variantStock, setVariantStock] = useState<Record<string, VariantRollup>>({});
+  const [stockEditId, setStockEditId] = useState<string | null>(null);
+  const [stockDraft, setStockDraft] = useState('');
+  const [stockSaving, setStockSaving] = useState(false);
 
   const loadProducts = useCallback(async () => {
     setLoading(true);
@@ -242,18 +275,39 @@ export default function SellerInventory() {
     }
 
     setSellerId(String(seller.id));
-    const { data, error: productError } = await supabase
-      .from('seller_products')
-      .select('*')
-      .eq('seller_id', seller.id)
-      .order('updated_at', { ascending: false });
+    const [productResult, variantResult] = await Promise.all([
+      supabase.from('seller_products').select('*').eq('seller_id', seller.id).order('updated_at', { ascending: false }),
+      supabase
+        .from('seller_product_variants')
+        .select('product_id,available_quantity,reserved_quantity,status')
+        .eq('seller_id', seller.id)
+        .neq('status', 'archived'),
+    ]);
 
-    if (productError) {
-      setError(productError.message);
+    if (productResult.error) {
+      setError(productResult.error.message);
       setProducts([]);
     } else {
-      setProducts((data || []) as InventoryProduct[]);
+      setProducts((productResult.data || []) as InventoryProduct[]);
     }
+
+    // A variant read failure must never blank the product list — the roll-up is
+    // extra context, so it simply goes missing rather than breaking the page.
+    const rollup: Record<string, VariantRollup> = {};
+    if (!variantResult.error) {
+      (variantResult.data || []).forEach((variant) => {
+        const key = String(variant.product_id);
+        const entry = rollup[key] || { total: 0, active: 0, outOfStock: 0, sellable: 0 };
+        const sellable = sellableStock(variant as Pick<InventoryProduct, 'available_quantity' | 'reserved_quantity'>);
+        entry.total += 1;
+        if (variant.status === 'active') entry.active += 1;
+        if (sellable <= 0) entry.outOfStock += 1;
+        entry.sellable += sellable;
+        rollup[key] = entry;
+      });
+    }
+    setVariantStock(rollup);
+
     setSelectedIds([]);
     setLoading(false);
   }, [user?.id]);
@@ -273,10 +327,15 @@ export default function SellerInventory() {
     const normalized = query.trim().toLowerCase();
     return products.filter((product) => {
       const matchesQuery = !normalized || `${product.name} ${product.sku} ${product.category} ${product.work_type}`.toLowerCase().includes(normalized);
-      const available = Number(product.available_quantity || 0) - Number(product.reserved_quantity || 0);
-      const matchesStatus = statusFilter === 'all' || (statusFilter === 'low-stock'
-        ? product.status !== 'archived' && available <= Number(product.min_stock || 0)
-        : product.status === statusFilter);
+      const state = stockState(product);
+      const matchesStatus =
+        statusFilter === 'all'
+          ? true
+          : statusFilter === 'low-stock'
+            ? product.status !== 'archived' && state === 'low'
+            : statusFilter === 'out-of-stock'
+              ? product.status !== 'archived' && state === 'out'
+              : product.status === statusFilter;
       return matchesQuery && matchesStatus;
     });
   }, [products, query, statusFilter]);
@@ -375,6 +434,40 @@ export default function SellerInventory() {
       toast.error(caught instanceof Error ? caught.message : 'Could not update selected products.');
     } finally {
       setBulkSaving(false);
+    }
+  };
+
+  // Restocking is the single most common inventory action, so it is editable
+  // straight from the row rather than only inside the full product editor.
+  // Only available_quantity moves here — reserved_quantity belongs to live
+  // orders and is never writable by hand.
+  const saveStock = async (product: InventoryProduct) => {
+    if (!sellerId) return;
+    const next = Number(stockDraft);
+    if (!Number.isFinite(next) || next < 0) {
+      toast.error('Enter a stock quantity of zero or more.');
+      return;
+    }
+    if (next === Number(product.available_quantity || 0)) {
+      setStockEditId(null);
+      return;
+    }
+    setStockSaving(true);
+    try {
+      const supabase = createClient();
+      const { error: updateError } = await supabase
+        .from('seller_products')
+        .update({ available_quantity: next, updated_at: new Date().toISOString() })
+        .eq('seller_id', sellerId)
+        .eq('id', product.id);
+      if (updateError) throw updateError;
+      toast.success(`${product.name} stock updated to ${next.toLocaleString('en-IN')}.`);
+      setStockEditId(null);
+      await loadProducts();
+    } catch (caught) {
+      toast.error(caught instanceof Error ? caught.message : 'Stock could not be updated.');
+    } finally {
+      setStockSaving(false);
     }
   };
 
@@ -495,7 +588,7 @@ export default function SellerInventory() {
           <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search product, SKU, category or work type" className="min-w-0 flex-1 bg-transparent px-3 text-sm outline-none" />
         </div>
         <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as typeof statusFilter)} className="ft-filter-control min-w-[155px] px-3 text-sm">
-          <option value="all">All products</option><option value="active">Active</option><option value="draft">Draft</option><option value="low-stock">Low stock</option><option value="archived">Archived</option>
+          <option value="all">All products</option><option value="active">Active</option><option value="draft">Draft</option><option value="low-stock">Low stock</option><option value="out-of-stock">Out of stock</option><option value="archived">Archived</option>
         </select>
         <span className="ft-orange-chip">{filteredProducts.length} shown</span>
       </div>
@@ -518,17 +611,56 @@ export default function SellerInventory() {
               {!loading && filteredProducts.length === 0 && <tr><td colSpan={8} className="py-14 text-center"><Icon name="ArchiveBoxIcon" size={32} className="mx-auto mb-2 text-primary" /><p className="text-sm font-800">No matching products</p><Link href="/seller-dashboard?tab=upload" className="ft-primary-action mt-4 inline-flex px-4 py-2 text-xs">Add product</Link></td></tr>}
               {!loading && filteredProducts.map((product) => {
                 const displayUnit = unitDisplay(product);
-                const available = Math.max(0, Number(product.available_quantity || 0) - Number(product.reserved_quantity || 0));
-                const low = available <= Number(product.min_stock || 0);
+                const available = sellableStock(product);
+                const state = stockState(product);
+                const low = state === 'low';
+                const variants = variantStock[product.id];
+                const editingStock = stockEditId === product.id;
                 const selected = selectedIds.includes(product.id);
                 const shareable = product.status === 'active' && product.approval_status === 'approved';
                 const buyerLabel = product.sale_channel === 'both' ? 'Business + personal' : product.sale_channel === 'retail' ? 'Personal only' : 'Business only';
                 return (
                   <tr key={product.id} className={selected ? 'bg-primary/5' : ''}>
                     <td className="px-4 py-3"><input type="checkbox" checked={selected} onChange={(event) => setSelectedIds((current) => event.target.checked ? [...new Set([...current, product.id])] : current.filter((id) => id !== product.id))} aria-label={`Select ${product.name}`} /></td>
-                    <td className="px-4 py-3"><div className="flex items-center gap-3"><div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-lg border border-border bg-muted">{product.image_url ? <AppImage src={product.image_url} alt={product.name} fill sizes="44px" className="object-cover" /> : <div className="flex h-full w-full items-center justify-center"><Icon name="PhotoIcon" size={18} /></div>}</div><div className="min-w-0"><p className="truncate text-xs font-800">{product.name}</p><p className="truncate font-mono text-[11px] text-muted-foreground">{product.sku} · {product.category}</p>{low && <p className="mt-1 text-[11px] font-700 text-error">Low stock · threshold {product.min_stock}</p>}</div></div></td>
+                    <td className="px-4 py-3"><div className="flex items-center gap-3"><div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-lg border border-border bg-muted">{product.image_url ? <AppImage src={product.image_url} alt={product.name} fill sizes="44px" className="object-cover" /> : <div className="flex h-full w-full items-center justify-center"><Icon name="PhotoIcon" size={18} /></div>}</div><div className="min-w-0"><p className="truncate text-xs font-800">{product.name}</p><p className="truncate font-mono text-[11px] text-muted-foreground">{product.sku} · {product.category}</p>{state === 'out' && <p className="mt-1 text-[11px] font-700 text-error">Out of stock · buyers cannot order this</p>}{low && <p className="mt-1 text-[11px] font-700 text-warning">Low stock · threshold {product.min_stock}</p>}{variants?.total ? <p className="mt-1 text-[11px] text-muted-foreground">{variants.total} variant{variants.total === 1 ? '' : 's'}{variants.outOfStock > 0 ? ` · ${variants.outOfStock} out of stock` : ''}</p> : null}</div></div></td>
                     <td className="px-4 py-3"><span className={`rounded-full px-2.5 py-1 text-xs font-750 ${product.sale_channel === 'both' ? 'bg-success/10 text-success' : 'bg-muted text-muted-foreground'}`}>{buyerLabel}</span></td>
-                    <td className="px-4 py-3 text-right">{available.toLocaleString('en-IN')} {displayUnit}</td>
+                    <td className="px-4 py-3 text-right">
+                      {editingStock ? (
+                        <span className="flex items-center justify-end gap-1.5">
+                          <input
+                            autoFocus
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={stockDraft}
+                            disabled={stockSaving}
+                            onChange={(event) => setStockDraft(event.target.value)}
+                            onKeyDown={(event) => {
+                              if (event.key === 'Enter') { event.preventDefault(); void saveStock(product); }
+                              if (event.key === 'Escape') setStockEditId(null);
+                            }}
+                            className="input-base w-24 px-2 py-1 text-right text-xs"
+                            aria-label={`Stock quantity for ${product.name}`}
+                          />
+                          <button type="button" onClick={() => void saveStock(product)} disabled={stockSaving} className="ft-icon-button !min-h-8 !min-w-8" aria-label="Save stock">
+                            <Icon name={stockSaving ? 'ArrowPathIcon' : 'CheckIcon'} size={14} className={stockSaving ? 'animate-spin' : ''} />
+                          </button>
+                          <button type="button" onClick={() => setStockEditId(null)} disabled={stockSaving} className="ft-icon-button !min-h-8 !min-w-8" aria-label="Cancel stock edit">
+                            <Icon name="XMarkIcon" size={14} />
+                          </button>
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => { setStockEditId(product.id); setStockDraft(String(Number(product.available_quantity || 0))); }}
+                          className={`inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-right transition-colors hover:bg-muted ${state === 'out' ? 'text-error font-800' : state === 'low' ? 'text-warning font-800' : ''}`}
+                          title="Click to update stock"
+                        >
+                          {available.toLocaleString('en-IN')} {displayUnit}
+                          <Icon name="PencilSquareIcon" size={12} className="opacity-50" />
+                        </button>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-right text-warning">{Number(product.reserved_quantity || 0).toLocaleString('en-IN')}</td>
                     <td className="px-4 py-3 text-right font-750">₹{Number(product.price_per_unit || 0).toLocaleString('en-IN')}/{displayUnit}</td>
                     <td className="px-4 py-3 text-center"><span className={`ft-badge ${product.status === 'active' ? 'ft-badge--success' : product.status === 'draft' ? 'ft-badge--warning' : ''}`}>{product.status}</span></td>
