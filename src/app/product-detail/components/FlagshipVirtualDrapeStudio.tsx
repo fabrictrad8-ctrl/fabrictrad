@@ -13,6 +13,7 @@ import {
 } from '@/lib/drapeProductStyle';
 import DrapeCreditPurchase from './DrapeCreditPurchase';
 import { useTilt3D } from '@/lib/hooks/useTilt3D';
+import { useIndexedDbDraft } from '@/lib/hooks/useIndexedDbDraft';
 
 type CreditBalance = { freeTrialsRemaining: number; purchasedCredits: number; totalRemaining: number };
 
@@ -93,6 +94,35 @@ export default function FlagshipVirtualDrapeStudio() {
   const [showPurchase, setShowPurchase] = useState(false);
   const [tilt3DEnabled, setTilt3DEnabled] = useState(false);
   const tilt3D = useTilt3D(tilt3DEnabled);
+
+  // Persists the in-progress try-on (including the uploaded photo, which can
+  // run several MB as a data URL) so switching to the gallery/camera app to
+  // pick a photo and coming back doesn't lose it — mirrors the pattern in
+  // useCatalogComposerDraft.ts but backed by IndexedDB, since a photo this
+  // size routinely exceeds sessionStorage's quota.
+  const draftKey =
+    product.rawProductId && product.rawProductId !== 'unavailable' ? `drape:${product.rawProductId}` : null;
+  const draftPayload = useMemo(
+    () => ({ subjectMode, modelGender, fit, personImage, photoConsent }),
+    [subjectMode, modelGender, fit, personImage, photoConsent]
+  );
+  const handleDraftRestore = useCallback(
+    (payload: {
+      subjectMode: SubjectMode;
+      modelGender: ModelGender;
+      fit: Fit;
+      personImage: string | null;
+      photoConsent: boolean;
+    }) => {
+      setSubjectMode(payload.subjectMode);
+      setModelGender(payload.modelGender);
+      setFit(payload.fit);
+      if (payload.personImage) setPersonImage(payload.personImage);
+      setPhotoConsent(payload.photoConsent);
+    },
+    []
+  );
+  useIndexedDbDraft({ key: draftKey, payload: draftPayload, onRestore: handleDraftRestore });
 
   const variants = useMemo(() => product.variants || [], [product.variants]);
   const selectedVariant = useMemo(
