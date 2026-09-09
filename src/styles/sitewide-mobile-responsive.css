@@ -101,7 +101,14 @@ body {
     max-width: 100vw;
   }
 
-  .ft-root :where([role='dialog'], dialog) {
+  /* Excludes .fixed: a centered, width-capped popup is the right default for
+     confirm boxes and settings dialogs, but a dialog that already declares
+     its own `fixed inset-0` (a full-screen media viewer, say) is opting out
+     of that centered-box treatment on purpose — this rule was overriding
+     its width down to a capped, centered box instead of the edge-to-edge
+     layout its own classes asked for. Same collision as liquid-glass.css's
+     :not(.absolute):not(.fixed) card exclusion, same fix. */
+  .ft-root :where([role='dialog'], dialog):not(.fixed) {
     width: min(680px, calc(100vw - 24px));
     max-width: calc(100vw - 24px) !important;
     max-height: calc(100vh - 24px) !important;
@@ -273,7 +280,8 @@ body {
     padding-inline: min(4vw, 16px);
   }
 
-  .ft-root :where([role='dialog'], dialog) {
+  /* Excludes .fixed — see the tablet-breakpoint rule above for why. */
+  .ft-root :where([role='dialog'], dialog):not(.fixed) {
     width: calc(100vw - 20px) !important;
     max-width: calc(100vw - 20px) !important;
     max-height: calc(100vh - 20px) !important;

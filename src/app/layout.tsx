@@ -41,6 +41,7 @@ import PublicHowToUseNavigation from '@/components/PublicHowToUseNavigation';
 import SitewideLanguageControl from '@/components/SitewideLanguageControl';
 import PointerGlow from '@/components/PointerGlow';
 import ScrollReveal from '@/components/ScrollReveal';
+import EntranceAnimationCleanup from '@/components/EntranceAnimationCleanup';
 import SitewideAnnouncementTicker from '@/components/SitewideAnnouncementTicker';
 import { AppPreferencesProvider } from '@/contexts/AppPreferencesContext';
 
@@ -155,6 +156,7 @@ export default function RootLayout({
             <AppClientEnhancements />
             <PointerGlow />
             <ScrollReveal />
+            <EntranceAnimationCleanup />
             <SitewideAnnouncementTicker />
             <PageContinuity />
             <PublicHowToUseNavigation />

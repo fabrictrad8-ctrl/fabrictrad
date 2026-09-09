@@ -228,7 +228,11 @@ html:not(.dark) .ft-buyer-header .ft-workspace-dot {
   overflow-wrap: break-word;
 }
 
-.ft-root :where([role='dialog']) {
+/* Excludes .fixed — see sitewide-mobile-responsive.css's matching
+   [role='dialog'] rules for the full explanation: a dialog that already
+   declares `fixed inset-0` itself wants edge-to-edge sizing, not this
+   capped-and-centered default meant for ordinary popups. */
+.ft-root :where([role='dialog']):not(.fixed) {
   max-width: calc(100vw - 24px);
   max-height: calc(100svh - 24px);
 }

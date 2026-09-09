@@ -85,7 +85,7 @@ html:not(.dark) body.ft-root { background: #f5f7fb; }
 .ft-future-nav a:hover { color: #fff; }
 .ft-future-brand { display:flex; align-items:center; gap:10px; color:#fff !important; font-weight:850; letter-spacing:-.02em; }
 .ft-future-navlinks { display:flex; align-items:center; gap:4px; margin-left:18px; }
-.ft-future-navlinks a { padding:9px 12px; border-radius:10px; font-size:13px; font-weight:700; }
+.ft-future-navlinks a { padding:9px 12px; border-radius:10px; font-size:13px; font-weight:700; white-space:nowrap; flex-shrink:0; }
 .ft-future-navlinks a:hover { background:rgba(255,255,255,.07); }
 .ft-future-hero {
   position: relative;

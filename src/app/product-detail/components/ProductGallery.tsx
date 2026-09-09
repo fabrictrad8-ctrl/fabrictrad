@@ -6,6 +6,7 @@ import Icon from '@/components/ui/AppIcon';
 import { type CatalogMedia } from '@/lib/catalog';
 import { useProduct } from '@/lib/hooks/useProduct';
 import { useHorizontalSwipe } from '@/lib/hooks/useHorizontalSwipe';
+import { useImagePanZoom } from '@/lib/hooks/useImagePanZoom';
 
 const VIEW_LABELS: Record<CatalogMedia['viewType'], string> = {
   front: 'Front',
@@ -18,7 +19,6 @@ const VIEW_LABELS: Record<CatalogMedia['viewType'], string> = {
 export default function ProductGallery() {
   const { product, loading } = useProduct();
   const [activeIndex, setActiveIndex] = useState(0);
-  const [zoom, setZoom] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
 
   const media = useMemo<CatalogMedia[]>(() => {
@@ -34,10 +34,18 @@ export default function ProductGallery() {
 
   const active = media[activeIndex] || media[0];
 
+  const panZoom = useImagePanZoom({
+    onSwipeLeft: () => { if (media.length > 1) showNext(); },
+    onSwipeRight: () => { if (media.length > 1) showPrevious(); },
+  });
+
   useEffect(() => {
     setActiveIndex(0);
-    setZoom(false);
+    panZoom.reset();
     setFullscreen(false);
+    // panZoom.reset is stable (useCallback with no deps that change here);
+    // omitting it keeps this effect scoped to an actual product change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [product.id, product.selectedVariantId]);
 
   useEffect(() => {
@@ -51,11 +59,11 @@ export default function ProductGallery() {
 
   const showPrevious = () => {
     setActiveIndex((current) => (current - 1 + media.length) % media.length);
-    setZoom(false);
+    panZoom.reset();
   };
   const showNext = () => {
     setActiveIndex((current) => (current + 1) % media.length);
-    setZoom(false);
+    panZoom.reset();
   };
   // Swiping past the last/first image intentionally does nothing rather
   // than wrapping — wrapping under a swipe reads as "nothing happened."
@@ -71,7 +79,7 @@ export default function ProductGallery() {
   const mainMedia = (large = false) => (
     <div
       className={`relative h-full w-full overflow-hidden bg-[#0f1319] ${active.type === 'image' ? 'cursor-zoom-in' : ''}`}
-      {...swipeHandlers}
+      {...(large ? {} : swipeHandlers)}
     >
       {active.type === 'video' ? (
         <video
@@ -85,20 +93,38 @@ export default function ProductGallery() {
           className="h-full w-full object-contain"
           aria-label={active.alt}
         />
-      ) : (
-        <button
-          type="button"
-          onClick={() => (large ? setZoom((current) => !current) : setFullscreen(true))}
-          className="relative h-full w-full"
-          aria-label={large && zoom ? `Zoom out of ${product.name}` : `Open ${product.name} detail view`}
+      ) : large ? (
+        <div
+          {...panZoom.bind}
+          role="button"
+          tabIndex={0}
+          aria-label={panZoom.isZoomed ? `Zoom out of ${product.name}` : `Drag to pan, scroll or pinch to zoom into ${product.name}`}
+          className="relative h-full w-full select-none"
         >
           <AppImage
             src={active.url}
             alt={active.alt || product.alt}
             fill
-            priority={!large}
-            sizes={large ? '100vw' : '(max-width: 1024px) 100vw, 66vw'}
-            className={`object-contain transition-transform duration-500 ${large && zoom ? 'scale-150' : 'scale-100'}`}
+            priority
+            sizes="100vw"
+            className="pointer-events-none"
+            style={{ ...panZoom.imageStyle, objectFit: 'contain' }}
+          />
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setFullscreen(true)}
+          className="relative h-full w-full"
+          aria-label={`Open ${product.name} detail view`}
+        >
+          <AppImage
+            src={active.url}
+            alt={active.alt || product.alt}
+            fill
+            priority
+            sizes="(max-width: 1024px) 100vw, 66vw"
+            className="object-contain"
           />
         </button>
       )}
@@ -141,11 +167,11 @@ export default function ProductGallery() {
       {active.type === 'image' && (
         <button
           type="button"
-          onClick={() => (large ? setZoom((current) => !current) : setFullscreen(true))}
+          onClick={() => (large ? (panZoom.isZoomed ? panZoom.reset() : panZoom.zoomIn()) : setFullscreen(true))}
           className="absolute bottom-3 right-3 flex items-center gap-1.5 rounded-lg bg-black/60 px-2.5 py-1.5 text-xs text-white"
         >
           <Icon name="MagnifyingGlassPlusIcon" size={13} />
-          {large && zoom ? 'Zoom out' : 'View detail'}
+          {large && panZoom.isZoomed ? 'Zoom out' : 'View detail'}
         </button>
       )}
     </div>
@@ -164,7 +190,7 @@ export default function ProductGallery() {
                 type="button"
                 onClick={() => {
                   setActiveIndex(index);
-                  setZoom(false);
+                  panZoom.reset();
                 }}
                 className={`relative h-20 w-20 shrink-0 overflow-hidden rounded-xl border-2 bg-muted ${
                   activeIndex === index ? 'border-primary ring-2 ring-primary/10' : 'border-border hover:border-muted-foreground'
@@ -219,7 +245,7 @@ export default function ProductGallery() {
             type="button"
             onClick={() => {
               setFullscreen(false);
-              setZoom(false);
+              panZoom.reset();
             }}
             className="absolute right-4 top-4 z-10 flex h-11 w-11 items-center justify-center rounded-full bg-white/15 text-white backdrop-blur hover:bg-white/25"
             aria-label="Close product media viewer"

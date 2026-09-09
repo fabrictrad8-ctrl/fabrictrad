@@ -43,12 +43,12 @@ export default function PublicAccessLanding() {
             <a href="#trust">{copy.navTrust}</a>
           </nav>
 
-          <div className="ml-auto hidden items-center gap-2 md:flex">
+          <div className="ml-auto hidden shrink-0 items-center gap-2 md:flex">
             <PreferenceControls compact />
-            <Link href="/login" className="ft-secondary-action inline-flex min-h-10 items-center justify-center rounded-xl px-4 text-sm font-800">
+            <Link href="/login" className="ft-secondary-action inline-flex min-h-10 shrink-0 items-center justify-center whitespace-nowrap rounded-xl px-4 text-sm font-800">
               {copy.signIn}
             </Link>
-            <Link href="/register" className="ft-primary-action inline-flex min-h-10 items-center justify-center gap-2 rounded-xl px-4 text-sm font-800">
+            <Link href="/register" className="ft-primary-action inline-flex min-h-10 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-xl px-4 text-sm font-800">
               {copy.joinFabricTrad} <Icon name="ArrowRightIcon" size={15} />
             </Link>
           </div>

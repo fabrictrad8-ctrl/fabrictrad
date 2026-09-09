@@ -50,8 +50,15 @@ html:not(.dark) .ft-showroom .ft-primary-action,
 html:not(.dark) .ft-auth-page .ft-primary-action { background: linear-gradient(135deg, var(--ft-future-orange, #e7602b), #d64918) !important; border: 1px solid rgba(162,53,13,.18) !important; box-shadow: 0 10px 28px rgba(231,96,43,.24) !important; }
 html:not(.dark) .ft-showroom .ft-primary-action:hover,
 html:not(.dark) .ft-auth-page .ft-primary-action:hover { background: linear-gradient(135deg, #ff965f, var(--ft-future-orange, #e7602b)) !important; }
-html:not(.dark) .ft-showroom .ft-secondary-action,
-html:not(.dark) .ft-auth-page .ft-secondary-action { color: #f5f3ef !important; background: rgba(255,255,255,.08) !important; border: 1px solid rgba(255,255,255,.16) !important; }
+/* Unlike the primary-action fix above, this one isn't theme-gated: the
+   showroom/auth background is hardcoded dark regardless of the site's own
+   light/dark toggle, and the sitewide default secondary-action style
+   (fabrictrad-future.css) is an unconditional near-opaque white pill with
+   near-black text — fine against a light page, but it never adapts for
+   dark mode, so on this always-dark background a "Sign in" button lit up
+   as a jarring white box no matter which theme was active. */
+.ft-showroom .ft-secondary-action,
+.ft-auth-page .ft-secondary-action { color: #f5f3ef !important; background: rgba(255,255,255,.08) !important; border: 1px solid rgba(255,255,255,.16) !important; }
 .ft-textile-visual { position: relative; width: 100%; min-height: 450px; aspect-ratio: 1.15; overflow: hidden; border-radius: 22px; background: #233f69; box-shadow: 0 24px 56px rgb(23 39 65 / .14); }
 .ft-textile-image { object-fit: cover; }
 .ft-tilt-wrap { position: relative; width: 100%; height: 100%; perspective: 1200px; }
@@ -67,7 +74,14 @@ html:not(.dark) .ft-auth-page .ft-secondary-action { color: #f5f3ef !important; 
 .ft-showroom .ft-future-trustline { flex-wrap: wrap; gap: 12px 20px; font-size: 14px; }
 .ft-showroom :where(.text-xs) { font-size: 14px !important; line-height: 1.6; }
 .ft-showroom :where(section p.text-sm, .ft-future-panel p) { font-size: 16px !important; line-height: 1.75; }
-@media (max-width: 1000px) { .ft-showroom .ft-future-navlinks { display: none !important; } }
+/* Raised from 1000px: the nav row (logo + 5 links + language picker +
+   Sign in + Join FabricTrad) needs ~1150-1200px of natural width, so
+   anything narrower — including common tablet-landscape widths like a
+   Galaxy Tab S8's ~1280px — squeezed individual links until their text
+   wrapped mid-word. Below this, links disappear entirely and only the
+   logo + buttons show (comfortably, well under 768px on their own),
+   with the hamburger drawer taking over below 768px. */
+@media (max-width: 1360px) { .ft-showroom .ft-future-navlinks { display: none !important; } }
 @media (max-width: 900px) {
   .ft-showroom .ft-future-hero { grid-template-columns: minmax(0, 1fr) !important; width: calc(100% - 40px); }
   .ft-textile-visual { min-height: 280px; max-height: 420px; aspect-ratio: 1.6; }
