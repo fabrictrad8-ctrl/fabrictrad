@@ -27,6 +27,7 @@ import SellerInbox from '@/app/seller-dashboard/components/SellerInbox';
 import SellerBuyerRequests from '@/app/seller-dashboard/components/SellerBuyerRequests';
 import SellerBillingDocuments from '@/app/seller-dashboard/components/SellerBillingDocuments';
 import SellerStoreIdentity from '@/app/seller-dashboard/components/SellerStoreIdentity';
+import SellerDiscounts from '@/app/seller-dashboard/components/SellerDiscounts';
 import CommerceNotificationBell from '@/app/components/CommerceNotificationBell';
 import AiAssistantWidget from '@/components/AiAssistantWidget';
 
@@ -44,6 +45,7 @@ type SellerTab =
   | 'earnings'
   | 'analytics'
   | 'categories'
+  | 'discounts'
   | 'billing'
   | 'disputes'
   | 'notifications'
@@ -67,6 +69,7 @@ const navGroups: Array<{ label: string; items: NavItem[] }> = [
       { key: 'variants', label: 'Variants', icon: 'SwatchIcon', description: 'Colours, designs and GTIN' },
       { key: 'catalogs', label: 'Catalogues & pricing', icon: 'TagIcon', description: 'MOQ and buyer pricing' },
       { key: 'categories', label: 'Categories', icon: 'Squares2X2Icon', description: 'Product organization' },
+      { key: 'discounts', label: 'Discounts & coupons', icon: 'TicketIcon', description: 'Your own shop and product offers' },
     ],
   },
   {
@@ -118,6 +121,7 @@ const sellerSearchAliases: Record<SellerTab, string> = {
   earnings: 'earnings payouts settlements money finance',
   analytics: 'analytics reports performance sales metrics',
   categories: 'categories organization taxonomy product groups',
+  discounts: 'discounts coupons codes offers sale campaigns promotions',
   billing: 'billing invoices documents receipts gst invoice',
   disputes: 'returns disputes exchanges claims refunds',
   notifications: 'notifications alerts email sms settings',
@@ -282,6 +286,7 @@ export default function SellerDashboardLayout() {
             {activeTab === 'earnings' && <SellerEarnings />}
             {activeTab === 'analytics' && <SellerAnalytics />}
             {activeTab === 'categories' && <SellerCategories />}
+            {activeTab === 'discounts' && <SellerDiscounts />}
             {activeTab === 'billing' && <SellerBillingDocuments />}
             {activeTab === 'disputes' && <SellerDisputes />}
             {activeTab === 'notifications' && <NotificationPreferences mode="seller" />}
