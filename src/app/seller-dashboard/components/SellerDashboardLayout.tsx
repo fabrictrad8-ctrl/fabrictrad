@@ -136,9 +136,24 @@ export default function SellerDashboardLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [signingOut, setSigningOut] = useState(false);
+  const [storeHandle, setStoreHandle] = useState<string | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => setActiveTab(normaliseTab(searchParams.get('tab'))), [searchParams]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    let cancelled = false;
+    fetch('/api/seller/store', { cache: 'no-store', credentials: 'same-origin' })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload: { storeHandle?: string } | null) => {
+        if (!cancelled && payload?.storeHandle) setStoreHandle(payload.storeHandle);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
 
   useEffect(() => {
     const handleShortcut = (event: KeyboardEvent) => {
@@ -153,7 +168,7 @@ export default function SellerDashboardLayout() {
 
   const activeItem = useMemo(() => allItems.find((item) => item.key === activeTab) || allItems[0], [activeTab]);
   const sellerName = profile?.business_name || profile?.full_name || user?.email?.split('@')[0] || 'Seller';
-  const storefrontHref = `/marketplace?search=${encodeURIComponent(sellerName)}`;
+  const storefrontHref = storeHandle ? `/store/${storeHandle}` : `/marketplace?search=${encodeURIComponent(sellerName)}`;
 
   const navigateTo = (tab: SellerTab) => {
     setActiveTab(tab);
