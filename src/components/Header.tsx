@@ -208,6 +208,10 @@ export default function Header() {
 
   const avatarInitial = (profile?.full_name || user?.email || 'F').charAt(0).toUpperCase();
   const showBuyerUtilities = isLoggedIn && canBuy && buyerContext;
+  // The marketplace carries its own richer search (category scope, colour, work,
+  // supplier, SKU). Showing the generic header search as well stacked two search
+  // bars on top of each other; one prominent search is the marketplace pattern.
+  const showHeaderSearch = showBuyerUtilities && !pathname.startsWith('/marketplace');
 
   return (
     <>
@@ -215,12 +219,14 @@ export default function Header() {
         className={`ft-nav-shell fixed inset-x-0 top-0 z-50 transition-shadow duration-200 ${scrolled ? 'is-scrolled' : ''}`}
       >
         <div className="ft-nav-inner mx-auto h-16 max-w-[1760px] gap-3 px-4 sm:px-6 lg:px-8">
-          <Link href={brandHref} className="ft-nav-brand flex shrink-0 items-center gap-2.5" onClick={closeMenus}>
+          {/* The horizontal logo already carries the FabricTrad wordmark, so a
+              text label beside it printed the brand name twice. The image's alt
+              text keeps the link's accessible name. */}
+          <Link href={brandHref} className="ft-nav-brand flex shrink-0 items-center" onClick={closeMenus}>
             <AppLogo size={36} />
-            <span className="hidden text-lg font-800 tracking-tight sm:block">FabricTrad</span>
           </Link>
 
-          {showBuyerUtilities && (
+          {showHeaderSearch && (
             <form onSubmit={handleSearch} className="ft-nav-search hidden min-w-0 min-h-11 flex-1 items-stretch md:flex" role="search">
               <input
                 type="search"

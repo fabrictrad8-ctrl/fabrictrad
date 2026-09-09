@@ -54,7 +54,6 @@ export default function ResetPasswordPage() {
       <div className="relative z-10 w-full max-w-md rounded-[1.75rem] border border-white/10 bg-[#151a21]/95 p-6 shadow-2xl shadow-black/35 backdrop-blur-xl sm:p-7">
         <Link href="/" className="inline-flex items-center gap-2.5" aria-label="FabricTrad home">
           <AppLogo size={38} />
-          <span className="text-xl font-800 text-white">FabricTrad</span>
         </Link>
 
         <p className="mt-7 text-xs font-800 uppercase tracking-[0.16em] text-orange-300">Password recovery</p>

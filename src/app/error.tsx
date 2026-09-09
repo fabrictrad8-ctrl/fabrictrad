@@ -23,7 +23,6 @@ export default function ErrorPage({
       <section className="w-full max-w-xl rounded-3xl border border-border bg-card p-7 text-center shadow-xl sm:p-10">
         <div className="mx-auto flex w-fit items-center gap-3">
           <AppLogo size={42} />
-          <span className="font-display text-2xl font-800 text-foreground">FabricTrad</span>
         </div>
         <p className="mt-8 text-xs font-800 uppercase tracking-[0.18em] text-primary">Temporary page problem</p>
         <h1 className="mt-3 text-3xl font-800 tracking-tight text-foreground">This page could not finish loading.</h1>

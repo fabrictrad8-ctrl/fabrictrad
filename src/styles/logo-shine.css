@@ -6,6 +6,21 @@
   filter: drop-shadow(0 1px 6px rgba(212, 160, 23, 0.22));
 }
 
+/* The logo's navy wordmark is invisible on the dark theme, so a recoloured copy
+   ships alongside it and CSS picks one. Doing it in CSS rather than JS means the
+   right logo is there in the first paint, matching the pre-hydration theme
+   script — no flash of an unreadable mark. The shine mask is unaffected: both
+   files have identical alpha, which is all the mask reads. */
+.ft-logo-img--dark {
+  display: none;
+}
+.dark .ft-logo-img--light {
+  display: none;
+}
+.dark .ft-logo-img--dark {
+  display: block;
+}
+
 .ft-logo-shine-sweep {
   position: absolute;
   inset: 0;

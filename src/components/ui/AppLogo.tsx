@@ -21,9 +21,17 @@ interface AppLogoProps {
   shine?: boolean;
 }
 
-const OFFICIAL_LOGOS: Record<LogoVariant, { src: string; width: number; height: number }> = {
+/**
+ * `darkSrc` is a recolour of the same artwork for dark backgrounds: the navy
+ * wordmark sits at luminance ~20-50, which is invisible against the dark theme,
+ * so it is lifted to a cool near-white while the gold (already legible) is left
+ * untouched. Both files ship and CSS picks one, so the swap happens in the same
+ * paint as the pre-hydration theme script and never flashes an unreadable logo.
+ */
+const OFFICIAL_LOGOS: Record<LogoVariant, { src: string; darkSrc?: string; width: number; height: number }> = {
   horizontal: {
     src: '/assets/brand/fabrictrad-logo-horizontal.png',
+    darkSrc: '/assets/brand/fabrictrad-logo-horizontal-dark.png',
     width: 984,
     height: 220,
   },
@@ -99,16 +107,31 @@ const AppLogo = memo(function AppLogo({
             unoptimized={src.startsWith('/assets/') || src.endsWith('.svg')}
           />
         ) : (
-          <img
-            src={official.src}
-            alt="FabricTrad — Textile Trading Platform"
-            width={renderedWidth}
-            height={size}
-            loading="eager"
-            decoding="async"
-            className="block max-w-none shrink-0 object-contain"
-            style={{ width: `${renderedWidth}px`, height: `${size}px` }}
-          />
+          <>
+            <img
+              src={official.src}
+              alt="FabricTrad — Textile Trading Platform"
+              width={renderedWidth}
+              height={size}
+              loading="eager"
+              decoding="async"
+              className={`block max-w-none shrink-0 object-contain${official.darkSrc ? ' ft-logo-img--light' : ''}`}
+              style={{ width: `${renderedWidth}px`, height: `${size}px` }}
+            />
+            {official.darkSrc && (
+              <img
+                src={official.darkSrc}
+                alt=""
+                aria-hidden="true"
+                width={renderedWidth}
+                height={size}
+                loading="eager"
+                decoding="async"
+                className="ft-logo-img--dark block max-w-none shrink-0 object-contain"
+                style={{ width: `${renderedWidth}px`, height: `${size}px` }}
+              />
+            )}
+          </>
         )}
         {shine && <span className="ft-logo-shine-sweep" aria-hidden="true" />}
       </div>

@@ -414,7 +414,6 @@ export default function ProfilePage() {
           </Link>
           <div className="flex items-center gap-2">
             <AppLogo size={32} />
-            <span className="font-display font-800 text-lg text-secondary">FabricTrad</span>
           </div>
           <span
             className={`ml-auto text-xs font-700 px-3 py-1 rounded-full border ${

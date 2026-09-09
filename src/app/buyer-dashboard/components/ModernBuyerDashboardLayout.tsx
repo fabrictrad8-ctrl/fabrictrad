@@ -92,7 +92,7 @@ export default function ModernBuyerDashboardLayout() {
       <div className="border-b border-[#dde1e5] p-3 dark:border-border">
         <Link href="/marketplace" onClick={() => setMobileOpen(false)} className="flex min-h-11 items-center gap-3 rounded-lg px-2 hover:bg-white dark:hover:bg-muted">
           <AppLogo size={30} />
-          <div className="min-w-0 flex-1"><p className="truncate text-sm font-850 text-foreground">FabricTrad</p><p className="truncate text-[11px] text-muted-foreground">Buyer account</p></div>
+          <div className="min-w-0 flex-1"><p className="truncate text-sm font-850 text-foreground">Buyer account</p></div>
         </Link>
       </div>
 

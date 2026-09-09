@@ -156,7 +156,6 @@ export default function PhoneCollectionPage() {
         <div className="mb-7 text-center">
           <div className="mb-4 inline-flex items-center gap-2">
             <AppLogo size={40} />
-            <span className="font-display text-xl font-800 text-secondary">FabricTrad</span>
           </div>
           <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-primary/20 bg-primary/10">
             <Icon name="DevicePhoneMobileIcon" size={28} className="text-primary" />

@@ -32,7 +32,6 @@ export default function PublicAccessLanding() {
         <div className="ft-future-nav">
           <Link href="/" className="ft-future-brand" aria-label="FabricTrad home">
             <AppLogo size={34} />
-            <span>FabricTrad</span>
           </Link>
 
           <nav className="ft-future-navlinks" aria-label="Public navigation">
@@ -72,7 +71,6 @@ export default function PublicAccessLanding() {
             <div className="ft-future-menu-header">
               <Link href="/" className="ft-future-brand" onClick={() => setMenuOpen(false)}>
                 <AppLogo size={30} />
-                <span>FabricTrad</span>
               </Link>
               <button type="button" onClick={() => setMenuOpen(false)} aria-label="Close menu" className="ft-future-menu-btn">
                 <Icon name="XMarkIcon" size={20} />

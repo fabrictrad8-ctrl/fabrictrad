@@ -45,7 +45,6 @@ export default function Footer() {
         <div className="ft-site-footer-mobile-top flex items-center justify-between gap-4 sm:hidden">
           <Link href="/" className="inline-flex min-w-0 items-center gap-2.5">
             <AppLogo size={31} />
-            <span className="ft-site-footer-brand-label truncate text-base font-800 tracking-tight text-foreground">FabricTrad</span>
           </Link>
           <div className="flex items-center gap-1.5">
             <a href="mailto:fabrictrad8@gmail.com" className="ft-icon-button" aria-label="Email FabricTrad support">
@@ -86,7 +85,6 @@ export default function Footer() {
           <div className="max-w-sm">
             <Link href="/" className="inline-flex items-center gap-2.5">
               <AppLogo size={36} />
-              <span className="text-lg font-800 tracking-tight text-foreground">FabricTrad</span>
             </Link>
             <p className="mt-4 text-sm leading-6 text-muted-foreground">
               An orange-first textile commerce platform for verified sourcing, colour-level catalogues, prepaid orders, payments and fulfilment.

@@ -154,8 +154,7 @@ export default function AdminPortalLayout() {
         <Link href="/admin-portal" onClick={() => setSidebarOpen(false)} className="flex min-h-11 items-center gap-3 rounded-xl px-2">
           <AppLogo size={32} />
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-800 text-foreground">FabricTrad</p>
-            <p className="truncate text-[11px] text-muted-foreground">Commerce administration</p>
+            <p className="truncate text-sm font-800 text-foreground">Commerce administration</p>
           </div>
           <Icon name="ChevronUpDownIcon" size={15} className="text-muted-foreground" />
         </Link>

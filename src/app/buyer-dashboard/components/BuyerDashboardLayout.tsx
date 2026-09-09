@@ -71,7 +71,6 @@ export default function BuyerDashboardLayout() {
         </button>
         <Link href="/" className="flex items-center gap-2">
           <AppLogo size={30} />
-          <span className="font-800 text-sm text-secondary hidden sm:block">FabricTrad</span>
         </Link>
         <div className="ml-2 hidden sm:block">
           <span className="text-xs bg-primary/10 text-primary border border-primary/20 rounded-full px-2.5 py-0.5 font-700">
