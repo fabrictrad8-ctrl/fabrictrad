@@ -119,9 +119,9 @@ export default function ModernBuyerDashboardLayout() {
   );
 
   const overviewTiles = [
-    { title: 'Your orders', copy: 'Pay accepted orders, download invoices and view order history.', icon: 'ShoppingBagIcon', tab: 'orders' as DashboardTab },
+    { title: 'Your orders', copy: 'Pay for orders, download invoices and view order history.', icon: 'ShoppingBagIcon', tab: 'orders' as DashboardTab },
     { title: 'Track packages', copy: 'See dispatch and delivery progress for active shipments.', icon: 'TruckIcon', tab: 'tracking' as DashboardTab },
-    { title: 'Cart', copy: lineCount ? `${lineCount} product${lineCount === 1 ? '' : 's'} waiting for review.` : 'Keep products together before placing order requests.', icon: 'ShoppingCartIcon', tab: 'cart' as DashboardTab },
+    { title: 'Cart', copy: lineCount ? `${lineCount} product${lineCount === 1 ? '' : 's'} waiting for review.` : 'Keep products together while you shop.', icon: 'ShoppingCartIcon', tab: 'cart' as DashboardTab },
     { title: 'Sourcing requests', copy: 'Tell verified sellers exactly what you need and your deadline.', icon: 'MegaphoneIcon', tab: 'requirements' as DashboardTab },
     { title: 'Profile & addresses', copy: 'Keep your delivery, contact and business details current.', icon: 'MapPinIcon', tab: 'account' as DashboardTab },
     { title: 'Messages & disputes', copy: 'Keep seller conversations and support cases in one place.', icon: 'ChatBubbleLeftRightIcon', tab: 'disputes' as DashboardTab },

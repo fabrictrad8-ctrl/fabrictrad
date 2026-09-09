@@ -109,9 +109,9 @@ export default function BuyerTracking() {
     if (catalogIds.length) {
       const { data } = await supabase
         .from('catalog_order_requests')
-        .select('id,seller_products(name)')
+        .select('id,product_name_snapshot,seller_products(name)')
         .in('id', catalogIds);
-      (data || []).forEach((order: any) => catalogNames.set(order.id, order.seller_products?.name || 'Catalogue product'));
+      (data || []).forEach((order: any) => catalogNames.set(order.id, order.product_name_snapshot || order.seller_products?.name || 'Catalogue product'));
     }
     if (bulkIds.length) {
       const { data } = await supabase

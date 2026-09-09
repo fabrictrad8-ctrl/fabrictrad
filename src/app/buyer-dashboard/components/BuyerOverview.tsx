@@ -19,6 +19,7 @@ type CatalogOrder = {
   unit: string;
   created_at: string;
   seller_id: string;
+  product_name_snapshot?: string | null;
   seller_products?: { name?: string | null } | null;
 };
 
@@ -43,6 +44,7 @@ export default function BuyerOverview({ onNavigate }: Props) {
   const { orders: bulkOrders, loading: bulkLoading } = useBuyerBulkOrders();
   const [catalogOrders, setCatalogOrders] = useState<CatalogOrder[]>([]);
   const [shipments, setShipments] = useState<Shipment[]>([]);
+  const [sellerNames, setSellerNames] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
@@ -57,7 +59,7 @@ export default function BuyerOverview({ onNavigate }: Props) {
     const [catalogResult, shipmentResult] = await Promise.all([
       supabase
         .from('catalog_order_requests')
-        .select('id,status,payment_status,total_amount,quantity,unit,created_at,seller_id,seller_products(name)')
+        .select('id,status,payment_status,total_amount,quantity,unit,created_at,seller_id,product_name_snapshot,seller_products(name)')
         .eq('buyer_id', user.id)
         .order('created_at', { ascending: false })
         .limit(200),
@@ -70,6 +72,21 @@ export default function BuyerOverview({ onNavigate }: Props) {
     ]);
     if (!catalogResult.error) setCatalogOrders((catalogResult.data || []) as unknown as CatalogOrder[]);
     if (!shipmentResult.error) setShipments((shipmentResult.data || []) as Shipment[]);
+
+    const sellerIds = [...new Set(((catalogResult.data || []) as unknown as CatalogOrder[])
+      .map((order) => order.seller_id)
+      .filter(Boolean))];
+    if (sellerIds.length) {
+      const { data: directory } = await supabase
+        .from('seller_directory')
+        .select('id,display_name,legal_business_name')
+        .in('id', sellerIds);
+      const names: Record<string, string> = {};
+      (directory || []).forEach((row) => {
+        names[row.id] = row.display_name || row.legal_business_name || 'FabricTrad seller';
+      });
+      setSellerNames(names);
+    }
     setLoading(false);
   }, [user?.id]);
 
@@ -81,8 +98,8 @@ export default function BuyerOverview({ onNavigate }: Props) {
       id: `FT-CAT-${order.id.slice(0, 8).toUpperCase()}`,
       rawId: order.id,
       kind: 'catalog' as const,
-      product: order.seller_products?.name || 'Catalogue product',
-      seller: `Seller ${order.seller_id.slice(0, 6).toUpperCase()}`,
+      product: order.product_name_snapshot || order.seller_products?.name || 'Catalogue product',
+      seller: sellerNames[order.seller_id] || 'FabricTrad seller',
       qty: `${Number(order.quantity || 0).toLocaleString('en-IN')} ${order.unit || 'units'}`,
       amount: Number(order.total_amount || 0),
       status: order.status || 'pending',
@@ -96,7 +113,7 @@ export default function BuyerOverview({ onNavigate }: Props) {
         rawId: order.id,
         kind: 'bulk' as const,
         product: item?.product_name || 'Bulk fabric order',
-        seller: order.seller_id ? `Seller ${order.seller_id.slice(0, 6).toUpperCase()}` : 'Seller pending',
+        seller: (order.seller_id && sellerNames[order.seller_id]) || 'Seller pending',
         qty: item?.quantity_mtrs ? `${Number(item.quantity_mtrs).toLocaleString('en-IN')} mtrs` : 'Quantity pending',
         amount: Number(order.net_total || 0),
         status: order.status || 'draft',
@@ -105,7 +122,7 @@ export default function BuyerOverview({ onNavigate }: Props) {
       };
     });
     return [...catalog, ...bulk].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  }, [bulkOrders, catalogOrders]);
+  }, [bulkOrders, catalogOrders, sellerNames]);
 
   const monthOrders = combined.filter((order) => thisMonth(order.createdAt));
   const pendingSeller = combined.filter((order) => ['pending', 'draft', 'quote_sent'].includes(order.status));
