@@ -60,6 +60,8 @@ type OrderResult = {
   subtotal?: number;
   gstAmount?: number;
   totalAmount?: number;
+  discountAmount?: number;
+  discountCampaignId?: string | null;
   invoiceType?: 'b2b' | 'b2c';
   inputTaxCreditPossible?: boolean;
   taxNote?: string;
@@ -97,6 +99,7 @@ export default function ProductInfoV2() {
   const [selectedLocationId, setSelectedLocationId] = useState('');
   const [catalogRule, setCatalogRule] = useState<CatalogRule | null>(null);
   const [purchaseOrderNumber, setPurchaseOrderNumber] = useState('');
+  const [discountCode, setDiscountCode] = useState('');
   const [qty, setQty] = useState(1);
   const [loadingRules, setLoadingRules] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -413,6 +416,7 @@ export default function ProductInfoV2() {
         p_deposit_percent: depositPercent,
         p_requires_review: requiresReview,
         p_notes: `${buyerType === 'end_user' ? 'Buy for me' : 'Retail Store'} request for ${product.name}`,
+        p_discount_code: discountCode.trim() || null,
       });
       if (error) throw error;
       if (!data || typeof data !== 'object') {
@@ -606,10 +610,24 @@ export default function ProductInfoV2() {
             </div>
           )}
 
+          <label className="block text-xs font-700 text-foreground">
+            Discount code (optional)
+            <input
+              value={discountCode}
+              onChange={(event) => setDiscountCode(event.target.value)}
+              placeholder="e.g. FESTIVE10"
+              className="input-base mt-1.5 w-full px-3 py-2.5 font-400 uppercase placeholder:normal-case"
+            />
+            <span className="mt-1 block text-[11px] font-400 normal-case text-muted-foreground">
+              Checked when you send the request — eligible sitewide offers apply automatically even without a code.
+            </span>
+          </label>
+
           <div className="space-y-2 rounded-xl border border-border p-4 text-sm">
             <div className="flex justify-between text-muted-foreground"><span>Subtotal</span><span>{money(subtotal)}</span></div>
             <div className="flex justify-between text-muted-foreground"><span>GST {gstRate}% {priceIncludesGst ? '(included)' : ''}</span><span>{money(gstAmount)}</span></div>
             <div className="flex justify-between border-t border-border pt-2 font-800 text-foreground"><span>Estimated total</span><span>{money(total)}</span></div>
+            <p className="text-[11px] text-muted-foreground">Any eligible discount is applied when the order is created and shown in the confirmation below.</p>
           </div>
 
           <div className={`rounded-xl border p-3 text-xs leading-5 ${
@@ -653,6 +671,11 @@ export default function ProductInfoV2() {
                 Exact server total: {money(Number(orderResult.totalAmount || total))} ·{' '}
                 {orderResult.invoiceType === 'b2b' ? 'B2B tax invoice' : 'Consumer invoice'}
               </p>
+              {Number(orderResult.discountAmount || 0) > 0 && (
+                <p className="mt-1 text-xs font-800 text-success">
+                  Discount applied: -{money(Number(orderResult.discountAmount))}
+                </p>
+              )}
               {orderResult.id && (
                 <p className="mt-1 break-all text-[10px] text-muted-foreground">Order ID: {orderResult.id}</p>
               )}
