@@ -15,6 +15,23 @@ type Announcement = {
 const TICKER_HEIGHT = '36px';
 const dismissedKey = (id: string) => `fabrictrad:ticker-dismissed:${id}`;
 
+/**
+ * Shown when no announcement is active, so the bar states what FabricTrad is
+ * instead of leaving a dead strip. Every claim here has to stay true of the
+ * platform itself, because this runs with no admin reviewing it: sellers really
+ * are gated on verification_status, issue_catalog_tax_invoice really does raise
+ * a GST invoice on captured payment, and payments really are Razorpay. It
+ * deliberately promises no discount or delivery time — an admin announcement
+ * takes over the moment one is published.
+ */
+const DEFAULT_ANNOUNCEMENT: Announcement = {
+  id: 'fabrictrad-default',
+  message:
+    'FabricTrad — India’s textile marketplace · Verified sellers · GST invoice on every paid order · Secure payments by Razorpay',
+  link_url: '/marketplace',
+  link_label: 'Browse fabrics',
+};
+
 export default function SitewideAnnouncementTicker() {
   const [announcement, setAnnouncement] = useState<Announcement | null>(null);
   const [dismissed, setDismissed] = useState(false);
@@ -29,10 +46,13 @@ export default function SitewideAnnouncementTicker() {
         .order('updated_at', { ascending: false })
         .limit(1)
         .maybeSingle();
-      if (!mounted || error || !data) return;
-      setAnnouncement(data);
+      if (!mounted) return;
+      // RLS only returns rows that are active and inside their schedule, so no
+      // row means nothing is running and the brand default takes the slot.
+      const next = error || !data ? DEFAULT_ANNOUNCEMENT : data;
+      setAnnouncement(next);
       try {
-        setDismissed(window.sessionStorage.getItem(dismissedKey(data.id)) === '1');
+        setDismissed(window.sessionStorage.getItem(dismissedKey(next.id)) === '1');
       } catch {
         setDismissed(false);
       }
