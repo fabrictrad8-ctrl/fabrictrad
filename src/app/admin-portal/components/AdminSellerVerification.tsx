@@ -225,6 +225,27 @@ export default function AdminSellerVerification() {
     }
   };
 
+  /**
+   * Approves every required document still outstanding, in one action.
+   *
+   * Reviewing is still the admin's job — each file is opened from this same
+   * panel and can be rejected individually — but attesting to three documents
+   * one click at a time was the slowest part of clearing a seller, and the
+   * per-document buttons remain for anything that needs a closer look.
+   */
+  const approveAllDocuments = async () => {
+    if (!selected) return;
+    const pending = REQUIRED_DOCUMENT_TYPES
+      .map((type) => selected.documents.find((item) => item.document_type === type))
+      .filter((document): document is NonNullable<typeof document> =>
+        Boolean(document) && document!.upload_status !== 'approved');
+    if (!pending.length) return;
+    if (!window.confirm(`Approve ${pending.length} document${pending.length === 1 ? '' : 's'} for this seller? Open any you have not read first.`)) return;
+    for (const document of pending) {
+      await act('approve_document', { documentId: document.id });
+    }
+  };
+
   const approveSeller = () => {
     if (!selected?.readyForApproval) return;
     if (window.confirm('All staged checks are complete. Approve this seller and activate selling?')) {
@@ -385,9 +406,25 @@ export default function AdminSellerVerification() {
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <h3 className="text-sm font-800 text-foreground">2 · Required document review</h3>
-                    <p className="mt-1 text-xs text-muted-foreground">Open and approve each document individually. A rejected document returns the seller to the correction flow.</p>
+                    <p className="mt-1 text-xs text-muted-foreground">Open each file, then approve them together or one at a time. A rejected document returns the seller to the correction flow.</p>
                   </div>
-                  <span className="text-xs font-700 text-muted-foreground">{REQUIRED_DOCUMENT_TYPES.filter((type) => selected.documents.some((document) => document.document_type === type && document.upload_status === 'approved')).length}/3 approved</span>
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs font-700 text-muted-foreground">{REQUIRED_DOCUMENT_TYPES.filter((type) => selected.documents.some((document) => document.document_type === type && document.upload_status === 'approved')).length}/3 approved</span>
+                    {selected.applicationSubmitted && selected.seller.verification_status !== 'verified'
+                      && REQUIRED_DOCUMENT_TYPES.some((type) => {
+                        const document = selected.documents.find((item) => item.document_type === type);
+                        return document && document.upload_status !== 'approved';
+                      }) && (
+                        <button
+                          type="button"
+                          disabled={working}
+                          onClick={() => void approveAllDocuments()}
+                          className="btn-primary px-3 py-2 text-xs disabled:opacity-50"
+                        >
+                          Approve all documents
+                        </button>
+                      )}
+                  </div>
                 </div>
                 <div className="mt-4 grid gap-3 md:grid-cols-3">
                   {REQUIRED_DOCUMENT_TYPES.map((type) => {
