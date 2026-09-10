@@ -30,6 +30,13 @@
   --success: #16a34a;
   --warning: #d97706;
   --error: #dc2626;
+  /* Text placed ON an --error fill, following the same convention as
+     --primary-foreground. --error itself flips lightness between themes
+     because it is tuned for error *text*: a dark red here, a light rose in
+     dark mode. Anything using it as a solid background therefore needs its
+     own foreground rather than a fixed white, which fell to 2.69:1 on the
+     notification count badge in dark mode. White on #dc2626 is 4.83:1. */
+  --error-foreground: #ffffff;
 }
 
 
@@ -60,6 +67,10 @@
   --success: #4ade80;
   --warning: #fbbf24;
   --error: #fb7185;
+  /* Dark red-black on the light rose fill, mirroring how
+     --primary-foreground is a dark tint of the primary hue here. 7.2:1,
+     which the 9px badge count needs. */
+  --error-foreground: #1c0609;
 }
 
 @layer base {

@@ -51,7 +51,7 @@ module.exports = {
         },
         success: { DEFAULT: 'var(--success)' },
         warning: { DEFAULT: 'var(--warning)' },
-        error: { DEFAULT: 'var(--error)' },
+        error: { DEFAULT: 'var(--error)', foreground: 'var(--error-foreground)' },
       },
       borderRadius: {
         DEFAULT: 'var(--radius)',

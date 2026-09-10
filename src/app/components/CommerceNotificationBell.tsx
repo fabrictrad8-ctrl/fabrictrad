@@ -54,8 +54,12 @@ export default function CommerceNotificationBell({
       aria-label={unread ? `${label}, ${unread} unread` : label}
     >
       <Icon name={unread ? 'BellAlertIcon' : 'BellIcon'} size={18} />
+      {/* The count uses text-error-foreground rather than a fixed white:
+          --error is a dark red in light mode but a light rose in dark, so
+          white fell to 2.69:1 against the fill. The paired token flips with
+          the theme, giving 4.8:1 light and 7.2:1 dark. */}
       {unread > 0 && (
-        <span className="absolute -right-1 -top-1 flex min-h-4 min-w-4 items-center justify-center rounded-full bg-error px-1 text-[9px] font-900 leading-none text-white ring-2 ring-card">
+        <span className="absolute -right-1 -top-1 flex min-h-4 min-w-4 items-center justify-center rounded-full bg-error px-1 text-[9px] font-900 leading-none text-error-foreground ring-2 ring-card">
           {unread > 9 ? '9+' : unread}
         </span>
       )}
