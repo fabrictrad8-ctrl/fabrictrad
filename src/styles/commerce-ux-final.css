@@ -432,8 +432,15 @@ body[data-route='buyer-dashboard'] .ft-command-trigger {
    .ft-glass-card convention just above (border-color, 12px radius,
    flat 1px shadow) rather than the sitewide 3D-tilt hover card treatment,
    to read as dense/flat like Shopify admin instead of playful. */
+/* The background was themed via var(--card) but the border was a hardcoded
+   light-mode grey, so in dark mode every one of these cards drew a near-white
+   0.8px outline (#dedfe2) around a #11182a surface. Measured in the browser:
+   borderTopColor rgb(222, 223, 226) on backgroundColor rgb(17, 24, 42).
+   The tokens carry the same intent per theme — --ft-border is #dfe3e8 in light
+   and #27334d in dark — so this keeps the light appearance identical while
+   giving dark mode a border that belongs to it. */
 .ft-seller-admin .ft-shopify-card {
-  border: 1px solid #dedfe2;
+  border: 1px solid var(--ft-border);
   border-radius: 12px;
   background: var(--card);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
@@ -442,7 +449,7 @@ body[data-route='buyer-dashboard'] .ft-command-trigger {
 }
 
 .ft-seller-admin .ft-shopify-card:hover {
-  border-color: #b8bec6;
+  border-color: var(--ft-border-strong);
   box-shadow: 0 3px 10px rgba(0, 0, 0, 0.08) !important;
   transform: none !important;
 }
