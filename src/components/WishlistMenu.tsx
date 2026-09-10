@@ -31,8 +31,11 @@ export default function WishlistMenu() {
         aria-expanded={open}
       >
         <Icon name="HeartIcon" size={18} variant={items.length ? 'solid' : 'outline'} />
+        {/* The count uses text-primary-foreground rather than text-white:
+            --primary is the vivid saffron, and white on it measures 3.46:1 at
+            10px. The paired token reads 5.46:1. */}
         {items.length > 0 && (
-          <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-800 text-white">
+          <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-800 text-primary-foreground">
             {items.length > 99 ? '99+' : items.length}
           </span>
         )}

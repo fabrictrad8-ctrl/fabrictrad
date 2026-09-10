@@ -103,7 +103,7 @@ export default function ModernBuyerDashboardLayout() {
             <div className="space-y-0.5">
               {group.items.map((item) => {
                 const active = activeTab === item.key;
-                return <button key={item.key} type="button" onClick={() => navigateTo(item.key)} aria-current={active ? 'page' : undefined} className={`flex min-h-9 w-full items-center gap-3 rounded-lg px-2.5 text-left text-[13px] font-700 transition ${active ? 'is-active bg-[#e7e8ea] text-foreground dark:bg-muted' : 'text-foreground/80 hover:bg-[#eceeef] hover:text-foreground dark:hover:bg-muted'}`}><Icon name={item.icon as 'HomeIcon'} size={17} className={active ? 'text-foreground' : 'text-muted-foreground'} /><span className="min-w-0 flex-1 truncate">{item.label}</span>{item.key === 'cart' && lineCount > 0 && <span className="rounded-full bg-primary px-2 py-0.5 text-[10px] font-850 text-white">{lineCount}</span>}</button>;
+                return <button key={item.key} type="button" onClick={() => navigateTo(item.key)} aria-current={active ? 'page' : undefined} className={`flex min-h-9 w-full items-center gap-3 rounded-lg px-2.5 text-left text-[13px] font-700 transition ${active ? 'is-active bg-[#e7e8ea] text-foreground dark:bg-muted' : 'text-foreground/80 hover:bg-[#eceeef] hover:text-foreground dark:hover:bg-muted'}`}><Icon name={item.icon as 'HomeIcon'} size={17} className={active ? 'text-foreground' : 'text-muted-foreground'} /><span className="min-w-0 flex-1 truncate">{item.label}</span>{item.key === 'cart' && lineCount > 0 && <span className="rounded-full bg-primary px-2 py-0.5 text-[10px] font-850 text-primary-foreground">{lineCount}</span>}</button>;
               })}
             </div>
           </section>
@@ -136,7 +136,7 @@ export default function ModernBuyerDashboardLayout() {
         <Link href="/marketplace" className="ft-icon-button md:hidden" aria-label="Search marketplace"><Icon name="MagnifyingGlassIcon" size={18} /></Link>
         <div className="ml-auto flex items-center gap-2">
           <Link href="/marketplace" className="ft-secondary-action hidden items-center gap-2 px-3 py-2 text-xs sm:inline-flex"><Icon name="Squares2X2Icon" size={15} /> Shop</Link>
-          <Link href="/cart" className="ft-icon-button relative" aria-label={`Open cart with ${lineCount} item${lineCount === 1 ? '' : 's'}`}><Icon name="ShoppingCartIcon" size={18} />{lineCount > 0 && <span className="absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-primary px-1 text-[9px] font-850 text-white">{lineCount}</span>}</Link>
+          <Link href="/cart" className="ft-icon-button relative" aria-label={`Open cart with ${lineCount} item${lineCount === 1 ? '' : 's'}`}><Icon name="ShoppingCartIcon" size={18} />{lineCount > 0 && <span className="absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-primary px-1 text-[9px] font-850 text-primary-foreground">{lineCount}</span>}</Link>
           <div className="hidden sm:flex"><PreferenceControls compact /></div>
           <button type="button" onClick={() => navigateTo('notifications')} className="ft-icon-button" aria-label="Open notifications"><Icon name="BellIcon" size={18} /></button>
           <ProfileMenu />
@@ -188,7 +188,7 @@ export default function ModernBuyerDashboardLayout() {
           { key: 'tracking' as DashboardTab, label: 'Track', icon: 'TruckIcon' },
           { key: 'cart' as DashboardTab, label: 'Cart', icon: 'ShoppingCartIcon' },
           { key: 'account' as DashboardTab, label: 'Account', icon: 'UserCircleIcon' },
-        ].map((item) => <button key={item.key} type="button" onClick={() => navigateTo(item.key)} className={`relative flex flex-col items-center gap-1 rounded-lg py-2 text-[10px] font-850 ${activeTab === item.key ? 'bg-primary/10 text-primary' : 'text-muted-foreground'}`}><Icon name={item.icon as 'HomeIcon'} size={18} /> {item.label}{item.key === 'cart' && lineCount > 0 && <span className="absolute right-[22%] top-1 grid h-4 min-w-4 place-items-center rounded-full bg-primary px-1 text-[9px] font-850 text-white">{lineCount}</span>}</button>)}
+        ].map((item) => <button key={item.key} type="button" onClick={() => navigateTo(item.key)} className={`relative flex flex-col items-center gap-1 rounded-lg py-2 text-[10px] font-850 ${activeTab === item.key ? 'bg-primary/10 text-primary' : 'text-muted-foreground'}`}><Icon name={item.icon as 'HomeIcon'} size={18} /> {item.label}{item.key === 'cart' && lineCount > 0 && <span className="absolute right-[22%] top-1 grid h-4 min-w-4 place-items-center rounded-full bg-primary px-1 text-[9px] font-850 text-primary-foreground">{lineCount}</span>}</button>)}
       </nav>
 
       <AiAssistantWidget role="buyer" context={`Buyer is currently viewing: ${activeItem.label} (${activeItem.description})`} />

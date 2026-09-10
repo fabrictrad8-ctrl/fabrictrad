@@ -106,7 +106,7 @@ export default function BuyerInbox() {
           </p>
         </div>
         {totalUnread > 0 && (
-          <span className="bg-primary text-white text-xs font-700 px-2.5 py-1 rounded-full">{totalUnread} unread</span>
+          <span className="bg-primary text-primary-foreground text-xs font-700 px-2.5 py-1 rounded-full">{totalUnread} unread</span>
         )}
       </div>
 
@@ -125,7 +125,7 @@ export default function BuyerInbox() {
           <button
             key={tab.key}
             onClick={() => setFilter(tab.key as typeof filter)}
-            className={`shrink-0 px-3 py-2 rounded-xl text-xs font-600 border transition-all ${filter === tab.key ? 'bg-primary text-white border-primary' : 'bg-card border-border text-muted-foreground hover:border-primary/50'}`}
+            className={`shrink-0 px-3 py-2 rounded-xl text-xs font-600 border transition-all ${filter === tab.key ? 'bg-primary text-primary-foreground border-primary' : 'bg-card border-border text-muted-foreground hover:border-primary/50'}`}
           >
             {tab.label}
           </button>
@@ -159,7 +159,7 @@ export default function BuyerInbox() {
                     <AppImage src={thread.otherPartyAvatar} alt={`${thread.otherPartyName} seller profile photo`} width={40} height={40} className="object-cover" />
                   </div>
                   {thread.unread > 0 && (
-                    <span className="absolute -top-1 -right-1 w-4 h-4 bg-primary text-white text-xs font-800 rounded-full flex items-center justify-center">{thread.unread}</span>
+                    <span className="absolute -top-1 -right-1 w-4 h-4 bg-primary text-primary-foreground text-xs font-800 rounded-full flex items-center justify-center">{thread.unread}</span>
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
