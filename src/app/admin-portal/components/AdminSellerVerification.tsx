@@ -35,6 +35,7 @@ type SellerApplication = {
     gstin_verified: boolean;
     verification_status: string;
     settlement_eligible: boolean;
+    razorpay_linked_account_id: string | null;
     is_active: boolean;
     updated_at: string;
   };
@@ -361,6 +362,16 @@ export default function AdminSellerVerification() {
                 >
                   <p className="text-sm font-800 text-foreground">{selected.bank?.account_holder_name || 'Settlement account'}</p>
                   <p className="mt-1 text-xs text-muted-foreground">{selected.bank ? `${selected.bank.account_number_masked || 'Account'} · ${selected.bank.ifsc_code || 'No IFSC'}` : 'Bank details not submitted'}</p>
+                  {/* Approving the documents above is KYC. Actually being paid needs a
+                      Razorpay Route linked account, which the seller connects themselves.
+                      Without this line a fully "Verified" seller looks ready to trade while
+                      every checkout for their products still fails closed. */}
+                  {!selected.seller.razorpay_linked_account_id && (
+                    <p className="mt-2 rounded-lg border border-warning/30 bg-warning/5 p-2 text-xs font-700 text-warning">
+                      Documents can be approved, but this seller has not connected a Razorpay payout account,
+                      so buyers cannot complete checkout on their listings yet. Only the seller can connect it.
+                    </p>
+                  )}
                   {selected.applicationSubmitted && selected.seller.verification_status !== 'verified' && selected.bank && !selected.bank.is_verified && (
                     <div className="mt-3 flex flex-wrap gap-2">
                       <button disabled={working} onClick={() => void act('verify_bank')} className="btn-primary px-3 py-2 text-xs">Check Razorpay verification</button>

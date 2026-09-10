@@ -33,6 +33,7 @@ type SellerRow = {
   gstin_verified: boolean;
   verification_status: string;
   settlement_eligible: boolean;
+  razorpay_linked_account_id: string | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -184,7 +185,7 @@ async function loadApplications(): Promise<ApplicationRow[]> {
   const { data: sellerData, error: sellerError } = await admin
     .from('seller_profiles')
     .select(
-      'id,user_id,legal_business_name,display_name,business_type,gstin,gstin_status,gstin_verified,verification_status,settlement_eligible,is_active,created_at,updated_at'
+      'id,user_id,legal_business_name,display_name,business_type,gstin,gstin_status,gstin_verified,verification_status,settlement_eligible,is_active,created_at,updated_at,razorpay_linked_account_id'
     )
     .order('updated_at', { ascending: false });
   if (sellerError) throw sellerError;
