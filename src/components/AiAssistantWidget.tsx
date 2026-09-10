@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import Icon from '@/components/ui/AppIcon';
@@ -68,6 +69,27 @@ export default function AiAssistantWidget({ role, context }: AiAssistantWidgetPr
   const pathname = usePathname();
   const copy = ROLE_COPY[role];
 
+  // Both pieces this component renders are `position: fixed`, but it is mounted
+  // inside the routed page — which RouteExperienceEnhancer wraps in
+  // .ft-route-content and animates with `transform` on every navigation. A
+  // transformed ancestor becomes the containing block for fixed descendants, so
+  // for the 420ms the entrance animation runs the launcher anchors to that
+  // wrapper's full scroll height instead of the viewport. On a long page that
+  // throws it clean off screen: measured at top 3568px on a 780px viewport on
+  // /help, which is what the mobile layout audit has been failing on.
+  //
+  // The keyframes already end on `transform: none` and the class is stripped on
+  // animationend, so the trap was never permanent — but it cannot be closed from
+  // the CSS side while a transform-based page transition exists at all. Escaping
+  // the wrapper entirely is the actual fix. document.body is the host rather
+  // than a dedicated node because `.ft-root` lives on <body>, so panel styling
+  // that selects `html .ft-root .ft-ai-widget-panel` keeps matching, as do the
+  // `body:has(.ft-ai-widget-fab)` collision rules.
+  const [portalHost, setPortalHost] = useState<HTMLElement | null>(null);
+  useEffect(() => {
+    setPortalHost(document.body);
+  }, []);
+
   // The signed-out sign-in link wants the current query string too, but
   // useSearchParams() would force every page mounting this widget to sit
   // behind a Suspense boundary (otherwise Next fails the build for the
@@ -122,7 +144,7 @@ export default function AiAssistantWidget({ role, context }: AiAssistantWidgetPr
   }, [open]);
 
   // Don't flash the signed-out prompt while the session is still being restored.
-  if (loading) return null;
+  if (loading || !portalHost) return null;
 
   // The chat-completion route requires an authenticated Supabase session (401 otherwise) AND
   // burns a per-user daily quota (consume_api_quota with p_feature 'ai_chat'). Both of those
@@ -132,7 +154,7 @@ export default function AiAssistantWidget({ role, context }: AiAssistantWidgetPr
   // launcher plus a sign-in prompt — never an input box that would only 401 on submit.
   if (!user) {
     const next = `${pathname || '/'}${search}`;
-    return (
+    return createPortal(
       <>
         <button
           type="button"
@@ -176,7 +198,8 @@ export default function AiAssistantWidget({ role, context }: AiAssistantWidgetPr
             </div>
           </section>
         )}
-      </>
+      </>,
+      portalHost,
     );
   }
 
@@ -209,7 +232,7 @@ export default function AiAssistantWidget({ role, context }: AiAssistantWidgetPr
     }
   };
 
-  return (
+  return createPortal(
     <>
       <button
         type="button"
@@ -283,6 +306,7 @@ export default function AiAssistantWidget({ role, context }: AiAssistantWidgetPr
           </div>
         </section>
       )}
-    </>
+    </>,
+    portalHost,
   );
 }
