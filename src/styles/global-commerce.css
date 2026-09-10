@@ -1,11 +1,49 @@
 /* Global fallbacks so legacy routes inherit the same commerce polish without changing business logic. */
 
+/* Font-weight utilities.
+ *
+ * Only .font-650 and .font-750 were ever defined here, but the components use
+ * the whole family: font-600 (68 uses), font-700 (502), font-800 (854),
+ * font-850 (124) and font-900 (38) — 1,586 usages across 118+ files that
+ * matched no rule at all and silently rendered at the inherited 400. Every
+ * heading, price, button label and badge meant to read as bold was normal
+ * weight, so the type hierarchy the design assumes never actually appeared.
+ * Verified in the browser before this change: `.font-850` resolved to 400 on
+ * 50 elements of a single seller-dashboard page.
+ *
+ * The three families in src/app/layout.tsx load static weights only, topping
+ * out at 700 (Public_Sans 400-700, Fraunces 500-700, IBM_Plex_Mono 400-600).
+ * A request above that is resolved by normal CSS font matching to the heaviest
+ * face available rather than synthesised, so 800/850/900 render as 700. They
+ * are declared at their nominal values anyway so the intent stays readable and
+ * a future variable font upgrade needs no component changes.
+ */
+.font-600 {
+  font-weight: 600;
+}
+
 .font-650 {
   font-weight: 650;
 }
 
+.font-700 {
+  font-weight: 700;
+}
+
 .font-750 {
   font-weight: 750;
+}
+
+.font-800 {
+  font-weight: 800;
+}
+
+.font-850 {
+  font-weight: 850;
+}
+
+.font-900 {
+  font-weight: 900;
 }
 
 body.ft-root header.fixed.top-0:not(.ft-topbar) {
