@@ -22,6 +22,7 @@ import {
 import { type ParsedCatalogDraft, type SaleChannel } from '@/lib/catalogAssistant';
 import {
   HSN_QUICK_PICKS,
+  suggestHsn,
   describeHsn,
   describeSellerProductError,
   liveListingBlockers,
@@ -628,6 +629,9 @@ export default function SellerCatalogAssistant() {
   const hsnKnown = validateHsn(form.hsnCode);
   const hsnLabel = hsnKnown ? describeHsn(form.hsnCode) : '';
   const hsnGstRate = hsnKnown ? previewGstRate(form.hsnCode, positiveNumber(form.pricePerUnit)) : null;
+  // Narrowed from what the seller has already described. HSN is a statutory
+  // classification that sets the invoice GST rate, so it is offered, never applied.
+  const hsnSuggestion = suggestHsn(form.name, form.category, form.workType, form.description);
   // Until the seller profile has loaded we do not know the GSTIN state, so the
   // gate notice stays hidden rather than guessing.
   const gateKnown = Boolean(sellerState) && !isDemoAccount;
@@ -949,6 +953,15 @@ export default function SellerCatalogAssistant() {
                   'Drafts can be saved without it. A 4, 6 or 8 digit HSN is required before a product can go live, because it sets the GST rate on the buyer invoice.'
                 )}
               </p>
+              {!hsnKnown && hsnSuggestion && (
+                <button
+                  type="button"
+                  onClick={() => updateForm('hsnCode', hsnSuggestion.code)}
+                  className="ft-secondary-action mt-2 inline-flex items-center gap-2 px-3 py-2 text-xs"
+                >
+                  Use {hsnSuggestion.code} — {hsnSuggestion.because}
+                </button>
+              )}
               <div className="ft-hsn-picks">
                 {HSN_QUICK_PICKS.map((code) => (
                   <button

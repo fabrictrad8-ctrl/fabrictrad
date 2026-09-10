@@ -27,6 +27,46 @@ export { describeHsn, normalizeHsn, validateHsn };
  */
 export const HSN_QUICK_PICKS = ['5208', '5209', '5407', '6103', '6203', '6307'] as const;
 
+/**
+ * Suggests a likely HSN heading from what the seller has already typed about the
+ * product.
+ *
+ * HSN is a statutory classification, not an identifier the platform can mint: it
+ * is chosen from the published tariff to match what the goods actually are, many
+ * different products share the same heading, and the code decides the GST rate on
+ * the buyer's invoice. So this only ever narrows the choice and the seller
+ * confirms it — an auto-assigned code would put a tax figure the seller is legally
+ * answerable for onto a real invoice without them ever seeing it.
+ *
+ * Returns null whenever the wording is not a confident match, because a blank
+ * field the seller must fill is safer than a plausible wrong classification.
+ */
+export function suggestHsn(...fields: Array<string | null | undefined>): { code: string; because: string } | null {
+  const text = fields.filter(Boolean).join(' ').toLowerCase();
+  if (!text.trim()) return null;
+
+  const has = (...words: string[]) => words.some((w) => text.includes(w));
+
+  // Garments first: a made-up garment is classified by the garment, not its cloth.
+  if (has('knit', 'jersey', 'hosiery')) {
+    return { code: '6103', because: 'reads as a knitted garment' };
+  }
+  if (has('sherwani', 'jodhpuri', 'indowestern', 'indo western', 'suit', 'ensemble', 'blazer', 'trouser', 'shirt pant')) {
+    return { code: '6203', because: 'reads as a stitched woven garment or set' };
+  }
+  if (has('dupatta', 'scarf', 'stole', 'towel', 'cushion', 'made-up', 'made up')) {
+    return { code: '6307', because: 'reads as a made-up textile article' };
+  }
+  // Then fabric by fibre.
+  if (has('georgette', 'chiffon', 'satin', 'net', 'polyester', 'synthetic', 'tissue', 'sartin', 'crepe')) {
+    return { code: '5407', because: 'reads as a woven synthetic-filament fabric' };
+  }
+  if (has('cotton', 'khadi', 'poplin', 'cambric')) {
+    return { code: '5208', because: 'reads as a lighter woven cotton fabric — use 5209 if it exceeds 200 g/m²' };
+  }
+  return null;
+}
+
 export type LiveListingGate = {
   /** `gstin_status = 'active'` or `gstin_verified` on the seller profile. */
   gstinVerified: boolean;
