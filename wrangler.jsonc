@@ -18,6 +18,23 @@
   "triggers": {
     "crons": ["*/5 * * * *"]
   },
+  // These two are NEXT_PUBLIC_* build-time values, not secrets: the Supabase URL
+  // ships inside every client bundle and the site URL is the public domain.
+  //
+  // They must ALSO exist as Worker vars, because the cron path cannot see the
+  // build-time ones. OpenNext injects Next's build-time env into process.env
+  // while handling a *request*; the scheduled() handler never goes through that
+  // path, so on every tick createAdminClient() threw
+  // "NEXT_PUBLIC_SUPABASE_URL is missing from the production environment"
+  // and all three scheduled jobs died before doing any work. Declared here,
+  // nodejs_compat_populate_process_env exposes them globally instead.
+  //
+  // Worker secrets (SUPABASE_SECRET_KEY, SMTP_PASS, GUPSHUP_*) were never the
+  // problem -- those are real bindings and were always visible to process.env.
+  "vars": {
+    "NEXT_PUBLIC_SUPABASE_URL": "https://rdhfwlzhcvwjhkxhhpoo.supabase.co",
+    "NEXT_PUBLIC_SITE_URL": "https://fabrictrad.com"
+  },
   "secrets": {
     "required": [
       "RAZORPAY_KEY_ID",
