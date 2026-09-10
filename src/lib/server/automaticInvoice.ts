@@ -73,11 +73,43 @@ const invoiceUrl = (invoiceId: string) => {
   return `${base}/api/invoices/${invoiceId}`;
 };
 
+/**
+ * The credential this module sends invoices with.
+ *
+ * Invoices go over Resend's HTTP API, so the value has to be a Resend API key —
+ * unlike authEmail.ts, which talks SMTP and accepts any provider's password.
+ * Both modules are configured from the same deployed secret, and they disagreed
+ * on its name: production sets SMTP_PASS (what authEmail.ts and Resend's own
+ * SMTP credentials call it) while this read SMTP_PASSWORD, which has never
+ * existed. With RESEND_API_KEY also unset, every invoice fell to
+ * 'not_configured' — the reason FT/26-27/000001 was never delivered.
+ *
+ * SMTP_PASSWORD stays accepted so an environment already using that name keeps
+ * working. The re_ check is what makes reading an SMTP secret safe: a password
+ * for Cloudflare Email, SES or Workspace is not a Resend key, so it is ignored
+ * rather than sent to api.resend.com as a bearer token.
+ */
 const emailApiKey = () => {
   const direct = process.env.RESEND_API_KEY?.trim();
   if (direct) return direct;
-  const smtpPassword = process.env.SMTP_PASSWORD?.trim();
+  const smtpPassword = (process.env.SMTP_PASS || process.env.SMTP_PASSWORD)?.trim();
   return smtpPassword?.startsWith('re_') ? smtpPassword : '';
+};
+
+/**
+ * Says which secret to set, rather than only that one is missing.
+ *
+ * The two cases need different actions and used to read identically: no mail
+ * secret at all, versus an SMTP password that belongs to a provider other than
+ * Resend and so cannot authenticate an HTTP send. This is the only record of
+ * why an invoice went undelivered, so it names the variable to fix.
+ */
+const describeMissingEmailKey = () => {
+  const smtpPassword = (process.env.SMTP_PASS || process.env.SMTP_PASSWORD)?.trim();
+  if (smtpPassword) {
+    return 'SMTP_PASS is set but is not a Resend API key (it does not start with "re_"), and invoices are sent over the Resend HTTP API. Add RESEND_API_KEY as a Worker secret.';
+  }
+  return 'No invoice email credential is configured. Add RESEND_API_KEY as a Worker secret (or set SMTP_PASS to a Resend "re_" key).';
 };
 
 function buildInvoiceEmail(invoice: InvoiceRow) {
@@ -170,7 +202,7 @@ async function deliverInvoiceEmail(admin: SupabaseClient, invoice: InvoiceRow) {
       .from('seller_tax_invoices')
       .update({
         email_status: 'not_configured',
-        email_last_error: !recipient ? 'Buyer email address is unavailable.' : 'Resend API key is not configured in the server runtime.',
+        email_last_error: !recipient ? 'Buyer email address is unavailable.' : describeMissingEmailKey(),
         email_attempted_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
