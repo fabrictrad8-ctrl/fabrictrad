@@ -454,8 +454,18 @@ html:not(.dark) .ft-auth-page .ft-primary-action:hover { background: linear-grad
     overflow-x: clip;
   }
 
-  .ft-shell :where(.grid, .flex),
-  [data-role-shell] :where(.grid, .flex) {
+  /* Stops a flex or grid container refusing to shrink below its content on a
+     narrow screen. Keep it -- but :where() has zero specificity, so this scored
+     (0,1,0), exactly tying Tailwind's own min-w-* utilities and winning only by
+     coming later. Below 767px that silently zeroed every explicit min-width on
+     any .flex/.grid element in the shell: the seller Orders tab rendered
+     "Tracking link required to update" as a 10px-wide, 459px-tall column one
+     character across, because its min-w-[210px] was being discarded.
+
+     Excluding elements that set their own min-width leaves the guard intact for
+     everything that has not asked for one. */
+  .ft-shell :where(.grid, .flex):not([class*="min-w-"]),
+  [data-role-shell] :where(.grid, .flex):not([class*="min-w-"]) {
     min-width: 0;
   }
 

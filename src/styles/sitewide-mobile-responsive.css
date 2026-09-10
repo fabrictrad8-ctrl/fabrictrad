@@ -27,7 +27,23 @@ body {
   overflow-x: clip;
 }
 
-.ft-root :where(.flex, .inline-flex, .grid) > * {
+/* Flex and grid children default to min-width:auto, which is the usual reason a
+   child refuses to shrink and pushes the whole page sideways. Resetting it to 0
+   is the right fix and must stay.
+
+   But :where() contributes zero specificity, so this selector scored (0,1,0) --
+   exactly the same as Tailwind's own .min-w-[210px] -- and won only by being
+   later in the cascade. That silently defeated EVERY explicit min-w-* utility on
+   a direct flex or grid child. On the seller Orders tab it collapsed the
+   "Tracking link required to update" label to 10px wide by 459px tall, a
+   vertical ribbon one character across.
+
+   Excluding elements that explicitly asked for a min-width fixes it without
+   weakening the reset: they no longer match this rule at all, so their own
+   utility applies, while every other flex child still gets min-width:0.
+   Tables are unaffected either way -- they sit inside a block-level
+   overflow-x-auto wrapper, so this rule never matched them. */
+.ft-root :where(.flex, .inline-flex, .grid) > *:not([class*="min-w-"]) {
   min-width: 0;
 }
 
