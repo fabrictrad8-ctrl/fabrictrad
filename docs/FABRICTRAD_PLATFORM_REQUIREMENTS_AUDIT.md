@@ -1,6 +1,6 @@
 # FabricTrad platform requirements audit
 
-Last reviewed: 2026-08-23
+Last reviewed: 2026-09-10
 
 This document maps the intended FabricTrad business/commerce model to the implemented system. It is an engineering/product control document, not legal or tax advice.
 
@@ -20,7 +20,7 @@ This document maps the intended FabricTrad business/commerce model to the implem
 | Statutory GST TCS / 194-O TDS | Ledger fields added, automated deduction not activated | CA/legal sign-off required before rate/exemption engine is activated. Keep statutory deductions separate from commission/gateway charges. |
 | Seller settlement | Payment ledgers and Razorpay transfer fields exist; current live records show transfers not configured | Do not present settlement as automated until linked-account and statutory deduction workflow are configured. |
 | Subscriptions | Not implemented | Define plans, prices, benefits, GST treatment, cancellation/renewal flow and invoices before coding billing. |
-| Advertising / paid placement | Not implemented | Paid inventory must render as Sponsored/Promoted. |
+| Advertising / paid placement | Implemented 2026-09-09: admin-managed `sponsored_placements`, with the required disclosure rendered as a `Sponsored` label on the marketplace card. No placements are configured yet (0 rows), so nothing currently shows as paid. | Keep the label rendering whenever a placement is active, and keep organic ranking independent of it. |
 | Best Seller tag | Should be organic | Do not sell the label. Calculate from actual marketplace performance and publish criteria internally. |
 | Top 10 search paid placement | Do not disguise paid placement as organic | If sold, label Sponsored/Promoted and keep an independent organic ranking. |
 | WhatsApp catalogue intake | Webhook, signed Meta verification, AI parsing, media storage and seller inbox are implemented | Complete production credential/config verification and automate draft-to-product/admin-review handoff only after exact seller association and validation succeeds. |
