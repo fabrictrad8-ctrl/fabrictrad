@@ -25,6 +25,19 @@
   --ft-indigo: #3d5aa8;
   --ft-indigo-strong: #2c4380;
   --ft-indigo-soft: rgba(61, 90, 168, 0.15);
+  /* Status ink: the hue resolved for TEXT rather than for a fill. .ft-pill-*
+     sets each label on a 14% wash of its own hue, and that wash is very light
+     here (~0.85 luminance), so the label has to be considerably darker than the
+     value used for gradients and fills — measured, the pills read 2.15
+     (pending), 4.47 (progress), 2.82 (success) and 3.88 (critical) against the
+     4.5 AA needs at 10.5px. Separate tokens rather than edits to --ft-gold /
+     --ft-saffron-strong / --success / --error, because those are also used for
+     gradients, borders and fills where a darker value would be wrong.
+     Ratios on their own wash: 5.4 / 5.1 / 6.0 / 5.3. */
+  --ft-status-pending-ink: #7a5f1f;
+  --ft-status-progress-ink: #b23a07;
+  --ft-status-success-ink: #166534;
+  --ft-status-critical-ink: #b91c1c;
   /* --ft-gold already exists (#c9a24b) and is exactly this palette's zari gold — reused, not duplicated. */
 }
 
@@ -37,6 +50,15 @@
   --ft-indigo: #93addf;
   --ft-indigo-strong: #c3d4f2;
   --ft-indigo-soft: rgba(147, 173, 223, 0.2);
+  /* On dark the same wash is very dark, so the ink inverts: the existing gold,
+     success and error values already read well here (5.9 / 7.6 / 5.4 measured)
+     and are kept. Progress is the one that was actually failing in dark --
+     --ft-saffron-strong (#c23f08) is tuned for a light backdrop and scored
+     2.96 on the dark wash, so it lightens to 6.6 instead. */
+  --ft-status-pending-ink: #c9a24b;
+  --ft-status-progress-ink: #fb8b4c;
+  --ft-status-success-ink: #4ade80;
+  --ft-status-critical-ink: #fb7185;
 }
 
 /* --ft-surface/--ft-ink/--ft-line is an older token family (predating
@@ -75,6 +97,26 @@ html:not(.dark) body.ft-root {
   --primary: var(--ft-saffron);
   --primary-foreground: #1c0f04;
   --ring: var(--ft-saffron);
+}
+
+/* --ft-saffron is a fill colour: vivid on a button, and correct there. As small
+   text on a light surface it is too bright — measured 3.14 to 3.46 across
+   "View all", "Go", "Hide" and the setup-guide percentage, against the 4.5 AA
+   needs at 11-12px. --ft-saffron-strong is the same hue resolved for text and
+   is already used exactly this way by .ft-pill-progress just below; on light
+   backgrounds it reads 4.7-5.2. Scoped to light only: on dark the vivid saffron
+   already has the contrast, and darkening it there would make things worse. */
+html:not(.dark) body.ft-root .text-primary {
+  color: var(--ft-saffron-strong);
+}
+
+/* Same reasoning for error text: --error is correct as a fill (the notification
+   badge sits on it) but lands at 4.47 as 14px body copy on a light surface,
+   just under the 4.5 it needs. Reuses the status ink defined above rather than
+   introducing another red. Dark is untouched: --error is already a light rose
+   there and reads at 5.4. */
+html:not(.dark) body.ft-root .text-error {
+  color: var(--ft-status-critical-ink);
 }
 
 .dark body.ft-root {
@@ -150,11 +192,11 @@ html:not(.dark) .ft-root .btn-primary:hover {
   flex-shrink: 0;
 }
 .ft-pill-neutral { background: color-mix(in srgb, var(--muted-foreground) 14%, transparent); color: var(--muted-foreground); }
-.ft-pill-pending { background: var(--zari-wash, rgba(201, 162, 75, 0.14)); color: var(--ft-gold, #c9a24b); }
+.ft-pill-pending { background: var(--zari-wash, rgba(201, 162, 75, 0.14)); color: var(--ft-status-pending-ink); }
 .ft-pill-active { background: var(--ft-indigo-soft); color: var(--ft-indigo-strong); }
-.ft-pill-progress { background: var(--ft-saffron-soft); color: var(--ft-saffron-strong); }
-.ft-pill-success { background: color-mix(in srgb, var(--success) 14%, transparent); color: var(--success); }
-.ft-pill-critical { background: color-mix(in srgb, var(--error) 14%, transparent); color: var(--error); }
+.ft-pill-progress { background: var(--ft-saffron-soft); color: var(--ft-status-progress-ink); }
+.ft-pill-success { background: color-mix(in srgb, var(--success) 14%, transparent); color: var(--ft-status-success-ink); }
+.ft-pill-critical { background: color-mix(in srgb, var(--error) 14%, transparent); color: var(--ft-status-critical-ink); }
 
 /* Order tracker / stepper: Ordered → Confirmed → Dispatched → Delivered. */
 .ft-tracker { display: flex; align-items: flex-start; margin: 14px 0 2px; }
