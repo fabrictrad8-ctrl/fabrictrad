@@ -362,7 +362,13 @@ export default function SellerInventory() {
   const stockCounts = useMemo(() => ({
     inStock: products.filter((product) => product.status !== 'archived' && Number(product.available_quantity) - Number(product.reserved_quantity || 0) > Number(product.min_stock || 0)).length,
     low: products.filter((product) => product.status !== 'archived' && Number(product.available_quantity) - Number(product.reserved_quantity || 0) <= Number(product.min_stock || 0)).length,
-    active: products.filter((product) => product.status === 'active').length,
+    // "Live" must mean a buyer can actually order it, which needs approval as
+    // well as an active status. Counting status alone reported 5 live listings
+    // to a seller who had 2: the other 3 were published and still waiting for
+    // FabricTrad review, exactly as their own row labels said. The seller
+    // Overview tile and admin_marketplace_totals both require both fields, so
+    // this was the only place quoting a number nobody could buy from.
+    active: products.filter((product) => product.status === 'active' && product.approval_status === 'approved').length,
     drafts: products.filter((product) => product.status === 'draft').length,
   }), [products]);
 
