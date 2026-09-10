@@ -469,6 +469,13 @@ html:not(.dark) .ft-auth-page .ft-primary-action:hover { background: linear-grad
     min-width: 0;
   }
 
+  /* .ft-root as well as the two shells: the buyer-facing product page is not
+     inside either, so long unbreakable identifiers had nowhere to wrap there.
+     Measured at 375px, the variant SKU "FT-3C1D318675254E4DB3" rendered 139px
+     wide inside a 116px row and pushed past its container. The shells have run
+     with `anywhere` since this rule was written, so extending the same value to
+     the rest of the app is the behaviour already proven, not a new one. */
+  .ft-root :where(h1, h2, h3, p, span),
   .ft-shell :where(h1, h2, h3, p, span),
   [data-role-shell] :where(h1, h2, h3, p, span) {
     overflow-wrap: anywhere;
