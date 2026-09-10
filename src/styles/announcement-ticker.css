@@ -104,6 +104,32 @@
   background: rgba(255, 255, 255, 0.3);
 }
 
+/* WCAG 2.2 AA (2.5.8 Target Size Minimum) asks for 24x24 CSS px. Measured at
+ * 375px these were the only two controls in the app below that floor: the CTA
+ * renders 88x22 and the close button 22x22. Everything else clears it — the
+ * 40px action buttons pass AA comfortably and are left alone.
+ *
+ * The ticker is a deliberately thin bar, so growing the boxes would change its
+ * height. This enlarges only the hit area: a centred pseudo-element at least
+ * 24x24 that is part of the button, so taps land on the control while the
+ * visible pill and dot keep their existing size and the bar keeps its layout.
+ */
+.ft-announcement-ticker-cta,
+.ft-announcement-ticker-close {
+  position: relative;
+}
+
+.ft-announcement-ticker-cta::after,
+.ft-announcement-ticker-close::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: max(100%, 24px);
+  height: max(100%, 24px);
+}
+
 @media (max-width: 480px) {
   .ft-announcement-ticker { padding: 0 8px 0 10px; gap: 6px; }
   .ft-announcement-ticker-content { gap: 32px; }
