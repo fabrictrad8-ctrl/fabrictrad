@@ -179,8 +179,22 @@ jobs:
                 const media = await page.request.get(`https://fabrictrad.com/guides/${role}-${audio}.mp4`, {
                   headers: { Range: 'bytes=0-1023' }, timeout: 20000,
                 });
-                if (media.status() !== 206 || !media.headers()['content-type']?.includes('video/mp4')) {
-                  throw new Error(`Public guide streaming failed for ${role}-${audio}: ${media.status()}`);
+                // A server is allowed to ignore Range and answer 200 with the whole
+                // body (RFC 9110 14.2), which is exactly what Cloudflare does for
+                // these assets. Demanding 206 failed every release from 2026-09-05
+                // onward even though the videos played perfectly -- and because this
+                // check runs after the Worker is already promoted, it turned the
+                // release red without stopping anything, training everyone to ignore
+                // a failed release. What actually matters is that real mp4 bytes come
+                // back, so assert that instead; playback itself is proven below by
+                // driving the <video> element.
+                const mediaBody = await media.body();
+                const isMp4 = mediaBody.length > 8 && mediaBody.subarray(4, 8).toString('latin1') === 'ftyp';
+                if (![200, 206].includes(media.status()) || !media.headers()['content-type']?.includes('video/mp4') || !isMp4) {
+                  throw new Error(`Public guide streaming failed for ${role}-${audio}: status ${media.status()}, ${mediaBody.length} bytes, mp4=${isMp4}`);
+                }
+                if (media.status() === 200) {
+                  console.log(`Note: ${role}-${audio}.mp4 ignored the Range request and returned the full body.`);
                 }
                 const captions = await page.request.get(`https://fabrictrad.com/guides/${role}-${audio}.vtt`);
                 if (captions.status() !== 200 || !(await captions.text()).startsWith('WEBVTT')) {

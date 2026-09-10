@@ -1,4 +1,13 @@
-name: Validate Supabase migrations
+# This workflow rebuilds a THROWAWAY local database from the migration files and
+# checks the result. It never touches production. There is no `supabase db push`,
+# no `--linked` and no production database password anywhere in this repository,
+# so a green run here means the SQL is valid -- not that production has it.
+#
+# On 2026-09-10 that distinction cost a day: a migration adding the delivered/
+# bounced/complained invoice states passed here, was believed shipped, and was
+# still absent from production hours later. Applying to production is a manual
+# step; the job summary below states so on every run.
+name: Validate Supabase migrations (does not deploy)
 
 on:
   pull_request:
@@ -81,3 +90,35 @@ jobs:
       - name: Stop local Supabase stack
         if: always()
         run: npx --yes supabase@latest stop --no-backup || true
+
+      # A passing run above proves only that the SQL rebuilds a local database.
+      # Say so on the run's own summary page, next to the green tick, so nobody
+      # reads this workflow as a deployment.
+      - name: State that production was not touched
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo '## Migrations were NOT applied to production'
+            echo
+            echo 'This workflow rebuilds a throwaway local database and checks the result.'
+            echo 'It contains no `supabase db push`, no `--linked`, and no production'
+            echo 'database credentials. A green tick means the SQL is valid, not that'
+            echo '`rdhfwlzhcvwjhkxhhpoo` has it.'
+            echo
+            echo 'Migration files currently in the repository:'
+            echo
+            echo '```'
+            ls -1 supabase/migrations | tail -5
+            echo '```'
+            echo
+            echo 'To apply pending migrations to production, run locally:'
+            echo
+            echo '```bash'
+            echo 'npx supabase link --project-ref rdhfwlzhcvwjhkxhhpoo'
+            echo 'npx supabase db push'
+            echo '```'
+            echo
+            echo 'Then confirm with a schema query before assuming it landed.'
+          } >> "$GITHUB_STEP_SUMMARY"
