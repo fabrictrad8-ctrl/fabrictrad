@@ -55,3 +55,23 @@ if (!serialized.includes(expected)) {
 }
 console.log(`Active deployment includes ${expected}.`);
 NODE
+
+# `wrangler versions upload` and `versions deploy` publish code only. Cron
+# schedules and routes are Worker *settings*, and the versions API does not
+# touch them — so the `triggers.crons` entry in wrangler.jsonc reaches
+# production only through `wrangler deploy` or this command. Every scheduled
+# job the Worker runs (the seller WhatsApp retry queue, bespoke follow-ups and
+# the undelivered-invoice email sweep) is silently dead if the schedule was
+# never registered, and nothing in the release output would say so.
+#
+# Idempotent: re-registering an unchanged schedule is a no-op.
+#
+# Deliberately non-fatal. A CI token without Workers Scripts:Edit for triggers
+# must not fail a release whose code deployed correctly — but it must be loud,
+# because the failure mode is invisible in production.
+echo 'Registering Worker triggers (cron schedules) from the config.'
+if npx wrangler triggers deploy --config "$config" 2>&1 | tee /tmp/fabrictrad-triggers-deploy.log; then
+  echo 'Worker cron schedules registered.'
+else
+  echo '::warning::Could not register Worker cron schedules. Scheduled jobs (WhatsApp retries, bespoke follow-ups, invoice email retries) may not run. Check the CI token permissions, then run: npx wrangler triggers deploy'
+fi
