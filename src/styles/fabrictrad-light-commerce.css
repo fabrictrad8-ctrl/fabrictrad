@@ -121,7 +121,29 @@ html:not(.dark) .ft-admin-main :where(th,td) { border-color:#edf0f3; }
    .ft-showroom/.ft-auth-page are intentionally dark and restore these utilities
    in storefront-premium-redesign.css (loaded after this file). */
 html:not(.dark) .ft-root :where(.bg-slate-950,.bg-slate-900,.bg-gray-950,.bg-gray-900) { background-color:#fff !important; }
-html:not(.dark) .ft-root :where(.text-white,.text-slate-100,.text-gray-100) { color:#17202a; }
+/* ...but not when the element carries its own dark background. An overlay pill
+   on a product photo (bg-black/65) is dark in both themes on purpose, so
+   forcing its label to #17202a made it dark-on-black: measured 1.23:1 for the
+   gallery's "Front" chip and 2.64:1 for the "FRONT"/"DETAIL" thumbnail labels,
+   with 5 of the 10 .text-white elements on the product page affected. Excluding
+   them lets Tailwind's own .text-white apply, while every other case — white
+   text that genuinely leaked onto a light surface — is still repaired. */
+/* The :not() chain is wrapped in :where() on purpose. Chained :not()s each add
+   a class's worth of specificity, and unwrapped this rule reached (0,11,1) --
+   high enough that the dark-panel exemption below could not beat it. Inside
+   :where() the exclusions still filter, but the rule stays at (0,2,1) so a
+   deliberate override wins. */
+html:not(.dark) .ft-root :where(.text-white,.text-slate-100,.text-gray-100):where(:not([class*='bg-black']):not([class*='bg-slate-9']):not([class*='bg-gray-9']):not([class*='bg-neutral-9']):not([class*='bg-[']):not([class*='bg-success']):not([class*='bg-primary']):not([class*='bg-error']):not([class*='bg-warning'])) { color:#17202a; }
+
+/* The same applies one level down: an arbitrary-value panel such as the Virtual
+   Drape stage (bg-[#0c1320]) is dark in both themes, so its white copy must
+   survive the repair even though the background sits on an ancestor rather than
+   the text itself. Measured on the product page, this and the exclusions above
+   cover the three genuine cases -- a chip on bg-[#cc0c39], an icon on the
+   success fill, and the drape stage heading -- while the two that really did
+   leak onto a white card ("FabricTrad AI Virtual...", "3 free tries left") stay
+   repaired. */
+html:not(.dark) .ft-root :where([class*='bg-['],[class*='bg-black'],[class*='bg-success'],[class*='bg-primary'],[class*='bg-error'],[class*='bg-slate-9'],[class*='bg-gray-9']) :where(.text-white,.text-slate-100,.text-gray-100) { color:#fff; }
 html:not(.dark) .ft-root :where(.border-white\/10,.border-white\/15,.border-slate-800,.border-gray-800) { border-color:#dce2e8 !important; }
 
 /* Ensure state is not communicated by color alone */

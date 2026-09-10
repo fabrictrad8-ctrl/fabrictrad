@@ -65,6 +65,12 @@
 .ft-nav-shell::before,
 .ft-nav-workspace-menu::before,
 .ft-setup-guide::before,
+/* The product page's content cards were in the lit-edge list above but not
+   here, so they caught the top-edge highlight while sitting outside the shared
+   light — four cards immediately below .ft-nav-shell, which has the full
+   treatment. Both pseudo-elements are free on this class, and the sheen reads
+   on an opaque surface exactly as it does on .ft-dock (0.94 alpha). */
+.ft-product-content-card::before,
 .ft-glass-card::before {
   content: '';
   position: absolute;

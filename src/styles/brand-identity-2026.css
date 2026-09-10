@@ -119,6 +119,21 @@ html:not(.dark) body.ft-root .text-error {
   color: var(--ft-status-critical-ink);
 }
 
+/* Success and warning complete the set. Both are fill colours that fall short
+   as small text on a light surface -- measured on the product page, --success
+   reads 3.3 on "Live approved listing", "Live seller catalogue" and the
+   shipment status, and --warning 2.97 on "Marketplace orders". Warning reuses
+   the pending ink because they are the same family: the pill that carries
+   --warning semantics is .ft-pill-pending. Dark keeps the light green and
+   amber, which already read there. */
+html:not(.dark) body.ft-root .text-success {
+  color: var(--ft-status-success-ink);
+}
+
+html:not(.dark) body.ft-root .text-warning {
+  color: var(--ft-status-pending-ink);
+}
+
 .dark body.ft-root {
   --primary: var(--ft-saffron);
   --primary-foreground: #1c0f04;
