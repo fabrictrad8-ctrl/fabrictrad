@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
+import { deliverIssuedInvoiceEmail } from '@/lib/server/automaticInvoice';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -81,5 +83,23 @@ export async function POST(request: NextRequest) {
     return json({ error: message }, status);
   }
 
-  return json({ invoice: data }, 201);
+  // Issuing the record is not the same as the buyer receiving it. This path only
+  // created the invoice, so a manually issued one sat unsent indefinitely while
+  // the seller's screen reported it as queued. Delivery failures must not fail
+  // the issue itself — the invoice is valid either way and the helper records
+  // its own delivery state for retry.
+  const issued = data as { id?: string } | null;
+  let emailed = false;
+  let emailError: string | null = null;
+  if (issued?.id) {
+    try {
+      const delivery = await deliverIssuedInvoiceEmail(createAdminClient(), issued.id);
+      emailed = delivery.emailed;
+      emailError = delivery.error;
+    } catch (caught) {
+      emailError = caught instanceof Error ? caught.message : 'Invoice email could not be attempted.';
+    }
+  }
+
+  return json({ invoice: data, emailed, emailError }, 201);
 }

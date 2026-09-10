@@ -259,3 +259,29 @@ export async function ensureBespokePaymentDocuments(input: Omit<AutomaticInvoice
   return { documents: results.map(result => result.invoice), emailed: results.every(result => result.emailed),
     error: payload?.invoiceError || results.find(result => result.error)?.error || null };
 }
+
+/**
+ * Emails an invoice that already exists.
+ *
+ * Automatic invoices are raised and delivered together on payment capture, but a
+ * seller can also issue one by hand from the billing screen, and that path only
+ * created the record — the buyer was never sent it. Invoice FT/26-27/000001 sat
+ * at email_status 'pending' with email_attempted_at null for two weeks because
+ * of exactly that.
+ *
+ * Deliberately does not go through ensureAutomaticInvoice: that calls the
+ * issue-on-payment RPC, and re-running invoice creation to send an email risks
+ * a second billing document. This only delivers what is already issued, reusing
+ * the same claim/retry/delivery-state handling.
+ */
+export async function deliverIssuedInvoiceEmail(admin: SupabaseClient, invoiceId: string) {
+  const { data, error } = await admin
+    .from('seller_tax_invoices')
+    .select('*')
+    .eq('id', invoiceId)
+    .maybeSingle();
+  if (error || !data?.id) {
+    return { invoice: null, emailed: false, error: error?.message || 'Invoice not found for delivery.' };
+  }
+  return deliverInvoiceEmail(admin, data as InvoiceRow);
+}
