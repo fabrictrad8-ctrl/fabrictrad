@@ -1,136 +1,136 @@
 WEBVTT
 
-00:00:00.000 --> 00:00:05.011
+00:00:00.000 --> 00:00:04.957
 Register your seller business. Open Create account and choose Sell on FabricTrad.
 
-00:00:05.011 --> 00:00:10.022
+00:00:04.957 --> 00:00:09.914
 Enter your business and contact details, GSTIN and the documents requested. Submit
 
-00:00:10.022 --> 00:00:15.034
+00:00:09.914 --> 00:00:14.870
 the application and follow the verification status in your seller workspace. Complete
 
-00:00:15.034 --> 00:00:20.045
+00:00:14.870 --> 00:00:19.827
 missing information or respond to a review request. Listings and payments become
 
-00:00:20.045 --> 00:00:25.056
+00:00:19.827 --> 00:00:24.784
 available only after the required checks are complete.
 
-00:00:26.056 --> 00:00:30.493
+00:00:25.784 --> 00:00:30.107
 Connect your payout bank. In the seller dashboard, open Earnings, then Payout
 
-00:00:30.493 --> 00:00:34.931
+00:00:30.107 --> 00:00:34.429
 account. Enter your full bank number twice, IFSC, account holder name and
 
-00:00:34.931 --> 00:00:39.368
+00:00:34.429 --> 00:00:38.752
 the authorised representative's details. The full bank number from registration was not
 
-00:00:39.368 --> 00:00:43.805
+00:00:38.752 --> 00:00:43.075
 retained, so enter it again here. Accept the terms and submit to
 
-00:00:43.805 --> 00:00:48.243
+00:00:43.075 --> 00:00:47.397
 Razorpay. Refresh verification until Razorpay confirms activation; a manual admin review alone
 
-00:00:48.243 --> 00:00:52.680
+00:00:47.397 --> 00:00:51.720
 does not enable payouts.
 
-00:00:53.680 --> 00:00:58.304
+00:00:52.720 --> 00:00:57.269
 Understand your 90% share. For each new marketplace buyer payment, ninety percent
 
-00:00:58.304 --> 00:01:02.928
+00:00:57.269 --> 00:01:01.819
 is allocated to your Razorpay linked account and FabricTrad retains ten percent.
 
-00:01:02.928 --> 00:01:07.552
+00:01:01.819 --> 00:01:06.368
 For example, a one thousand rupee payment allocates nine hundred rupees to
 
-00:01:07.552 --> 00:01:12.176
+00:01:06.368 --> 00:01:10.917
 you and one hundred rupees to FabricTrad. Payment processing costs and tax
 
-00:01:12.176 --> 00:01:16.800
+00:01:10.917 --> 00:01:15.467
 on FabricTrad's commission come from the platform share. Bank settlement follows Razorpay's
 
-00:01:16.800 --> 00:01:21.424
+00:01:15.467 --> 00:01:20.016
 applicable schedule.
 
-00:01:22.424 --> 00:01:26.635
-Add products and variants. Open Upload or Add product. Enter an accurate
+00:01:21.016 --> 00:01:25.173
+Add products and variants. Open Add product. Enter an accurate product name,
 
-00:01:26.635 --> 00:01:30.846
-product name, SKU, category, price, sale unit, stock and minimum quantity. Add
+00:01:25.173 --> 00:01:29.330
+SKU, category, price, sale unit, stock and minimum quantity. Add clear product
 
-00:01:30.846 --> 00:01:35.058
-clear product photographs and any supported product video. Give every colour variant
+00:01:29.330 --> 00:01:33.486
+photographs and any supported product video. Give every colour variant its own
 
-00:01:35.058 --> 00:01:39.269
-its own matching photograph and available quantity. Save the product, complete any
+00:01:33.486 --> 00:01:37.643
+matching photograph and available quantity. Save the product, complete any review required
 
-00:01:39.269 --> 00:01:43.480
-review required and use Inventory to keep stock current.
+00:01:37.643 --> 00:01:41.800
+and use Products to keep stock current.
 
-00:01:44.480 --> 00:01:48.989
+00:01:42.800 --> 00:01:47.290
 Use seller WhatsApp uploads. WhatsApp product uploads are reserved for sellers. Use
 
-00:01:48.989 --> 00:01:53.498
+00:01:47.290 --> 00:01:51.779
 your registered seller number and the product format shown in the seller
 
-00:01:53.498 --> 00:01:58.006
+00:01:51.779 --> 00:01:56.269
 catalogue assistant. Include the product details and matching media, then review the
 
-00:01:58.006 --> 00:02:02.515
+00:01:56.269 --> 00:02:00.758
 resulting draft before publishing. This requires the seller WhatsApp service to be
 
-00:02:02.515 --> 00:02:07.024
+00:02:00.758 --> 00:02:05.248
 configured. WhatsApp is not currently a buyer shopping channel.
 
-00:02:08.024 --> 00:02:12.016
+00:02:06.248 --> 00:02:10.200
 Choose shipping for each order. In Orders, accept only quantities you can
 
-00:02:12.016 --> 00:02:16.008
+00:02:10.200 --> 00:02:14.152
 fulfil and wait for confirmed full payment before dispatch. Choose Shiprocket or
 
-00:02:16.008 --> 00:02:20.000
+00:02:14.152 --> 00:02:18.104
 another shipment provider for that specific order. For another provider, enter its
 
-00:02:20.000 --> 00:02:23.992
+00:02:18.104 --> 00:02:22.056
 real name, the AWB number and a secure HTTPS tracking link for
 
-00:02:23.992 --> 00:02:27.984
+00:02:22.056 --> 00:02:26.008
 the buyer. Keep the shipment status and expected delivery date current. The
 
-00:02:27.984 --> 00:02:31.976
+00:02:26.008 --> 00:02:29.960
 provider choice is independent for every order.
 
-00:02:32.976 --> 00:02:37.125
+00:02:30.960 --> 00:02:35.197
 Check invoices and earnings. Use the order record to check the invoice
 
-00:02:37.125 --> 00:02:41.275
+00:02:35.197 --> 00:02:39.435
 and shipment details. Keep your legal seller name, address, GSTIN and product
 
-00:02:41.275 --> 00:02:45.424
+00:02:39.435 --> 00:02:43.672
 tax information correct. In Earnings, captured payments, refunds and seller allocations are
 
-00:02:45.424 --> 00:02:49.573
+00:02:43.672 --> 00:02:47.909
 shown separately. Transfer created does not mean paid to your bank. Processed
 
-00:02:49.573 --> 00:02:53.723
+00:02:47.909 --> 00:02:52.147
 means transferred to the linked account; bank settlement needs a separate provider
 
-00:02:53.723 --> 00:02:57.872
+00:02:52.147 --> 00:02:56.384
 confirmation.
 
-00:02:58.872 --> 00:03:03.515
+00:02:57.384 --> 00:03:01.947
 Keep your workspace up to date. Review notifications, customer questions and disputes
 
-00:03:03.515 --> 00:03:08.157
+00:03:01.947 --> 00:03:06.509
 regularly. Keep product availability, your pickup address and business contact information current.
 
-00:03:08.157 --> 00:03:12.800
+00:03:06.509 --> 00:03:11.072
 Use the website's language selector for your preferred interface language. If payout
 
-00:03:12.800 --> 00:03:17.443
+00:03:11.072 --> 00:03:15.635
 verification needs clarification, correct the details or contact FabricTrad. Never mark an
 
-00:03:17.443 --> 00:03:22.085
+00:03:15.635 --> 00:03:20.197
 unpaid order as paid or a shipment as delivered before the records
 
-00:03:22.085 --> 00:03:26.728
+00:03:20.197 --> 00:03:24.760
 confirm it.

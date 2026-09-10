@@ -23,8 +23,8 @@ const labels = {
 const navPaths = {
   account: ['Create account', 'Buyer / Seller'], login: ['Sign in', 'Language'],
   discover: ['Marketplace', 'Product details'], drape: ['Product details', 'Virtual Drape'],
-  payment: ['Cart', 'Order', 'Razorpay'], tracking: ['Buyer dashboard', 'Orders / Tracking'],
-  catalogue: ['Seller dashboard', 'Upload / Inventory'], bank: ['Seller dashboard', 'Earnings', 'Payout account'],
+  payment: ['Cart', 'Order', 'Razorpay'], tracking: ['Buyer dashboard', 'Orders / Track packages'],
+  catalogue: ['Seller dashboard', 'Add product / Products'], bank: ['Seller dashboard', 'Earnings', 'Payout account'],
   split: ['Buyer payment', 'Seller 90%', 'FabricTrad 10%'], whatsapp: ['Seller number', 'Catalogue assistant', 'Review draft'],
   shipping: ['Paid order', 'Choose carrier', 'AWB + tracking link'], earnings: ['Orders / Invoices', 'Earnings', 'Transfer status'],
   help: ['Dashboard', 'Support / Disputes'],
@@ -99,7 +99,11 @@ for (const [role, chapters] of Object.entries(source)) {
 }
 
 const browser = await chromium.launch();
-const page = await browser.newPage({ viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1 });
+// deviceScaleFactor 1.5 rasterises the 1280x720 CSS stage at 1920x1080, which is what
+// the guide videos in public/guides have always shipped as. At 1 this renders 720p and
+// silently halves the committed assets' resolution on the next rebuild -- the layout is
+// unchanged either way, since the scale factor affects the raster and not the CSS box.
+const page = await browser.newPage({ viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1.5 });
 
 for (const job of jobs) {
   const dest = path.join(workDir, `${job.role}-${job.lang}-${String(job.i).padStart(2, '0')}.png`);

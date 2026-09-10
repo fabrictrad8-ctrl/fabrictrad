@@ -32,9 +32,9 @@
     },
     {
       "screen": "tracking",
-      "en": ["Track delivery and open invoices", "Open your buyer dashboard and choose Orders or Tracking. Each shipment shows the carrier selected for that order, its AWB number and the tracking link. Different orders may use different carriers. Open the order's invoice or receipt when available. Keep your delivery address and email correct so documents and updates reach the right place."],
-      "hi": ["डिलीवरी और इनवॉइस देखें", "खरीदार डैशबोर्ड में ऑर्डर या ट्रैकिंग खोलें। हर शिपमेंट में उस ऑर्डर के लिए चुना गया कूरियर, ए डब्ल्यू बी नंबर और ट्रैकिंग लिंक मिलता है। अलग ऑर्डर के लिए अलग कूरियर हो सकता है। उपलब्ध होने पर ऑर्डर की इनवॉइस या रसीद खोलें। अपना डिलीवरी पता और ईमेल सही रखें ताकि दस्तावेज़ और जानकारी सही जगह पहुँचें।"],
-      "gu": ["ડિલિવરી અને ઇનવોઇસ જુઓ", "ખરીદદાર ડેશબોર્ડમાં ઓર્ડર અથવા ટ્રેકિંગ ખોલો. દરેક શિપમેન્ટમાં તે ઓર્ડર માટે પસંદ કરેલો કુરિયર, એ ડબલ્યુ બી નંબર અને ટ્રેકિંગ લિંક મળે છે. જુદા ઓર્ડર માટે જુદા કુરિયર હોઈ શકે છે. ઉપલબ્ધ હોય ત્યારે ઓર્ડરનું ઇનવોઇસ અથવા રસીદ ખોલો. તમારું ડિલિવરી સરનામું અને ઈમેલ સાચાં રાખો જેથી દસ્તાવેજો અને માહિતી યોગ્ય જગ્યાએ પહોંચે."]
+      "en": ["Track delivery and open invoices", "Open your buyer dashboard and choose Orders or Track packages. Each shipment shows the carrier selected for that order, its AWB number and the tracking link. Different orders may use different carriers. Open the order's invoice or receipt when available. Keep your delivery address and email correct so documents and updates reach the right place."],
+      "hi": ["डिलीवरी और इनवॉइस देखें", "खरीदार डैशबोर्ड में ऑर्डर या ट्रैक पैकेजेस खोलें। हर शिपमेंट में उस ऑर्डर के लिए चुना गया कूरियर, ए डब्ल्यू बी नंबर और ट्रैकिंग लिंक मिलता है। अलग ऑर्डर के लिए अलग कूरियर हो सकता है। उपलब्ध होने पर ऑर्डर की इनवॉइस या रसीद खोलें। अपना डिलीवरी पता और ईमेल सही रखें ताकि दस्तावेज़ और जानकारी सही जगह पहुँचें।"],
+      "gu": ["ડિલિવરી અને ઇનવોઇસ જુઓ", "ખરીદદાર ડેશબોર્ડમાં ઓર્ડર અથવા ટ્રેક પેકેજિસ ખોલો. દરેક શિપમેન્ટમાં તે ઓર્ડર માટે પસંદ કરેલો કુરિયર, એ ડબલ્યુ બી નંબર અને ટ્રેકિંગ લિંક મળે છે. જુદા ઓર્ડર માટે જુદા કુરિયર હોઈ શકે છે. ઉપલબ્ધ હોય ત્યારે ઓર્ડરનું ઇનવોઇસ અથવા રસીદ ખોલો. તમારું ડિલિવરી સરનામું અને ઈમેલ સાચાં રાખો જેથી દસ્તાવેજો અને માહિતી યોગ્ય જગ્યાએ પહોંચે."]
     },
     {
       "screen": "help",
@@ -64,9 +64,9 @@
     },
     {
       "screen": "catalogue",
-      "en": ["Add products and variants", "Open Upload or Add product. Enter an accurate product name, SKU, category, price, sale unit, stock and minimum quantity. Add clear product photographs and any supported product video. Give every colour variant its own matching photograph and available quantity. Save the product, complete any review required and use Inventory to keep stock current."],
-      "hi": ["उत्पाद और रंग जोड़ें", "अपलोड या उत्पाद जोड़ें खोलें। सही उत्पाद नाम, एस के यू, श्रेणी, कीमत, बिक्री की इकाई, स्टॉक और न्यूनतम मात्रा भरें। साफ़ तस्वीरें और उपलब्ध सुविधा के अनुसार उत्पाद का वीडियो जोड़ें। हर रंग के लिए उसी रंग की तस्वीर और उपलब्ध मात्रा दें। उत्पाद सहेजें, ज़रूरी समीक्षा पूरी करें और इन्वेंटरी में स्टॉक सही रखें।"],
-      "gu": ["ઉત્પાદન અને રંગો ઉમેરો", "અપલોડ અથવા ઉત્પાદન ઉમેરો ખોલો. સાચું ઉત્પાદન નામ, એસ કે યુ, શ્રેણી, કિંમત, વેચાણનો એકમ, જથ્થો અને ઓછામાં ઓછી માત્રા આપો. સ્પષ્ટ ફોટા અને ઉપલબ્ધ સુવિધા મુજબ ઉત્પાદનનો વિડિયો ઉમેરો. દરેક રંગ માટે તે જ રંગનો ફોટો અને ઉપલબ્ધ માત્રા આપો. ઉત્પાદન સાચવો, જરૂરી સમીક્ષા પૂર્ણ કરો અને ઇન્વેન્ટરીમાં જથ્થો સાચો રાખો."]
+      "en": ["Add products and variants", "Open Add product. Enter an accurate product name, SKU, category, price, sale unit, stock and minimum quantity. Add clear product photographs and any supported product video. Give every colour variant its own matching photograph and available quantity. Save the product, complete any review required and use Products to keep stock current."],
+      "hi": ["उत्पाद और रंग जोड़ें", "उत्पाद जोड़ें खोलें। सही उत्पाद नाम, एस के यू, श्रेणी, कीमत, बिक्री की इकाई, स्टॉक और न्यूनतम मात्रा भरें। साफ़ तस्वीरें और उपलब्ध सुविधा के अनुसार उत्पाद का वीडियो जोड़ें। हर रंग के लिए उसी रंग की तस्वीर और उपलब्ध मात्रा दें। उत्पाद सहेजें, ज़रूरी समीक्षा पूरी करें और प्रोडक्ट्स में स्टॉक सही रखें।"],
+      "gu": ["ઉત્પાદન અને રંગો ઉમેરો", "ઉત્પાદન ઉમેરો ખોલો. સાચું ઉત્પાદન નામ, એસ કે યુ, શ્રેણી, કિંમત, વેચાણનો એકમ, જથ્થો અને ઓછામાં ઓછી માત્રા આપો. સ્પષ્ટ ફોટા અને ઉપલબ્ધ સુવિધા મુજબ ઉત્પાદનનો વિડિયો ઉમેરો. દરેક રંગ માટે તે જ રંગનો ફોટો અને ઉપલબ્ધ માત્રા આપો. ઉત્પાદન સાચવો, જરૂરી સમીક્ષા પૂર્ણ કરો અને પ્રોડક્ટ્સમાં જથ્થો સાચો રાખો."]
     },
     {
       "screen": "whatsapp",

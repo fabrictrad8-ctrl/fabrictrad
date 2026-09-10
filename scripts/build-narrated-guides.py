@@ -3,7 +3,12 @@ Requires ffmpeg, Pillow with raqm, torch, transformers and Noto Sans Latin/Devan
 Narration uses Meta's open-source MMS-TTS neural voice models (facebook/mms-tts-eng,
 -hin, -guj), downloaded once from Hugging Face and run fully offline/locally afterwards
 -- no API key, no billing, no per-run cost.
-Run with --fonts /path/to/fonts --work /path/to/work. Existing audio is reused.
+Run `node scripts/render-frames.mjs <work>` FIRST -- this script consumes the slide
+PNGs that renders and aborts without them; it does not draw them itself.
+Then run with --fonts /path/to/fonts --work /path/to/work. Existing audio is reused
+via a per-chapter fingerprint, so re-running after a narration edit only re-synthesises
+the chapters whose text actually changed -- but an empty work dir means a full rebuild
+of all 45 clips.
 """
 import argparse, hashlib, json, subprocess, wave
 from pathlib import Path
@@ -23,7 +28,9 @@ output = root / 'public' / 'guides'; output.mkdir(parents=True, exist_ok=True)
 source = json.loads((root / 'scripts/guide-narration.json').read_text(encoding='utf-8'))
 font_files = {'en': 'Latin.ttf', 'hi': 'Devanagari.ttf', 'gu': 'Gujarati.ttf'}
 labels = {'en': {'buyer': 'BUYER GUIDE', 'seller': 'SELLER GUIDE', 'step': 'STEP', 'where': 'WHERE TO GO', 'narrated': 'Narrated quick start'}, 'hi': {'buyer': 'खरीदार मार्गदर्शिका', 'seller': 'विक्रेता मार्गदर्शिका', 'step': 'चरण', 'where': 'यहाँ जाएँ', 'narrated': 'आवाज़ के साथ मार्गदर्शन'}, 'gu': {'buyer': 'ખરીદદાર માર્ગદર્શિકા', 'seller': 'વિક્રેતા માર્ગદર્શિકા', 'step': 'પગલું', 'where': 'અહીં જાઓ', 'narrated': 'અવાજ સાથે માર્ગદર્શન'}}
-paths = {'account': ['Create account', 'Buyer / Seller'], 'login': ['Sign in', 'Language'], 'discover': ['Marketplace', 'Product details'], 'drape': ['Product details', 'Virtual Drape'], 'payment': ['Cart', 'Order', 'Razorpay'], 'tracking': ['Buyer dashboard', 'Orders / Tracking'], 'catalogue': ['Seller dashboard', 'Upload / Inventory'], 'bank': ['Seller dashboard', 'Earnings', 'Payout account'], 'split': ['Buyer payment', 'Seller 90%', 'FabricTrad 10%'], 'whatsapp': ['Seller number', 'Catalogue assistant', 'Review draft'], 'shipping': ['Paid order', 'Choose carrier', 'AWB + tracking link'], 'earnings': ['Orders / Invoices', 'Earnings', 'Transfer status'], 'help': ['Dashboard', 'Support / Disputes']}
+# The 'WHERE TO GO' breadcrumb lives in scripts/render-frames.mjs (navPaths); this file
+# only stitches the PNGs that script renders. An identical dict used to sit here and was
+# never read, so editing it looked like it fixed the on-screen labels and changed nothing.
 
 def run(command):
     result = subprocess.run(command, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
