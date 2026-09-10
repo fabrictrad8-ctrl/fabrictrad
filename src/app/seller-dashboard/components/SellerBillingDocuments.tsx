@@ -6,6 +6,7 @@ import Icon from '@/components/ui/AppIcon';
 import { useAuth } from '@/contexts/AuthContext';
 import { createClient } from '@/lib/supabase/client';
 import { formatMoney, formatOrderDate, useSellerBulkOrders } from '@/lib/hooks/useAccountOrders';
+import { invoiceEmailFailed, invoiceEmailLabel, invoiceEmailReachedBuyer } from '@/lib/invoiceEmailStatus';
 
 type AutomaticInvoice = {
   id: string;
@@ -51,13 +52,7 @@ const documentLabels: Record<BillingDocument['document_type'], string> = {
 const safeFilename = (filename: string) =>
   filename.replace(/[^a-zA-Z0-9._-]+/g, '-').replace(/-+/g, '-');
 
-const emailLabel = (status: string) => {
-  if (status === 'sent') return 'Email submitted';
-  if (status === 'sending') return 'Sending email';
-  if (status === 'failed') return 'Email retry needed';
-  if (status === 'not_configured') return 'Email not configured';
-  return 'Email queued';
-};
+const emailLabel = invoiceEmailLabel;
 
 export default function SellerBillingDocuments() {
   const { user } = useAuth();
@@ -273,7 +268,7 @@ export default function SellerBillingDocuments() {
             const recipient = invoice.recipient || {};
             const orderId = invoice.catalog_order_id || invoice.bulk_order_id || invoice.bespoke_order_id || '';
             const orderPrefix = invoice.catalog_order_id ? 'FT-CAT' : invoice.bulk_order_id ? 'FT-BULK' : 'FT-CUSTOM';
-            const emailOk = invoice.email_status === 'sent';
+            const emailOk = invoiceEmailReachedBuyer(invoice.email_status);
             return (
               <div key={invoice.id} className="flex flex-col gap-3 px-5 py-4 lg:flex-row lg:items-center">
                 <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-success/10 text-success"><Icon name="DocumentCheckIcon" size={20} /></div>
@@ -281,7 +276,7 @@ export default function SellerBillingDocuments() {
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="text-sm font-800 text-foreground">{invoice.invoice_number} · {invoice.document_type === 'payment_receipt' ? 'Payment receipt' : invoice.document_type === 'bill_of_supply' ? 'Bill of supply' : 'Tax invoice'}</p>
                     <span className="rounded-full bg-success/10 px-2 py-0.5 text-[10px] font-800 text-success">Automatic</span>
-                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-800 ${emailOk ? 'bg-success/10 text-success' : invoice.email_status === 'failed' ? 'bg-error/10 text-error' : 'bg-warning/10 text-warning'}`}>{emailLabel(invoice.email_status)}</span>
+                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-800 ${emailOk ? 'bg-success/10 text-success' : invoiceEmailFailed(invoice.email_status) ? 'bg-error/10 text-error' : 'bg-warning/10 text-warning'}`}>{emailLabel(invoice.email_status)}</span>
                   </div>
                   <p className="mt-1 text-xs text-muted-foreground">
                     {String(recipient.businessName || recipient.name || invoice.email_recipient || 'Buyer')} · {formatMoney(invoice.total_amount)} · GST {formatMoney(invoice.total_tax)}

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useAppPreferences } from '@/contexts/AppPreferencesContext';
+import { invoiceEmailReachedBuyer } from '@/lib/invoiceEmailStatus';
 
 type Document = { id: string; invoice_number: string; document_type: string; total_amount: number; email_status: string; status: string };
 const copy = {
@@ -45,7 +46,7 @@ export default function OrderDocuments({ kind, orderId, admin = false }: { kind:
       {loaded && !documents.length && <p className="text-xs text-muted-foreground">{t.empty}</p>}
       {documents.map(doc => <div key={doc.id} className="flex flex-col gap-2 rounded-xl bg-muted/40 p-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0"><p className="break-words text-sm font-700">{doc.document_type === 'payment_receipt' ? t.receipt : doc.document_type === 'bill_of_supply' ? t.supply : t.invoice} · {doc.invoice_number}</p>
-          <p className="text-xs text-muted-foreground">₹{Number(doc.total_amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })} · {doc.status === 'void' ? t.void : doc.email_status === 'sent' ? t.submitted : t.pending}</p></div>
+          <p className="text-xs text-muted-foreground">₹{Number(doc.total_amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })} · {doc.status === 'void' ? t.void : invoiceEmailReachedBuyer(doc.email_status) ? t.submitted : t.pending}</p></div>
         <a href={`/api/invoices/${encodeURIComponent(doc.id)}`} target="_blank" rel="noopener noreferrer" className="btn-secondary shrink-0 px-3 py-2 text-xs">{t.open}</a>
       </div>)}
       <div className="flex flex-wrap gap-2"><button disabled={loading} onClick={() => void load()} className="btn-secondary px-3 py-2 text-xs">{t.retry}</button>

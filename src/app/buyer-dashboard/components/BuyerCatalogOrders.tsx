@@ -8,6 +8,7 @@ import OrderLifecyclePanel from '@/components/commerce/OrderLifecyclePanel';
 import { useAuth } from '@/contexts/AuthContext';
 import { createClient } from '@/lib/supabase/client';
 import { pillClassForStatus } from '@/lib/statusPill';
+import { invoiceEmailReachedBuyer } from '@/lib/invoiceEmailStatus';
 import SellerReviewSheet from '@/components/commerce/SellerReviewSheet';
 
 type CatalogOrder = {
@@ -287,8 +288,8 @@ export default function BuyerCatalogOrders() {
                       <Icon name="DocumentTextIcon" size={15} /> {invoice.invoice_number}
                     </button>
                   )}
-                  {invoice?.email_status === 'sent' && (
-                    <span className="inline-flex items-center gap-2 rounded-xl bg-success/10 px-4 py-2 text-xs font-800 text-success"><Icon name="EnvelopeIcon" size={15} /> Invoice emailed</span>
+                  {invoiceEmailReachedBuyer(invoice?.email_status) && (
+                    <span className="inline-flex items-center gap-2 rounded-xl bg-success/10 px-4 py-2 text-xs font-800 text-success"><Icon name="EnvelopeIcon" size={15} /> {invoice?.email_status === 'delivered' ? 'Invoice delivered' : 'Invoice emailed'}</span>
                   )}
                   {canCancel && (
                     <button type="button" disabled={busyId === order.id} onClick={() => void cancelOrder(order)} className="rounded-xl border border-error/20 bg-error/5 px-4 py-2 text-xs font-800 text-error disabled:opacity-50">

@@ -66,12 +66,64 @@ NODE
 #
 # Idempotent: re-registering an unchanged schedule is a no-op.
 #
-# Deliberately non-fatal. A CI token without Workers Scripts:Edit for triggers
-# must not fail a release whose code deployed correctly — but it must be loud,
-# because the failure mode is invisible in production.
-echo 'Registering Worker triggers (cron schedules) from the config.'
-if npx wrangler triggers deploy --config "$config" 2>&1 | tee /tmp/fabrictrad-triggers-deploy.log; then
-  echo 'Worker cron schedules registered.'
+# `wrangler triggers deploy` cannot do this job. It applies routes AND cron
+# schedules in one command, and its first call is to the zone-scoped
+# /zones/<zone>/workers/routes endpoint, which this CI token may not touch —
+# the same "Authentication error [code: 10000]" that made this script switch to
+# `versions upload` in the first place. It aborts there and never reaches the
+# schedules, so no cron is ever registered.
+#
+# Cron schedules are account-scoped, so write them directly. The token already
+# proved it holds account-level Workers Scripts edit rights by uploading and
+# promoting the version above. Routes need no action here: both custom domains
+# are already attached to this Worker.
+#
+# Deliberately non-fatal: the code is live by this point and failing the step
+# would not roll it back. But it must be loud, and it must report what is
+# ACTUALLY registered rather than assuming the write took — a silently missing
+# cron is how three scheduled jobs went unnoticed for nine days.
+crons=$(node - "$config" <<'NODE'
+const fs = require('node:fs');
+const raw = fs.readFileSync(process.argv[2], 'utf8');
+const stripped = raw.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
+process.stdout.write(JSON.stringify((JSON.parse(stripped).triggers || {}).crons || []));
+NODE
+)
+script_name=$(node - "$config" <<'NODE'
+const fs = require('node:fs');
+const raw = fs.readFileSync(process.argv[2], 'utf8');
+const stripped = raw.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
+process.stdout.write(JSON.parse(stripped).name);
+NODE
+)
+
+if [ "$crons" = "[]" ] || [ -z "$crons" ]; then
+  echo "No cron triggers declared in ${config}; skipping schedule registration."
+elif [ -z "${CLOUDFLARE_ACCOUNT_ID:-}" ] || [ -z "${CLOUDFLARE_API_TOKEN:-}" ]; then
+  echo '::warning::CLOUDFLARE_ACCOUNT_ID or CLOUDFLARE_API_TOKEN is unset; Worker cron schedules were not registered.'
 else
-  echo '::warning::Could not register Worker cron schedules. Scheduled jobs (WhatsApp retries, bespoke follow-ups, invoice email retries) may not run. Check the CI token permissions, then run: npx wrangler triggers deploy'
+  schedules_api="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts/${script_name}/schedules"
+  body=$(node -e 'process.stdout.write(JSON.stringify(JSON.parse(process.argv[1]).map(cron => ({ cron }))))' "$crons")
+  echo "Registering Worker cron schedules ${crons} on ${script_name}."
+  if curl --silent --show-error --fail --request PUT "$schedules_api" \
+      --header "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+      --header 'Content-Type: application/json' \
+      --data "$body" > /tmp/fabrictrad-schedules-put.json; then
+    echo 'Cron schedule write accepted.'
+  else
+    echo '::warning::Could not register Worker cron schedules. Scheduled jobs (WhatsApp retries, bespoke follow-ups, invoice email retries) will not run.'
+  fi
+
+  # Read the schedules back. This is the only line in the release that proves a
+  # cron exists; never infer it from the PUT's exit status.
+  if curl --silent --show-error --fail "$schedules_api" \
+      --header "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" > /tmp/fabrictrad-schedules-get.json; then
+    active=$(node -e 'const d=require("/tmp/fabrictrad-schedules-get.json");process.stdout.write(JSON.stringify(((d.result && d.result.schedules) || []).map(s => s.cron)))')
+    echo "Cron schedules currently active on ${script_name}: ${active}"
+    if [ "$active" = "[]" ]; then
+      echo '::warning::Cloudflare reports NO active cron schedules on this Worker. Scheduled jobs are not running.'
+    fi
+  else
+    echo '::warning::Could not read back Worker cron schedules; registration is unverified.'
+  fi
 fi
