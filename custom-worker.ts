@@ -3,6 +3,7 @@
 // @ts-ignore -- generated build artifact is absent before OpenNext builds it
 import openNextWorker from './.open-next/worker.js';
 import { processDueBespokeFollowUps } from './src/lib/bespokeFollowUps';
+import { retryUndeliveredInvoiceEmails } from './src/lib/server/automaticInvoice';
 import { processSellerWhatsAppQueue } from './src/lib/server/sellerWhatsappQueue';
 
 type ExecutionContextLike = {
@@ -38,6 +39,15 @@ const fabricTradWorker = {
     context.waitUntil(
       processDueBespokeFollowUps().catch((error) => {
         console.error('FabricTrad bespoke follow-up scheduler failed', {
+          message: error instanceof Error ? error.message : 'unknown_error',
+        });
+      })
+    );
+    // A buyer who has paid is owed their GST invoice. Until this ran on a
+    // schedule, one failed send left the invoice undelivered permanently.
+    context.waitUntil(
+      retryUndeliveredInvoiceEmails().catch((error) => {
+        console.error('FabricTrad invoice email retry failed', {
           message: error instanceof Error ? error.message : 'unknown_error',
         });
       })

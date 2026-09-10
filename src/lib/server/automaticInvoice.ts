@@ -1,5 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
+import { createAdminClient } from '@/lib/supabase/admin';
+
 type InvoiceKind = 'catalog' | 'bulk';
 
 type InvoiceLine = {
@@ -284,4 +286,67 @@ export async function deliverIssuedInvoiceEmail(admin: SupabaseClient, invoiceId
     return { invoice: null, emailed: false, error: error?.message || 'Invoice not found for delivery.' };
   }
   return deliverInvoiceEmail(admin, data as InvoiceRow);
+}
+
+/** email_status values an issued invoice can still be delivered from. */
+const RETRYABLE_EMAIL_STATUSES = ['pending', 'failed', 'not_configured'];
+
+/**
+ * Wait between delivery attempts on the same invoice.
+ *
+ * There is deliberately no point at which an invoice stops being retried. A
+ * buyer who paid is owed the GST document for that payment however long ago it
+ * was, and the stuck invoice this was written for was already two weeks old. Six
+ * hours keeps a genuinely undeliverable address down to four attempts a day,
+ * with the reason kept in email_last_error for whoever fixes the address.
+ */
+const EMAIL_RETRY_INTERVAL_MS = 6 * 60 * 60 * 1000;
+
+/**
+ * Delivers issued invoices whose email never arrived.
+ *
+ * Every delivery attempt so far has been tied to one request — a payment
+ * capture, or a seller pressing Issue. If that single attempt failed, nothing
+ * tried again: a Resend timeout, a Worker terminated mid-send, or a runtime
+ * missing RESEND_API_KEY all left the buyer without the GST invoice for a
+ * payment they had already made, with no trace outside the row itself.
+ *
+ * Running this on the worker cron makes delivery eventually-consistent rather
+ * than best-effort, and 'not_configured' rows self-heal the moment the key is
+ * present, without anyone re-issuing a billing document.
+ *
+ * Safe to run alongside the request paths: deliverInvoiceEmail claims each row
+ * before sending and Resend is given a per-invoice idempotency key, so a
+ * concurrent attempt is refused rather than duplicated.
+ */
+export async function retryUndeliveredInvoiceEmails(limit = 10) {
+  const admin = createAdminClient();
+  const now = Date.now();
+  const { data, error } = await admin
+    .from('seller_tax_invoices')
+    .select('id,invoice_number,email_status')
+    .eq('status', 'issued')
+    .in('email_status', RETRYABLE_EMAIL_STATUSES)
+    .or(`email_attempted_at.is.null,email_attempted_at.lt.${new Date(now - EMAIL_RETRY_INTERVAL_MS).toISOString()}`)
+    .order('created_at', { ascending: true })
+    .limit(limit);
+  if (error) throw error;
+
+  const due = data || [];
+  let sent = 0;
+  let failed = 0;
+  for (const row of due) {
+    const result = await deliverIssuedInvoiceEmail(admin, row.id);
+    if (result.emailed) {
+      sent += 1;
+    } else {
+      failed += 1;
+      console.error('Invoice email retry did not deliver', {
+        invoiceNumber: row.invoice_number,
+        previousStatus: row.email_status,
+        message: result.error,
+      });
+    }
+  }
+  return { due: due.length, sent, failed };
 }
