@@ -267,7 +267,7 @@ export default function SellerInventory() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<ProductForm>(blankProduct);
   const [query, setQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | ProductStatus | 'low-stock' | 'out-of-stock'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | ProductStatus | 'low-stock' | 'out-of-stock' | 'pending-review'>('all');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [variantStock, setVariantStock] = useState<Record<string, VariantRollup>>({});
   const [stockEditId, setStockEditId] = useState<string | null>(null);
@@ -384,7 +384,13 @@ export default function SellerInventory() {
             ? product.status !== 'archived' && state === 'low'
             : statusFilter === 'out-of-stock'
               ? product.status !== 'archived' && state === 'out'
-              : product.status === statusFilter;
+              // Published and waiting on FabricTrad review. These carry
+              // status 'active' so they also appear under Active, which is
+              // why "Live listings" can read 2 while Active returns 5 —
+              // this option is what shows the difference.
+              : statusFilter === 'pending-review'
+                ? product.status === 'active' && product.approval_status !== 'approved'
+                : product.status === statusFilter;
       return matchesQuery && matchesStatus;
     });
   }, [products, query, statusFilter]);
@@ -839,7 +845,7 @@ export default function SellerInventory() {
           <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search product, SKU, category or work type" className="min-w-0 flex-1 bg-transparent px-3 text-sm outline-none" />
         </div>
         <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as typeof statusFilter)} className="ft-filter-control min-w-[155px] px-3 text-sm">
-          <option value="all">All products</option><option value="active">Active</option><option value="draft">Draft</option><option value="low-stock">Low stock</option><option value="out-of-stock">Out of stock</option><option value="archived">Archived</option>
+          <option value="all">All products</option><option value="active">Active</option><option value="pending-review">Pending review</option><option value="draft">Draft</option><option value="low-stock">Low stock</option><option value="out-of-stock">Out of stock</option><option value="archived">Archived</option>
         </select>
         <span className="ft-orange-chip">{filteredProducts.length} shown</span>
       </div>
