@@ -230,7 +230,7 @@ export default function BuyerCatalogOrders() {
             const canCancel = Number(order.amount_paid || 0) === 0 && (order.status === 'pending' || order.status === 'accepted');
             const canPay = order.status === 'accepted' && remaining > 0.009 && !['paid', 'refunded'].includes(order.payment_status);
             return (
-              <article key={order.id} className="rounded-xl border border-border p-4">
+              <article key={order.id} data-focus-id={`catalog_order-${order.id}`} className="rounded-xl border border-border p-4">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">

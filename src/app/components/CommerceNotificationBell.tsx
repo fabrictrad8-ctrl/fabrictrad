@@ -4,19 +4,22 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import Icon from '@/components/ui/AppIcon';
 import { useAuth } from '@/contexts/AuthContext';
 import { createClient } from '@/lib/supabase/client';
+import NotificationPane, { type NotificationAudience } from '@/components/NotificationPane';
 
 export default function CommerceNotificationBell({
   mode,
   onClick,
   label = 'Open notifications',
 }: {
-  mode: 'buyer' | 'seller';
-  onClick: () => void;
+  mode: NotificationAudience;
+  /** Optional "see all" fallback, e.g. the workspace notifications tab. */
+  onClick?: () => void;
   label?: string;
 }) {
   const { user } = useAuth();
   const supabase = useMemo(() => createClient(), []);
   const [unread, setUnread] = useState(0);
+  const [open, setOpen] = useState(false);
 
   const refresh = useCallback(async () => {
     if (!user?.id) {
@@ -44,25 +47,42 @@ export default function CommerceNotificationBell({
   }, [refresh]);
 
   return (
-    <button
-      type="button"
-      onClick={() => {
-        onClick();
-        window.setTimeout(() => void refresh(), 500);
-      }}
-      className="ft-icon-button relative"
-      aria-label={unread ? `${label}, ${unread} unread` : label}
-    >
-      <Icon name={unread ? 'BellAlertIcon' : 'BellIcon'} size={18} />
-      {/* The count uses text-error-foreground rather than a fixed white:
-          --error is a dark red in light mode but a light rose in dark, so
-          white fell to 2.69:1 against the fill. The paired token flips with
-          the theme, giving 4.8:1 light and 7.2:1 dark. */}
-      {unread > 0 && (
-        <span className="absolute -right-1 -top-1 flex min-h-4 min-w-4 items-center justify-center rounded-full bg-error px-1 text-[9px] font-900 leading-none text-error-foreground ring-2 ring-card">
-          {unread > 9 ? '9+' : unread}
-        </span>
-      )}
-    </button>
+    // Relative, so the pane anchors to the bell rather than the header.
+    <div className="relative">
+      <button
+        type="button"
+        // The bell used to jump straight to the notifications tab, which meant
+        // reading a list required leaving whatever you were doing. It now opens
+        // a tray in place, the way a phone does, and each row carries you to the
+        // order or message it is about.
+        onClick={() => setOpen((value) => !value)}
+        className="ft-icon-button relative"
+        aria-label={unread ? `${label}, ${unread} unread` : label}
+        aria-expanded={open}
+        aria-haspopup="dialog"
+      >
+        <Icon name={unread ? 'BellAlertIcon' : 'BellIcon'} size={18} />
+        {/* The count uses text-error-foreground rather than a fixed white:
+            --error is a dark red in light mode but a light rose in dark, so
+            white fell to 2.69:1 against the fill. The paired token flips with
+            the theme, giving 4.8:1 light and 7.2:1 dark. */}
+        {unread > 0 && (
+          <span className="absolute -right-1 -top-1 flex min-h-4 min-w-4 items-center justify-center rounded-full bg-error px-1 text-[9px] font-900 leading-none text-error-foreground ring-2 ring-card">
+            {unread > 9 ? '9+' : unread}
+          </span>
+        )}
+      </button>
+
+      <NotificationPane
+        audience={mode}
+        open={open}
+        onClose={() => {
+          setOpen(false);
+          window.setTimeout(() => void refresh(), 400);
+        }}
+        onCountChange={setUnread}
+        onSeeAll={onClick}
+      />
+    </div>
   );
 }

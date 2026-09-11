@@ -31,6 +31,7 @@ import AiAssistantWidget from '@/components/AiAssistantWidget';
 import '@/styles/admin-workspace-console.css';
 import ViewportFixedLayer from '@/components/ViewportFixedLayer';
 import { focusTarget, withFocus } from '@/lib/focusTarget';
+import CommerceNotificationBell from '@/app/components/CommerceNotificationBell';
 
 type AdminTab =
   | 'dashboard'
@@ -248,9 +249,7 @@ export default function AdminPortalLayout() {
               {/* No unread badge: nothing in this layout tracks unread state,
                   so a permanent red dot was a standing false alarm. The
                   Home tab's action centre carries the real counts. */}
-              <button type="button" onClick={() => navigateTo('activity')} className="ft-icon-button" aria-label="Open the activity timeline">
-                <Icon name="BellIcon" size={18} />
-              </button>
+              <CommerceNotificationBell mode="admin" onClick={() => navigateTo('activity')} label="Open administrator notifications" />
               <ProfileMenu />
             </div>
           </header>

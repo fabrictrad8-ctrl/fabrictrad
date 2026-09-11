@@ -395,7 +395,7 @@ export default function SellerCatalogOrders() {
             const busy = busyId === order.id;
 
             return (
-              <article key={order.id} className="ft-order-row px-4 py-4 sm:px-5">
+              <article key={order.id} data-focus-id={`catalog_order-${order.id}`} className="ft-order-row px-4 py-4 sm:px-5">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
