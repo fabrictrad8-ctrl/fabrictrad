@@ -265,7 +265,7 @@ const SELLER = [
 const BUYER = [
   { kicker: 'BEFORE YOU COMMIT', lines: ['See how it', 'drapes.'], support: 'Virtual Drape previews a fabric in the exact colour you are considering.', cta: 'Try Virtual Drape', photo: true },
   { kicker: 'WHO YOU BUY FROM', lines: ['GST-verified', 'sellers.'], support: 'Every business is checked against its GSTIN before it can list a single product.', cta: 'Browse the marketplace', light: true },
-  { kicker: 'EVERY COLOUR', lines: ['Each variant,', 'photographed.'], support: 'Colours carry their own photograph, stock and minimum quantity, so you order the one you actually saw.', cta: 'Browse the marketplace' },
+  { kicker: 'EVERY COLOUR', lines: ['Each variant,', 'photographed.'], support: 'Colours carry their own photograph, stock and minimum quantity, so the colour you choose is the colour you saw.', cta: 'Browse the marketplace' },
   { kicker: 'CANNOT FIND IT', lines: ['Post what', 'you need.'], support: 'Describe the fabric, quantity and deadline. Verified sellers come to you.', cta: 'Post a sourcing request', photo: true },
   { kicker: 'YOUR LANGUAGE', lines: ['English,', 'Hindi,', 'Gujarati.'], support: 'The whole marketplace, and the narrated walkthroughs, in all three.', cta: 'Browse the marketplace', light: true },
 ];
