@@ -126,33 +126,142 @@ const scene = (w, h, { kicker, lines, support, light, photo }) => {
     <img src="${logoDark}" style="position:absolute;left:${pad}px;bottom:${pad}px;height:${Math.round(h * 0.033)}px" />`, { warm: light, weaveScale: 3 });
 };
 
+/** A ruled list of capabilities. Sixteen posters sharing one composition reads as
+ *  a template; this carries several features at once and gives the set a second
+ *  rhythm. The rules are selvedge-derived, so it stays in the same family. */
+const featureList = (w, h, { kicker, title, items, cta, light, photo }) => {
+  const pad = Math.round(Math.min(w, h) * 0.08);
+  const titleSize = Math.round(Math.min(w, h) * 0.072);
+  const itemSize = Math.round(Math.min(w, h) * 0.038);
+  const noteSize = Math.round(Math.min(w, h) * 0.028);
+  return shell(w, h, `
+    <div class="ground"></div>
+    <div class="glow"></div>
+    ${photo ? `<div style="position:absolute;inset:0;background:url('${showroom}') center/cover;opacity:.16;mix-blend-mode:luminosity"></div>` : ''}
+    <div class="wrap" style="padding:${pad}px">
+      <img class="logo" src="${logoDark}" style="align-self:flex-start" />
+      <div style="flex:1;display:flex;flex-direction:column;justify-content:center">
+        <div style="font-family:'Bahnschrift',sans-serif;font-size:${Math.round(noteSize)}px;letter-spacing:.18em;color:${GOLD};margin-bottom:${Math.round(pad * 0.3)}px">${esc(kicker)}</div>
+        <div class="display" style="font-size:${titleSize}px;margin-bottom:${Math.round(pad * 0.55)}px">${esc(title)}</div>
+        ${items.map((it) => `
+          <div style="border-top:2px solid ${SAFFRON};padding:${Math.round(pad * 0.38)}px 0 ${Math.round(pad * 0.3)}px">
+            <div style="font-family:'Bahnschrift',sans-serif;font-size:${itemSize}px;font-weight:700;letter-spacing:-.01em;margin-bottom:${Math.round(itemSize * 0.22)}px">${esc(it.h)}</div>
+            <div style="font-size:${noteSize}px;line-height:1.45;opacity:.85;max-width:${Math.round(w * 0.86)}px">${esc(it.d)}</div>
+          </div>`).join('')}
+      </div>
+      <div class="foot" style="font-size:${Math.round(noteSize * 0.95)}px;border-top:2px solid ${GOLD};padding-top:${Math.round(pad * 0.3)}px">
+        <div>${esc(cta)}</div><div class="url">FABRICTRAD.COM</div>
+      </div>
+    </div>`, { warm: light });
+};
+
+/** One fact, set as large as the format allows. For the single strongest number
+ *  or guarantee in a set -- used sparingly, or it stops being emphatic. */
+const statCard = (w, h, { kicker, value, label, support, cta, light, photo }) => {
+  const pad = Math.round(Math.min(w, h) * 0.085);
+  const valueSize = Math.round(Math.min(w, h) * 0.26);
+  const labelSize = Math.round(Math.min(w, h) * 0.062);
+  const noteSize = Math.round(Math.min(w, h) * 0.032);
+  return shell(w, h, `
+    <div class="ground"></div>
+    <div class="glow"></div>
+    ${photo ? `<div style="position:absolute;inset:0;background:url('${showroom}') center/cover;opacity:.18;mix-blend-mode:luminosity"></div>` : ''}
+    <div class="wrap" style="padding:${pad}px">
+      <img class="logo" src="${logoDark}" style="align-self:flex-start" />
+      <div style="flex:1;display:flex;flex-direction:column;justify-content:center;gap:${Math.round(pad * 0.2)}px">
+        <div style="font-family:'Bahnschrift',sans-serif;font-size:${noteSize}px;letter-spacing:.2em;color:${GOLD}">${esc(kicker)}</div>
+        <div class="display" style="font-size:${valueSize}px;color:${SAFFRON};line-height:.86">${esc(value)}</div>
+        <div class="display" style="font-size:${labelSize}px">${esc(label)}</div>
+        <div class="selvedge" style="width:${Math.round(w * 0.2)}px;margin-top:${Math.round(pad * 0.3)}px"></div>
+        <div style="font-size:${noteSize}px;line-height:1.5;opacity:.88;max-width:${Math.round(w * 0.8)}px;margin-top:${Math.round(pad * 0.35)}px">${esc(support)}</div>
+      </div>
+      <div class="foot" style="font-size:${Math.round(noteSize * 0.95)}px">
+        <div>${esc(cta)}</div><div class="url">FABRICTRAD.COM</div>
+      </div>
+    </div>`, { warm: light });
+};
+
 /* ------------------------------------------------------------------ content */
 
+/* Every line below maps to a capability confirmed in the codebase. The buyer set
+   deliberately avoids anything downstream of a completed purchase -- orders,
+   tracking, invoices -- because checkout cannot complete until a seller has an
+   activated Razorpay payout account and there are currently none. Browsing,
+   Virtual Drape, wishlist, sourcing requests and the language switch all work
+   fully today, so buyer creative runs on those, with "browse" and "post what you
+   need" as the asks rather than "buy". */
+
 const SELLER = [
-  { kicker: 'FOR MILLS AND TRADERS', lines: ['Sell your', 'fabric', 'across India.'], support: 'List once. Reach buyers sourcing by the metre and by the bolt.' },
-  { kicker: 'YOUR SHARE', lines: ['You keep', '90% of', 'every payment.'], support: 'FabricTrad takes 10%, and covers payment processing and commission tax out of it.', light: true, photo: true },
-  { kicker: 'PAPERWORK', lines: ['GST invoices,', 'raised', 'for you.'], support: 'Every paid order issues a compliant tax invoice with HSN and the correct CGST, SGST or IGST split.', photo: true },
-  { kicker: 'LISTING', lines: ['List from', 'WhatsApp.'], support: 'Send the product details and photographs from your registered number, then review the draft before it goes live.', light: true },
+  { kicker: 'FOR MILLS AND TRADERS', lines: ['Sell your', 'fabric', 'across India.'], support: 'List once. Reach buyers sourcing by the metre and by the bolt.', cta: 'Open a seller account', photo: true },
+  { kicker: 'PAPERWORK', lines: ['GST invoices,', 'raised', 'for you.'], support: 'Every paid order issues a compliant tax invoice with HSN and the right CGST, SGST or IGST split.', cta: 'See how invoicing works', photo: true },
+  { kicker: 'LISTING', lines: ['List from', 'WhatsApp.'], support: 'Send product details and photographs from your registered number, then review the draft before it goes live.', cta: 'See how it works', light: true },
+  { kicker: 'BEFORE YOU SELL', lines: ['Verified', 'against', 'your GSTIN.'], support: 'Businesses are checked before they can list, so buyers know who they are dealing with.', cta: 'Start verification' },
+  { kicker: 'DISPATCH', lines: ['Ship it', 'your way.'], support: 'Book through Shiprocket, or enter your own courier, AWB number and tracking link for the buyer.', cta: 'See fulfilment', light: true, photo: true },
+  { kicker: 'DEMAND', lines: ['See what', 'buyers are', 'sourcing.'], support: 'Buyer requests show what the market is asking for before you commit stock to it.', cta: 'View buyer requests' },
 ];
 
 const BUYER = [
-  { kicker: 'BEFORE YOU BUY', lines: ['See how it', 'drapes.'], support: 'Virtual Drape previews a fabric in the exact colour you are considering.', photo: true },
-  { kicker: 'WHO YOU BUY FROM', lines: ['GST-verified', 'sellers.'], support: 'Businesses are checked against their GSTIN before they can list.', light: true },
+  { kicker: 'BEFORE YOU COMMIT', lines: ['See how it', 'drapes.'], support: 'Virtual Drape previews a fabric in the exact colour you are considering.', cta: 'Try Virtual Drape', photo: true },
+  { kicker: 'WHO YOU BUY FROM', lines: ['GST-verified', 'sellers.'], support: 'Every business is checked against its GSTIN before it can list a single product.', cta: 'Browse the marketplace', light: true },
+  { kicker: 'EVERY COLOUR', lines: ['Each variant,', 'photographed.'], support: 'Colours carry their own photograph, stock and minimum quantity, so you order the one you actually saw.', cta: 'Browse the marketplace' },
+  { kicker: 'CANNOT FIND IT', lines: ['Post what', 'you need.'], support: 'Describe the fabric, quantity and deadline. Verified sellers come to you.', cta: 'Post a sourcing request', photo: true },
+  { kicker: 'YOUR LANGUAGE', lines: ['English,', 'Hindi,', 'Gujarati.'], support: 'The whole marketplace, and the narrated walkthroughs, in all three.', cta: 'Browse the marketplace', light: true },
 ];
 
+const LISTS = {
+  seller: { kicker: 'THE SELLER WORKSPACE', title: 'Run the whole business in one place.', cta: 'Open a seller account', photo: true,
+    items: [
+      { h: 'Products, variants and GTIN', d: 'Every colour gets its own photograph, stock and minimum quantity.' },
+      { h: 'Catalogues and pricing', d: 'Set MOQ and buyer pricing without re-listing anything.' },
+      { h: 'Earnings and payouts', d: 'Captured payments, refunds and your allocation, shown separately.' },
+    ] },
+  buyer: { kicker: 'THE BUYER WORKSPACE', title: 'Source without the phone calls.', cta: 'Browse the marketplace', light: true,
+    items: [
+      { h: 'Wishlist', d: 'Keep the fabrics you are weighing up in one place.' },
+      { h: 'Sourcing requests', d: 'Post what you need and let verified sellers answer.' },
+      { h: 'Virtual Drape', d: 'See the fall of a fabric in your colour before you commit.' },
+    ] },
+};
+
+const STATS = {
+  share: { kicker: 'YOUR SHARE', value: '90%', label: 'of every payment is yours.', support: 'FabricTrad takes 10%, and covers payment processing and commission tax out of it.', cta: 'Open a seller account', photo: true },
+};
+
+/* Format table. One composition set, rendered at every size a feed asks for. */
 const posters = [
-  { name: 'instagram-feed-1080x1350-seller-share', w: 1080, h: 1350, spec: { ...SELLER[1], cta: 'Start selling' } },
-  { name: 'instagram-square-1080x1080-drape', w: 1080, h: 1080, spec: { ...BUYER[0], cta: 'Try Virtual Drape' } },
-  { name: 'instagram-feed-1080x1350-whatsapp', w: 1080, h: 1350, spec: { ...SELLER[3], cta: 'List from WhatsApp' } },
-  { name: 'facebook-feed-1200x630-sell', w: 1200, h: 630, spec: { ...SELLER[0], cta: 'Open a seller account', photo: true } },
-  { name: 'facebook-square-1080x1080-gst', w: 1080, h: 1080, spec: { ...SELLER[2], cta: 'See how invoicing works' } },
-  { name: 'youtube-thumbnail-1280x720', w: 1280, h: 720, spec: { ...SELLER[0], cta: 'Watch the seller walkthrough', photo: true } },
+  { n: 'ig-feed-seller-sell',      w: 1080, h: 1350, layout: 'poster', spec: SELLER[0] },
+  { n: 'ig-feed-seller-gst',       w: 1080, h: 1350, layout: 'poster', spec: SELLER[1] },
+  { n: 'ig-feed-seller-whatsapp',  w: 1080, h: 1350, layout: 'poster', spec: SELLER[2] },
+  { n: 'ig-feed-seller-share',     w: 1080, h: 1350, layout: 'stat',   spec: STATS.share },
+  { n: 'ig-feed-buyer-drape',      w: 1080, h: 1350, layout: 'poster', spec: BUYER[0] },
+  { n: 'ig-feed-buyer-sourcing',   w: 1080, h: 1350, layout: 'poster', spec: BUYER[3] },
+  { n: 'ig-feed-seller-toolkit',   w: 1080, h: 1350, layout: 'list',   spec: LISTS.seller },
+  { n: 'ig-feed-buyer-toolkit',    w: 1080, h: 1350, layout: 'list',   spec: LISTS.buyer },
+  { n: 'square-seller-verified',   w: 1080, h: 1080, layout: 'poster', spec: SELLER[3] },
+  { n: 'square-seller-shipping',   w: 1080, h: 1080, layout: 'poster', spec: SELLER[4] },
+  { n: 'square-buyer-verified',    w: 1080, h: 1080, layout: 'poster', spec: BUYER[1] },
+  { n: 'square-buyer-variants',    w: 1080, h: 1080, layout: 'poster', spec: BUYER[2] },
+  { n: 'story-seller-share',       w: 1080, h: 1920, layout: 'stat',   spec: STATS.share },
+  { n: 'story-buyer-drape',        w: 1080, h: 1920, layout: 'poster', spec: BUYER[0] },
+  { n: 'story-seller-demand',      w: 1080, h: 1920, layout: 'poster', spec: SELLER[5] },
+  { n: 'story-buyer-languages',    w: 1080, h: 1920, layout: 'poster', spec: BUYER[4] },
+  { n: 'fb-link-seller',           w: 1200, h: 630,  layout: 'poster', spec: SELLER[0] },
+  { n: 'fb-link-buyer',            w: 1200, h: 630,  layout: 'poster', spec: BUYER[3] },
+  { n: 'linkedin-seller-toolkit',  w: 1200, h: 627,  layout: 'list',   spec: LISTS.seller },
+  { n: 'linkedin-buyer-sourcing',  w: 1200, h: 627,  layout: 'poster', spec: BUYER[3] },
+  { n: 'pinterest-buyer-drape',    w: 1000, h: 1500, layout: 'poster', spec: BUYER[0] },
+  { n: 'pinterest-buyer-variants', w: 1000, h: 1500, layout: 'poster', spec: BUYER[2] },
+  { n: 'yt-thumb-seller',          w: 1280, h: 720,  layout: 'poster', spec: SELLER[0] },
+  { n: 'yt-thumb-buyer',           w: 1280, h: 720,  layout: 'poster', spec: BUYER[3] },
 ];
 
 const videos = [
-  { name: 'reel-shorts-1080x1920-seller', w: 1080, h: 1920, scenes: [...SELLER, BUYER[1]], hold: 3.0 },
-  { name: 'youtube-1920x1080-overview', w: 1920, h: 1080, scenes: [...SELLER, ...BUYER], hold: 4.0 },
-  { name: 'square-1080x1080-seller', w: 1080, h: 1080, scenes: SELLER.slice(0, 3), hold: 3.0 },
+  { n: 'reel-seller-1080x1920',   w: 1080, h: 1920, scenes: SELLER,                 hold: 2.8 },
+  { n: 'reel-buyer-1080x1920',    w: 1080, h: 1920, scenes: BUYER,                  hold: 2.8 },
+  { n: 'square-seller-1080x1080', w: 1080, h: 1080, scenes: SELLER.slice(0, 4),     hold: 3.0 },
+  { n: 'square-buyer-1080x1080',  w: 1080, h: 1080, scenes: BUYER.slice(0, 3),      hold: 3.0 },
+  { n: 'yt-overview-1920x1080',   w: 1920, h: 1080, scenes: [...SELLER, ...BUYER],  hold: 3.4 },
+  { n: 'story-seller-1080x1920',  w: 1080, h: 1920, scenes: SELLER.slice(0, 3),     hold: 3.0 },
 ];
 
 /* ------------------------------------------------------------------- render */
@@ -168,15 +277,18 @@ const shoot = async (html, w, h, file) => {
 };
 
 for (const p of posters) {
-  const file = path.join(outDir, `${p.name}.png`);
-  await shoot(poster(p.w, p.h, p.spec), p.w, p.h, file);
-  console.log('IMAGE', p.name, `${p.w}x${p.h}`);
+  const file = path.join(outDir, `${p.n}.png`);
+  // Three compositions, chosen per asset: a statement, a ruled capability list,
+  // or a single large fact. One layout across two dozen posters reads as a template.
+  const render = p.layout === 'list' ? featureList : p.layout === 'stat' ? statCard : poster;
+  await shoot(render(p.w, p.h, p.spec), p.w, p.h, file);
+  console.log('IMAGE', p.n, `${p.w}x${p.h}`);
 }
 
 for (const v of videos) {
   const stills = [];
   for (const [i, s] of v.scenes.entries()) {
-    const file = path.join(framesDir, `${v.name}-${String(i).padStart(2, '0')}.png`);
+    const file = path.join(framesDir, `${v.n}-${String(i).padStart(2, '0')}.png`);
     await shoot(scene(v.w, v.h, s), v.w, v.h, file);
     stills.push(file);
   }
@@ -192,7 +304,7 @@ for (const v of videos) {
     .map((_, i) => `[${i}:v]${zoom},format=yuv420p,setsar=1[v${i}]`)
     .concat([`${stills.map((_, i) => `[v${i}]`).join('')}concat=n=${stills.length}:v=1:a=0[out]`])
     .join(';');
-  const dest = path.join(outDir, `${v.name}.mp4`);
+  const dest = path.join(outDir, `${v.n}.mp4`);
   execFileSync('ffmpeg', ['-y', ...inputs, '-filter_complex', filters, '-map', '[out]',
     '-c:v', 'libx264', '-preset', 'medium', '-crf', '23', '-tune', 'stillimage',
     '-maxrate', '6M', '-bufsize', '12M', '-movflags', '+faststart',
@@ -204,13 +316,13 @@ for (const v of videos) {
     ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', dest]).toString().trim());
   const expected = v.scenes.length * v.hold;
   if (!Number.isFinite(actual) || Math.abs(actual - expected) > 1.0) {
-    throw new Error(`${v.name}: expected ~${expected}s, encoded ${actual}s`);
+    throw new Error(`${v.n}: expected ~${expected}s, encoded ${actual}s`);
   }
-  console.log('VIDEO', v.name, `${v.w}x${v.h}`, `${actual.toFixed(1)}s`);
+  console.log('VIDEO', v.n, `${v.w}x${v.h}`, `${actual.toFixed(1)}s`);
 }
 
 await browser.close();
 writeFileSync(path.join(outDir, 'MANIFEST.txt'),
-  [...posters.map((p) => `${p.name}.png  ${p.w}x${p.h}`),
-   ...videos.map((v) => `${v.name}.mp4  ${v.w}x${v.h}  ${(v.scenes.length * v.hold).toFixed(0)}s`)].join('\n') + '\n');
+  [...posters.map((p) => `${p.n}.png  ${p.w}x${p.h}`),
+   ...videos.map((v) => `${v.n}.mp4  ${v.w}x${v.h}  ${(v.scenes.length * v.hold).toFixed(0)}s`)].join('\n') + '\n');
 console.log('DONE ->', outDir);
