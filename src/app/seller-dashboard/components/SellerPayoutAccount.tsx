@@ -35,6 +35,13 @@ export default function SellerPayoutAccount() {
   }, []);
   useEffect(() => { void load(); }, [load]);
   const needsHelp = account?.setupState?.startsWith('creating_') || account?.setupState === 'needs_reconciliation';
+  const clearSensitive = (form: HTMLFormElement) => {
+    for (const name of ['accountNumber', 'confirmAccountNumber', 'contactPan']) {
+      const field = form.elements.namedItem(name);
+      if (field instanceof HTMLInputElement) field.value = '';
+    }
+  };
+
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault(); const form = event.currentTarget;
     const values = Object.fromEntries(new FormData(form));
@@ -44,12 +51,16 @@ export default function SellerPayoutAccount() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Payout setup failed.');
       setAccount(data.account); setReady(data.ready === true); setMessage(data.message || ''); setShowForm(false);
+      // Cleared on success only. This used to sit in `finally`, so a rejected
+      // submission also blanked the account number, its confirmation and the PAN
+      // -- the three hardest fields to retype -- leaving the reader to enter all
+      // of them again for every validation error, without being able to see what
+      // was wrong with the last attempt. Keeping them after a failure exposes
+      // nothing new: the values are already in the form the reader is looking at.
+      // After a success they have served their purpose and should not linger.
+      clearSensitive(form);
     } catch (e) { setError(e instanceof Error ? e.message : 'Payout setup failed.'); }
-    finally {
-      // Sensitive fields do not remain in the rendered form after a request.
-      for (const name of ['accountNumber', 'confirmAccountNumber', 'contactPan']) { const field = form.elements.namedItem(name); if (field instanceof HTMLInputElement) field.value = ''; }
-      setBusy(false);
-    }
+    finally { setBusy(false); }
   };
   const input = (name: string, label: string, options: { maxLength?: number; pattern?: string; sensitive?: boolean; numeric?: boolean } = {}) => (
     <label className="block text-sm font-600" key={name}>{label}<input name={name} required disabled={busy} maxLength={options.maxLength || 100} pattern={options.pattern} autoComplete={options.sensitive ? 'off' : undefined} type={options.sensitive ? 'password' : 'text'} inputMode={options.numeric ? 'numeric' : 'text'} className="mt-2 block min-h-11 w-full rounded-lg border border-border bg-background px-3 text-base font-normal" /></label>
