@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useRef, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import AppLogo from '@/components/ui/AppLogo';
@@ -129,12 +129,19 @@ export default function AdminPortalLayout() {
     [activeTab]
   );
 
+  const canvasRef = useRef<HTMLElement>(null);
+
   const navigateTo = (tab: AdminTab) => {
     setActiveTab(tab);
     setSidebarOpen(false);
     router.replace(tab === 'dashboard' ? '/admin-portal' : `/admin-portal?tab=${tab}`, {
       scroll: false,
     });
+    // The workspace main element is its own scroll container, so neither Next's
+    // scroll restoration nor the window position moves it and switching tabs left
+    // the reader where they were. On a phone that reads as a dead button: the
+    // content changed far below the fold and the screen did not.
+    canvasRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const logout = async () => {
@@ -242,7 +249,7 @@ export default function AdminPortalLayout() {
             </div>
           </header>
 
-          <main className="ft-canvas-main min-w-0 px-3 py-4 pb-24 pt-4 sm:px-5 sm:py-6 lg:px-7">
+          <main ref={canvasRef} className="ft-canvas-main min-w-0 px-3 py-4 pb-24 pt-4 sm:px-5 sm:py-6 lg:px-7">
           <div className="mx-auto max-w-[1500px]">
             {activeTab === 'dashboard' && <AdminDashboard />}
             {activeTab === 'orders' && <AdminOrders />}

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useMemo, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import AppLogo from '@/components/ui/AppLogo';
@@ -69,10 +69,17 @@ export default function ModernBuyerDashboardLayout() {
   const activeItem = useMemo(() => allItems.find((item) => item.key === activeTab) || allItems[0], [activeTab]);
   const buyerName = profile?.full_name || user?.email?.split('@')[0] || 'Buyer';
 
+  const canvasRef = useRef<HTMLElement>(null);
+
   const navigateTo = (tab: DashboardTab) => {
     setActiveTab(tab);
     setMobileOpen(false);
     router.replace(tab === 'overview' ? '/buyer-dashboard' : `/buyer-dashboard?tab=${tab}`, { scroll: false });
+    // The workspace main element is its own scroll container, so neither Next's
+    // scroll restoration nor the window position moves it and switching tabs left
+    // the reader where they were. On a phone that reads as a dead button: the
+    // content changed far below the fold and the screen did not.
+    canvasRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const searchMarketplace = (event: FormEvent<HTMLFormElement>) => {
@@ -147,7 +154,7 @@ export default function ModernBuyerDashboardLayout() {
         <aside className="ft-admin-sidebar hidden shrink-0 md:block">{sidebar}</aside>
         {mobileOpen && <><button type="button" className="fixed inset-0 z-40 bg-black/45 md:hidden" onClick={() => setMobileOpen(false)} aria-label="Close buyer navigation" /><aside className="ft-admin-sidebar fixed inset-y-0 left-0 z-50 w-[min(88vw,290px)] shadow-2xl md:hidden"><button type="button" onClick={() => setMobileOpen(false)} className="ft-icon-button absolute right-3 top-3 z-10" aria-label="Close buyer navigation"><Icon name="XMarkIcon" size={18} /></button>{sidebar}</aside></>}
 
-        <main className="ft-admin-main min-w-0 flex-1 overflow-y-auto px-3 pb-24 sm:px-5 lg:px-7">
+        <main ref={canvasRef} className="ft-admin-main min-w-0 flex-1 overflow-y-auto px-3 pb-24 sm:px-5 lg:px-7">
           <div className="mx-auto">
             {activeTab === 'overview' && (
               <>
