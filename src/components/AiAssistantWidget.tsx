@@ -23,8 +23,18 @@ type DisplayMessage = { role: 'user' | 'assistant'; content: string };
 // haiku model is the fastest/cheapest of the allowed models in the chat-completion route, which
 // suits a lightweight always-available widget best. Swap here if the operator prefers another
 // ALLOWED_*_MODELS entry from src/app/api/ai/chat-completion/route.ts.
-const AI_PROVIDER = 'ANTHROPIC';
-const AI_MODEL = 'claude-3-5-haiku-latest';
+// OPEN_AI, not ANTHROPIC: the chat route resolves a provider key from
+// ANTHROPIC_API_KEY / OPENAI_API_KEY / GEMINI_API_KEY / PERPLEXITY_API_KEY, and
+// the production Worker only has OPENAI_API_KEY. Pointed at ANTHROPIC the route
+// passed auth, quota, provider and model checks and then failed on the missing
+// key with 503 "AI provider is not configured", which the widget surfaced as
+// "Sorry, I couldn't get a response just now." Every message failed, and every
+// failure still spent a day's quota.
+//
+// To run this on Claude instead, add ANTHROPIC_API_KEY to the Worker's secrets
+// and set these back to ANTHROPIC / claude-3-5-haiku-latest.
+const AI_PROVIDER = 'OPEN_AI';
+const AI_MODEL = 'gpt-4o-mini';
 
 // The API route caps a request at 20 messages / 20,000 characters total. Keeping a modest
 // rolling window of prior turns (plus the new user message and one system message) stays

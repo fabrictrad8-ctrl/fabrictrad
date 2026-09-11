@@ -175,10 +175,19 @@ export default function SellerDashboardLayout() {
   const sellerName = profile?.business_name || profile?.full_name || user?.email?.split('@')[0] || 'Seller';
   const storefrontHref = storeHandle ? `/store/${storeHandle}` : `/marketplace?search=${encodeURIComponent(sellerName)}`;
 
+  const canvasRef = useRef<HTMLElement>(null);
+
   const navigateTo = (tab: SellerTab) => {
     setActiveTab(tab);
     setSidebarOpen(false);
     router.replace(tab === 'overview' ? '/seller-dashboard' : `/seller-dashboard?tab=${tab}`, { scroll: false });
+    // .ft-canvas-main is its own scroll container (overflow-y: auto), so neither
+    // Next's scroll restoration nor window.scrollTo moves it -- switching tabs
+    // left the reader exactly where they were. On a phone the attention panel
+    // fills the viewport, so tapping "Connect payout bank" swapped the content
+    // far below the fold and the screen simply did not change: the button read
+    // as broken when the navigation had actually worked.
+    canvasRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const searchSellerTools = (event: FormEvent<HTMLFormElement>) => {
@@ -289,7 +298,7 @@ export default function SellerDashboardLayout() {
             </div>
           </header>
 
-          <main className="ft-canvas-main min-w-0 px-3 pb-24 pt-4 sm:px-5 lg:px-7">
+          <main ref={canvasRef} className="ft-canvas-main min-w-0 px-3 pb-24 pt-4 sm:px-5 lg:px-7">
           <div className="mx-auto">
             {/* Real blockers first, then the detailed verification checklist. */}
             <SellerAttentionCenter onNavigate={navigateTo} />

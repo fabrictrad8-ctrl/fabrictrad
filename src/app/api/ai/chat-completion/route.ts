@@ -63,18 +63,6 @@ export async function POST(request: NextRequest) {
     } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
 
-    const { data: quotaAllowed, error: quotaError } = await supabase.rpc('consume_api_quota', {
-      p_feature: 'ai_chat',
-      p_daily_limit: Number(process.env.AI_CHAT_DAILY_LIMIT || 100),
-    });
-    if (quotaError) {
-      console.error('AI quota check failed:', quotaError.message);
-      return NextResponse.json({ error: 'AI service is temporarily unavailable.' }, { status: 503 });
-    }
-    if (!quotaAllowed) {
-      return NextResponse.json({ error: 'Daily AI chat limit reached.' }, { status: 429 });
-    }
-
     const body = (await request.json()) as {
       provider?: unknown;
       model?: unknown;
@@ -110,6 +98,28 @@ export async function POST(request: NextRequest) {
     const apiKey = API_KEYS[body.provider];
     if (!apiKey) {
       return NextResponse.json({ error: 'AI provider is not configured.' }, { status: 503 });
+    }
+
+    // Quota is spent here, not at the top of the handler. It used to be consumed
+    // immediately after the auth check, so a malformed request, an unsupported
+    // model, or a provider whose key is simply absent still cost the caller a
+    // day's allowance -- and because the widget retries look identical to the
+    // user, a misconfiguration burned the whole daily limit while every reply
+    // said "Sorry, I couldn't get a response just now."
+    //
+    // Everything above this point is a request that could never have produced an
+    // answer. From here the provider is configured and the payload is valid, so
+    // the call is genuinely about to be made.
+    const { data: quotaAllowed, error: quotaError } = await supabase.rpc('consume_api_quota', {
+      p_feature: 'ai_chat',
+      p_daily_limit: Number(process.env.AI_CHAT_DAILY_LIMIT || 100),
+    });
+    if (quotaError) {
+      console.error('AI quota check failed:', quotaError.message);
+      return NextResponse.json({ error: 'AI service is temporarily unavailable.' }, { status: 503 });
+    }
+    if (!quotaAllowed) {
+      return NextResponse.json({ error: 'Daily AI chat limit reached.' }, { status: 429 });
     }
 
     const input = body.parameters || {};
