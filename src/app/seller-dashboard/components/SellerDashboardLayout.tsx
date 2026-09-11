@@ -35,6 +35,7 @@ import AiAssistantWidget from '@/components/AiAssistantWidget';
 // scoped to this route's bundle; every rule inside is scoped to .ft-seller-admin.
 import '@/styles/seller-workspace-orders.css';
 import ViewportFixedLayer from '@/components/ViewportFixedLayer';
+import { focusTarget, withFocus } from '@/lib/focusTarget';
 
 type SellerTab =
   | 'overview'
@@ -146,6 +147,13 @@ export default function SellerDashboardLayout() {
 
   useEffect(() => setActiveTab(normaliseTab(searchParams.get('tab'))), [searchParams]);
 
+  // A ?focus= link pasted, bookmarked or arrived at from elsewhere should behave
+  // exactly like pressing the in-app button that produced it.
+  useEffect(() => {
+    const focus = searchParams.get('focus');
+    if (focus) void focusTarget(focus);
+  }, [searchParams]);
+
   useEffect(() => {
     if (!user?.id) return;
     let cancelled = false;
@@ -177,10 +185,17 @@ export default function SellerDashboardLayout() {
 
   const canvasRef = useRef<HTMLElement>(null);
 
-  const navigateTo = (tab: SellerTab) => {
+  const navigateTo = (tab: SellerTab, focus?: string) => {
     setActiveTab(tab);
     setSidebarOpen(false);
-    router.replace(tab === 'overview' ? '/seller-dashboard' : `/seller-dashboard?tab=${tab}`, { scroll: false });
+    const base = tab === 'overview' ? '/seller-dashboard' : `/seller-dashboard?tab=${tab}`;
+    router.replace(withFocus(base, focus), { scroll: false });
+    // With a focus target, the destination control does the scrolling -- jumping
+    // to the top first would drag the reader away from what they asked for.
+    if (focus) {
+      void focusTarget(focus);
+      return;
+    }
     // .ft-canvas-main is its own scroll container (overflow-y: auto), so neither
     // Next's scroll restoration nor window.scrollTo moves it -- switching tabs
     // left the reader exactly where they were. On a phone the attention panel

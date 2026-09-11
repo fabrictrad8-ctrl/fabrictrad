@@ -37,6 +37,8 @@ import '../styles/premium-accents.css';
 import '../styles/ai-assistant-widget.css';
 import '../styles/logo-shine.css';
 import '../styles/marketplace-amazon.css';
+// Last, so the guided-navigation highlight is never buried by a later rule.
+import '../styles/focus-target.css';
 import { AuthProvider } from '@/contexts/AuthContext';
 import AppClientEnhancements from '@/components/AppClientEnhancements';
 import RouteExperienceEnhancer from '@/components/RouteExperienceEnhancer';

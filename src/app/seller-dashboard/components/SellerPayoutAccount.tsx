@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { PAYOUT_BUSINESS_TYPES } from '@/lib/sellerPayoutValidation';
 import { useAppPreferences } from '@/contexts/AppPreferencesContext';
 import { pillClassForStatus } from '@/lib/statusPill';
+import { focusTarget } from '@/lib/focusTarget';
 
 type Account = { connected: boolean; activationStatus: string; setupState: string; bankLast4?: string; bankIfsc?: string; bankName?: string; checkedAt?: string; requirements: { field: string; reason: string; status: string }[] };
 const COPY = {
@@ -60,8 +61,13 @@ export default function SellerPayoutAccount() {
     {message && <p role="status" className="mt-3 text-sm">{message}</p>}
     {!!account?.requirements?.length && <ul className="mt-3 space-y-1 text-sm text-muted-foreground">{account.requirements.map((r, i) => <li key={i}>{r.field.replaceAll('_', ' ')}: {r.reason.replaceAll('_', ' ')}</li>)}</ul>}
     <p className="mt-4 text-sm leading-6 text-muted-foreground">{ready ? copy.activeHelp : needsHelp ? copy.needsHelp : copy.note}</p>
-    {!ready && !needsHelp && <button type="button" disabled={busy} onClick={() => setShowForm(!showForm)} className="mt-4 min-h-11 rounded-xl bg-primary px-5 text-sm font-700 text-primary-foreground disabled:opacity-50">{showForm ? copy.close : copy.connect}</button>}
-    {showForm && <form onSubmit={submit} autoComplete="off" className="mt-6 space-y-6">
+    {/* data-focus-id: "Connect payout bank" in the attention centre scrolls here
+        and flashes this button, so the promised control is the thing you land on
+        rather than the top of a long earnings screen. Opening the form then
+        carries the reader down to it -- otherwise the form appears below the
+        fold and pressing the button looks like it did nothing. */}
+    {!ready && !needsHelp && <button type="button" data-focus-id="payout-connect" disabled={busy} onClick={() => { const next = !showForm; setShowForm(next); if (next) void focusTarget('payout-form'); }} className="mt-4 min-h-11 rounded-xl bg-primary px-5 text-sm font-700 text-primary-foreground disabled:opacity-50">{showForm ? copy.close : copy.connect}</button>}
+    {showForm && <form onSubmit={submit} data-focus-id="payout-form" autoComplete="off" className="mt-6 space-y-6">
       <p className="rounded-xl bg-muted p-4 text-sm leading-6">{copy.reenter}</p>
       <div className="grid gap-4 sm:grid-cols-2"><label className="block text-sm font-600">{copy.legal}<select name="businessType" required disabled={busy} className="mt-2 min-h-11 w-full rounded-lg border border-border bg-background px-3 text-base"><option value="">—</option>{PAYOUT_BUSINESS_TYPES.map(t => <option key={t} value={t}>{t.replaceAll('_', ' ')}</option>)}</select></label>{input('contactName', copy.name)}{input('contactPan', copy.pan, { maxLength: 10, sensitive: true })}</div>
       {(['registered', 'residential'] as const).map(kind => <fieldset key={kind} className="rounded-xl border border-border p-4"><legend className="px-2 font-700">{kind === 'registered' ? copy.businessAddress : copy.address}</legend><div className="grid gap-4 sm:grid-cols-2">{input(kind === 'registered' ? 'registeredStreet' : 'street', copy.street)}{input(kind === 'registered' ? 'registeredCity' : 'city', copy.city)}{input(kind === 'registered' ? 'registeredState' : 'state', copy.state, { maxLength: 32 })}{input(kind === 'registered' ? 'registeredPincode' : 'pincode', copy.pin, { maxLength: 6, numeric: true, pattern: '[1-9][0-9]{5}' })}</div></fieldset>)}

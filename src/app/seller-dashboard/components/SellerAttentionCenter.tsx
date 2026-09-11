@@ -49,7 +49,7 @@ import '@/styles/seller-attention.css';
  */
 
 type Props = {
-  onNavigate: (tab: SellerAttentionTab) => void;
+  onNavigate: (tab: SellerAttentionTab, focus?: string) => void;
 };
 
 type LoadState = {
@@ -309,7 +309,7 @@ export default function SellerAttentionCenter({ onNavigate }: Props) {
 
   const go = (item: AttentionItem) => {
     closeSheet();
-    if (item.tab) onNavigate(item.tab);
+    if (item.tab) onNavigate(item.tab, item.focus);
   };
 
   // Nothing wrong, still loading, or not a live seller account: render nothing.

@@ -50,6 +50,14 @@ export type AttentionItem = {
   /** Exactly one of `tab` (in-dashboard) or `href` (another route) is set. */
   tab?: SellerAttentionTab;
   href?: string;
+  /**
+   * data-focus-id of the control this action is really about. Landing on the
+   * right tab is not the same as arriving at the thing the button named: the
+   * payout action dropped people on Earnings & payouts with the connect button
+   * still somewhere below the fold. With this set, the destination is scrolled
+   * to and flashed. See src/lib/focusTarget.ts.
+   */
+  focus?: string;
   icon: string;
 };
 
@@ -153,6 +161,7 @@ export function buildSellerAttentionItems(input: AttentionInput): AttentionItem[
           'FabricTrad has no verified payout bank for your store, so buyer payments cannot be settled to you. Connect it once with Razorpay.',
         actionLabel: 'Connect payout bank',
         tab: 'earnings',
+        focus: 'payout-connect',
         icon: 'BanknotesIcon',
       });
     } else if (payout.connected && payout.requirementsCount > 0) {
@@ -165,6 +174,7 @@ export function buildSellerAttentionItems(input: AttentionInput): AttentionItem[
           'Your payout bank was submitted but Razorpay has not activated it. The outstanding items are listed on the Earnings & payouts screen.',
         actionLabel: 'Open payout account',
         tab: 'earnings',
+        focus: 'payout-connect',
         icon: 'BanknotesIcon',
       });
     }
