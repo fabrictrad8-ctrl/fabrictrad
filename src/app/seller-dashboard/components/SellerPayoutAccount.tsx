@@ -35,6 +35,38 @@ export default function SellerPayoutAccount() {
   }, []);
   useEffect(() => { void load(); }, [load]);
   const needsHelp = account?.setupState?.startsWith('creating_') || account?.setupState === 'needs_reconciliation';
+  // Razorpay's stakeholder is a person, and kyc.pan there must be an individual
+  // PAN. The business's own PAN already travels separately as legal_info.pan,
+  // taken from the seller profile. With the legal type set to LLP or company it
+  // is a natural mistake to type the business's PAN here, and the fourth
+  // character is what gives it away: P is an individual, F a firm or LLP, C a
+  // company. Saying so while it is being typed beats failing on submit.
+  const [panHint, setPanHint] = useState<{ tone: 'bad' | 'ok'; text: string } | null>(null);
+  const PAN_HOLDER: Record<string, string> = {
+    F: 'a firm or LLP', C: 'a company', H: 'a Hindu undivided family', A: 'an association',
+    T: 'a trust', B: 'a body of individuals', L: 'a local authority', G: 'a government body',
+    J: 'an artificial juridical person',
+  };
+  const checkPan = (raw: string) => {
+    const value = raw.trim().toUpperCase();
+    if (value.length < 4) return setPanHint(null);
+    const holder = value[3];
+    if (holder === 'P') {
+      return setPanHint(
+        value.length === 10 && /^[A-Z]{3}P[A-Z][0-9]{4}[A-Z]$/.test(value)
+          ? { tone: 'ok', text: 'Individual PAN — this is the right one.' }
+          : null
+      );
+    }
+    const what = PAN_HOLDER[holder];
+    setPanHint({
+      tone: 'bad',
+      text: what
+        ? `That looks like the PAN of ${what}, not a person. Enter the authorised person's own PAN — the business's PAN is already on file from registration.`
+        : "The fourth character of a personal PAN is P. Enter the authorised person's own PAN.",
+    });
+  };
+
   const clearSensitive = (form: HTMLFormElement) => {
     for (const name of ['accountNumber', 'confirmAccountNumber', 'contactPan']) {
       const field = form.elements.namedItem(name);
@@ -62,8 +94,12 @@ export default function SellerPayoutAccount() {
     } catch (e) { setError(e instanceof Error ? e.message : 'Payout setup failed.'); }
     finally { setBusy(false); }
   };
-  const input = (name: string, label: string, options: { maxLength?: number; pattern?: string; sensitive?: boolean; numeric?: boolean } = {}) => (
-    <label className="block text-sm font-600" key={name}>{label}<input name={name} required disabled={busy} maxLength={options.maxLength || 100} pattern={options.pattern} autoComplete={options.sensitive ? 'off' : undefined} type={options.sensitive ? 'password' : 'text'} inputMode={options.numeric ? 'numeric' : 'text'} className="mt-2 block min-h-11 w-full rounded-lg border border-border bg-background px-3 text-base font-normal" /></label>
+  const input = (name: string, label: string, options: { maxLength?: number; pattern?: string; sensitive?: boolean; numeric?: boolean; help?: string; onValue?: (value: string) => void; hint?: { tone: 'bad' | 'ok'; text: string } | null } = {}) => (
+    <label className="block text-sm font-600" key={name}>{label}
+      {options.help && <span className="mt-1 block text-xs font-normal leading-relaxed text-muted-foreground">{options.help}</span>}
+      <input name={name} required disabled={busy} maxLength={options.maxLength || 100} pattern={options.pattern} autoComplete={options.sensitive ? 'off' : undefined} type={options.sensitive ? 'password' : 'text'} inputMode={options.numeric ? 'numeric' : 'text'} onChange={options.onValue ? (event) => options.onValue?.(event.target.value) : undefined} className="mt-2 block min-h-11 w-full rounded-lg border border-border bg-background px-3 text-base font-normal" />
+      {options.hint && <span className={`mt-1.5 block text-xs font-normal leading-relaxed ${options.hint.tone === 'bad' ? 'text-warning' : 'text-success'}`}>{options.hint.text}</span>}
+    </label>
   );
   return <section aria-label={copy.title} className="mb-6 rounded-2xl border border-border bg-card p-5 sm:p-6">
     <div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-xl font-800">{copy.title}</h2><p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">{copy.intro}</p></div><button type="button" onClick={() => void load()} disabled={busy} className="min-h-11 rounded-xl border border-border px-4 text-sm font-700 disabled:opacity-50">{copy.refresh}</button></div>
@@ -80,7 +116,7 @@ export default function SellerPayoutAccount() {
     {!ready && !needsHelp && <button type="button" data-focus-id="payout-connect" disabled={busy} onClick={() => { const next = !showForm; setShowForm(next); if (next) void focusTarget('payout-form'); }} className="mt-4 min-h-11 rounded-xl bg-primary px-5 text-sm font-700 text-primary-foreground disabled:opacity-50">{showForm ? copy.close : copy.connect}</button>}
     {showForm && <form onSubmit={submit} data-focus-id="payout-form" autoComplete="off" className="mt-6 space-y-6">
       <p className="rounded-xl bg-muted p-4 text-sm leading-6">{copy.reenter}</p>
-      <div className="grid gap-4 sm:grid-cols-2"><label className="block text-sm font-600">{copy.legal}<select name="businessType" required disabled={busy} className="mt-2 min-h-11 w-full rounded-lg border border-border bg-background px-3 text-base"><option value="">—</option>{PAYOUT_BUSINESS_TYPES.map(t => <option key={t} value={t}>{t.replaceAll('_', ' ')}</option>)}</select></label>{input('contactName', copy.name)}{input('contactPan', copy.pan, { maxLength: 10, sensitive: true })}</div>
+      <div className="grid gap-4 sm:grid-cols-2"><label className="block text-sm font-600">{copy.legal}<select name="businessType" required disabled={busy} className="mt-2 min-h-11 w-full rounded-lg border border-border bg-background px-3 text-base"><option value="">—</option>{PAYOUT_BUSINESS_TYPES.map(t => <option key={t} value={t}>{t.replaceAll('_', ' ')}</option>)}</select></label>{input('contactName', copy.name)}{input('contactPan', copy.pan, { maxLength: 10, sensitive: true, onValue: checkPan, hint: panHint, help: 'The authorised person\u2019s own PAN, not the business\u2019s. Your business PAN is already on file from registration.' })}</div>
       {(['registered', 'residential'] as const).map(kind => <fieldset key={kind} className="rounded-xl border border-border p-4"><legend className="px-2 font-700">{kind === 'registered' ? copy.businessAddress : copy.address}</legend><div className="grid gap-4 sm:grid-cols-2">{input(kind === 'registered' ? 'registeredStreet' : 'street', copy.street)}{input(kind === 'registered' ? 'registeredCity' : 'city', copy.city)}{input(kind === 'registered' ? 'registeredState' : 'state', copy.state, { maxLength: 32 })}{input(kind === 'registered' ? 'registeredPincode' : 'pincode', copy.pin, { maxLength: 6, numeric: true, pattern: '[1-9][0-9]{5}' })}</div></fieldset>)}
       <div className="grid gap-4 sm:grid-cols-2">{input('accountName', copy.holder)}{input('ifsc', copy.ifsc, { maxLength: 11 })}{input('accountNumber', copy.account, { maxLength: 35, sensitive: true, numeric: true, pattern: '[0-9]{5,35}' })}{input('confirmAccountNumber', copy.confirm, { maxLength: 35, sensitive: true, numeric: true, pattern: '[0-9]{5,35}' })}</div>
       <label className="flex items-start gap-3 text-sm leading-6"><input name="termsAccepted" type="checkbox" required disabled={busy} className="mt-1 h-5 w-5 shrink-0" /><span>{copy.terms} <a href="https://razorpay.com/terms/" target="_blank" rel="noreferrer" className="underline">{copy.original}</a></span></label>
