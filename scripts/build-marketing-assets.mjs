@@ -205,7 +205,19 @@ const storyBeat = (w, h, beat) => {
   const size = {
     hook: 0.125, tension: 0.085, stakes: 0.125, turn: 0.135, resolve: 0.082, close: 0.07,
   }[k] || 0.1;
-  const display = Math.round(base * size);
+  // Fit the type to the longest line instead of trusting a fixed size. The
+  // explicit line breaks in a beat are the intended phrasing, but at a fixed
+  // size a long line re-wraps and orphans its last word -- "who approved / it."
+  // Scaling by the longest line keeps the author's breaks intact.
+  // Only beats with authored line breaks get fitted. Those breaks are the
+  // intended phrasing, so a line that re-wraps ruins them -- "who approved / it."
+  // A beat written as one long line is meant to wrap wherever it lands, and
+  // fitting it by character count would shrink a 54-character resolve line to
+  // nothing.
+  const lines = beat.text.split(/\n/);
+  const longest = Math.max(...lines.map((l) => l.length));
+  const fit = lines.length > 1 ? Math.max(0.55, Math.min(1, 12 / longest)) : 1;
+  const display = Math.round(base * size * fit);
   const justify = k === 'hook' ? 'flex-start' : k === 'tension' ? 'flex-end' : 'center';
   const photoOpacity = k === 'turn' ? 0.26 : k === 'resolve' ? 0.14 : k === 'close' ? 0.1 : 0;
   const dim = k === 'tension' ? 0.62 : 1;
@@ -335,7 +347,34 @@ const BUYER_STORY = [
   { kind: 'close',   text: 'Browse the marketplace', hold: 3.0 },
 ];
 
+/* Third protagonist: whoever does the buying for a company. A different problem
+   from the designer's -- not "is this the right cloth" but "can anyone account
+   for how it was ordered". Every resolve line is a control the buyer dashboard
+   actually exposes: company locations with their own billing and shipping
+   addresses, default payment terms, a PO reference on the order, and contacts
+   who are either Company admin or Ordering only, with approval required before
+   payment and fulfilment.
+
+   This is the most purchase-adjacent of the three stories -- its whole point is
+   placing orders properly -- so it is the one to hold until a seller has an
+   activated payout account. Setting up a company account, its locations, terms
+   and approvers all works today; the order at the end of it does not. */
+const B2B_STORY = [
+  { kind: 'hook',    text: 'Procurement runs\non WhatsApp.', hold: 2.2 },
+  { kind: 'tension', text: 'Three quotes in three different chats.', hold: 2.4 },
+  { kind: 'tension', text: 'The PO number in someone\u2019s notebook.', hold: 2.2 },
+  { kind: 'stakes',  text: 'Then finance asks\nwho approved it.', hold: 2.8 },
+  { kind: 'turn',    kicker: 'FABRICTRAD', text: 'Buy as\na company.', hold: 2.8 },
+  { kind: 'resolve', text: 'Every branch with its own billing and shipping address.', hold: 2.8 },
+  { kind: 'resolve', text: 'PO number and payment terms on the order itself.', hold: 2.8 },
+  { kind: 'resolve', text: 'Orders wait for an approver before payment or dispatch.', hold: 3.0 },
+  { kind: 'close',   text: 'Set up company purchasing', hold: 3.0 },
+];
+
 const stories = [
+  { n: 'story-b2b-reel-1080x1920',      w: 1080, h: 1920, beats: B2B_STORY },
+  { n: 'story-b2b-square-1080x1080',    w: 1080, h: 1080, beats: B2B_STORY },
+  { n: 'story-b2b-yt-1920x1080',        w: 1920, h: 1080, beats: B2B_STORY },
   { n: 'story-seller-reel-1080x1920',   w: 1080, h: 1920, beats: SELLER_STORY },
   { n: 'story-buyer-reel-1080x1920',    w: 1080, h: 1920, beats: BUYER_STORY },
   { n: 'story-seller-square-1080x1080', w: 1080, h: 1080, beats: SELLER_STORY },
