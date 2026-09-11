@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { requireAdministrator } from '@/lib/server/requireAdministrator';
+import { retryWebhookDeadLetters } from '@/lib/server/webhookDeadLetterRetry';
 const json = (body: unknown, status = 200) => NextResponse.json(body, { status, headers: { 'Cache-Control': 'no-store' } });
 export async function GET(request: NextRequest) {
   if (!await requireAdministrator()) return json({ error: 'Administrator access required.' }, 403);
@@ -14,6 +15,22 @@ export async function PATCH(request: NextRequest) {
   if (!await requireAdministrator()) return json({ error: 'Administrator access required.' }, 403);
   const body = await request.json().catch(() => null);
   if (!body || typeof body.id !== 'string') return json({ error: 'Event reference required.' }, 400);
+
+  // Marking a row resolved only hides it; the event it describes stays
+  // unprocessed. `action: 'retry'` re-delivers it instead, which is what an
+  // administrator looking at a failed payment webhook actually wants. The
+  // scheduled job picks rows up on its own, so this is the deliberate
+  // "try it now" path rather than the only way it ever happens.
+  if (body.action === 'retry') {
+    try {
+      const outcome = await retryWebhookDeadLetters(1);
+      return json(outcome);
+    } catch (error) {
+      console.error('Admin-triggered dead-letter replay failed', error);
+      return json({ error: 'Replay could not be completed.' }, 503);
+    }
+  }
+
   const { error } = await createAdminClient().from('webhook_dead_letter_queue')
     .update({ status: 'resolved', resolved_at: new Date().toISOString() }).eq('id', body.id);
   return error ? json({ error: 'Resolution could not be saved.' }, 503) : json({ resolved: true });

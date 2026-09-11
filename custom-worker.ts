@@ -5,6 +5,7 @@ import openNextWorker from './.open-next/worker.js';
 import { processDueBespokeFollowUps } from './src/lib/bespokeFollowUps';
 import { retryUndeliveredInvoiceEmails } from './src/lib/server/automaticInvoice';
 import { processSellerWhatsAppQueue } from './src/lib/server/sellerWhatsappQueue';
+import { retryWebhookDeadLetters } from './src/lib/server/webhookDeadLetterRetry';
 
 type ExecutionContextLike = {
   waitUntil(promise: Promise<unknown>): void;
@@ -48,6 +49,18 @@ const fabricTradWorker = {
     context.waitUntil(
       retryUndeliveredInvoiceEmails().catch((error) => {
         console.error('FabricTrad invoice email retry failed', {
+          message: error instanceof Error ? error.message : 'unknown_error',
+        });
+      })
+    );
+    // webhook_dead_letter_queue kept retry_count, max_retries and next_retry_at
+    // while nothing read them, so a payment webhook that failed once stayed
+    // failed and the admin screen could only dismiss it. Same shape as the
+    // invoice retry above: the money already moved at Razorpay, so the record
+    // has to catch up.
+    context.waitUntil(
+      retryWebhookDeadLetters().catch((error) => {
+        console.error('FabricTrad webhook dead-letter replay failed', {
           message: error instanceof Error ? error.message : 'unknown_error',
         });
       })
