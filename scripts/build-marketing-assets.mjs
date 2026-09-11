@@ -181,6 +181,56 @@ const statCard = (w, h, { kicker, value, label, support, cta, light, photo }) =>
     </div>`, { warm: light });
 };
 
+/** One beat of a story.
+ *
+ *  The earlier videos were a feature list set to motion: every scene an
+ *  independent claim, identically composed, in the same place on screen. Nothing
+ *  carried from one to the next, so there was no reason to keep watching past the
+ *  first. These beats instead run an arc -- a situation, the friction in it, the
+ *  turn where the product arrives, then what changes -- and the composition moves
+ *  with the story rather than staying put.
+ *
+ *  kind drives everything visual, so the picture reports where you are in the arc:
+ *    hook     cold open. Indigo, no photograph, type high on the frame.
+ *    tension  the friction. Smaller, lower, dimmer -- the frame closing in.
+ *    stakes   what it costs. Madder ground: the one moment of heat.
+ *    turn     the product arrives. Cloth appears, selvedge cuts across, logo in.
+ *    resolve  what changes now. Calm, centred, photograph held back.
+ *    close    logo, one ask, the address.
+ */
+const storyBeat = (w, h, beat) => {
+  const k = beat.kind;
+  const pad = Math.round(Math.min(w, h) * 0.095);
+  const base = Math.min(w, h);
+  const size = {
+    hook: 0.125, tension: 0.085, stakes: 0.125, turn: 0.135, resolve: 0.082, close: 0.07,
+  }[k] || 0.1;
+  const display = Math.round(base * size);
+  const justify = k === 'hook' ? 'flex-start' : k === 'tension' ? 'flex-end' : 'center';
+  const photoOpacity = k === 'turn' ? 0.26 : k === 'resolve' ? 0.14 : k === 'close' ? 0.1 : 0;
+  const dim = k === 'tension' ? 0.62 : 1;
+
+  const body = k === 'close'
+    ? `<div class="wrap" style="padding:${pad}px;justify-content:center;align-items:center;text-align:center;gap:${Math.round(pad * 0.5)}px">
+         <img src="${logoDark}" style="height:${Math.round(h * 0.062)}px" />
+         <div class="selvedge" style="width:${Math.round(w * 0.3)}px;margin:${Math.round(pad * 0.35)}px 0"></div>
+         <div class="display" style="font-size:${display}px">${esc(beat.text)}</div>
+         <div class="url" style="font-size:${Math.round(display * 0.42)}px;margin-top:${Math.round(pad * 0.3)}px">FABRICTRAD.COM</div>
+       </div>`
+    : `<div class="wrap" style="padding:${pad}px;justify-content:${justify};gap:${Math.round(pad * 0.42)}px">
+         ${k === 'turn' ? `<div class="selvedge" style="width:${Math.round(w * 0.55)}px"></div>` : ''}
+         ${beat.kicker ? `<div style="font-family:'Bahnschrift',sans-serif;font-size:${Math.round(base * 0.026)}px;letter-spacing:.22em;color:${GOLD}">${esc(beat.kicker)}</div>` : ''}
+         <div class="display" style="font-size:${display}px;opacity:${dim};max-width:${Math.round(w * 0.9)}px">${beat.text.split('\n').map((l) => `<div>${esc(l)}</div>`).join('')}</div>
+         ${k === 'turn' ? `<img src="${logoDark}" style="height:${Math.round(h * 0.032)}px;margin-top:${Math.round(pad * 0.3)}px;align-self:flex-start" />` : ''}
+       </div>`;
+
+  return shell(w, h, `
+    <div class="ground"></div>
+    ${k === 'stakes' || k === 'turn' ? '<div class="glow"></div>' : ''}
+    ${photoOpacity ? `<div style="position:absolute;inset:0;background:url('${showroom}') center/cover;opacity:${photoOpacity};mix-blend-mode:luminosity"></div>` : ''}
+    ${body}`, { warm: k === 'stakes', weaveScale: 3 });
+};
+
 /* ------------------------------------------------------------------ content */
 
 /* Every line below maps to a capability confirmed in the codebase. The buyer set
@@ -255,6 +305,45 @@ const posters = [
   { n: 'yt-thumb-buyer',           w: 1280, h: 720,  layout: 'poster', spec: BUYER[3] },
 ];
 
+/* Two stories. Each is one person's problem, told in their own second person,
+   resolved by something the platform genuinely does. Beat lengths are uneven on
+   purpose: the hook is quick, the friction gets quicker still, the turn is given
+   air, and the close holds long enough to read the address. Uniform three-second
+   scenes are what made the first set feel like a slideshow. */
+
+const SELLER_STORY = [
+  { kind: 'hook',    text: 'Your cloth\nis good.', hold: 2.0 },
+  { kind: 'tension', text: 'Your market is the three traders who visit.', hold: 2.6 },
+  { kind: 'tension', text: 'A new buyer means a phone call,', hold: 2.0 },
+  { kind: 'tension', text: 'a sample by courier,', hold: 1.8 },
+  { kind: 'stakes',  text: 'and a week\nof waiting.', hold: 2.4 },
+  { kind: 'turn',    kicker: 'FABRICTRAD', text: 'List it\nonce.', hold: 2.8 },
+  { kind: 'resolve', text: 'Buyers sourcing across India see it.', hold: 2.6 },
+  { kind: 'resolve', text: 'GST invoice raised. Ninety percent yours. Courier booked.', hold: 3.2 },
+  { kind: 'close',   text: 'Open a seller account', hold: 3.0 },
+];
+
+const BUYER_STORY = [
+  { kind: 'hook',    text: 'The photo\nlooked right.', hold: 2.2 },
+  { kind: 'tension', text: 'Forty metres arrived.', hold: 2.0 },
+  { kind: 'tension', text: 'A shade off.', hold: 1.8 },
+  { kind: 'stakes',  text: 'Mid-season.\nNo time to\nreorder.', hold: 2.8 },
+  { kind: 'turn',    kicker: 'FABRICTRAD', text: 'See it before\nyou commit.', hold: 2.8 },
+  { kind: 'resolve', text: 'Virtual Drape shows the fall in your colour.', hold: 2.8 },
+  { kind: 'resolve', text: 'Every variant photographed, with its own stock.', hold: 2.8 },
+  { kind: 'resolve', text: 'Every seller checked against their GSTIN.', hold: 2.4 },
+  { kind: 'close',   text: 'Browse the marketplace', hold: 3.0 },
+];
+
+const stories = [
+  { n: 'story-seller-reel-1080x1920',   w: 1080, h: 1920, beats: SELLER_STORY },
+  { n: 'story-buyer-reel-1080x1920',    w: 1080, h: 1920, beats: BUYER_STORY },
+  { n: 'story-seller-square-1080x1080', w: 1080, h: 1080, beats: SELLER_STORY },
+  { n: 'story-buyer-square-1080x1080',  w: 1080, h: 1080, beats: BUYER_STORY },
+  { n: 'story-seller-yt-1920x1080',     w: 1920, h: 1080, beats: SELLER_STORY },
+  { n: 'story-buyer-yt-1920x1080',      w: 1920, h: 1080, beats: BUYER_STORY },
+];
+
 const videos = [
   { n: 'reel-seller-1080x1920',   w: 1080, h: 1920, scenes: SELLER,                 hold: 2.8 },
   { n: 'reel-buyer-1080x1920',    w: 1080, h: 1920, scenes: BUYER,                  hold: 2.8 },
@@ -321,8 +410,43 @@ for (const v of videos) {
   console.log('VIDEO', v.n, `${v.w}x${v.h}`, `${actual.toFixed(1)}s`);
 }
 
+// Story videos. Each beat gets its own hold, so the concat has to be built from
+// per-beat durations rather than one shared value.
+for (const s of stories) {
+  const stills = [];
+  for (const [i, b] of s.beats.entries()) {
+    const file = path.join(framesDir, `${s.n}-${String(i).padStart(2, '0')}.png`);
+    await shoot(storyBeat(s.w, s.h, b), s.w, s.h, file);
+    stills.push({ file, hold: b.hold });
+  }
+  const inputs = stills.flatMap((x) => ['-i', x.file]);
+  const filters = stills
+    .map((x, i) => {
+      const frames = Math.round(x.hold * 30);
+      // Push in a touch further on the turn and the close so the arc lands;
+      // keep the friction beats almost still, which makes them feel stuck.
+      const z = s.beats[i].kind === 'tension' ? 1.02 : s.beats[i].kind === 'turn' ? 1.09 : 1.05;
+      return `[${i}:v]zoompan=z='min(${z},1+${(z - 1).toFixed(3)}*on/${frames})':d=${frames}:s=${s.w}x${s.h}:fps=30,format=yuv420p,setsar=1[v${i}]`;
+    })
+    .concat([`${stills.map((_, i) => `[v${i}]`).join('')}concat=n=${stills.length}:v=1:a=0[out]`])
+    .join(';');
+  const dest = path.join(outDir, `${s.n}.mp4`);
+  execFileSync('ffmpeg', ['-y', ...inputs, '-filter_complex', filters, '-map', '[out]',
+    '-c:v', 'libx264', '-preset', 'medium', '-crf', '23', '-tune', 'stillimage',
+    '-maxrate', '6M', '-bufsize', '12M', '-movflags', '+faststart',
+    '-pix_fmt', 'yuv420p', '-r', '30', dest], { stdio: ['ignore', 'ignore', 'pipe'] });
+  const actual = Number(execFileSync('ffprobe',
+    ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', dest]).toString().trim());
+  const expected = s.beats.reduce((a, b) => a + b.hold, 0);
+  if (!Number.isFinite(actual) || Math.abs(actual - expected) > 1.0) {
+    throw new Error(`${s.n}: expected ~${expected}s, encoded ${actual}s`);
+  }
+  console.log('STORY', s.n, `${s.w}x${s.h}`, `${actual.toFixed(1)}s`, `${s.beats.length} beats`);
+}
+
 await browser.close();
 writeFileSync(path.join(outDir, 'MANIFEST.txt'),
-  [...posters.map((p) => `${p.n}.png  ${p.w}x${p.h}`),
+  [...posters.map((p) => `${p.n}.png  ${p.w}x${p.h}  ${p.layout}`),
+   ...stories.map((s) => `${s.n}.mp4  ${s.w}x${s.h}  ${s.beats.reduce((a, b) => a + b.hold, 0).toFixed(0)}s  story`),
    ...videos.map((v) => `${v.n}.mp4  ${v.w}x${v.h}  ${(v.scenes.length * v.hold).toFixed(0)}s`)].join('\n') + '\n');
 console.log('DONE ->', outDir);
