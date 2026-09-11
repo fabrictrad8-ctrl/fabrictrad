@@ -34,6 +34,7 @@ import AiAssistantWidget from '@/components/AiAssistantWidget';
 // Seller-only stylesheet. Kept out of src/app/layout.tsx on purpose so it is
 // scoped to this route's bundle; every rule inside is scoped to .ft-seller-admin.
 import '@/styles/seller-workspace-orders.css';
+import ViewportFixedLayer from '@/components/ViewportFixedLayer';
 
 type SellerTab =
   | 'overview'
@@ -339,17 +340,23 @@ export default function SellerDashboardLayout() {
         </div>
       </div>
 
-      <nav className="ft-workspace-tabbar fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 p-1.5 md:hidden">
-        {[
-          { key: 'overview' as SellerTab, label: 'Home', icon: 'HomeIcon' },
-          { key: 'orders' as SellerTab, label: 'Orders', icon: 'ShoppingBagIcon' },
-          { key: 'upload' as SellerTab, label: 'Add', icon: 'PlusCircleIcon' },
-          { key: 'inventory' as SellerTab, label: 'Products', icon: 'ArchiveBoxIcon' },
-          { key: 'earnings' as SellerTab, label: 'Payouts', icon: 'BanknotesIcon' },
-        ].map((item) => (
-          <button key={item.key} type="button" onClick={() => navigateTo(item.key)} className={`ft-workspace-tab flex flex-col items-center gap-1 rounded-lg py-2 text-[10px] font-850 ${activeTab === item.key ? 'is-active' : ''}`}><Icon name={item.icon as 'HomeIcon'} size={18} /> {item.label}</button>
-        ))}
-      </nav>
+      {/* Portalled to <body>: this bar is position:fixed inside the routed
+          page, so the route-enter transform made it anchor to the page scroll
+          height instead of the screen -- the mobile audit measured it at
+          top 3280px on a 780px viewport. */}
+      <ViewportFixedLayer>
+        <nav className="ft-workspace-tabbar fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 p-1.5 md:hidden">
+          {[
+            { key: 'overview' as SellerTab, label: 'Home', icon: 'HomeIcon' },
+            { key: 'orders' as SellerTab, label: 'Orders', icon: 'ShoppingBagIcon' },
+            { key: 'upload' as SellerTab, label: 'Add', icon: 'PlusCircleIcon' },
+            { key: 'inventory' as SellerTab, label: 'Products', icon: 'ArchiveBoxIcon' },
+            { key: 'earnings' as SellerTab, label: 'Payouts', icon: 'BanknotesIcon' },
+          ].map((item) => (
+            <button key={item.key} type="button" onClick={() => navigateTo(item.key)} className={`ft-workspace-tab flex flex-col items-center gap-1 rounded-lg py-2 text-[10px] font-850 ${activeTab === item.key ? 'is-active' : ''}`}><Icon name={item.icon as 'HomeIcon'} size={18} /> {item.label}</button>
+          ))}
+        </nav>
+      </ViewportFixedLayer>
 
       <AiAssistantWidget role="seller" context={`Seller is currently viewing: ${activeItem.label} (${activeItem.description})`} />
     </div>

@@ -216,6 +216,20 @@ try {
           // mobile layout escape.
           .filter((element) => !element.matches('.ft-skip-link:not(:focus)'))
           .filter((element) => ['fixed', 'sticky'].includes(window.getComputedStyle(element).position))
+          // A sticky <th> inside a horizontally scrollable table legitimately sits
+          // outside the viewport box -- that is what the scroll container is for, and
+          // the header travelling with it is the point. wideElements already exempts
+          // scrollable ancestors; without the same exemption here every admin table
+          // header reported as an escaped control, which is most of what the first
+          // real admin mobile run produced.
+          .filter((element) => {
+            if (window.getComputedStyle(element).position !== 'sticky') return true;
+            for (let node = element.parentElement; node && node !== document.body; node = node.parentElement) {
+              const overflowX = window.getComputedStyle(node).overflowX;
+              if (overflowX === 'auto' || overflowX === 'scroll') return false;
+            }
+            return true;
+          })
           .map((element) => {
             const rect = element.getBoundingClientRect();
             return {

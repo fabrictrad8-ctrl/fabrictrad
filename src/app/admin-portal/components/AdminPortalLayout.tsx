@@ -29,6 +29,7 @@ import AdminAnalyticsCharts from '@/app/admin-portal/components/AdminAnalyticsCh
 import AdminDisputes from '@/app/admin-portal/components/AdminDisputes';
 import AiAssistantWidget from '@/components/AiAssistantWidget';
 import '@/styles/admin-workspace-console.css';
+import ViewportFixedLayer from '@/components/ViewportFixedLayer';
 
 type AdminTab =
   | 'dashboard'
@@ -277,20 +278,26 @@ export default function AdminPortalLayout() {
         </div>
       </div>
 
-      <nav className="ft-workspace-tabbar fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 p-1.5 md:hidden">
-        {[
-          { key: 'dashboard' as AdminTab, label: 'Home', icon: 'HomeIcon' },
-          { key: 'orders' as AdminTab, label: 'Orders', icon: 'ShoppingBagIcon' },
-          { key: 'bespoke' as AdminTab, label: 'Custom', icon: 'ScissorsIcon' },
-          { key: 'listings' as AdminTab, label: 'Products', icon: 'TagIcon' },
-          { key: 'customers' as AdminTab, label: 'Customers', icon: 'UsersIcon' },
-        ].map((item) => (
-          <button key={item.key} type="button" onClick={() => navigateTo(item.key)} className={`ft-workspace-tab flex flex-col items-center gap-1 rounded-lg py-2 text-[10px] font-800 ${activeTab === item.key ? 'is-active' : ''}`}>
-            <Icon name={item.icon as 'HomeIcon'} size={18} />
-            {item.label}
-          </button>
-        ))}
-      </nav>
+      {/* Portalled to <body>: this bar is position:fixed inside the routed
+          page, so the route-enter transform made it anchor to the page scroll
+          height instead of the screen -- the mobile audit measured it at
+          top 3280px on a 780px viewport. */}
+      <ViewportFixedLayer>
+        <nav className="ft-workspace-tabbar fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 p-1.5 md:hidden">
+          {[
+            { key: 'dashboard' as AdminTab, label: 'Home', icon: 'HomeIcon' },
+            { key: 'orders' as AdminTab, label: 'Orders', icon: 'ShoppingBagIcon' },
+            { key: 'bespoke' as AdminTab, label: 'Custom', icon: 'ScissorsIcon' },
+            { key: 'listings' as AdminTab, label: 'Products', icon: 'TagIcon' },
+            { key: 'customers' as AdminTab, label: 'Customers', icon: 'UsersIcon' },
+          ].map((item) => (
+            <button key={item.key} type="button" onClick={() => navigateTo(item.key)} className={`ft-workspace-tab flex flex-col items-center gap-1 rounded-lg py-2 text-[10px] font-800 ${activeTab === item.key ? 'is-active' : ''}`}>
+              <Icon name={item.icon as 'HomeIcon'} size={18} />
+              {item.label}
+            </button>
+          ))}
+        </nav>
+      </ViewportFixedLayer>
 
       <span className="sr-only">Signed in as {adminName}</span>
 
