@@ -14,7 +14,7 @@ returns boolean
 language plpgsql
 security definer
 set search_path to ''
-as \$
+as $function$
 declare
   v_user_id uuid := auth.uid();
   v_limit integer := greatest(1, least(coalesce(p_daily_limit, 100), 500));
@@ -57,4 +57,4 @@ begin
 
   return v_count is not null and v_count <= v_limit;
 end;
-\$;
+$function$;
