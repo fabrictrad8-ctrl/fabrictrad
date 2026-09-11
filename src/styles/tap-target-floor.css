@@ -1,0 +1,39 @@
+/* Minimum tap target for inline text links.
+   ------------------------------------------------------------------
+   WCAG 2.2 AA (2.5.8) asks for 24x24 CSS px. Buttons across the app
+   already clear it -- the 40px action buttons pass comfortably, and the
+   announcement ticker earns it with a pseudo-element hit area rather
+   than by growing its bar.
+
+   What does not clear it is plain text links: an inline <a> is only as
+   tall as its text, so at 12-13px type these measure 14-21px. Measured
+   on a 390px viewport, the offenders were the auth shell's alternatives
+   ("Create account", "Administrator sign in", "Back to FabricTrad"), the
+   landing footer's links, and "Sign in and continue seller setup" at
+   183x14 -- the smallest control on the site, on the screen where a
+   seller who already has an account is trying to get back in.
+
+   Padding rather than min-height, with a matching negative margin.
+   Vertical padding on an inline element enlarges the box a finger has to
+   land on without changing the line box, so the hit area grows and the
+   text stays exactly where it was. Using min-height would require
+   inline-flex, which breaks wrapping inside a sentence.
+   ------------------------------------------------------------------ */
+
+:where(.ft-auth-footer, .ft-future-footer, .ft-commerce-footer) a,
+:where(.ft-auth-card, .ft-auth-glass) p > a,
+.ft-root p.text-xs > a,
+.ft-root p.text-\[11px\] > a {
+  padding-block: 7px;
+  margin-block: -7px;
+  /* Keeps the enlarged box from being clipped by a tight parent. */
+  position: relative;
+}
+
+/* Footer link columns stack closely; without a little breathing room the
+   enlarged boxes of adjacent rows would overlap and the wrong link would
+   take the tap. */
+:where(.ft-future-footer, .ft-commerce-footer) li + li,
+.ft-auth-footer > * + * {
+  margin-top: 4px;
+}

@@ -70,7 +70,11 @@ export default function HelpPage() {
             </div>
             <div className="ft-search mx-auto mt-7 max-w-2xl text-left">
               <Icon name="MagnifyingGlassIcon" size={19} className="ml-4 text-muted-foreground" />
-              <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search help topics and questions" className="min-w-0 flex-1 bg-transparent px-3 text-sm outline-none" />
+              {/* aria-label, not placeholder alone: a placeholder disappears the
+                  moment someone starts typing, so the field loses its name exactly
+                  when they glance up to check what they were filling in, and a
+                  screen reader would otherwise announce only "search". */}
+              <input type="search" aria-label="Search help topics and questions" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search help topics and questions" className="min-w-0 flex-1 bg-transparent px-3 text-sm outline-none" />
               {query && <button type="button" onClick={() => setQuery('')} className="mr-2 rounded-lg p-2 text-muted-foreground hover:bg-muted" aria-label="Clear help search"><Icon name="XMarkIcon" size={16} /></button>}
             </div>
           </div>

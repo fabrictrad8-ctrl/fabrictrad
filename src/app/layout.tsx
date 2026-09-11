@@ -37,6 +37,7 @@ import '../styles/premium-accents.css';
 import '../styles/ai-assistant-widget.css';
 import '../styles/logo-shine.css';
 import '../styles/marketplace-amazon.css';
+import '../styles/tap-target-floor.css';
 // Last, so the guided-navigation highlight is never buried by a later rule.
 import '../styles/focus-target.css';
 import { AuthProvider } from '@/contexts/AuthContext';
