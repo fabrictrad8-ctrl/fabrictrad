@@ -25,11 +25,48 @@ export async function razorpayRequest<T>(path: string, method = 'GET', body?: un
     throw new RouteSetupError('Razorpay did not confirm the request. Refresh the payout status before trying again.', 503, 'RAZORPAY_RESULT_UNCERTAIN');
   }
   const result = await response.json().catch(() => null);
-  // Provider errors can echo bank/PAN values. Never log or return the raw response.
   if (!response.ok || !result) {
     const rejected = response.status >= 400 && response.status < 500;
+
+    // Razorpay says which field it objected to and why. The old code discarded
+    // the whole body -- reasonably worried that a provider error can echo a bank
+    // number or PAN back -- and replaced it with "check the legal name, PAN,
+    // business address and bank details". Four candidates, no way to tell which,
+    // and nothing logged, so neither the seller nor anyone helping them could
+    // make progress except by guessing.
+    //
+    // The fix is to redact rather than discard. error.field and error.code are
+    // metadata and never contain a value; the description is passed through a
+    // scrub that removes anything shaped like a PAN, a long digit run (account
+    // numbers, phone numbers) or an IFSC before it is shown or logged.
+    const scrub = (text: string) =>
+      text
+        .replace(/\b[A-Z]{5}[0-9]{4}[A-Z]\b/gi, '[PAN]')
+        .replace(/\b[A-Z]{4}0[A-Z0-9]{6}\b/gi, '[IFSC]')
+        .replace(/\b\d{8,}\b/g, '[number]');
+
+    const error = (result as { error?: { code?: unknown; description?: unknown; field?: unknown; reason?: unknown } } | null)?.error;
+    const field = typeof error?.field === 'string' ? error.field : '';
+    const description = typeof error?.description === 'string' ? scrub(error.description).slice(0, 220) : '';
+    const code = typeof error?.code === 'string' ? error.code : '';
+
+    // Safe to log: field and code are names, the description has been scrubbed.
+    console.error('Razorpay Route request rejected', {
+      path, method, status: response.status, field, code, description,
+    });
+
+    const detail = description
+      ? `Razorpay says: ${description}${field ? ` (field: ${field})` : ''}`
+      : field
+        ? `Razorpay rejected the value for "${field}".`
+        : 'Razorpay rejected these details. Check the legal name, PAN, business address and bank details.';
+
     throw new RouteSetupError(
-      response.status === 401 || response.status === 403 ? 'Razorpay Route access needs attention from FabricTrad.' : rejected ? 'Razorpay rejected these details. Check the legal name, PAN, business address and bank details.' : 'Razorpay could not confirm this request. Refresh the payout status.',
+      response.status === 401 || response.status === 403
+        ? 'Razorpay Route access needs attention from FabricTrad.'
+        : rejected
+          ? detail
+          : 'Razorpay could not confirm this request. Refresh the payout status.',
       rejected ? 422 : 503, rejected ? 'RAZORPAY_DETAILS_REJECTED' : 'RAZORPAY_RESULT_UNCERTAIN'
     );
   }
