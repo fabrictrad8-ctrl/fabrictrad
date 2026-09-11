@@ -31,7 +31,27 @@ const routes = [
   '/seller-agreement',
   '/profile',
   '/admin-login',
+  // Every tab, not just the default: the admin portal is the densest layout in
+  // the app (wide tables, evidence panels, export menus) and is exactly where
+  // narrow viewports break. Desktop visual QA covers 13 of these; bespoke,
+  // customers, disputes and sponsored were covered by nothing at all.
   '/admin-portal',
+  '/admin-portal?tab=activity',
+  '/admin-portal?tab=orders',
+  '/admin-portal?tab=bespoke',
+  '/admin-portal?tab=listings',
+  '/admin-portal?tab=customers',
+  '/admin-portal?tab=sellers',
+  '/admin-portal?tab=payments',
+  '/admin-portal?tab=disputes',
+  '/admin-portal?tab=reconciliation',
+  '/admin-portal?tab=fulfillment',
+  '/admin-portal?tab=seller-metrics',
+  '/admin-portal?tab=top-sellers',
+  '/admin-portal?tab=discounts',
+  '/admin-portal?tab=sponsored',
+  '/admin-portal?tab=errors',
+  '/admin-portal?tab=settings',
   '/help',
   '/how-to-use',
   '/how-to-use/start',
@@ -86,6 +106,25 @@ try {
     let page = await context.newPage();
 
     for (const route of routes) {
+      // /admin-portal redirects straight to /admin-login unless the audit-admin
+      // cookie is present, so every past run measured the login screen while the
+      // pass list said "/admin-portal" -- the portal itself, the densest layout in
+      // the app, had never been checked at phone width by anything. The cookie is
+      // only honoured when FABRICTRAD_ENABLE_AUDIT_ADMIN is set, which is true in
+      // CI and absent from production.
+      //
+      // It cannot be set for the whole context: middleware bounces
+      // /seller-dashboard and /buyer-dashboard to /admin-portal while it is
+      // present, which would silently replace those routes with a third copy of
+      // the admin page. Scope it to the admin route and clear it afterwards.
+      const needsAuditAdmin = route.startsWith('/admin-portal');
+      await context.clearCookies();
+      if (needsAuditAdmin) {
+        await context.addCookies([
+          { name: 'fabrictrad_demo_role', value: 'admin', url: baseURL, httpOnly: false, sameSite: 'Lax' },
+        ]);
+      }
+
       const url = new URL(route, baseURL).toString();
       let response = null;
       let navigationError = null;
@@ -108,6 +147,19 @@ try {
       }
       if (!response || response.status() >= 500) {
         failures.push(`${device.name} ${route}: HTTP ${response?.status() ?? 'no response'}`);
+        continue;
+      }
+
+      // Fail loudly rather than measuring the wrong page. Without the audit-admin
+      // flag every /admin-portal request lands on /admin-login, and the run still
+      // reports a tick beside "/admin-portal" -- which is how the portal went
+      // unchecked at phone width while appearing in the pass list. If the redirect
+      // ever comes back, this says so instead of going quiet.
+      if (needsAuditAdmin && /\/admin-login/.test(page.url())) {
+        failures.push(
+          `${device.name} ${route}: expected the admin portal but was redirected to ${page.url()}; ` +
+          `FABRICTRAD_ENABLE_AUDIT_ADMIN must be 'true' for this audit to measure admin at all`
+        );
         continue;
       }
 

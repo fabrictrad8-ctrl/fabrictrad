@@ -27,6 +27,11 @@ jobs:
       NEXT_PUBLIC_SITE_URL: http://localhost:3000
       NEXT_PUBLIC_ENABLE_GOOGLE_AUTH: 'false'
       ADMIN_EMAIL: fabrictrad8@gmail.com
+      # Lets the audit reach /admin-portal instead of being redirected to the
+      # login screen. CI-only, exactly as in nightly-system-audit and
+      # visual-role-qa; it is absent from the production Worker's vars and
+      # secrets, so the cookie bypass cannot be used against fabrictrad.com.
+      FABRICTRAD_ENABLE_AUDIT_ADMIN: 'true'
       OPENAI_DRAPE_IMAGE_MODEL: gpt-image-2
       OPENAI_DRAPE_IMAGE_SIZE: 1024x1536
       OPENAI_DRAPE_IMAGE_QUALITY: medium
