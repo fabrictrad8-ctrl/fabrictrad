@@ -17,6 +17,7 @@ import NotificationPreferences from '@/app/components/NotificationPreferences';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCart } from '@/lib/hooks/useCart';
 import AiAssistantWidget from '@/components/AiAssistantWidget';
+import { focusTarget, withFocus } from '@/lib/focusTarget';
 
 type DashboardTab = 'overview' | 'orders' | 'tracking' | 'cart' | 'wishlist' | 'requirements' | 'inbox' | 'disputes' | 'notifications' | 'account';
 type NavItem = { key: DashboardTab; label: string; icon: string; description: string };
@@ -66,15 +67,29 @@ export default function ModernBuyerDashboardLayout() {
 
   useEffect(() => setActiveTab(normaliseTab(searchParams.get('tab'))), [searchParams]);
 
+  // A pasted or bookmarked ?focus= link behaves like pressing the in-app
+  // button that produced it.
+  useEffect(() => {
+    const focus = searchParams.get('focus');
+    if (focus) void focusTarget(focus);
+  }, [searchParams]);
+
   const activeItem = useMemo(() => allItems.find((item) => item.key === activeTab) || allItems[0], [activeTab]);
   const buyerName = profile?.full_name || user?.email?.split('@')[0] || 'Buyer';
 
   const canvasRef = useRef<HTMLElement>(null);
 
-  const navigateTo = (tab: DashboardTab) => {
+  const navigateTo = (tab: DashboardTab, focus?: string) => {
     setActiveTab(tab);
     setMobileOpen(false);
-    router.replace(tab === 'overview' ? '/buyer-dashboard' : `/buyer-dashboard?tab=${tab}`, { scroll: false });
+    const base = tab === 'overview' ? '/buyer-dashboard' : `/buyer-dashboard?tab=${tab}`;
+    router.replace(withFocus(base, focus), { scroll: false });
+    // With a focus target the destination control does the scrolling; jumping
+    // to the top first would drag the reader away from what they asked for.
+    if (focus) {
+      void focusTarget(focus);
+      return;
+    }
     // The workspace main element is its own scroll container, so neither Next's
     // scroll restoration nor the window position moves it and switching tabs left
     // the reader where they were. On a phone that reads as a dead button: the

@@ -310,6 +310,7 @@ export function buildSellerAttentionItems(input: AttentionInput): AttentionItem[
           'A product without a 4, 6 or 8 digit HSN can never be published — HSN is what puts the right GST rate on the buyer invoice.',
         actionLabel: 'Add HSN codes',
         tab: 'inventory',
+        focus: 'inventory-hsn',
         icon: 'DocumentTextIcon',
       });
     }
@@ -381,6 +382,7 @@ export function buildSellerAttentionItems(input: AttentionInput): AttentionItem[
         'The estimated delivery date has passed and the shipment is still not marked delivered. Check the courier status before the buyer raises a dispute.',
       actionLabel: 'Open shipments',
       tab: 'fulfillment',
+      focus: 'active-shipments',
       icon: 'ClockIcon',
     });
   }

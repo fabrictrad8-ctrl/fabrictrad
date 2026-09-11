@@ -30,6 +30,7 @@ import AdminDisputes from '@/app/admin-portal/components/AdminDisputes';
 import AiAssistantWidget from '@/components/AiAssistantWidget';
 import '@/styles/admin-workspace-console.css';
 import ViewportFixedLayer from '@/components/ViewportFixedLayer';
+import { focusTarget, withFocus } from '@/lib/focusTarget';
 
 type AdminTab =
   | 'dashboard'
@@ -131,12 +132,17 @@ export default function AdminPortalLayout() {
 
   const canvasRef = useRef<HTMLElement>(null);
 
-  const navigateTo = (tab: AdminTab) => {
+  const navigateTo = (tab: AdminTab, focus?: string) => {
     setActiveTab(tab);
     setSidebarOpen(false);
-    router.replace(tab === 'dashboard' ? '/admin-portal' : `/admin-portal?tab=${tab}`, {
-      scroll: false,
-    });
+    const base = tab === 'dashboard' ? '/admin-portal' : `/admin-portal?tab=${tab}`;
+    router.replace(withFocus(base, focus), { scroll: false });
+    // With a focus target the destination control does the scrolling; jumping
+    // to the top first would drag the reader away from what they asked for.
+    if (focus) {
+      void focusTarget(focus);
+      return;
+    }
     // The workspace main element is its own scroll container, so neither Next's
     // scroll restoration nor the window position moves it and switching tabs left
     // the reader where they were. On a phone that reads as a dead button: the

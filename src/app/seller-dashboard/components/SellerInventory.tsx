@@ -960,7 +960,7 @@ export default function SellerInventory() {
                   <label className="text-sm font-700">Origin state<select value={form.originState} onChange={(event) => setForm({ ...form, originState: event.target.value })} className="input-base mt-1.5 w-full px-3 py-2.5"><option value="">Select state</option>{INDIAN_STATES_AND_UTS.map((item) => <option key={item}>{item}</option>)}</select></label>
                 </div>
                 <div className="mt-4 rounded-xl border border-border bg-muted/20 p-3.5">
-                  <label className="block text-sm font-700" htmlFor="inventory-hsn">
+                  <div data-focus-id="inventory-hsn"><label className="block text-sm font-700" htmlFor="inventory-hsn">
                     HSN code <span className="font-500 text-muted-foreground">(required only to publish live)</span>
                     <input
                       id="inventory-hsn"
@@ -971,7 +971,7 @@ export default function SellerInventory() {
                       className="input-base mt-1.5 w-full px-3 py-2.5 font-mono"
                       placeholder="e.g. 5208"
                     />
-                  </label>
+                  </label></div>
                   <p className="mt-2 text-[11px] leading-5 text-muted-foreground">
                     {validateHsn(form.hsnCode) ? (
                       <>
